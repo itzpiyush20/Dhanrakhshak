@@ -5,6 +5,7 @@ export {
   updateTransaction,
   deleteTransaction,
   getMonthlySummary,
+  getHistoricalAnalytics,
 } from './transactions'
 export {
   getBudgets,

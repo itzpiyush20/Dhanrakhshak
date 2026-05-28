@@ -148,3 +148,57 @@ export async function getMonthlySummary(month: string) {
     error: null,
   }
 }
+
+/** Get historical monthly comparison for the last N months */
+export async function getHistoricalAnalytics(monthsCount = 6) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { data: null, error: new Error('User not authenticated') }
+
+  // Generate target months list (e.g. ["2026-05", "2026-04", ...])
+  const months: string[] = []
+  const now = new Date()
+  for (let i = 0; i < monthsCount; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    months.unshift(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+
+  // Get start date of the oldest month
+  const startDate = `${months[0]}-01`
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('amount, type, date')
+    .eq('user_id', user.id)
+    .eq('approval_status', 'approved')
+    .gte('date', startDate)
+
+  if (error || !data) return { data: null, error }
+
+  // Aggregate stats per month
+  const monthlyData = months.map((m) => {
+    const [year, mon] = m.split('-').map(Number)
+    const monthLabel = new Date(year, mon - 1, 1).toLocaleDateString('en-IN', {
+      month: 'short',
+    })
+
+    const monthTxns = data.filter((t) => t.date.startsWith(m))
+    
+    const income = monthTxns
+      .filter((t) => t.type === 'credit')
+      .reduce((sum, t) => sum + Number(t.amount), 0)
+
+    const expenses = monthTxns
+      .filter((t) => t.type === 'debit')
+      .reduce((sum, t) => sum + Number(t.amount), 0)
+
+    return {
+      month: m,
+      label: `${monthLabel} ${String(year).substring(2)}`,
+      income,
+      expenses,
+      savings: income - expenses,
+    }
+  })
+
+  return { data: monthlyData, error: null }
+}
