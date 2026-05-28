@@ -16,3 +16,8 @@ export {
   getScanLogs,
   simulateInboxScan,
 } from './emailScanner'
+export {
+  getProfile,
+  updateProfile,
+  resetAccountData,
+} from './profiles'

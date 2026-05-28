@@ -8,6 +8,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { APP_CONFIG, ROUTES } from '@/constants'
 import { cn } from '@/utils'
 import { useState } from 'react'
+import { useAuth } from '@/context'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -22,6 +23,7 @@ const navItems = [
 ]
 
 export default function AppLayout({ children }: AppLayoutProps) {
+  const { user } = useAuth()
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -69,10 +71,22 @@ export default function AppLayout({ children }: AppLayoutProps) {
             {mobileMenuOpen ? '✕' : '☰'}
           </button>
 
-          {/* User avatar placeholder (desktop) */}
-          <div className="hidden md:flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-surface-2 ring-2 ring-border-default" />
-          </div>
+          {/* User avatar / profile button (desktop) */}
+          <Link
+            to="/settings"
+            className="hidden md:flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-border-subtle hover:bg-surface-2 transition-colors duration-200"
+          >
+            <div className="h-7 w-7 rounded-full bg-surface-3 ring-1 ring-border-default flex items-center justify-center text-xs font-bold text-zinc-300 overflow-hidden shadow-inner shrink-0">
+              {user?.user_metadata?.avatar_url ? (
+                <img src={user.user_metadata.avatar_url} alt="Avatar" className="h-full w-full object-cover" />
+              ) : (
+                user?.user_metadata?.full_name?.substring(0, 1).toUpperCase() || 'U'
+              )}
+            </div>
+            <span className="text-xs font-semibold text-zinc-300 max-w-[100px] truncate">
+              {user?.user_metadata?.full_name || 'Account'}
+            </span>
+          </Link>
         </div>
 
         {/* Mobile nav dropdown */}
@@ -96,6 +110,18 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 </Link>
               )
             })}
+            <Link
+              to="/settings"
+              onClick={() => setMobileMenuOpen(false)}
+              className={cn(
+                'block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors border-t border-border-subtle/30 mt-2 pt-3',
+                location.pathname === '/settings'
+                  ? 'text-white font-bold'
+                  : 'text-zinc-400 hover:text-white'
+              )}
+            >
+              ⚙️ Settings & Profile
+            </Link>
           </nav>
         )}
       </header>

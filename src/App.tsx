@@ -13,6 +13,7 @@ import ExpensesPage from '@/pages/ExpensesPage'
 import BudgetsPage from '@/pages/BudgetsPage'
 import PendingPage from '@/pages/PendingPage'
 import AnalyticsPage from '@/pages/AnalyticsPage'
+import SettingsPage from '@/pages/SettingsPage'
 
 function App() {
   return (
@@ -31,6 +32,7 @@ function App() {
             <Route path="/budgets" element={<BudgetsPage />} />
             <Route path="/pending" element={<PendingPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
 
           {/* Redirect root to dashboard (ProtectedRoute handles auth check) */}
