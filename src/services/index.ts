@@ -6,3 +6,8 @@ export {
   deleteTransaction,
   getMonthlySummary,
 } from './transactions'
+export {
+  getBudgets,
+  upsertBudget,
+  deleteBudget,
+} from './budgets'

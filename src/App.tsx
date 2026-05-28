@@ -10,6 +10,7 @@ import SignupPage from '@/pages/SignupPage'
 import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
 import DashboardPage from '@/pages/DashboardPage'
 import ExpensesPage from '@/pages/ExpensesPage'
+import BudgetsPage from '@/pages/BudgetsPage'
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/expenses" element={<ExpensesPage />} />
+            <Route path="/budgets" element={<BudgetsPage />} />
           </Route>
 
           {/* Redirect root to dashboard (ProtectedRoute handles auth check) */}
