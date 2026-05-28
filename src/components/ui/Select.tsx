@@ -8,17 +8,19 @@ import type { SelectHTMLAttributes } from 'react'
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string
   error?: string
-  options: { value: string; label: string }[]
+  options?: { value: string; label: string }[]
   placeholder?: string
+  children?: React.ReactNode
 }
 
 export default function Select({
   label,
   error,
-  options,
+  options = [],
   placeholder,
   className,
   id,
+  children,
   ...props
 }: SelectProps) {
   const selectId = id || label?.toLowerCase().replace(/\s+/g, '-')
@@ -52,11 +54,12 @@ export default function Select({
             {placeholder}
           </option>
         )}
-        {options.map((opt) => (
+        {options && options.map((opt) => (
           <option key={opt.value} value={opt.value} className="bg-surface-2">
             {opt.label}
           </option>
         ))}
+        {children}
       </select>
       {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
