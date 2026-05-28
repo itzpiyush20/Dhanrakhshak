@@ -1,0 +1,147 @@
+// ============================================
+// Transaction Service — CRUD operations
+// All Supabase calls for transactions
+// ============================================
+
+import { supabase } from './supabase'
+import type { Database } from '@/types/database'
+
+type TransactionRow = Database['public']['Tables']['transactions']['Row']
+type TransactionInsert = Database['public']['Tables']['transactions']['Insert']
+type TransactionUpdate = Database['public']['Tables']['transactions']['Update']
+
+/** Fetch transactions for current user with filters */
+export async function getTransactions(options?: {
+  month?: string        // YYYY-MM
+  type?: 'debit' | 'credit'
+  category?: string
+  status?: string
+  limit?: number
+  offset?: number
+}) {
+  let query = supabase
+    .from('transactions')
+    .select('*', { count: 'exact' })
+    .eq('approval_status', 'approved')
+    .order('date', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  if (options?.month) {
+    const startDate = `${options.month}-01`
+    const [year, mon] = options.month.split('-').map(Number)
+    const endDate = new Date(year, mon, 0).toISOString().split('T')[0]
+    query = query.gte('date', startDate).lte('date', endDate)
+  }
+
+  if (options?.type) {
+    query = query.eq('type', options.type)
+  }
+
+  if (options?.category) {
+    query = query.eq('category', options.category)
+  }
+
+  if (options?.status) {
+    query = query.eq('approval_status', options.status)
+  }
+
+  if (options?.limit) {
+    query = query.limit(options.limit)
+  }
+
+  if (options?.offset) {
+    query = query.range(options.offset, options.offset + (options.limit || 20) - 1)
+  }
+
+  const { data, error, count } = await query
+
+  return { data: data as TransactionRow[] | null, error, count }
+}
+
+/** Create a new transaction */
+export async function createTransaction(transaction: TransactionInsert) {
+  const { data, error } = await supabase
+    .from('transactions')
+    .insert(transaction)
+    .select()
+    .single()
+
+  return { data: data as TransactionRow | null, error }
+}
+
+/** Update an existing transaction */
+export async function updateTransaction(id: string, updates: TransactionUpdate) {
+  const { data, error } = await supabase
+    .from('transactions')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+
+  return { data: data as TransactionRow | null, error }
+}
+
+/** Delete a transaction */
+export async function deleteTransaction(id: string) {
+  const { error } = await supabase
+    .from('transactions')
+    .delete()
+    .eq('id', id)
+
+  return { error }
+}
+
+/** Get monthly summary (income, expenses, savings) */
+export async function getMonthlySummary(month: string) {
+  const startDate = `${month}-01`
+  const [year, mon] = month.split('-').map(Number)
+  const endDate = new Date(year, mon, 0).toISOString().split('T')[0]
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('amount, type, category')
+    .eq('approval_status', 'approved')
+    .gte('date', startDate)
+    .lte('date', endDate)
+
+  if (error || !data) return { data: null, error }
+
+  const total_income = data
+    .filter((t) => t.type === 'credit')
+    .reduce((sum, t) => sum + Number(t.amount), 0)
+
+  const total_expenses = data
+    .filter((t) => t.type === 'debit')
+    .reduce((sum, t) => sum + Number(t.amount), 0)
+
+  // Category breakdown for debits
+  const categoryMap = new Map<string, { amount: number; count: number }>()
+  data
+    .filter((t) => t.type === 'debit')
+    .forEach((t) => {
+      const existing = categoryMap.get(t.category) || { amount: 0, count: 0 }
+      categoryMap.set(t.category, {
+        amount: existing.amount + Number(t.amount),
+        count: existing.count + 1,
+      })
+    })
+
+  const category_breakdown = Array.from(categoryMap.entries())
+    .map(([category, { amount, count }]) => ({
+      category,
+      amount,
+      count,
+      percentage: total_expenses > 0 ? (amount / total_expenses) * 100 : 0,
+    }))
+    .sort((a, b) => b.amount - a.amount)
+
+  return {
+    data: {
+      total_income,
+      total_expenses,
+      savings: total_income - total_expenses,
+      category_breakdown,
+    },
+    error: null,
+  }
+}
