@@ -1,1 +1,1 @@
-// React Context providers (AuthContext, ThemeContext, etc.)
+export { AuthProvider, useAuth } from './AuthContext'

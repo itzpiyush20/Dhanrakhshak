@@ -1,1 +1,1 @@
-// Authentication components (LoginForm, SignupForm, etc.)
+export { default as ProtectedRoute } from './ProtectedRoute'
