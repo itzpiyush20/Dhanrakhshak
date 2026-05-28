@@ -11,3 +11,7 @@ export {
   upsertBudget,
   deleteBudget,
 } from './budgets'
+export {
+  getScanLogs,
+  simulateInboxScan,
+} from './emailScanner'

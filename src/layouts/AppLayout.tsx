@@ -16,8 +16,9 @@ interface AppLayoutProps {
 const navItems = [
   { label: 'Dashboard', path: ROUTES.DASHBOARD },
   { label: 'Expenses', path: ROUTES.EXPENSES },
-  { label: 'Analytics', path: ROUTES.ANALYTICS },
   { label: 'Budgets', path: ROUTES.BUDGETS },
+  { label: 'Pending Alerts', path: ROUTES.PENDING },
+  { label: 'Analytics', path: ROUTES.ANALYTICS },
 ]
 
 export default function AppLayout({ children }: AppLayoutProps) {

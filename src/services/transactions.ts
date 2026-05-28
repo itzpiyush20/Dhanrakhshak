@@ -22,7 +22,14 @@ export async function getTransactions(options?: {
   let query = supabase
     .from('transactions')
     .select('*', { count: 'exact' })
-    .eq('approval_status', 'approved')
+
+  if (options?.status) {
+    query = query.eq('approval_status', options.status)
+  } else {
+    query = query.eq('approval_status', 'approved')
+  }
+
+  query = query
     .order('date', { ascending: false })
     .order('created_at', { ascending: false })
 
@@ -39,10 +46,6 @@ export async function getTransactions(options?: {
 
   if (options?.category) {
     query = query.eq('category', options.category)
-  }
-
-  if (options?.status) {
-    query = query.eq('approval_status', options.status)
   }
 
   if (options?.limit) {
