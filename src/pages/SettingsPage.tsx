@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react'
 import { AppLayout } from '@/layouts'
 import { Card, Button, Input, Badge } from '@/components/ui'
 import { useAuth } from '@/context/AuthContext'
-import { getProfile, updateProfile, resetAccountData } from '@/services/profiles'
+import { getProfile, updateProfile, resetAccountData, seedSandboxData } from '@/services'
 import { APP_CONFIG } from '@/constants'
 
 export default function SettingsPage() {
@@ -22,6 +22,10 @@ export default function SettingsPage() {
   // Password reset States
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [passwordSuccess, setPasswordSuccess] = useState(false)
+
+  // Sandbox Seeding States
+  const [seedLoading, setSeedLoading] = useState(false)
+  const [seedSuccess, setSeedSuccess] = useState(false)
 
   // Reset Account Data States
   const [resetLoading, setResetLoading] = useState(false)
@@ -79,6 +83,23 @@ export default function SettingsPage() {
       setError(err.message || 'Failed to trigger password reset.')
     } finally {
       setPasswordLoading(false)
+    }
+  }
+
+  const handleSeedData = async () => {
+    setSeedLoading(true)
+    setSeedSuccess(false)
+    setError(null)
+    try {
+      const { error } = await seedSandboxData()
+      if (error) throw error
+      setSeedSuccess(true)
+      setTimeout(() => setSeedSuccess(false), 4000)
+    } catch (err: any) {
+      console.error('Error seeding sandbox data:', err)
+      setError(err.message || 'Failed to seed sandbox demo data.')
+    } finally {
+      setSeedLoading(false)
     }
   }
 
@@ -235,6 +256,31 @@ export default function SettingsPage() {
                   🔑 Reset My Password
                 </Button>
               </form>
+            </Card>
+
+            {/* Sandbox Playground Seed Card */}
+            <Card className="border-brand-500/20 bg-brand-500/[0.01]">
+              <h2 className="text-base font-bold text-zinc-200 mb-2">Sandbox Playground</h2>
+              <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
+                Automatically seed your account with realistic financial entries spread across multiple months. Instantly populates stats, MoM trends, category budgets, pending alerts, and scan logs.
+              </p>
+
+              <div className="space-y-4">
+                {seedSuccess && (
+                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-xs text-emerald-400 leading-relaxed animate-fade-in">
+                    🌱 Seed completed! 16 Transactions, 3 Budgets, 2 UPI Alerts, and 1 Scan Log generated.
+                  </div>
+                )}
+                <Button
+                  variant="primary"
+                  block
+                  onClick={handleSeedData}
+                  loading={seedLoading}
+                  disabled={seedLoading}
+                >
+                  🌱 Seed Sandbox Demo Data
+                </Button>
+              </div>
             </Card>
 
             {/* Danger sandbox wipe zone */}

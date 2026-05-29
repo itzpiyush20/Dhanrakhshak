@@ -21,3 +21,6 @@ export {
   updateProfile,
   resetAccountData,
 } from './profiles'
+export {
+  seedSandboxData,
+} from './seeder'
