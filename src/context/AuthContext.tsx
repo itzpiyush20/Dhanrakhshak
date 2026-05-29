@@ -81,7 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
+        scopes: 'https://www.googleapis.com/auth/gmail.readonly',
         redirectTo: `${window.location.origin}/dashboard`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
       },
     })
     return { error: error?.message ?? null }

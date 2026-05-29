@@ -6,8 +6,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import { AppLayout } from '@/layouts'
 import { Card, Button, Input, Select, Badge, EmptyState } from '@/components/ui'
-import { getTransactions, updateTransaction, deleteTransaction } from '@/services/transactions'
-import { getScanLogs, simulateInboxScan } from '@/services/emailScanner'
+import {
+  getTransactions,
+  updateTransaction,
+  deleteTransaction,
+  getScanLogs,
+  simulateInboxScan,
+  scanRealGmailInbox,
+  supabase,
+} from '@/services'
 import { formatCurrency, formatDate } from '@/utils'
 import { CATEGORIES } from '@/constants'
 import type { Database } from '@/types/database'
@@ -23,6 +30,7 @@ export default function PendingPage() {
   const [scanLogsText, setScanLogsText] = useState<string[]>([])
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false)
 
   // Local state for inline edits
   const [editingFields, setEditingFields] = useState<
@@ -33,13 +41,16 @@ export default function PendingPage() {
     setLoading(true)
     setError(null)
     try {
-      const [txnsRes, logsRes] = await Promise.all([
+      const [txnsRes, logsRes, { data: authData }] = await Promise.all([
         getTransactions({ status: 'pending' }),
         getScanLogs(),
+        supabase.auth.getSession(),
       ])
 
       if (txnsRes.error) throw txnsRes.error
       if (logsRes.error) throw logsRes.error
+
+      setIsGoogleConnected(!!authData.session?.provider_token)
 
       const txns = txnsRes.data || []
       setPendingTxns(txns)
@@ -121,14 +132,24 @@ export default function PendingPage() {
     setScanLogsText([])
     setError(null)
 
-    // Visual log parsing simulation
-    const logs = [
-      '🔍 Authenticating securely with bank alert servers...',
-      '📥 Checking for unread transactional SMS and emails...',
-      '⚡ Found 14 notification payloads.',
-      '⚙️ Running UPI regex parser & Merchant identifier...',
-      '✅ Extraction completed successfully!'
-    ]
+    let logs = []
+    if (isGoogleConnected) {
+      logs = [
+        '🔐 Authenticating securely with live Google OAuth pipeline...',
+        '📧 Fetching unread bank notifications from your Gmail inbox...',
+        '⚙️ Parsing raw UPI notification snippets using Regex engine...',
+        '🔄 Checking for duplicate entries in transactions history...',
+        '✅ Live synchronization completed successfully!'
+      ]
+    } else {
+      logs = [
+        '⚠️ No active Google OAuth session. Defaulting to sandbox simulator...',
+        '🔍 Simulating connection with mock bank alert server...',
+        '⚡ Found unread notification packages.',
+        '⚙️ Running UPI regex parser & Merchant identifier...',
+        '✅ Sandbox extraction completed successfully!'
+      ]
+    }
 
     for (let i = 0; i < logs.length; i++) {
       await new Promise((r) => setTimeout(r, 600))
@@ -136,13 +157,32 @@ export default function PendingPage() {
     }
 
     try {
-      const { data, error } = await simulateInboxScan()
-      if (error) throw error
+      let res
+      if (isGoogleConnected) {
+        res = await scanRealGmailInbox()
+      } else {
+        res = await simulateInboxScan()
+      }
+
+      if (res.error) throw res.error
+
+      const count = res.data?.transactions?.length || 0
+      if (isGoogleConnected) {
+        setScanLogsText((prev) => [
+          ...prev,
+          `✨ Live Sync complete! Imported ${count} new pending UPI alert transactions.`
+        ])
+      } else {
+        setScanLogsText((prev) => [
+          ...prev,
+          `🌱 Sandbox Scan complete! Imported ${count} simulated transactions.`
+        ])
+      }
 
       await fetchPendingData()
     } catch (err: any) {
-      console.error('Error simulating scan:', err)
-      setError(err.message || 'Scan simulation failed.')
+      console.error('Error scanning alerts:', err)
+      setError(err.message || 'Alerts parsing scan failed.')
     } finally {
       setScanning(false)
     }
@@ -218,9 +258,11 @@ export default function PendingPage() {
               Extraction Source
             </p>
             <p className="mt-1.5 text-lg font-bold text-white">
-              Gmail UPI Alerts (Simulated)
+              {isGoogleConnected ? 'Live Gmail API Sync' : 'Gmail UPI Alerts (Simulated)'}
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1.5">No login credentials required</p>
+            <p className="text-[10px] text-zinc-500 mt-1.5">
+              {isGoogleConnected ? 'Connected with read-only scopes' : 'No credentials connected (Sandbox)'}
+            </p>
           </Card>
         </div>
 

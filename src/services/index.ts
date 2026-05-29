@@ -15,6 +15,7 @@ export {
 export {
   getScanLogs,
   simulateInboxScan,
+  scanRealGmailInbox,
 } from './emailScanner'
 export {
   getProfile,
