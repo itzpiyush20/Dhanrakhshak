@@ -75,6 +75,7 @@ export default function LandingPage() {
             {[
               { label: 'Daily Life', href: '#daily-utility' },
               { label: 'Features', href: '#features' },
+              { label: 'Pricing', href: '/pricing', isLink: true },
               { label: 'Download', href: '#download' },
               { label: 'FAQ', href: '#faq' },
               { label: 'Support', href: '/support', isLink: true },
@@ -468,6 +469,7 @@ export default function LandingPage() {
           </div>
           <div className="flex flex-wrap justify-center gap-6">
             {[
+              { label: 'Pricing', to: '/pricing' },
               { label: 'Privacy Policy', to: ROUTES.PRIVACY },
               { label: 'Terms of Service', to: ROUTES.TERMS },
               { label: 'About', to: ROUTES.ABOUT },
