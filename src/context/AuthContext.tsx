@@ -9,10 +9,12 @@ import {
   useContext,
   useEffect,
   useState,
+  useCallback,
   type ReactNode,
 } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/services/supabase'
+import { saveGoogleToken, clearGoogleToken, isGoogleConnected, purgeOldTokenKey } from '@/services/googleAuth'
 import { Button } from '@/components/ui'
 import { identifyUser, resetAnalytics, track, EVENTS } from '@/services/analytics'
 
@@ -24,12 +26,17 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   profile: any
+  hasGoogleToken: boolean
   refreshProfile: () => Promise<void>
+  notifyGoogleTokenCleared: () => void
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signInWithGoogle: () => Promise<{ error: string | null }>
+  signInWithGoogle: (redirectPath?: string, forceConsent?: boolean) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<{ error: string | null }>
+  isSubscriptionActive: boolean
+  daysLeft: number
+  updateSubscriptionStatus: (status: 'active' | 'trial', planType?: 'monthly' | 'annual' | 'lifetime') => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -83,7 +90,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [deviceCheckRequired, setDeviceCheckRequired] = useState(false)
   const [activeSessions, setActiveSessions] = useState<DeviceSession[]>([])
   const [selectedDevices, setSelectedDevices] = useState<string[]>([])
+  const [sessionModalError, setSessionModalError] = useState<string | null>(null)
   const [profile, setProfile] = useState<any>(null)
+
+  // hasGoogleToken is a proper useState — not a computed value from localStorage.
+  // It is SET explicitly when a token arrives (onAuthStateChange) or is cleared
+  // (sign-out, expiry detection). This guarantees React re-renders whenever the
+  // connection status changes, including after the user clears an expired token.
+  const [hasGoogleToken, setHasGoogleToken] = useState<boolean>(() => isGoogleConnected())
+
+  // Call this from anywhere to reactively update the "disconnected" UI
+  // when a token is cleared due to expiry or error.
+  const notifyGoogleTokenCleared = useCallback(() => {
+    clearGoogleToken()
+    setHasGoogleToken(false)
+  }, [])
 
   const refreshProfile = async () => {
     if (!state.user) {
@@ -96,8 +117,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .select('*')
         .eq('id', state.user.id)
         .single()
+      
+      const localStatus = localStorage.getItem(`dhanrakshak_sub_status_${state.user.id}`)
+      const localExpires = localStorage.getItem(`dhanrakshak_sub_expires_${state.user.id}`)
+
       if (!error && data) {
-        setProfile(data)
+        setProfile({
+          ...data,
+          subscription_status: data.subscription_status || localStatus || 'trial',
+          subscription_expires_at: data.subscription_expires_at || localExpires || new Date(new Date(data.created_at).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
+        })
+      } else {
+        setProfile({
+          id: state.user.id,
+          email: state.user.email,
+          subscription_status: localStatus || 'trial',
+          subscription_expires_at: localExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+        })
       }
     } catch (e) {
       console.error('Error fetching profile in AuthContext:', e)
@@ -123,16 +159,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null }
   }
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (redirectPath = '/dashboard', forceConsent = false) => {
     track(EVENTS.GOOGLE_OAUTH_STARTED)
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         scopes: 'https://www.googleapis.com/auth/gmail.readonly',
-        redirectTo: `${window.location.origin}/dashboard`,
+        redirectTo: `${window.location.origin}${redirectPath}`,
         queryParams: {
           access_type: 'offline',
-          prompt: 'consent',
+          // Use 'consent' ONLY when explicitly reconnecting (token expired).
+          // For initial sign-in use 'select_account' so Google doesn't ask
+          // for permissions on every login after the first grant.
+          prompt: forceConsent ? 'consent' : 'select_account',
         },
       },
     })
@@ -146,11 +185,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('Error during supabase signOut:', err)
     } finally {
-      setState({
-        user: null,
-        session: null,
-        loading: false,
-      })
+      setState({ user: null, session: null, loading: false })
+      setHasGoogleToken(false)
+      clearGoogleToken()
+      // Clear all Supabase session keys from localStorage
       for (const key of Object.keys(localStorage)) {
         if (key.startsWith('sb-') || key.includes('supabase') || key.includes('oauth')) {
           localStorage.removeItem(key)
@@ -172,6 +210,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [state.user])
 
   useEffect(() => {
+    // Purge the old token key from previous app versions (no expiry tracking).
+    // This runs once on mount and is a no-op if the key doesn't exist.
+    purgeOldTokenKey()
+
     // Get initial session — with 10s timeout to prevent app hanging on stale auth
     const sessionPromise = supabase.auth.getSession()
     const timeoutPromise = new Promise<{ data: { session: null } }>((resolve) =>
@@ -179,19 +221,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
 
     Promise.race([sessionPromise, timeoutPromise]).then(({ data: { session } }) => {
+      if (session?.provider_token) {
+        saveGoogleToken(session.provider_token)
+        setHasGoogleToken(true)
+      } else if (isGoogleConnected()) {
+        // Persisted token from a previous session is still valid (within 55min)
+        setHasGoogleToken(true)
+      }
       setState({
         user: session?.user ?? null,
         session: session ?? null,
         loading: false,
       })
     }).catch(() => {
-      // Auth timed out or failed — allow the app to load
       setState({ user: null, session: null, loading: false })
     })
 
     // Listen for auth changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (session?.provider_token) {
+          // Fresh token from OAuth callback — save with expiry and mark as connected
+          saveGoogleToken(session.provider_token)
+          setHasGoogleToken(true)
+        } else if (event === 'SIGNED_OUT') {
+          // Sign-out event — clear everything
+          clearGoogleToken()
+          setHasGoogleToken(false)
+        }
+        // Note: TOKEN_REFRESHED event does NOT re-issue the Google provider_token
+        // so we don't clear hasGoogleToken on that event — the localStorage token
+        // (with our 55-min expiry) handles the lifecycle correctly.
+
         setState({
           user: session?.user ?? null,
           session,
@@ -278,8 +339,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const isCurrentDeviceLogged = rawSessions.some(s => s.id === deviceId)
 
           if (!isCurrentDeviceLogged) {
-            // Device session was revoked by another device! Sign out.
-            alert('Your session has been terminated because this account was logged in on a 3rd device.')
+            // Device session was revoked by another device — silently sign out
+            // (the redirect to /login is the user feedback)
             signOut()
           }
         }
@@ -295,10 +356,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const handleResolveSessions = async () => {
     if (selectedDevices.length === 0) {
-      alert('Please select at least one device to sign out.')
+      setSessionModalError('Please select at least one device to sign out.')
       return
     }
 
+    setSessionModalError(null)
     try {
       const deviceId = getOrCreateDeviceId()
       const now = Date.now()
@@ -318,7 +380,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: data.user
       }))
     } catch (e: any) {
-      alert('Failed to update sessions: ' + e.message)
+      setSessionModalError('Failed to update sessions: ' + e.message)
     }
   }
 
@@ -385,6 +447,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex flex-col gap-2">
+            {sessionModalError && (
+              <div className="rounded-xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] px-3 py-2 text-xs text-[var(--status-danger-text)] text-center">
+                ⚠️ {sessionModalError}
+              </div>
+            )}
             <Button
               onClick={handleResolveSessions}
               disabled={selectedDevices.length === 0}
@@ -405,9 +472,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  const isSubscriptionActive = (() => {
+    if (!profile) return false
+    if (profile.subscription_status === 'active') return true
+    if (profile.subscription_status === 'trial') {
+      const expiresAt = new Date(profile.subscription_expires_at).getTime()
+      return expiresAt > Date.now()
+    }
+    return false
+  })()
+
+  const daysLeft = (() => {
+    if (!profile || !profile.subscription_expires_at) return 0
+    const expiresAt = new Date(profile.subscription_expires_at).getTime()
+    const diff = expiresAt - Date.now()
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
+  })()
+
+  const updateSubscriptionStatus = async (status: 'active' | 'trial', planType?: 'monthly' | 'annual' | 'lifetime') => {
+    if (!state.user) return false
+    try {
+      const expiresAt = status === 'active'
+        ? new Date(Date.now() + (planType === 'lifetime' ? 36500 : (planType === 'annual' ? 365 : 30)) * 24 * 60 * 60 * 1000).toISOString()
+        : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+
+      // Attempt to save to Supabase profiles table
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          subscription_status: status,
+          subscription_expires_at: expiresAt
+        })
+        .eq('id', state.user.id)
+
+      if (error) {
+        console.warn('Supabase profile update failed (falling back to local storage):', error.message)
+      }
+
+      // Always update localStorage fallback
+      localStorage.setItem(`dhanrakshak_sub_status_${state.user.id}`, status)
+      localStorage.setItem(`dhanrakshak_sub_expires_${state.user.id}`, expiresAt)
+
+      await refreshProfile()
+      return true
+    } catch (e) {
+      console.error('Error updating subscription status:', e)
+      return false
+    }
+  }
+
+  const loading = state.loading || (state.user !== null && profile === null)
+
   return (
     <AuthContext.Provider
-      value={{ ...state, profile, refreshProfile, signUp, signIn, signInWithGoogle, signOut, resetPassword }}
+      value={{
+        ...state,
+        loading,
+        profile,
+        hasGoogleToken,
+        notifyGoogleTokenCleared,
+        refreshProfile,
+        signUp,
+        signIn,
+        signInWithGoogle,
+        signOut,
+        resetPassword,
+        isSubscriptionActive,
+        daysLeft,
+        updateSubscriptionStatus
+      }}
     >
       {children}
     </AuthContext.Provider>
