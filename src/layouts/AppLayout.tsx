@@ -588,10 +588,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </div>
             
             <div className="flex items-center gap-4 text-[12px] font-normal text-zinc-400">
-              <a href="#daily-utility" className="hover:text-white transition-colors">Daily Life</a>
-              <a href="#features" className="hover:text-white transition-colors">Features</a>
-              <a href="#download" className="hover:text-white transition-colors">Download App</a>
-              <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
+              <a href="/#daily-utility" className="hover:text-white transition-colors">Daily Life</a>
+              <a href="/#features" className="hover:text-white transition-colors">Features</a>
+              <a href="/#download" className="hover:text-white transition-colors">Download App</a>
+              <a href="/#faq" className="hover:text-white transition-colors">FAQ</a>
+              <Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link>
               <Link to="/support" className="hover:text-white transition-colors">Support</Link>
               {profile?.subscription_status === 'active' ? (
                 <span className="px-3 py-1 rounded-full text-[11px] font-semibold text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)]">
