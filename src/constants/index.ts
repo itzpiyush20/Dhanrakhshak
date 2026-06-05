@@ -34,16 +34,23 @@ export const ROUTES = {
   FORGOT_PASSWORD: '/forgot-password',
   DASHBOARD: '/dashboard',
   EXPENSES: '/expenses',
-  ANALYTICS: '/analytics',
   BUDGETS: '/budgets',
   PENDING: '/pending',
   SETTINGS: '/settings',
+  PROFILE: '/profile',
+  INSIGHTS: '/insights',
+  SUBSCRIPTIONS: '/subscriptions',
+  CARDS: '/cards',
+  PRICING: '/pricing',
+  PRIVACY: '/privacy',
+  ABOUT: '/about',
+  TERMS: '/terms',
 } as const
 
 /** App-level config */
 export const APP_CONFIG = {
   APP_NAME: 'Dhanrakshak',
-  APP_TAGLINE: 'Your personal wealth guardian',
+  APP_TAGLINE: 'Effortless Tracking. Smart Saving.',
   CURRENCY: 'INR',
   LOCALE: 'en-IN',
   DEFAULT_PAGE_SIZE: 20,

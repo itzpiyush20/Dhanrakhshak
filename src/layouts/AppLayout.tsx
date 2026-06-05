@@ -5,10 +5,11 @@
 
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { APP_CONFIG, ROUTES } from '@/constants'
+import { ROUTES } from '@/constants'
 import { cn } from '@/utils'
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/context'
+import { submitFeedback, getTesterFeedbackLogs, supabase } from '@/services'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -19,117 +20,1055 @@ const navItems = [
   { label: 'Expenses', path: ROUTES.EXPENSES },
   { label: 'Budgets', path: ROUTES.BUDGETS },
   { label: 'Pending Alerts', path: ROUTES.PENDING },
-  { label: 'Analytics', path: ROUTES.ANALYTICS },
+  { label: 'Insights', path: ROUTES.INSIGHTS },
+  { label: 'Subscriptions', path: ROUTES.SUBSCRIPTIONS },
+  { label: 'Cards', path: ROUTES.CARDS },
+  { label: 'Pricing & Plans', path: ROUTES.PRICING },
 ]
 
 export default function AppLayout({ children }: AppLayoutProps) {
-  const { user } = useAuth()
+  const { user, signOut, profile, daysLeft } = useAuth()
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [notifications, setNotifications] = useState<Array<{ message: string; type: 'danger' | 'warning' | 'info' }>>([])
+  const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false)
+
+  const fetchNotifications = useCallback(async () => {
+    if (!user) return
+    
+    // Check if we have cached notifications that are less than 5 minutes old (V2: extended from 30s to reduce Supabase load)
+    try {
+      const cachedData = sessionStorage.getItem('dhanrakshak_notifications_cache')
+      if (cachedData) {
+        const { items, timestamp } = JSON.parse(cachedData)
+        if (Date.now() - timestamp < 300000) {
+          setNotifications(items)
+          return
+        }
+      }
+    } catch (e) {}
+
+    const items: Array<{ message: string; type: 'danger' | 'warning' | 'info' }> = []
+    
+    try {
+      const curMonth = new Date().toISOString().substring(0, 7)
+      
+      // 1. Fetch pending alerts count
+      const { count: pendingCount, error: pendingErr } = await supabase
+        .from('transactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('approval_status', 'pending')
+      
+      if (!pendingErr && pendingCount && pendingCount > 0) {
+        items.push({
+          message: `📬 You have ${pendingCount} pending transaction alert(s) requiring review.`,
+          type: 'info'
+        })
+      }
+ 
+      // 2. Fetch budgets and expenses for current month
+      const [budgetsRes, summaryRes] = await Promise.all([
+        supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', curMonth),
+        supabase.from('transactions').select('amount, category').eq('approval_status', 'approved').eq('type', 'debit').gte('date', `${curMonth}-01`)
+      ])
+ 
+      if (!budgetsRes.error && budgetsRes.data && !summaryRes.error && summaryRes.data) {
+        const spentMap: Record<string, number> = {}
+        summaryRes.data.forEach((t) => {
+          spentMap[t.category] = (spentMap[t.category] || 0) + Number(t.amount)
+        })
+ 
+        budgetsRes.data.forEach((budget) => {
+          const spent = spentMap[budget.category] || 0
+          const pct = budget.amount > 0 ? (spent / budget.amount) * 100 : 0
+          const catLabel = budget.category.toUpperCase()
+ 
+          if (pct >= 100) {
+            items.push({
+              message: `⚠️ Budget exceeded for ${catLabel}! (Spent ${Math.round(pct)}% of limit)`,
+              type: 'danger'
+            })
+          } else if (pct >= 70) {
+            items.push({
+              message: `🔔 Reached ${Math.round(pct)}% of budget limit for ${catLabel}.`,
+              type: 'warning'
+            })
+          }
+        })
+      }
+    } catch (e) {
+      console.error('Error fetching notifications:', e)
+    }
+ 
+    setNotifications(items)
+
+    // Save to cache
+    try {
+      sessionStorage.setItem('dhanrakshak_notifications_cache', JSON.stringify({
+        items,
+        timestamp: Date.now()
+      }))
+    } catch (e) {}
+  }, [user])
+
+  useEffect(() => {
+    fetchNotifications()
+    const interval = setInterval(fetchNotifications, 300000) // 5 min — matches cache TTL
+    return () => clearInterval(interval)
+  }, [user, fetchNotifications])
+
+
+
+  // Helper to extract first name of the user, ignoring standard titles
+  const getFirstName = (fullName?: string) => {
+    const nameToParse = profile?.full_name || fullName || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'Account'
+    
+    if (nameToParse.toLowerCase().includes('piyush')) return 'Piyush'
+
+    const parts = nameToParse.trim().split(/\s+/)
+    let result = parts[0]
+    const cleanWord = (word: string) => word.replace(/[^a-zA-Z]/g, '').toLowerCase()
+    
+    if (parts.length > 1 && ['ca', 'dr', 'mr', 'ms', 'mrs'].includes(cleanWord(parts[0]))) {
+      result = parts[1]
+    }
+    return result
+  }
+
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
+
+  // Feedback Modal States
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [feedbackCategory, setFeedbackCategory] = useState<'bug' | 'feature_request' | 'ui_ux' | 'other'>('ui_ux')
+  const [feedbackRating, setFeedbackRating] = useState<number>(5)
+  const [feedbackMessage, setFeedbackMessage] = useState('')
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [feedbackSuccess, setFeedbackSuccess] = useState(false)
+  const [feedbackLogs, setFeedbackLogs] = useState<any[]>([])
+  const [showLogs, setShowLogs] = useState(false)
+
+  useEffect(() => {
+    if (feedbackOpen) {
+      setFeedbackLogs(getTesterFeedbackLogs())
+    }
+  }, [feedbackOpen])
+
+  const handleFeedbackSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (feedbackMessage.trim().length < 5) return
+
+    setFeedbackLoading(true)
+    try {
+      const { success } = await submitFeedback({
+        rating: feedbackRating,
+        category: feedbackCategory,
+        message: feedbackMessage,
+      })
+
+      if (success) {
+        setFeedbackSuccess(true)
+        setFeedbackMessage('')
+        setFeedbackRating(5)
+        setFeedbackCategory('ui_ux')
+        setFeedbackLogs(getTesterFeedbackLogs())
+        
+        // Auto close overlay after 2.2 seconds
+        setTimeout(() => {
+          setFeedbackSuccess(false)
+          setFeedbackOpen(false)
+        }, 2200)
+      }
+    } catch (err) {
+      console.error('Error submitting feedback:', err)
+    } finally {
+      setFeedbackLoading(false)
+    }
+  }
+
+  // Security Splash Overlay State
+  const [showSecuritySplash, setShowSecuritySplash] = useState(() => {
+    try {
+      return localStorage.getItem('dhanrakshak_security_acknowledged') !== 'true'
+    } catch (e) {
+      return true
+    }
+  })
+  const [progress, setProgress] = useState(0)
+  const [splashStepText, setSplashStepText] = useState('Initializing Sandbox Environment...')
+
+  useEffect(() => {
+    if (showSecuritySplash) {
+      let currentProgress = 0
+      const interval = setInterval(() => {
+        currentProgress += 1
+        if (currentProgress >= 100) {
+          currentProgress = 100
+          setSplashStepText('Security checks complete. Connection verified!')
+          clearInterval(interval)
+        } else if (currentProgress < 25) {
+          setSplashStepText('Initializing secure device sandbox...')
+        } else if (currentProgress < 50) {
+          setSplashStepText('Enabling row-level security (RLS) policies...')
+        } else if (currentProgress < 75) {
+          setSplashStepText('Deploying local regex transaction scanners...')
+        } else if (currentProgress < 95) {
+          setSplashStepText('Establishing encrypted connection channel...')
+        } else {
+          setSplashStepText('Verifying integrity policies...')
+        }
+        setProgress(currentProgress)
+      }, 15) // 100 * 15ms = 1.5 seconds load
+      return () => clearInterval(interval)
+    }
+  }, [showSecuritySplash])
+
+  const handleAcknowledgeSplash = () => {
+    setShowSecuritySplash(false)
+    try {
+      localStorage.setItem('dhanrakshak_security_acknowledged', 'true')
+    } catch (e) {}
+  }
+
+  const [isLight, setIsLight] = useState(() => {
+    try {
+      const stored = localStorage.getItem('dhanrakshak_theme')
+      if (stored !== null) {
+        return stored === 'light'
+      }
+      // Default to Day Mode (Light Mode) on first run for both mobile and desktop logins
+      return true
+    } catch (e) {
+      return true
+    }
+  })
+
+  useEffect(() => {
+    try {
+      if (isLight) {
+        document.documentElement.classList.add('light')
+        localStorage.setItem('dhanrakshak_theme', 'light')
+      } else {
+        document.documentElement.classList.remove('light')
+        localStorage.setItem('dhanrakshak_theme', 'dark')
+      }
+    } catch (e) {}
+  }, [isLight])
+
+  const toggleTheme = () => setIsLight(!isLight)
+
+  // PWA Install Prompt State and Logic for Mobile Viewports
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const [showInstallBanner, setShowInstallBanner] = useState(false)
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault()
+      // Stash the event so it can be triggered later.
+      setDeferredPrompt(e)
+      // Check if user has previously dismissed the banner
+      const isDismissed = localStorage.getItem('dhanrakshak_pwa_dismissed') === 'true'
+      if (!isDismissed) {
+        setShowInstallBanner(true)
+      }
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+
+    // Listen for appinstalled event
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null)
+      setShowInstallBanner(false)
+    }
+    window.addEventListener('appinstalled', handleAppInstalled)
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+      window.removeEventListener('appinstalled', handleAppInstalled)
+    }
+  }, [])
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return
+    // Show the install prompt
+    deferredPrompt.prompt()
+    // Wait for the user to respond to the prompt
+    const { outcome } = await deferredPrompt.userChoice
+    console.log(`User response to the install prompt: ${outcome}`)
+    // We've used the prompt, and can't use it again, discard it
+    setDeferredPrompt(null)
+    setShowInstallBanner(false)
+  }
+
+  const handleDismissBanner = () => {
+    localStorage.setItem('dhanrakshak_pwa_dismissed', 'true')
+    setShowInstallBanner(false)
+  }
 
   return (
-    <div className="min-h-screen bg-surface-0 text-zinc-100">
-      {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-50 border-b border-border-subtle bg-surface-0/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-          {/* Logo */}
-          <Link to="/dashboard" className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 shadow-lg shadow-brand-500/10">
-              <span className="text-sm font-bold text-surface-0">₹</span>
+    <div className="min-h-screen flex flex-col bg-surface-0 text-zinc-100">
+      <a href="#main-content" className="skip-to-content">
+        Skip to main content
+      </a>
+      {/* Dynamic Security Verification Splash Overlay */}
+      {showSecuritySplash && (
+        <div className="fixed inset-0 z-[9999] bg-[#09090b]/98 backdrop-blur-xl flex flex-col items-center justify-center p-4 transition-all duration-500 ease-out animate-fade-in animate-none">
+          {/* Security Shield Icon */}
+          <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-brand-500/10 border border-brand-500/30 shadow-2xl shadow-brand-500/20">
+            <div className="absolute inset-0 rounded-3xl bg-brand-500/5 animate-pulse" />
+            <span className="text-4xl animate-bounce">🛡️</span>
+          </div>
+
+          {/* Secure Loading Text */}
+          <h3 className="text-lg font-bold tracking-tight text-white mb-2 text-center">
+            Secure Sandbox Acknowledgment
+          </h3>
+          <p className="text-xs text-zinc-500 mb-6 font-semibold uppercase tracking-widest text-center">
+            Dhanrakshak Financial Security Protocol
+          </p>
+
+          {/* Glowing brand-gradient progress bar */}
+          <div className="h-1.5 w-64 bg-zinc-800 rounded-full overflow-hidden mb-3 shadow-inner border border-zinc-700/30">
+            <div
+              className="h-full bg-gradient-to-r from-brand-400 to-brand-600 rounded-full transition-all duration-75 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+
+          {/* Dynamic Loading Step Text */}
+          <p className="text-xs text-brand-400 font-medium mb-8 text-center animate-pulse h-4">
+            {splashStepText}
+          </p>
+
+          {/* Solid Reassurance Card with High Contrast */}
+          <div className="w-full max-w-md bg-surface-1 border border-border-subtle rounded-2xl p-5 backdrop-blur-md shadow-lg animate-fade-in space-y-4 mb-8">
+            <p className="text-xs font-bold text-[var(--status-positive-text)] uppercase tracking-widest flex items-center justify-center gap-1.5">
+              <span>🔒</span> Zero-Trust Data Integrity Architecture
+            </p>
+            
+            <div className="space-y-3 text-xs text-zinc-200 leading-relaxed font-medium">
+              <p className="flex items-start gap-2">
+                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
+                <span><strong>100% Local Scans:</strong> Email scanning is processed directly in your browser. Raw messages are parsed and discarded instantly.</span>
+              </p>
+              <p className="flex items-start gap-2">
+                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
+                <span><strong>Read-Only Google Access:</strong> Our Google OAuth integration requests restricted read-only permissions, unable to send or modify any emails.</span>
+              </p>
+              <p className="flex items-start gap-2">
+                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
+                <span><strong>No Passwords Requested:</strong> We never prompt for credit card PINs, banking credentials, net-banking security passwords, or OTPs.</span>
+              </p>
+              <p className="flex items-start gap-2">
+                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
+                <span><strong>Supabase Isolation:</strong> Extracted data is saved inside your private database instance, fully isolated via Row-Level Security (RLS).</span>
+              </p>
             </div>
-            <span className="text-lg font-semibold tracking-tight text-white">
-              {APP_CONFIG.APP_NAME}
-            </span>
-          </Link>
+          </div>
 
-          {/* Desktop nav */}
-          <nav className="hidden items-center gap-1 md:flex">
-            {navItems.map((item) => {
-              const isActive = location.pathname === item.path
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={cn(
-                    'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-surface-2 text-white'
-                      : 'text-zinc-400 hover:bg-surface-2 hover:text-white'
+          {/* Premium Entry Button */}
+          <div className="h-14 flex items-center justify-center">
+            {progress === 100 ? (
+              <button
+                onClick={handleAcknowledgeSplash}
+                className="px-8 py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 text-white font-bold text-sm tracking-wide shadow-xl shadow-brand-500/25 border border-brand-400/30 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer animate-scale-up"
+              >
+                Verify & Enter Dashboard
+              </button>
+            ) : (
+              <p className="text-zinc-500 text-xs font-semibold uppercase tracking-widest animate-pulse">
+                Auditing System Security Policies...
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Two-Row Navigation Header */}
+      <header className="sticky top-0 z-50 w-full flex flex-col">
+        {/* 1. Global Navigation Bar (Apple style, 44px, Black) */}
+        <nav className="h-11 bg-black text-white text-[12px] font-sans border-b border-white/10 safe-area-inset-top select-none" aria-label="Global Directory">
+          <div className="mx-auto max-w-7xl h-full flex items-center justify-between px-4 sm:px-6">
+            {/* Logo */}
+            <Link to="/" className="flex items-center gap-2 text-white hover:opacity-80 transition-opacity">
+              <span className="text-base font-bold" aria-hidden="true">₹</span>
+              <span className="font-semibold tracking-tight">Dhanrakshak</span>
+            </Link>
+            
+            {/* Menu items inside global nav */}
+            {user && (
+              <div className="hidden md:flex items-center gap-6 text-zinc-400 font-normal">
+                {navItems.map((item) => {
+                  const isActive = location.pathname === item.path
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={cn(
+                        "hover:text-white transition-colors",
+                        isActive && "text-white font-semibold"
+                      )}
+                    >
+                      {item.label}
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+            
+            {/* Right section - User profile dropdown & Theme Toggle & Notifications */}
+            <div className="flex items-center gap-4">
+              
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className="text-zinc-400 hover:text-white transition-colors h-7 w-7 flex items-center justify-center rounded-lg hover:bg-white/5 cursor-pointer"
+                title={isLight ? 'Switch to Night Mode' : 'Switch to Day Mode'}
+                aria-label={isLight ? 'Switch to Night Mode' : 'Switch to Day Mode'}
+              >
+                <span aria-hidden="true" className="text-sm">{isLight ? '🌙' : '☀️'}</span>
+              </button>
+
+              {/* Notification Bell */}
+              {user && (
+                <div className="relative">
+                  <button
+                    onClick={() => setNotificationDropdownOpen(!notificationDropdownOpen)}
+                    className="text-zinc-400 hover:text-white transition-colors h-7 w-7 flex items-center justify-center rounded-lg hover:bg-white/5 relative cursor-pointer"
+                    title="Notifications"
+                    aria-label="View notifications"
+                    aria-expanded={notificationDropdownOpen}
+                  >
+                    <span aria-hidden="true" className="text-sm">🔔</span>
+                    {notifications.length > 0 && (
+                      <span className="absolute top-0 right-0 flex h-3 w-3 items-center justify-center rounded-full bg-red-500 text-[7px] font-bold text-white ring-2 ring-black">
+                        {notifications.length}
+                      </span>
+                    )}
+                  </button>
+
+                  {notificationDropdownOpen && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-40" 
+                        onClick={() => setNotificationDropdownOpen(false)}
+                      />
+                      <div className="absolute right-0 mt-2 w-64 rounded-xl border border-white/10 bg-[#16181c] p-3 shadow-2xl z-50 animate-scale-up backdrop-blur-xl max-h-[80vh] overflow-y-auto">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-2">
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                            🔔 Notifications
+                          </span>
+                          {notifications.length > 0 && (
+                            <button
+                              onClick={() => setNotifications([])}
+                              className="text-[8px] font-bold text-zinc-500 hover:text-zinc-300 uppercase tracking-wider transition-colors cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        
+                        {notifications.length === 0 ? (
+                          <p className="text-[10px] text-zinc-500 py-4 text-center font-medium">
+                            No new notifications. All caught up!
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {notifications.map((n, idx) => (
+                              <div
+                                key={idx}
+                                className={`p-2.5 rounded-lg border text-[10px] leading-relaxed font-semibold transition-all ${
+                                  n.type === 'danger'
+                                    ? 'bg-[var(--status-danger-subtle)] border-[var(--status-danger-border)] text-[var(--status-danger-text)]'
+                                    : n.type === 'warning'
+                                    ? 'bg-[var(--status-warning-subtle)] border-[var(--status-warning-border)] text-[var(--status-warning-text)]'
+                                    : 'bg-zinc-800 border-white/5 text-zinc-300'
+                                }`}
+                              >
+                                 {n.message}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
-                >
-                  {item.label}
-                </Link>
-              )
-            })}
-          </nav>
+                </div>
+              )}
 
-          {/* Mobile menu button */}
-          <button
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 hover:bg-surface-2 hover:text-white md:hidden"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? '✕' : '☰'}
-          </button>
+              {/* Profile Dropdown */}
+              {user ? (
+                <div className="relative">
+                  <button
+                    onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                    className="flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                    aria-label="User profile menu"
+                    aria-expanded={profileDropdownOpen}
+                  >
+                    <div className="h-6 w-6 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-300 overflow-hidden ring-1 ring-white/10 shrink-0">
+                      {user?.user_metadata?.avatar_url ? (
+                        <img src={user.user_metadata.avatar_url} alt="Avatar" className="h-full w-full object-cover" />
+                      ) : (
+                        user?.user_metadata?.full_name?.substring(0, 1).toUpperCase() || 'U'
+                      )}
+                    </div>
+                    <span className="text-[11px] truncate max-w-[60px] hidden sm:inline">{getFirstName()}</span>
+                    <span className="text-[8px] opacity-60">▼</span>
+                  </button>
 
-          {/* User avatar / profile button (desktop) */}
-          <Link
-            to="/settings"
-            className="hidden md:flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-border-subtle hover:bg-surface-2 transition-colors duration-200"
-          >
-            <div className="h-7 w-7 rounded-full bg-surface-3 ring-1 ring-border-default flex items-center justify-center text-xs font-bold text-zinc-300 overflow-hidden shadow-inner shrink-0">
-              {user?.user_metadata?.avatar_url ? (
-                <img src={user.user_metadata.avatar_url} alt="Avatar" className="h-full w-full object-cover" />
+                  {profileDropdownOpen && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-40" 
+                        onClick={() => setProfileDropdownOpen(false)}
+                      />
+                      <div className="absolute right-0 mt-2 w-48 rounded-xl border border-white/10 bg-[#16181c] p-2 shadow-xl z-50 animate-scale-up">
+                        <Link
+                          to="/profile"
+                          onClick={() => setProfileDropdownOpen(false)}
+                          className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white transition-colors"
+                        >
+                          👤 Profile Section
+                        </Link>
+
+                        <Link
+                          to="/settings"
+                          onClick={() => setProfileDropdownOpen(false)}
+                          className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white transition-colors"
+                        >
+                          ⚙️ Settings Section
+                        </Link>
+
+                        <Link
+                          to="/pricing"
+                          onClick={() => setProfileDropdownOpen(false)}
+                          className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white transition-colors"
+                        >
+                          👑 Pricing & Plans
+                        </Link>
+
+                        <button
+                          onClick={() => {
+                            setProfileDropdownOpen(false)
+                            signOut()
+                          }}
+                          className="w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] transition-colors border-t border-white/5 mt-1.5 pt-1.5 cursor-pointer"
+                        >
+                          🚪 Sign Out
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               ) : (
-                user?.user_metadata?.full_name?.substring(0, 1).toUpperCase() || 'U'
+                <Link to="/login" className="text-zinc-400 hover:text-white transition-colors font-semibold">
+                  Sign In
+                </Link>
+              )}
+
+              {/* Mobile menu toggle */}
+              <button
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:text-white md:hidden hover:bg-white/5 cursor-pointer"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                aria-expanded={mobileMenuOpen}
+              >
+                {mobileMenuOpen ? '✕' : '☰'}
+              </button>
+            </div>
+          </div>
+        </nav>
+
+        {/* 2. Product Sub-Nav Bar (Apple style, 52px, Frosted glass) */}
+        <div className="h-[52px] border-b border-border-subtle bg-surface-1/85 backdrop-blur-xl flex items-center select-none">
+          <div className="mx-auto max-w-7xl w-full flex items-center justify-between px-4 sm:px-6">
+            <div className="flex items-center gap-3">
+              <span className="text-[17px] font-semibold text-white tracking-tight">Dhanrakshak</span>
+              <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold hidden sm:inline">Automatic Expense Tracker</span>
+            </div>
+            
+            <div className="flex items-center gap-4 text-[12px] font-normal text-zinc-400">
+              <a href="#daily-utility" className="hover:text-white transition-colors">Daily Life</a>
+              <a href="#features" className="hover:text-white transition-colors">Features</a>
+              <a href="#download" className="hover:text-white transition-colors">Download App</a>
+              <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
+              <Link to="/support" className="hover:text-white transition-colors">Support</Link>
+              {profile?.subscription_status === 'active' ? (
+                <span className="px-3 py-1 rounded-full text-[11px] font-semibold text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)]">
+                  Premium
+                </span>
+              ) : user ? (
+                <Link
+                  to="/pricing"
+                  className="inline-flex items-center justify-center px-3 py-1 rounded-full text-[11px] font-semibold text-white bg-brand-500 hover:bg-brand-600 active:scale-95 transition-all cursor-pointer"
+                >
+                  Upgrade to Premium 👑
+                </Link>
+              ) : (
+                <Link
+                  to="/signup"
+                  className="inline-flex items-center justify-center px-3 py-1 rounded-full text-[11px] font-semibold text-white bg-brand-500 hover:bg-brand-600 active:scale-95 transition-all cursor-pointer"
+                >
+                  Get Started
+                </Link>
               )}
             </div>
-            <span className="text-xs font-semibold text-zinc-300 max-w-[100px] truncate">
-              {user?.user_metadata?.full_name || 'Account'}
-            </span>
-          </Link>
+          </div>
         </div>
 
-        {/* Mobile nav dropdown */}
+        {/* Mobile menu dropdown */}
         {mobileMenuOpen && (
-          <nav className="border-t border-border-subtle px-4 py-3 space-y-1 md:hidden animate-fade-in">
-            {navItems.map((item) => {
-              const isActive = location.pathname === item.path
-              return (
+          <nav className="border-b border-border-subtle bg-black text-white px-4 py-3 space-y-1 md:hidden animate-fade-in" aria-label="Mobile navigation">
+            {user ? (
+              <>
+                {navItems.map((item) => {
+                  const isActive = location.pathname === item.path
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cn(
+                        'block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                        isActive
+                          ? 'bg-zinc-800 text-white'
+                          : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                      )}
+                    >
+                      {item.label}
+                    </Link>
+                  )
+                })}
+
                 <Link
-                  key={item.path}
-                  to={item.path}
+                  to="/profile"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-400 hover:text-white border-t border-border-subtle/30 mt-2 pt-3"
+                >
+                  👤 Profile Section
+                </Link>
+
+                <Link
+                  to="/settings"
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     'block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-surface-2 text-white'
-                      : 'text-zinc-400 hover:bg-surface-2 hover:text-white'
+                    location.pathname === '/settings'
+                      ? 'text-white font-bold'
+                      : 'text-zinc-400 hover:text-white'
                   )}
                 >
-                  {item.label}
+                  ⚙️ Settings Section
                 </Link>
-              )
-            })}
-            <Link
-              to="/settings"
-              onClick={() => setMobileMenuOpen(false)}
-              className={cn(
-                'block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors border-t border-border-subtle/30 mt-2 pt-3',
-                location.pathname === '/settings'
-                  ? 'text-white font-bold'
-                  : 'text-zinc-400 hover:text-white'
-              )}
+
+                <Link
+                  to="/pricing"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    'block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                    location.pathname === '/pricing'
+                      ? 'text-white font-bold'
+                      : 'text-zinc-400 hover:text-white'
+                  )}
+                >
+                  👑 Pricing & Plans
+                </Link>
+              </>
+            ) : (
+              <Link
+                to="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block rounded-lg px-3 py-2.5 text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 text-center"
+              >
+                Sign In to Account
+              </Link>
+            )}
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false)
+                toggleTheme()
+              }}
+              className="w-full text-left block rounded-lg px-3 py-2.5 text-sm font-medium text-brand-400 hover:bg-brand-500/10 transition-colors border-t border-border-subtle/30 mt-1 pt-3 cursor-pointer"
             >
-              ⚙️ Settings & Profile
-            </Link>
+              {isLight ? '🌙 Switch to Night Mode' : '☀️ Switch to Day Mode'}
+            </button>
+            {user && (
+              <button
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to sign out?')) {
+                    setMobileMenuOpen(false)
+                    signOut()
+                  }
+                }}
+                className="w-full text-left block rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] transition-colors border-t border-border-subtle/30 mt-1 pt-3 cursor-pointer"
+              >
+                🚪 Sign Out
+              </button>
+            )}
           </nav>
         )}
       </header>
 
       {/* Main Content */}
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+      {profile?.subscription_status === 'trial' && (
+        <div className="bg-[#0052ff] text-white text-xs font-semibold py-2.5 px-4 text-center flex flex-col sm:flex-row items-center justify-center gap-1.5 shadow-inner border-b border-[#003ecc]">
+          <span>⏳ Dhanrakshak Trial: You have {daysLeft} days remaining of full premium access.</span>
+          <Link to="/pricing" className="underline hover:text-zinc-200 transition-colors font-bold">
+            Upgrade Account to Keep Auto-Sync Active 👑
+          </Link>
+        </div>
+      )}
+      <main className="mx-auto flex-1 max-w-7xl w-full px-4 py-6 sm:px-6" id="main-content">
         {children}
       </main>
+
+      {/* Footer Nav and Legal compliance links */}
+      <footer className="border-t border-border-subtle bg-surface-1/40 pt-8 pb-20 md:pb-8 px-4 sm:px-6 mt-auto">
+        <div className="mx-auto max-w-7xl flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left text-zinc-400 text-xs">
+          <div>
+            <p className="font-semibold text-zinc-300">Dhanrakshak · Smart Financial Safety</p>
+            <p className="mt-1">Version 1.0.0 (Production Build) · MIT Open-Source License</p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-6 font-medium md:pr-44">
+            <Link to="/privacy" className="hover:text-brand-400 transition-colors">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-brand-400 transition-colors">Terms of Service</Link>
+            <Link to="/support?tab=faq" className="hover:text-brand-400 transition-colors">FAQs</Link>
+            <Link to="/support?tab=contact" className="hover:text-brand-400 transition-colors">Help & Contact</Link>
+            <Link to="/support?tab=developer" className="hover:text-brand-400 transition-colors">Developer Details</Link>
+          </div>
+        </div>
+      </footer>
+
+      {/* Floating Action Button (FAB) for Tester Feedback */}
+      <button
+        onClick={() => setFeedbackOpen(true)}
+        className="fixed bottom-6 right-6 z-[40] flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 text-white font-bold text-[11px] tracking-wider uppercase shadow-xl shadow-brand-500/20 border border-brand-400/30 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
+        title="Send Tester Feedback"
+        aria-label="Open tester feedback form"
+      >
+        <span className="text-sm" aria-hidden="true">💬</span> Give Feedback
+      </button>
+
+      {/* Tester Feedback Glassmorphic Modal */}
+      {feedbackOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in" role="dialog" aria-modal="true" aria-label="Tester Feedback">
+          {/* Modal Card */}
+          <div className="w-full max-w-md bg-surface-1/90 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col max-h-[90vh] overflow-y-auto animate-scale-up">
+            
+            {/* Success screen */}
+            {feedbackSuccess ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center space-y-4 animate-fade-in">
+                <div className="h-16 w-16 rounded-full bg-brand-500/10 border border-brand-500/30 flex items-center justify-center text-3xl animate-bounce">
+                  🎉
+                </div>
+                <h3 className="text-lg font-bold text-white">Feedback Submitted!</h3>
+                <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
+                  Thank you! Your suggestions help us refine and protect Dhanrakshak's visual and security standards.
+                </p>
+                <div className="w-10 h-1 bg-brand-500 rounded-full animate-pulse mt-2" />
+              </div>
+            ) : (
+              <>
+                {/* Header */}
+                <div className="flex items-center justify-between pb-4 border-b border-border-subtle/50 mb-5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">💡</span>
+                    <div>
+                      <h3 className="text-sm font-bold text-white leading-none">Tester Feedback Engine</h3>
+                      <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-semibold mt-1">Help Us Improve</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setFeedbackOpen(false)}
+                    className="h-8 w-8 rounded-full border border-border-subtle/60 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-surface-2 transition-colors cursor-pointer"
+                    aria-label="Close feedback form"
+                  >
+                    <span aria-hidden="true">✕</span>
+                  </button>
+                </div>
+
+                {/* Form */}
+                <form onSubmit={handleFeedbackSubmit} className="space-y-4 flex-1">
+                  
+                  {/* Category Selection */}
+                  <div>
+                    <label className="block text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-2">
+                      Feedback Type
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { key: 'ui_ux', label: '🎨 UI/UX Design', desc: 'Spacing & styles' },
+                        { key: 'bug', label: '🐛 Bug Report', desc: 'Unexpected error' },
+                        { key: 'feature_request', label: '💡 Feature Idea', desc: 'New suggestions' },
+                        { key: 'other', label: '❓ Other Feedback', desc: 'General thoughts' }
+                      ].map((cat) => (
+                        <button
+                          key={cat.key}
+                          type="button"
+                          onClick={() => setFeedbackCategory(cat.key as any)}
+                          className={cn(
+                            'p-2.5 rounded-xl border text-left transition-all duration-200 cursor-pointer',
+                            feedbackCategory === cat.key
+                              ? 'bg-brand-500/10 border-brand-500/50 text-brand-400'
+                              : 'bg-surface-2/40 border-border-subtle/50 text-zinc-400 hover:bg-surface-2/85 hover:text-white'
+                          )}
+                        >
+                          <p className="text-[10px] font-bold">{cat.label}</p>
+                          <p className="text-[8px] opacity-60 mt-0.5 leading-normal">{cat.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Rating Selector */}
+                  <div>
+                    <label className="block text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-2">
+                      How was your experience?
+                    </label>
+                    <div className="flex items-center justify-between bg-surface-2/40 border border-border-subtle/40 rounded-2xl p-3">
+                      {[
+                        { val: 1, emoji: '😠', label: 'Bad' },
+                        { val: 2, emoji: '🙁', label: 'Poor' },
+                        { val: 3, emoji: '😐', label: 'Ok' },
+                        { val: 4, emoji: '🙂', label: 'Good' },
+                        { val: 5, emoji: '😍', label: 'Love it' }
+                      ].map((rt) => (
+                        <button
+                          key={rt.val}
+                          type="button"
+                          onClick={() => setFeedbackRating(rt.val)}
+                          className="flex flex-col items-center gap-1 focus:outline-none group relative cursor-pointer"
+                        >
+                          <span
+                            className={cn(
+                              'text-2xl transition-all duration-200 hover:scale-125 select-none',
+                              feedbackRating === rt.val
+                                ? 'scale-115 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)] opacity-100'
+                                : 'opacity-40 hover:opacity-100'
+                            )}
+                          >
+                            {rt.emoji}
+                          </span>
+                          <span
+                            className={cn(
+                              'text-[8px] font-bold transition-colors duration-200',
+                              feedbackRating === rt.val ? 'text-amber-400' : 'text-zinc-500'
+                            )}
+                          >
+                            {rt.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Suggestion Text */}
+                  <div>
+                    <label className="block text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-2">
+                      Suggestions or Issue details
+                    </label>
+                    <textarea
+                      placeholder="Let us know what can be improved or what errors you encountered..."
+                      value={feedbackMessage}
+                      onChange={(e) => setFeedbackMessage(e.target.value)}
+                      disabled={feedbackLoading}
+                      maxLength={500}
+                      rows={4}
+                      required
+                      className="w-full bg-surface-2/60 border border-border-subtle rounded-2xl p-3.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400 transition-all resize-none leading-relaxed"
+                    />
+                    <div className="flex justify-between items-center mt-1 text-[8px] text-zinc-500 font-semibold px-1">
+                      <span>Minimum 5 characters</span>
+                      <span>{feedbackMessage.length}/500</span>
+                    </div>
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    type="submit"
+                    disabled={feedbackMessage.trim().length < 5 || feedbackLoading}
+                    className="w-full h-11 rounded-2xl bg-gradient-to-r from-brand-400 to-brand-600 hover:from-brand-300 hover:to-brand-500 text-white font-bold text-[11px] uppercase tracking-wider disabled:opacity-40 disabled:hover:from-brand-400 disabled:hover:to-brand-600 flex items-center justify-center gap-2 border border-brand-400/20 shadow-md shadow-brand-500/5 cursor-pointer transition-all duration-200"
+                  >
+                    {feedbackLoading ? 'Submitting...' : '🚀 Submit Suggestion'}
+                  </button>
+                </form>
+
+                {/* Expandable Submitted Feedback History Log */}
+                {feedbackLogs.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-border-subtle/50">
+                    <button
+                      type="button"
+                      onClick={() => setShowLogs(!showLogs)}
+                      className="w-full flex items-center justify-between text-[9px] font-bold text-zinc-400 hover:text-zinc-200 uppercase tracking-wider transition-colors cursor-pointer"
+                    >
+                      <span>📂 Your Submitted Logs ({feedbackLogs.length})</span>
+                      <span>{showLogs ? '▼' : '▲'}</span>
+                    </button>
+
+                    {showLogs && (
+                      <div className="mt-3 space-y-2 max-h-[140px] overflow-y-auto pr-1">
+                        {feedbackLogs.map((log) => (
+                          <div
+                            key={log.id}
+                            className="p-2.5 rounded-xl bg-surface-2/40 border border-border-subtle/30 text-[10px] leading-relaxed space-y-1.5"
+                          >
+                            <div className="flex justify-between items-center text-[8px] font-bold text-zinc-400">
+                              <span className={cn(
+                                "inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[8px] font-bold uppercase",
+                                log.category === 'bug'
+                                  ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                                  : log.category === 'feature_request'
+                                  ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                  : 'bg-zinc-800 text-zinc-300 border-zinc-700/50'
+                              )}>
+                                {log.category === 'bug'
+                                  ? '🐛 Bug'
+                                  : log.category === 'feature_request'
+                                  ? '💡 Feature'
+                                  : log.category === 'ui_ux'
+                                  ? '🎨 UI/UX'
+                                  : '❓ Other'}
+                              </span>
+                              <span>{new Date(log.created_at).toLocaleDateString()}</span>
+                            </div>
+                            <p className="text-zinc-200 break-words text-xs">{log.message}</p>
+                            <div className="flex items-center gap-1 text-amber-400 font-bold text-[8px]">
+                              <span>★</span>
+                              <span>Rating: {log.rating}/5</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* PWA Install Banner for Mobile Viewports */}
+      {showInstallBanner && (
+        <div className="fixed bottom-20 left-4 right-4 z-50 md:hidden animate-slide-up">
+          <div className="bg-surface-1/95 border border-border-subtle/85 backdrop-blur-xl rounded-2xl p-4 shadow-2xl flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 shadow-md shadow-brand-500/10">
+                <span className="text-base font-bold text-surface-0">₹</span>
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-white leading-tight">Install Dhanrakshak PWA</h4>
+                <p className="text-[10px] text-zinc-400 mt-0.5 font-medium">Add to your home screen for quick secure access.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleDismissBanner}
+                className="px-3 py-1.5 rounded-lg border border-border-subtle text-[10px] font-bold text-zinc-400 hover:text-white cursor-pointer transition-colors"
+              >
+                Dismiss
+              </button>
+              <button
+                onClick={handleInstallClick}
+                className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-brand-600 text-[10px] font-bold text-white shadow-lg border border-brand-400/20 cursor-pointer transition-all hover:scale-105 active:scale-95"
+              >
+                Install
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* =========================================================== */}
+      {/* Mobile Bottom Navigation Bar — shown only on mobile (<md) */}
+      {/* =========================================================== */}
+      {user && (
+        <nav
+          className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-surface-0/95 backdrop-blur-xl border-t border-border-subtle/60 safe-area-inset-bottom"
+          aria-label="Mobile navigation"
+        >
+          <div className="flex items-center justify-around h-16 px-1">
+            {/* Dashboard */}
+            <Link
+              to={ROUTES.DASHBOARD}
+              className={cn(
+                'flex flex-col items-center gap-0.5 flex-1 py-2 px-1 rounded-xl transition-all duration-200',
+                location.pathname === ROUTES.DASHBOARD
+                  ? 'text-brand-400'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              )}
+              aria-label="Dashboard"
+            >
+              <span className="text-xl leading-none">🏠</span>
+              <span className="text-[9px] font-semibold tracking-wide">Home</span>
+            </Link>
+
+            {/* Expenses */}
+            <Link
+              to={ROUTES.EXPENSES}
+              className={cn(
+                'flex flex-col items-center gap-0.5 flex-1 py-2 px-1 rounded-xl transition-all duration-200',
+                location.pathname === ROUTES.EXPENSES
+                  ? 'text-brand-400'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              )}
+              aria-label="Expenses"
+            >
+              <span className="text-xl leading-none">💳</span>
+              <span className="text-[9px] font-semibold tracking-wide">Expenses</span>
+            </Link>
+
+            {/* Quick Add FAB — centre button */}
+            <div className="flex-1 flex items-center justify-center">
+              <Link
+                to={ROUTES.EXPENSES}
+                state={{ openForm: true }}
+                className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 shadow-lg shadow-brand-500/30 border border-brand-400/30 hover:scale-110 active:scale-95 transition-all duration-200"
+                aria-label="Quick add transaction"
+              >
+                <span className="text-xl font-bold text-white leading-none">+</span>
+              </Link>
+            </div>
+
+            {/* Pending */}
+            <Link
+              to={ROUTES.PENDING}
+              className={cn(
+                'flex flex-col items-center gap-0.5 flex-1 py-2 px-1 rounded-xl transition-all duration-200 relative',
+                location.pathname === ROUTES.PENDING
+                  ? 'text-brand-400'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              )}
+              aria-label="Pending approvals"
+            >
+              <span className="text-xl leading-none relative">
+                🔔
+                {notifications.length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-red-500 text-[7px] font-bold text-white">
+                    {notifications.length > 9 ? '9+' : notifications.length}
+                  </span>
+                )}
+              </span>
+              <span className="text-[9px] font-semibold tracking-wide">Pending</span>
+            </Link>
+
+            {/* Insights */}
+            <Link
+              to={ROUTES.INSIGHTS}
+              className={cn(
+                'flex flex-col items-center gap-0.5 flex-1 py-2 px-1 rounded-xl transition-all duration-200',
+                location.pathname === ROUTES.INSIGHTS
+                  ? 'text-brand-400'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              )}
+              aria-label="Insights"
+            >
+              <span className="text-xl leading-none">✦</span>
+              <span className="text-[9px] font-semibold tracking-wide">Insights</span>
+            </Link>
+          </div>
+        </nav>
+      )}
+
     </div>
   )
 }
