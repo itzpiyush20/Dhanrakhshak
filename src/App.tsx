@@ -80,6 +80,7 @@ function App() {
               <Route path="/privacy"         element={<PrivacyPage />} />
               <Route path="/about"           element={<AboutPage />} />
               <Route path="/terms"           element={<TermsPage />} />
+              <Route path="/pricing"         element={<PricingPage />} />
 
               {/* Protected routes */}
               <Route element={<ProtectedRoute />}>
@@ -92,7 +93,6 @@ function App() {
                 <Route path="/profile"         element={<ProfilePage />} />
                 <Route path="/subscriptions"   element={<SubscriptionsPage />} />
                 <Route path="/cards"           element={<CardsPage />} />
-                <Route path="/pricing"         element={<PricingPage />} />
                 <Route path="/payment-success" element={<PaymentSuccessPage />} />
               </Route>
 
