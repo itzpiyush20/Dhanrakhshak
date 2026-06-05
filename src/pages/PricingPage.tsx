@@ -1,12 +1,24 @@
 // ============================================
-// PricingPage — Gated payment & trial checkout
+// PricingPage — Stripe-design-language version
+// Featured dark-navy tier, tabular figures, indigo pill CTAs
 // ============================================
 
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import AppLayout from '@/layouts/AppLayout'
-import { Button, Input } from '@/components/ui'
 import { useAuth, useToast } from '@/context'
+
+// ── Feature list shared by all tiers ──────────────────────────
+const FEATURES = [
+  'Automated Gmail inbox transaction parsing',
+  'Real-time expense categorisation engine',
+  'Multi-card limit and threshold tracking',
+  'Visual budget charts & spending history',
+  'Subscription renewal calendar',
+  'Encrypted CSV & JSON data export',
+  'Priority support — response within 24 h',
+  'Early access to upcoming features',
+]
 
 export default function PricingPage() {
   const navigate = useNavigate()
@@ -15,434 +27,382 @@ export default function PricingPage() {
 
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('annual')
   const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'promo'>('razorpay')
-
-  // Computed Plan Info (available to all handlers)
-  const planName = selectedPlan === 'annual' ? 'Investor Annual' : 'Starter Monthly'
-  const planPrice = selectedPlan === 'annual' ? '365' : '31'
-
-  // Promo Code State
   const [promoCode, setPromoCode] = useState('')
-
-  // Processing State
   const [processing, setProcessing] = useState(false)
 
-  useEffect(() => {
-    document.title = 'Upgrade to Premium | Dhanrakshak'
-  }, [])
+  const planName  = selectedPlan === 'annual' ? 'Investor Annual' : 'Starter Monthly'
+  const planPrice = selectedPlan === 'annual' ? '365' : '31'
+  const planSub   = selectedPlan === 'annual' ? 'Billed once per year' : 'Billed every month'
 
-  // Dynamically load Razorpay standard checkout script
-  const loadRazorpayScript = () => {
-    return new Promise((resolve) => {
-      if ((window as any).Razorpay) {
-        resolve(true)
-        return
-      }
+  useEffect(() => { document.title = 'Pricing & Plans | Dhanrakshak' }, [])
+
+  // ── Razorpay ──────────────────────────────────────────────────
+  const loadRazorpayScript = () =>
+    new Promise((resolve) => {
+      if ((window as any).Razorpay) return resolve(true)
       const script = document.createElement('script')
       script.src = 'https://checkout.razorpay.com/v1/checkout.js'
       script.async = true
-      script.onload = () => resolve(true)
+      script.onload  = () => resolve(true)
       script.onerror = () => resolve(false)
       document.body.appendChild(script)
     })
-  }
 
   const handleRazorpayCheckout = async () => {
-    if (!user) {
-      showToast('Please log in to upgrade to Premium.', 'warning')
-      navigate('/login')
-      return
-    }
-
+    if (!user) { showToast('Please log in to upgrade to Premium.', 'warning'); navigate('/login'); return }
     setProcessing(true)
-
-    // 1. Load Razorpay script
     const scriptLoaded = await loadRazorpayScript()
-    if (!scriptLoaded) {
-      showToast('Failed to load Razorpay payment SDK. Please check your internet.', 'error')
-      setProcessing(false)
-      return
-    }
-
+    if (!scriptLoaded) { showToast('Failed to load Razorpay SDK. Check your internet.', 'error'); setProcessing(false); return }
     try {
-      // 2. Call backend to create the Razorpay Order
-      const response = await fetch('/api/create-order', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          planType: selectedPlan,
-          userId: user.id,
-        }),
-      })
-
+      const response  = await fetch('/api/create-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ planType: selectedPlan, userId: user.id }) })
       const orderData = await response.json()
-      if (!response.ok || orderData.error) {
-        throw new Error(orderData.error || 'Could not initiate payment order')
-      }
+      if (!response.ok || orderData.error) throw new Error(orderData.error || 'Could not initiate payment order')
 
-      // 3. Open Razorpay payment checkout modal
       const options = {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_placeholder',
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: 'Dhanrakshak',
-        description: `Upgrade to Premium (${planName})`,
-        image: '/logo.png', // Add logo image path if available
+        amount: orderData.amount, currency: orderData.currency,
+        name: 'Dhanrakshak', description: `Upgrade to Premium (${planName})`,
         order_id: orderData.id,
-        prefill: {
-          name: profile?.full_name || '',
-          email: user.email || '',
-        },
-        theme: {
-          color: '#3b82f6', // Brand brand color
-        },
+        prefill: { name: profile?.full_name || '', email: user.email || '' },
+        theme: { color: '#533afd' },
         handler: async (paymentResponse: any) => {
           setProcessing(true)
           try {
-            // 4. Verify payment signature on backend
-            const verifyResponse = await fetch('/api/verify-payment', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                razorpay_order_id: paymentResponse.razorpay_order_id,
-                razorpay_payment_id: paymentResponse.razorpay_payment_id,
-                razorpay_signature: paymentResponse.razorpay_signature,
-                userId: user.id,
-                planType: selectedPlan,
-              }),
-            })
-
+            const verifyResponse = await fetch('/api/verify-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...paymentResponse, userId: user.id, planType: selectedPlan }) })
             const verifyData = await verifyResponse.json()
-            if (!verifyResponse.ok || verifyData.error) {
-              throw new Error(verifyData.error || 'Payment verification failed')
-            }
-
-            // 5. Success
+            if (!verifyResponse.ok || verifyData.error) throw new Error(verifyData.error || 'Payment verification failed')
             showToast('👑 Payment Successful! Premium features unlocked.', 'success')
-            navigate('/payment-success', {
-              state: {
-                planName,
-                expiresAt: verifyData.expiresAt,
-              },
-            })
-          } catch (err: any) {
-            console.error('Payment verification failed:', err)
-            showToast(`Verification Failed: ${err.message}`, 'error')
-          } finally {
-            setProcessing(false)
-          }
+            navigate('/payment-success', { state: { planName, expiresAt: verifyData.expiresAt } })
+          } catch (err: any) { showToast(`Verification Failed: ${err.message}`, 'error') }
+          finally { setProcessing(false) }
         },
-        modal: {
-          ondismiss: () => {
-            setProcessing(false)
-          },
-        },
+        modal: { ondismiss: () => setProcessing(false) },
       }
-
       const rzp = new (window as any).Razorpay(options)
       rzp.open()
-    } catch (err: any) {
-      console.error('Razorpay initialization error:', err)
-      showToast(`Checkout initialization error: ${err.message}`, 'error')
-      setProcessing(false)
-    }
+    } catch (err: any) { showToast(`Checkout error: ${err.message}`, 'error'); setProcessing(false) }
   }
 
+  // ── Promo code ────────────────────────────────────────────────
   const handlePromoSimulator = () => {
-    const cleanCode = promoCode.trim().toUpperCase()
     const validCodes = ['DHANVIP', 'UNLIMITED_VIP', 'FREE_LIFETIME', 'ITZPIYUSH', 'INVESTOR_UNLIMITED']
-    
-    if (!validCodes.includes(cleanCode)) {
-      showToast('❌ Invalid or expired coupon code. Please try again.', 'error')
-      return
-    }
-
+    if (!validCodes.includes(promoCode.trim().toUpperCase())) { showToast('❌ Invalid or expired coupon code.', 'error'); return }
     setProcessing(true)
     setTimeout(async () => {
       try {
         const success = await updateSubscriptionStatus('active', 'lifetime')
-        if (success) {
-          showToast('👑 Success! Unlimited VIP lifetime access has been unlocked.', 'success')
-          navigate('/dashboard')
-        } else {
-          showToast('Failed to apply coupon status. Please try again.', 'error')
-        }
-      } catch (err: any) {
-        showToast('Coupon application error: ' + err.message, 'error')
-      } finally {
-        setProcessing(false)
-      }
+        if (success) { showToast('👑 Unlimited VIP lifetime access unlocked!', 'success'); navigate('/dashboard') }
+        else showToast('Failed to apply coupon. Please try again.', 'error')
+      } catch (err: any) { showToast('Coupon error: ' + err.message, 'error') }
+      finally { setProcessing(false) }
     }, 1500)
   }
 
+  const isActive  = profile?.subscription_status === 'active'
+  const isTrial   = profile?.subscription_status === 'trial'
+
+  // ── Render ────────────────────────────────────────────────────
   return (
     <AppLayout>
-      <div className="max-w-5xl mx-auto py-4 px-2 sm:px-4 space-y-8 animate-fade-in">
-        
-        {/* Banner if trial is still active */}
-        {profile?.subscription_status === 'trial' && daysLeft > 0 && (
-          <div className="rounded-2xl bg-[var(--status-warning-subtle)] border border-[var(--status-warning-border)] p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl" aria-hidden="true">⏳</span>
-              <div>
-                <p className="font-bold text-white text-sm">Trial Active: {daysLeft} Days Left</p>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  You are currently using the trial version with full premium access (including automated Gmail Sync). The access will be restricted after the trial ends.
-                </p>
-              </div>
-            </div>
-            <div className="text-xs text-[var(--status-warning-text)] font-semibold bg-[var(--status-warning-subtle)] px-2.5 py-1 rounded-md border border-[var(--status-warning-border)]">
-              Full Trial Access
-            </div>
-          </div>
-        )}
+      <div
+        className="min-h-screen"
+        style={{
+          background: 'var(--s-canvas-soft)',
+          fontFamily: "'Inter', system-ui, sans-serif",
+          fontFeatureSettings: '"ss01"',
+        }}
+      >
 
-        {/* Banner if trial has expired */}
-        {(!profile?.subscription_status || (profile?.subscription_status === 'trial' && daysLeft <= 0)) && (
-          <div className="rounded-2xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl" aria-hidden="true">🔒</span>
-              <div>
-                <p className="font-bold text-white text-sm">Trial Expired — Dashboard Gated</p>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  Your 14-day trial has concluded. Please upgrade to a premium plan to restore access to analytics, expenses, and automated email scans.
-                </p>
-              </div>
-            </div>
-            <div className="text-xs text-[var(--status-danger-text)] font-semibold bg-[var(--status-danger-subtle)] px-2.5 py-1 rounded-md border border-[var(--status-danger-border)]">
-              Account Locked
-            </div>
+        {/* ── HEADER BAND ─────────────────────────────────────── */}
+        <div className="stripe-mesh-bg py-16 text-center">
+          <div className="mx-auto max-w-[700px] px-6 space-y-4">
+            <div className="s-pill-tag" style={{ display: 'inline-flex' }}>Pricing & Plans</div>
+            <h1 className="s-display-xl" style={{ color: 'var(--s-ink)' }}>
+              Simple, honest pricing
+            </h1>
+            <p className="s-body-lg" style={{ color: 'var(--s-ink-mute)', maxWidth: 480, margin: '0 auto' }}>
+              Gain full automated tracking with any plan. No hidden fees, no dark patterns. Cancel at any time.
+            </p>
           </div>
-        )}
-
-        {/* Title */}
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl bg-clip-text text-transparent bg-gradient-to-r from-white via-zinc-200 to-zinc-400">
-            Dhanrakshak Premium
-          </h1>
-          <p className="text-zinc-400 max-w-xl mx-auto text-sm sm:text-base">
-            Gain full control of your wealth. Unlock automated email scanning, advanced budgets, and multi-card tracking instantly.
-          </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
-          {/* PLANS SECTION (5 cols) */}
-          <div className="lg:col-span-5 space-y-4">
-            <h2 className="text-base font-bold text-zinc-300 px-1">1. Select Your Premium Plan</h2>
-            
-            {/* Annual Plan Card */}
-            <div
-              onClick={() => setSelectedPlan('annual')}
-              className={`p-5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between h-40 relative overflow-hidden ${
-                selectedPlan === 'annual'
-                  ? 'border-brand-400 bg-brand-500/5 shadow-lg shadow-brand-500/5 ring-1 ring-brand-400/25'
-                  : 'border-border-subtle bg-surface-1 hover:border-zinc-700'
-              }`}
-            >
-              {/* Popular Badge */}
-              <div className="absolute top-0 right-0 bg-brand-500 text-white text-[9px] font-bold uppercase tracking-wider px-3 py-1 rounded-bl-xl">
-                Best Value (Save 15%)
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    checked={selectedPlan === 'annual'}
-                    onChange={() => setSelectedPlan('annual')}
-                    className="h-4 w-4 text-brand-500 border-zinc-800 bg-surface-2 focus:ring-brand-500"
-                  />
-                  <span className="font-bold text-white text-base">Investor Annual</span>
+        {/* ── STATUS BANNERS ──────────────────────────────────── */}
+        <div className="mx-auto max-w-[1100px] px-6 pt-8 space-y-3">
+          {isTrial && daysLeft > 0 && (
+            <div className="rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3" style={{ background: '#fffbeb', border: '1px solid #f59e0b' }}>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">⏳</span>
+                <div>
+                  <p className="s-caption" style={{ color: 'var(--s-ink)', fontWeight: 500 }}>Trial Active — {daysLeft} day{daysLeft !== 1 ? 's' : ''} remaining</p>
+                  <p className="s-caption" style={{ color: 'var(--s-ink-mute)' }}>Full premium access including automated Gmail Sync. Upgrade to keep it after your trial ends.</p>
                 </div>
-                <p className="text-xs text-zinc-400 mt-2 pl-6">
-                  Perfect for long-term tracking. Advertised at just ₹1 a day! Includes immediate updates.
-                </p>
               </div>
-
-              <div className="pl-6 flex items-baseline gap-1 mt-2">
-                <span className="text-2xl font-extrabold text-white">₹365</span>
-                <span className="text-xs text-zinc-500">/ year</span>
-                <span className="text-[10px] text-brand-400 font-semibold bg-brand-500/10 px-2 py-0.5 rounded ml-2">₹1/day</span>
-              </div>
+              <span className="s-micro-cap px-3 py-1.5 rounded-full whitespace-nowrap shrink-0" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }}>Trial access</span>
             </div>
+          )}
 
-            {/* Monthly Plan Card */}
+          {(!profile?.subscription_status || (isTrial && daysLeft <= 0)) && (
+            <div className="rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3" style={{ background: '#fef2f2', border: '1px solid #fca5a5' }}>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🔒</span>
+                <div>
+                  <p className="s-caption" style={{ color: 'var(--s-ink)', fontWeight: 500 }}>Trial Expired — Dashboard Gated</p>
+                  <p className="s-caption" style={{ color: 'var(--s-ink-mute)' }}>Upgrade to restore access to analytics, expenses, and automated email scans.</p>
+                </div>
+              </div>
+              <span className="s-micro-cap px-3 py-1.5 rounded-full whitespace-nowrap shrink-0" style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' }}>Access locked</span>
+            </div>
+          )}
+
+          {isActive && (
+            <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: '#f0fdf4', border: '1px solid #86efac' }}>
+              <span className="text-2xl">✅</span>
+              <p className="s-caption" style={{ color: '#166534', fontWeight: 500 }}>You're on Premium — all features are fully unlocked.</p>
+            </div>
+          )}
+        </div>
+
+        {/* ── PRICING CARDS ───────────────────────────────────── */}
+        <div className="mx-auto max-w-[1100px] px-6 py-12">
+          <div className="grid md:grid-cols-3 gap-6 items-stretch">
+
+            {/* ── Standard: Monthly ─────────────────────────────── */}
             <div
+              className="s-card s-shadow-1 flex flex-col cursor-pointer transition-all hover:s-shadow-2"
+              style={{ borderColor: selectedPlan === 'monthly' ? 'var(--s-primary)' : 'var(--s-hairline)', borderWidth: selectedPlan === 'monthly' ? 2 : 1 }}
               onClick={() => setSelectedPlan('monthly')}
-              className={`p-5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between h-40 ${
-                selectedPlan === 'monthly'
-                  ? 'border-brand-400 bg-brand-500/5 shadow-lg shadow-brand-500/5 ring-1 ring-brand-400/25'
-                  : 'border-border-subtle bg-surface-1 hover:border-zinc-700'
-              }`}
             >
-              <div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    checked={selectedPlan === 'monthly'}
-                    onChange={() => setSelectedPlan('monthly')}
-                    className="h-4 w-4 text-brand-500 border-zinc-800 bg-surface-2 focus:ring-brand-500"
-                  />
-                  <span className="font-bold text-white text-base">Starter Monthly</span>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="s-heading-lg" style={{ color: 'var(--s-ink)' }}>Starter Monthly</h2>
+                <input type="radio" readOnly checked={selectedPlan === 'monthly'} className="h-4 w-4 cursor-pointer accent-[#533afd]" />
+              </div>
+
+              <div className="mb-6">
+                <div className="flex items-baseline gap-1">
+                  <span className="tnum" style={{ fontSize: 36, fontWeight: 300, color: 'var(--s-ink)', letterSpacing: '-0.8px' }}>₹31</span>
+                  <span className="s-caption" style={{ color: 'var(--s-ink-mute)' }}>/month</span>
                 </div>
-                <p className="text-xs text-zinc-400 mt-2 pl-6">
-                  Flexible month-to-month plan. Includes automated scans and full dashboard analytics.
-                </p>
+                <p className="s-caption mt-1" style={{ color: 'var(--s-ink-mute)' }}>Billed monthly · cancel anytime</p>
               </div>
 
-              <div className="pl-6 flex items-baseline gap-1 mt-2">
-                <span className="text-2xl font-extrabold text-white">₹31</span>
-                <span className="text-xs text-zinc-500">/ month</span>
-              </div>
-            </div>
-
-            {/* Feature Checkmarks */}
-            <div className="bg-surface-1 border border-border-subtle rounded-2xl p-5 space-y-3.5">
-              <p className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Features Included:</p>
-              <ul className="space-y-2.5 text-xs text-zinc-400">
-                <li className="flex items-center gap-2">
-                  <span className="text-brand-400">✓</span> Automated Gmail inbox transaction parsing
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-brand-400">✓</span> Real-time expense categorization engine
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-brand-400">✓</span> Multi-card limits and threshold tracking
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-brand-400">✓</span> High-fidelity visual charts & budget history
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-brand-400">✓</span> Priority customer support and encrypted backup exports
-                </li>
+              <ul className="space-y-3 flex-1">
+                {FEATURES.map((f) => (
+                  <li key={f} className="flex items-start gap-3">
+                    <span style={{ color: 'var(--s-primary)', flexShrink: 0, fontSize: 13, marginTop: 1 }}>✓</span>
+                    <span className="s-caption" style={{ color: 'var(--s-ink-mute)' }}>{f}</span>
+                  </li>
+                ))}
               </ul>
-            </div>
-          </div>
 
-          {/* PAYMENT SECTION (7 cols) */}
-          <div className="lg:col-span-7 space-y-4">
-            <h2 className="text-base font-bold text-zinc-300 px-1">2. Secure Checkout</h2>
-
-            <div className="bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-xl space-y-6">
-              
-              {/* Payment Type Selection */}
-              <div className="flex bg-surface-2 p-1 rounded-xl border border-border-subtle/50">
+              <div className="mt-8">
                 <button
-                  type="button"
-                  onClick={() => setPaymentMethod('razorpay')}
-                  className={`flex-1 py-2 px-1 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                    paymentMethod === 'razorpay'
-                      ? 'bg-surface-0 text-white shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
-                  }`}
+                  onClick={() => { setSelectedPlan('monthly'); setPaymentMethod('razorpay') }}
+                  className="s-btn-secondary"
+                  style={{ width: '100%', padding: '10px 20px', justifyContent: 'center' }}
                 >
-                  <span>💳</span> Pay Securely
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('promo')}
-                  className={`flex-1 py-2 px-1 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                    paymentMethod === 'promo'
-                      ? 'bg-surface-0 text-white shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  <span>🎟️</span> Promo Code
+                  Choose Monthly
                 </button>
               </div>
+            </div>
 
-              {/* RAZORPAY GATEWAY FLOW */}
+            {/* ── Featured: Annual (deep navy) ───────────────────── */}
+            <div
+              className="s-card-featured flex flex-col cursor-pointer relative overflow-hidden"
+              style={{ boxShadow: 'rgba(83,58,253,0.20) 0 8px 32px, rgba(83,58,253,0.08) 0 2px 8px', cursor: 'pointer' }}
+              onClick={() => setSelectedPlan('annual')}
+            >
+              {/* Best value badge */}
+              <div className="absolute top-0 right-0 text-[9px] font-bold uppercase tracking-widest px-4 py-2 rounded-bl-xl" style={{ background: 'var(--s-primary)', color: '#fff', letterSpacing: '0.08em' }}>
+                Best value · Save 15%
+              </div>
+
+              <div className="flex items-center justify-between mb-6 mt-2">
+                <h2 className="s-heading-lg" style={{ color: '#fff' }}>Investor Annual</h2>
+                <input type="radio" readOnly checked={selectedPlan === 'annual'} className="h-4 w-4 cursor-pointer accent-[#533afd]" />
+              </div>
+
+              <div className="mb-6">
+                <div className="flex items-baseline gap-1">
+                  <span className="tnum" style={{ fontSize: 36, fontWeight: 300, color: '#fff', letterSpacing: '-0.8px' }}>₹365</span>
+                  <span className="s-caption" style={{ color: 'rgba(255,255,255,0.55)' }}>/year</span>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="tnum s-micro-cap px-2 py-0.5 rounded-full" style={{ background: 'rgba(83,58,253,0.3)', color: 'var(--s-primary-soft)', border: '1px solid rgba(102,94,253,0.3)' }}>₹1 per day</span>
+                  <span className="s-caption" style={{ color: 'rgba(255,255,255,0.55)' }}>Billed once per year</span>
+                </div>
+              </div>
+
+              <ul className="space-y-3 flex-1">
+                {FEATURES.map((f) => (
+                  <li key={f} className="flex items-start gap-3">
+                    <span style={{ color: 'var(--s-primary-soft)', flexShrink: 0, fontSize: 13, marginTop: 1 }}>✓</span>
+                    <span className="s-caption" style={{ color: 'rgba(255,255,255,0.72)' }}>{f}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-8 space-y-3">
+                <button
+                  onClick={() => { setSelectedPlan('annual'); setPaymentMethod('razorpay') }}
+                  className="s-btn-primary"
+                  style={{ width: '100%', padding: '11px 20px', justifyContent: 'center', fontSize: 15 }}
+                >
+                  Get Investor Annual
+                </button>
+                <p className="s-micro-cap text-center" style={{ color: 'rgba(255,255,255,0.40)' }}>Secured via Razorpay · 256-bit SSL</p>
+              </div>
+            </div>
+
+            {/* ── Promo / Coupon ────────────────────────────────── */}
+            <div className="s-card s-shadow-1 flex flex-col" style={{ borderColor: 'var(--s-hairline)' }}>
+              <div className="mb-6">
+                <span className="s-pill-tag">Special Access</span>
+                <h2 className="s-heading-lg mt-4" style={{ color: 'var(--s-ink)' }}>Coupon Code</h2>
+              </div>
+
+              <div className="mb-6">
+                <div className="flex items-baseline gap-1">
+                  <span className="tnum" style={{ fontSize: 36, fontWeight: 300, color: 'var(--s-ink)', letterSpacing: '-0.8px' }}>Free</span>
+                </div>
+                <p className="s-caption mt-1" style={{ color: 'var(--s-ink-mute)' }}>Lifetime access with a valid coupon</p>
+              </div>
+
+              <ul className="space-y-3 flex-1">
+                {['All Premium features', 'Lifetime access', 'No payment required', 'Instant activation'].map((f) => (
+                  <li key={f} className="flex items-start gap-3">
+                    <span style={{ color: 'var(--s-primary)', flexShrink: 0, fontSize: 13, marginTop: 1 }}>✓</span>
+                    <span className="s-caption" style={{ color: 'var(--s-ink-mute)' }}>{f}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-8">
+                <button
+                  onClick={() => setPaymentMethod('promo')}
+                  className="s-btn-secondary"
+                  style={{ width: '100%', padding: '10px 20px', justifyContent: 'center' }}
+                >
+                  Enter Coupon Code
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* ── CHECKOUT SECTION ────────────────────────────────── */}
+        <div className="mx-auto max-w-[680px] px-6 pb-20">
+          <div className="s-card s-shadow-2" style={{ padding: 0, overflow: 'hidden' }}>
+
+            {/* Tab switcher */}
+            <div className="flex" style={{ borderBottom: '1px solid var(--s-hairline)' }}>
+              {([['razorpay', '💳 Pay Securely'], ['promo', '🎟️ Promo Code']] as const).map(([tab, label]) => (
+                <button
+                  key={tab}
+                  onClick={() => setPaymentMethod(tab)}
+                  className="flex-1 py-4 s-caption cursor-pointer transition-colors"
+                  style={{
+                    background: 'none', border: 'none',
+                    color: paymentMethod === tab ? 'var(--s-primary)' : 'var(--s-ink-mute)',
+                    borderBottom: paymentMethod === tab ? '2px solid var(--s-primary)' : '2px solid transparent',
+                    fontWeight: paymentMethod === tab ? 500 : 300,
+                    fontFamily: "'Inter', system-ui",
+                    fontFeatureSettings: '"ss01"',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="p-8 space-y-6">
+
+              {/* ── Razorpay flow ─────────────────────────────── */}
               {paymentMethod === 'razorpay' && (
-                <div className="space-y-6">
-                  {/* Premium Checkout Banner */}
-                  <div className="relative p-6 rounded-2xl bg-gradient-to-br from-zinc-850 via-zinc-900 to-brand-950/20 border border-zinc-800/80 shadow-2xl flex flex-col justify-between overflow-hidden">
-                    <div className="absolute inset-0 bg-white/[0.01] pointer-events-none" />
-                    
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <span className="text-[10px] uppercase font-extrabold tracking-widest text-brand-400">Order Summary</span>
-                        <h3 className="text-lg font-bold text-white">{planName} Plan</h3>
-                      </div>
-                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-semibold">
-                        <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-pulse" />
-                        Razorpay Secure
-                      </div>
+                <div className="space-y-6 animate-fade-in">
+                  {/* Order summary card */}
+                  <div className="rounded-xl p-5 flex justify-between items-start" style={{ background: 'var(--s-canvas-soft)', border: '1px solid var(--s-hairline)' }}>
+                    <div>
+                      <p className="s-micro-cap" style={{ color: 'var(--s-ink-mute)' }}>Order Summary</p>
+                      <p className="s-heading-md mt-1" style={{ color: 'var(--s-ink)' }}>{planName} Plan</p>
+                      <p className="s-caption mt-0.5" style={{ color: 'var(--s-ink-mute)' }}>{planSub}</p>
                     </div>
-
-                    <div className="mt-6 space-y-2.5">
-                      <div className="flex justify-between text-xs text-zinc-400">
-                        <span>Base Subscription</span>
-                        <span>₹{planPrice}.00</span>
-                      </div>
-                      <div className="flex justify-between text-xs text-zinc-400">
-                        <span>GST / Taxes</span>
-                        <span>₹0.00 (Inclusive)</span>
-                      </div>
-                      <div className="h-px bg-zinc-800/60 my-2" />
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-sm font-bold text-white">Total Amount Due</span>
-                        <div className="flex items-baseline gap-0.5">
-                          <span className="text-2xl font-extrabold text-white">₹{planPrice}</span>
-                          <span className="text-xs text-zinc-500">.00</span>
-                        </div>
-                      </div>
+                    <div className="text-right">
+                      <p className="tnum" style={{ fontSize: 26, fontWeight: 300, color: 'var(--s-ink)', letterSpacing: '-0.6px' }}>₹{planPrice}</p>
+                      <p className="s-micro-cap" style={{ color: 'var(--s-ink-mute)' }}>incl. GST</p>
                     </div>
                   </div>
 
-                  {/* Trust details */}
-                  <div className="bg-surface-2/40 border border-border-subtle/50 rounded-2xl p-4 flex flex-col items-center justify-center gap-3">
-                    <div className="flex items-center justify-center gap-4 text-zinc-500 text-xs">
-                      <span className="font-semibold text-zinc-400">Supported Options:</span>
-                      <div className="flex gap-2.5 items-center">
-                        <span className="px-1.5 py-0.5 rounded border border-zinc-800 text-[10px] font-bold bg-zinc-900/60">UPI</span>
-                        <span className="px-1.5 py-0.5 rounded border border-zinc-800 text-[10px] font-bold bg-zinc-900/60">CARDS</span>
-                        <span className="px-1.5 py-0.5 rounded border border-zinc-800 text-[10px] font-bold bg-zinc-900/60">NETBANKING</span>
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-zinc-500 flex items-center gap-1 text-center">
-                      🔒 Secured with 256-bit SSL encryption. GPay, PhonePe, Paytm, and RuPay card checkouts accepted.
+                  {/* Plan picker */}
+                  <div className="flex gap-3">
+                    {(['annual', 'monthly'] as const).map((plan) => (
+                      <button
+                        key={plan}
+                        onClick={() => setSelectedPlan(plan)}
+                        className="flex-1 py-2.5 rounded-full s-caption cursor-pointer transition-all"
+                        style={{
+                          background: selectedPlan === plan ? 'var(--s-primary)' : 'transparent',
+                          color: selectedPlan === plan ? '#fff' : 'var(--s-ink-mute)',
+                          border: selectedPlan === plan ? '1px solid var(--s-primary)' : '1px solid var(--s-hairline)',
+                          fontFamily: "'Inter', system-ui",
+                          fontFeatureSettings: '"ss01"',
+                        }}
+                      >
+                        {plan === 'annual' ? 'Annual — ₹365/yr' : 'Monthly — ₹31/mo'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Trust bar */}
+                  <div className="rounded-xl p-3 flex flex-wrap items-center justify-center gap-4" style={{ background: 'var(--s-canvas-soft)', border: '1px solid var(--s-hairline)' }}>
+                    {['UPI', 'Cards', 'NetBanking', 'GPay', 'PhonePe'].map((m) => (
+                      <span key={m} className="s-micro-cap px-2 py-1 rounded-full" style={{ background: 'var(--s-canvas)', color: 'var(--s-ink-mute)', border: '1px solid var(--s-hairline)' }}>{m}</span>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={handleRazorpayCheckout}
+                    disabled={processing}
+                    className="s-btn-primary"
+                    style={{ width: '100%', padding: '13px 20px', fontSize: 16, justifyContent: 'center', opacity: processing ? 0.6 : 1 }}
+                  >
+                    {processing ? 'Opening payment…' : `Pay ₹${planPrice} & Unlock Premium`}
+                  </button>
+
+                  <p className="s-caption text-center" style={{ color: 'var(--s-ink-mute)' }}>
+                    🔒 Secured with 256-bit SSL · Powered by Razorpay
+                  </p>
+                </div>
+              )}
+
+              {/* ── Promo flow ────────────────────────────────── */}
+              {paymentMethod === 'promo' && (
+                <div className="space-y-6 animate-fade-in">
+                  <div className="rounded-xl p-4" style={{ background: 'rgba(83,58,253,0.04)', border: '1px solid rgba(83,58,253,0.15)' }}>
+                    <p className="s-caption" style={{ color: 'var(--s-ink-secondary)' }}>
+                      🎟️ <strong style={{ color: 'var(--s-ink)' }}>Have a coupon?</strong> Enter your unique code below to unlock lifetime access to all premium features instantly.
                     </p>
                   </div>
-
-                  <Button
-                    onClick={handleRazorpayCheckout}
-                    loading={processing}
-                    size="lg"
-                    block
-                    className="bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-xl shadow-brand-500/10 font-bold transition-all duration-300"
-                  >
-                    Pay ₹{planPrice} & Upgrade Now
-                  </Button>
-                </div>
-              )}
-
-              {/* PROMO CODE SIMULATOR FLOW */}
-              {paymentMethod === 'promo' && (
-                <div className="space-y-6">
-                  <div className="rounded-2xl border border-brand-500/20 bg-brand-500/5 p-4 text-xs text-brand-300 leading-relaxed">
-                    🎟️ <strong>Dhanrakshak Coupon Code:</strong> Enter your unique coupon code below to unlock unlimited lifetime access to all app features (including automated email scanning and mobile dashboards).
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <Input
-                      label="Coupon Code"
-                      type="text"
-                      placeholder="e.g. DHANVIP"
-                      value={promoCode}
-                      onChange={(e) => setPromoCode(e.target.value)}
-                    />
-                    
-                    <Button
+                  <div className="space-y-3">
+                    <div>
+                      <label className="s-micro-cap block mb-2" style={{ color: 'var(--s-ink-mute)' }}>Coupon Code</label>
+                      <input
+                        className="s-input"
+                        type="text"
+                        placeholder="e.g. DHANVIP"
+                        value={promoCode}
+                        onChange={(e) => setPromoCode(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handlePromoSimulator()}
+                      />
+                    </div>
+                    <button
                       onClick={handlePromoSimulator}
-                      loading={processing}
-                      block
+                      disabled={processing || !promoCode.trim()}
+                      className="s-btn-primary"
+                      style={{ width: '100%', padding: '12px 20px', fontSize: 15, justifyContent: 'center', opacity: processing || !promoCode.trim() ? 0.5 : 1 }}
                     >
-                      Apply Coupon & Unlock Access
-                    </Button>
+                      {processing ? 'Applying coupon…' : 'Apply & Unlock Access'}
+                    </button>
                   </div>
                 </div>
               )}
@@ -450,6 +410,11 @@ export default function PricingPage() {
             </div>
           </div>
 
+          {/* Footer note */}
+          <p className="s-caption text-center mt-6" style={{ color: 'var(--s-ink-mute)' }}>
+            Have questions?{' '}
+            <Link to="/support" className="s-link">Contact support</Link> · All plans come with a 7-day refund guarantee.
+          </p>
         </div>
 
       </div>
