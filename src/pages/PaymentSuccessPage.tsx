@@ -52,9 +52,9 @@ export default function PaymentSuccessPage() {
     <AppLayout>
       <div className="max-w-md mx-auto py-12 px-4 text-center space-y-8 animate-scale-up">
         {/* Animated Checkmark Container */}
-        <div className="relative flex items-center justify-center mx-auto h-24 w-24 rounded-full bg-emerald-500/10 border border-emerald-500/25 shadow-2xl shadow-emerald-500/10">
+        <div className="relative flex items-center justify-center mx-auto h-24 w-24 rounded-full bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] shadow-2xl shadow-emerald-500/10">
           {/* Confetti Micro-animations */}
-          <div className="absolute inset-0 rounded-full animate-ping bg-emerald-500/5 duration-1000" />
+          <div className="absolute inset-0 rounded-full animate-ping bg-[var(--status-positive-subtle)]/5 duration-1000" />
           <span className="text-5xl" aria-hidden="true">👑</span>
         </div>
 
@@ -77,7 +77,7 @@ export default function PaymentSuccessPage() {
 
           <div className="flex justify-between items-center text-xs pb-3 border-b border-border-subtle/50">
             <span className="text-zinc-500">Subscription Status</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] text-[var(--status-positive-text)]">
               Active
             </span>
           </div>

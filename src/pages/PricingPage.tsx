@@ -184,7 +184,7 @@ export default function PricingPage() {
         
         {/* Banner if trial is still active */}
         {profile?.subscription_status === 'trial' && daysLeft > 0 && (
-          <div className="rounded-2xl bg-amber-500/10 border border-amber-500/25 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+          <div className="rounded-2xl bg-[var(--status-warning-subtle)] border border-[var(--status-warning-border)] p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
             <div className="flex items-center gap-3">
               <span className="text-2xl" aria-hidden="true">⏳</span>
               <div>
@@ -194,7 +194,7 @@ export default function PricingPage() {
                 </p>
               </div>
             </div>
-            <div className="text-xs text-amber-400 font-semibold bg-amber-500/5 px-2.5 py-1 rounded-md border border-amber-500/20">
+            <div className="text-xs text-[var(--status-warning-text)] font-semibold bg-[var(--status-warning-subtle)] px-2.5 py-1 rounded-md border border-[var(--status-warning-border)]">
               Full Trial Access
             </div>
           </div>
@@ -202,7 +202,7 @@ export default function PricingPage() {
 
         {/* Banner if trial has expired */}
         {(!profile?.subscription_status || (profile?.subscription_status === 'trial' && daysLeft <= 0)) && (
-          <div className="rounded-2xl bg-red-500/10 border border-red-500/25 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+          <div className="rounded-2xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
             <div className="flex items-center gap-3">
               <span className="text-2xl" aria-hidden="true">🔒</span>
               <div>
@@ -212,7 +212,7 @@ export default function PricingPage() {
                 </p>
               </div>
             </div>
-            <div className="text-xs text-red-400 font-semibold bg-red-500/5 px-2.5 py-1 rounded-md border border-red-500/20">
+            <div className="text-xs text-[var(--status-danger-text)] font-semibold bg-[var(--status-danger-subtle)] px-2.5 py-1 rounded-md border border-[var(--status-danger-border)]">
               Account Locked
             </div>
           </div>
