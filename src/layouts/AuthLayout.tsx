@@ -27,8 +27,9 @@ export default function AuthLayout({ children, title, subtitle }: AuthLayoutProp
           <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 shadow-xl shadow-brand-500/20 transition-transform duration-300 hover:scale-105">
             <span className="text-2xl font-bold text-surface-0" aria-hidden="true">₹</span>
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1">
-            {APP_CONFIG.APP_NAME}
+          <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1 flex items-center justify-center gap-1 select-none">
+            <span className="bg-gradient-to-r from-brand-300 to-emerald-400 bg-clip-text text-transparent">Dhan</span>
+            <span>rakshak</span>
           </h1>
           <p className="text-xs font-semibold tracking-wider text-brand-400 uppercase mb-4 text-center">
             {APP_CONFIG.APP_TAGLINE}

@@ -388,26 +388,27 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
       <header className={cn("sticky top-0 z-50 w-full border-b select-none transition-colors", isStaticLight ? "border-sb-hairline bg-sb-canvas text-sb-ink" : "border-border-subtle bg-surface-1/80 backdrop-blur-md text-zinc-100")}>
         <div className="mx-auto max-w-7xl h-14 flex items-center justify-between px-4 sm:px-6 gap-4">
           <Link to="/" className="flex items-center gap-3 shrink-0 group">
-            <span className={cn(
-              "text-sm font-bold flex h-8 w-8 items-center justify-center rounded-xl border transition-all duration-300 shadow-sm",
-              isStaticLight 
-                ? "bg-zinc-100 border-zinc-200 text-zinc-700 group-hover:scale-105" 
-                : "bg-gradient-to-br from-brand-500/20 to-emerald-500/5 border-brand-500/30 text-brand-400 shadow-brand-500/10 group-hover:scale-110 group-hover:rotate-12 group-hover:shadow-brand-500/25"
-            )} aria-hidden="true">₹</span>
+            <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] border-0 group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300" aria-hidden="true">₹</span>
             <div className="flex items-center gap-2.5">
-              <span className={cn(
-                "text-base font-extrabold tracking-tight leading-none bg-gradient-to-r bg-clip-text text-transparent transition-all duration-300",
-                isStaticLight 
-                  ? "from-zinc-900 to-zinc-700" 
-                  : "from-brand-400 via-brand-500 to-emerald-400"
-              )}>Dhanrakshak</span>
+              <div className="flex items-center gap-1 text-base tracking-tight leading-none">
+                <span className={cn(
+                  "font-extrabold bg-gradient-to-r bg-clip-text text-transparent transition-all duration-300",
+                  (isStaticLight || isLight)
+                    ? "from-emerald-600 to-teal-500"
+                    : "from-brand-300 to-emerald-400"
+                )}>Dhan</span>
+                <span className={cn(
+                  "font-bold transition-colors duration-300",
+                  (isStaticLight || isLight) ? "text-zinc-800" : "text-white"
+                )}>rakshak</span>
+              </div>
               <span className={cn(
                 "text-[8px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full border hidden md:inline-flex items-center gap-1.5 transition-all duration-300 shadow-sm",
-                isStaticLight 
-                  ? "bg-zinc-50 border-zinc-200/60 text-zinc-500" 
+                (isStaticLight || isLight)
+                  ? "bg-emerald-50 border-emerald-200/50 text-emerald-700 shadow-emerald-500/5"
                   : "bg-brand-500/10 border-brand-500/20 text-brand-400 shadow-brand-500/5"
               )}>
-                <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />
+                <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", (isStaticLight || isLight) ? "bg-emerald-500" : "bg-brand-400")} />
                 Automated Tracker
               </span>
             </div>
