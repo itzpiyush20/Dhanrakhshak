@@ -8,9 +8,10 @@ import { AppLayout } from '@/layouts'
 import { Card, Button, Input, Select, Badge, EmptyState } from '@/components/ui'
 import { getBudgets, upsertBudget, deleteBudget } from '@/services/budgets'
 import { getMonthlySummary } from '@/services/transactions'
-import { formatCurrency, getCurrentMonth } from '@/utils'
+import { formatCurrency, getCurrentMonth, withTimeout } from '@/utils'
 import { CATEGORIES } from '@/constants'
 import type { Database } from '@/types/database'
+import { useToast } from '@/context'
 
 type BudgetRow = Database['public']['Tables']['budgets']['Row']
 
@@ -37,6 +38,7 @@ export default function BudgetsPage() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { showToast } = useToast()
 
   // Form states
   const [category, setCategory] = useState(BUDGET_ELIGIBLE_CATEGORIES[0].key)
@@ -46,10 +48,14 @@ export default function BudgetsPage() {
     setLoading(true)
     setError(null)
     try {
-      const [budgetsRes, summaryRes] = await Promise.all([
-        getBudgets(month),
-        getMonthlySummary(month),
-      ])
+      const [budgetsRes, summaryRes] = await withTimeout(
+        Promise.all([
+          getBudgets(month),
+          getMonthlySummary(month),
+        ]),
+        45000,
+        'Budget data fetch'
+      )
 
       if (budgetsRes.error) throw budgetsRes.error
       if (summaryRes.error) throw summaryRes.error
@@ -73,6 +79,7 @@ export default function BudgetsPage() {
   }, [])
 
   useEffect(() => {
+    document.title = 'Budgets | Dhanrakshak'
     fetchBudgetData(selectedMonth)
   }, [selectedMonth, fetchBudgetData])
 
@@ -87,6 +94,7 @@ export default function BudgetsPage() {
       if (error) throw error
 
       setAmount('')
+      showToast('Limit set successfully')
       await fetchBudgetData(selectedMonth)
     } catch (err: any) {
       console.error('Error saving budget:', err)
@@ -143,6 +151,11 @@ export default function BudgetsPage() {
   const totalSpent = budgets.reduce((sum, b) => sum + (spentMap[b.category] || 0), 0)
   const remainingBudget = totalBudgeted - totalSpent
 
+  const warningBudgets = budgets.filter((b) => {
+    const spent = spentMap[b.category] || 0
+    return spent >= b.amount * 0.7
+  })
+
   return (
     <AppLayout>
       <div className="space-y-8 animate-fade-in">
@@ -183,8 +196,36 @@ export default function BudgetsPage() {
         </div>
 
         {error && (
-          <div className="rounded-2xl bg-red-500/10 border border-red-500/20 p-4 text-sm text-red-400">
+          <div className="rounded-2xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-4 text-sm text-[var(--status-danger-text)]">
             {error}
+          </div>
+        )}
+
+        {/* Dynamic Budget Warnings / Exceeded Banners */}
+        {warningBudgets.length > 0 && (
+          <div className="space-y-2">
+            {warningBudgets.map((b) => {
+              const spent = spentMap[b.category] || 0
+              const isExceeded = spent >= b.amount
+              const cat = CATEGORIES[b.category as keyof typeof CATEGORIES] || CATEGORIES.other
+              return (
+                <div
+                  key={b.id}
+                  className={`rounded-2xl border p-4 text-xs font-semibold leading-relaxed flex items-center gap-3 animate-fade-in ${
+                    isExceeded
+                      ? 'bg-[var(--status-danger-subtle)] border-[var(--status-danger-border)] text-[var(--status-danger-text)]'
+                      : 'bg-[var(--status-warning-subtle)] border-[var(--status-warning-border)] text-[var(--status-warning-text)]'
+                  }`}
+                >
+                  <span className="text-base select-none">{isExceeded ? '⚠️' : '🔔'}</span>
+                  <span>
+                    {isExceeded
+                      ? `Budget Exceeded: Your expenses in ${cat.emoji} ${cat.label} (${formatCurrency(spent)}) have exceeded your established limit of ${formatCurrency(b.amount)}!`
+                      : `Budget Limit Reached: Your expenses in ${cat.emoji} ${cat.label} (${formatCurrency(spent)}) have reached ${Math.round((spent / b.amount) * 100)}% of your established limit of ${formatCurrency(b.amount)}.`}
+                  </span>
+                </div>
+              )
+            })}
           </div>
         )}
 
@@ -203,7 +244,7 @@ export default function BudgetsPage() {
             <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 font-medium">
               Spent in Budgeted
             </p>
-            <p className="mt-1.5 text-2xl font-bold text-orange-400">
+            <p className="mt-1.5 text-2xl font-bold text-[var(--status-warning-text)]">
               {formatCurrency(totalSpent)}
             </p>
             <p className="text-[10px] text-zinc-500 mt-1">Expenses in budgeted categories</p>
@@ -214,7 +255,7 @@ export default function BudgetsPage() {
             </p>
             <p
               className={`mt-1.5 text-2xl font-bold ${
-                remainingBudget >= 0 ? 'text-brand-400' : 'text-red-400'
+                remainingBudget >= 0 ? 'text-[var(--status-positive-text)]' : 'text-[var(--status-danger-text)]'
               }`}
             >
               {formatCurrency(remainingBudget)}
@@ -228,7 +269,7 @@ export default function BudgetsPage() {
         {/* Layout details split */}
         <div className="grid gap-6 lg:grid-cols-12">
           {/* Left column: budgets list */}
-          <Card className="lg:col-span-8 flex flex-col min-h-[400px]">
+          <Card className="lg:col-span-8 flex flex-col h-auto">
             <h2 className="text-lg font-bold text-white mb-6">Limits Overview</h2>
 
             <div className="flex-1 flex flex-col justify-center">
@@ -262,13 +303,10 @@ export default function BudgetsPage() {
 
                     // Dynamic colors for safety status
                     let progressColor = cat.color
-                    let statusLabel: 'success' | 'warning' | 'danger' = 'success'
                     if (pct >= 90) {
                       progressColor = '#ef4444' // Red alert
-                      statusLabel = 'danger'
                     } else if (pct >= 70) {
                       progressColor = '#f59e0b' // Amber caution
-                      statusLabel = 'warning'
                     }
 
                     return (
@@ -313,7 +351,7 @@ export default function BudgetsPage() {
                               </p>
                               <p
                                 className={`text-xs mt-0.5 font-medium ${
-                                  remaining >= 0 ? 'text-brand-400' : 'text-red-400'
+                                  remaining >= 0 ? 'text-[var(--status-positive-text)]' : 'text-[var(--status-danger-text)]'
                                 }`}
                               >
                                 {remaining >= 0
@@ -324,7 +362,7 @@ export default function BudgetsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="text-zinc-500 hover:text-red-400 hover:bg-red-500/10 h-8 w-8 p-0"
+                              className="text-zinc-500 hover:text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] h-8 w-8 p-0"
                               onClick={() => handleDelete(budget.id)}
                               disabled={actionLoading}
                               title="Delete budget"

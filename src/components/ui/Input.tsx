@@ -39,6 +39,8 @@ export default function Input({
         )}
         <input
           id={inputId}
+          aria-invalid={!!error}
+          aria-describedby={error ? `${inputId}-error` : undefined}
           className={cn(
             'h-11 w-full rounded-xl border bg-surface-2 px-4 text-sm text-white',
             'placeholder:text-zinc-500',
@@ -47,14 +49,14 @@ export default function Input({
             error
               ? 'border-red-500/50 focus:ring-red-400/40 focus:border-red-400'
               : 'border-border-subtle hover:border-border-hover',
-            icon && 'pl-10',
+            icon ? 'pl-10' : '',
             className
           )}
           {...props}
         />
       </div>
       {error && (
-        <p className="text-xs text-red-400">{error}</p>
+        <p id={`${inputId}-error`} role="alert" aria-live="assertive" className="text-xs text-red-400">{error}</p>
       )}
     </div>
   )

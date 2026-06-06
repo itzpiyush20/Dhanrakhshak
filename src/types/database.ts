@@ -12,6 +12,10 @@ export interface Database {
           email: string
           full_name: string | null
           avatar_url: string | null
+          email_notifications_enabled: boolean
+          budget_alerts_enabled: boolean
+          weekly_report_enabled: boolean
+          subscription_reminders_enabled: boolean
           created_at: string
           updated_at: string
         }
@@ -20,10 +24,18 @@ export interface Database {
           email: string
           full_name?: string | null
           avatar_url?: string | null
+          email_notifications_enabled?: boolean
+          budget_alerts_enabled?: boolean
+          weekly_report_enabled?: boolean
+          subscription_reminders_enabled?: boolean
         }
         Update: {
           full_name?: string | null
           avatar_url?: string | null
+          email_notifications_enabled?: boolean
+          budget_alerts_enabled?: boolean
+          weekly_report_enabled?: boolean
+          subscription_reminders_enabled?: boolean
         }
       }
       transactions: {
@@ -40,6 +52,14 @@ export interface Database {
           approval_status: 'pending' | 'approved' | 'rejected'
           reference_id: string | null
           merchant: string | null
+          // V2 columns
+          payment_mode: 'upi' | 'credit_card' | 'debit_card' | 'neft' | 'rtgs' | 'imps' | 'atm' | 'net_banking' | 'nach' | 'wallet' | 'cheque' | 'unknown' | null
+          card_last4: string | null
+          card_issuer: string | null
+          confidence_score: number | null
+          event_type: 'debit' | 'credit' | 'refund' | 'emi' | 'sip' | 'salary' | 'chargeback' | 'subscription' | 'transfer' | 'insurance' | 'loan_repayment' | 'atm_withdrawal' | null
+          email_message_id: string | null
+          tags: string[] | null
           created_at: string
           updated_at: string
         }
@@ -55,6 +75,14 @@ export interface Database {
           approval_status?: 'pending' | 'approved' | 'rejected'
           reference_id?: string | null
           merchant?: string | null
+          // V2 columns
+          payment_mode?: 'upi' | 'credit_card' | 'debit_card' | 'neft' | 'rtgs' | 'imps' | 'atm' | 'net_banking' | 'nach' | 'wallet' | 'cheque' | 'unknown' | null
+          card_last4?: string | null
+          card_issuer?: string | null
+          confidence_score?: number | null
+          event_type?: 'debit' | 'credit' | 'refund' | 'emi' | 'sip' | 'salary' | 'chargeback' | 'subscription' | 'transfer' | 'insurance' | 'loan_repayment' | 'atm_withdrawal' | null
+          email_message_id?: string | null
+          tags?: string[] | null
         }
         Update: {
           amount?: number
@@ -65,6 +93,12 @@ export interface Database {
           date?: string
           approval_status?: 'pending' | 'approved' | 'rejected'
           merchant?: string | null
+          payment_mode?: string | null
+          card_last4?: string | null
+          card_issuer?: string | null
+          confidence_score?: number | null
+          event_type?: string | null
+          tags?: string[] | null
         }
       }
       budgets: {
@@ -111,6 +145,59 @@ export interface Database {
           transactions_found?: number
           status?: 'success' | 'failed' | 'partial'
           error_message?: string | null
+        }
+      }
+      merchant_rules: {
+        Row: {
+          id: string
+          user_id: string
+          merchant_key: string
+          preferred_category: string
+          auto_approve: boolean
+          confidence: number
+          times_confirmed: number
+          last_updated: string
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+          merchant_key: string
+          preferred_category: string
+          auto_approve?: boolean
+          confidence?: number
+          times_confirmed?: number
+        }
+        Update: {
+          preferred_category?: string
+          auto_approve?: boolean
+          confidence?: number
+          times_confirmed?: number
+          last_updated?: string
+        }
+      }
+      cards: {
+        Row: {
+          id: string
+          user_id: string
+          last4: string
+          issuer: string
+          card_type: 'credit' | 'debit'
+          card_name: string | null
+          is_primary: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          last4: string
+          issuer: string
+          card_type: 'credit' | 'debit'
+          card_name?: string | null
+          is_primary?: boolean
+        }
+        Update: {
+          card_name?: string | null
+          is_primary?: boolean
         }
       }
     }

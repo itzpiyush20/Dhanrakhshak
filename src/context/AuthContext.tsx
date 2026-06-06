@@ -122,10 +122,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const localExpires = localStorage.getItem(`dhanrakshak_sub_expires_${state.user.id}`)
 
       if (!error && data) {
+        const createdAtTime = data.created_at ? new Date(data.created_at).getTime() : Date.now()
+        const safeCreatedAtTime = isNaN(createdAtTime) ? Date.now() : createdAtTime
         setProfile({
           ...data,
           subscription_status: data.subscription_status || localStatus || 'trial',
-          subscription_expires_at: data.subscription_expires_at || localExpires || new Date(new Date(data.created_at).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
+          subscription_expires_at: data.subscription_expires_at || localExpires || new Date(safeCreatedAtTime + 14 * 24 * 60 * 60 * 1000).toISOString()
         })
       } else {
         setProfile({
@@ -137,6 +139,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (e) {
       console.error('Error fetching profile in AuthContext:', e)
+      // Fallback profile to prevent app from hanging
+      setProfile({
+        id: state.user.id,
+        email: state.user.email,
+        subscription_status: 'trial',
+        subscription_expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+      })
     }
   }
 

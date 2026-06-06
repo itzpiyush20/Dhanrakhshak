@@ -1,0 +1,92 @@
+import { createContext, useContext, useState, type ReactNode } from 'react'
+
+export type ToastType = 'success' | 'error' | 'warning' | 'info'
+
+interface Toast {
+  id: string
+  message: string
+  type: ToastType
+}
+
+interface ToastContextValue {
+  showToast: (message: string, type?: ToastType) => void
+}
+
+const ToastContext = createContext<ToastContextValue | null>(null)
+
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [toasts, setToasts] = useState<Toast[]>([])
+
+  const showToast = (message: string, type: ToastType = 'success') => {
+    const id = Math.random().toString(36).substring(2) + Date.now().toString(36)
+    setToasts((prev) => [...prev, { id, message, type }])
+    
+    // Auto dismiss after 3.5 seconds
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id))
+    }, 3500)
+  }
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }
+
+  return (
+    <ToastContext.Provider value={{ showToast }}>
+      {children}
+
+      {/* Floating Toast Container */}
+      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+        {toasts.map((toast) => {
+          let bgColor = 'bg-surface-1/95 border-border-subtle'
+          let textColor = 'text-zinc-200'
+          let emoji = 'ℹ️'
+
+          if (toast.type === 'success') {
+            bgColor = 'bg-[var(--surface-1)] border-[var(--status-positive-border)] text-[var(--status-positive-text)]'
+            textColor = 'text-[var(--text-primary)]'
+            emoji = '✔️'
+          } else if (toast.type === 'error') {
+            bgColor = 'bg-[var(--surface-1)] border-[var(--status-danger-border)] text-[var(--status-danger-text)]'
+            textColor = 'text-[var(--text-primary)]'
+            emoji = '❌'
+          } else if (toast.type === 'warning') {
+            bgColor = 'bg-[var(--surface-1)] border-[var(--status-warning-border)] text-[var(--status-warning-text)]'
+            textColor = 'text-[var(--text-primary)]'
+            emoji = '⚠️'
+          }
+
+          return (
+            <div
+              key={toast.id}
+              className={`flex items-center justify-between p-4 rounded-2xl border backdrop-blur-xl shadow-2xl pointer-events-auto animate-scale-up transition-all duration-300 ${bgColor}`}
+              role="alert"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-base shrink-0 select-none" aria-hidden="true">
+                  {emoji}
+                </span>
+                <p className={`text-xs font-semibold leading-relaxed ${textColor}`}>{toast.message}</p>
+              </div>
+              <button
+                onClick={() => removeToast(toast.id)}
+                className="text-zinc-500 hover:text-zinc-300 font-bold ml-3 text-xs transition-colors cursor-pointer shrink-0"
+                aria-label="Dismiss toast"
+              >
+                ✕
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </ToastContext.Provider>
+  )
+}
+
+export function useToast() {
+  const context = useContext(ToastContext)
+  if (!context) {
+    throw new Error('useToast must be used within a ToastProvider')
+  }
+  return context
+}

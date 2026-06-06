@@ -7,7 +7,6 @@ import { supabase } from './supabase'
 import type { Database } from '@/types/database'
 
 type BudgetRow = Database['public']['Tables']['budgets']['Row']
-type BudgetInsert = Database['public']['Tables']['budgets']['Insert']
 
 /** Fetch budgets for current user for a specific month */
 export async function getBudgets(month: string) {

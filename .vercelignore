@@ -1,0 +1,14 @@
+# Ignore native platform build directories
+android/
+ios/
+
+# Ignore local JDK binary tools
+jdk/
+jdk21/
+
+# Ignore local dependencies and build outputs
+node_modules/
+dist/
+.vercel/
+.git/
+*.log

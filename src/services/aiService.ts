@@ -1,0 +1,447 @@
+// ============================================
+// AI Service — Gemini API Integration
+// Generates personalised financial insights
+// Falls back to rule-based insights if API key
+// is absent or request fails
+// ============================================
+
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
+
+export interface FinancialContext {
+  month: string
+  totalIncome: number
+  totalExpenses: number
+  savings: number
+  savingsRate: number
+  needsPct: number
+  wantsPct: number
+  savingsPct: number
+  healthScore: number
+  topCategory: string
+  topCategoryAmount: number
+  topCategoryPct: number
+  momTrend: { pct: number; increased: boolean; prevLabel: string } | null
+  subscriptionBurn: number
+  emergencyMonths: number
+  categoryBreakdown: Array<{ category: string; amount: number; percentage: number }>
+}
+
+/** Generate AI-powered financial insights via Gemini */
+export async function generateAIInsights(ctx: FinancialContext): Promise<{
+  insights: string[]
+  alerts: string[]
+  source: 'gemini' | 'rule-based'
+}> {
+  // If no API key, fall back to rule-based immediately
+  if (!GEMINI_API_KEY) {
+    return { ...generateRuleBasedInsights(ctx), source: 'rule-based' }
+  }
+
+  try {
+    const prompt = buildPrompt(ctx)
+
+    const response = await fetch(GEMINI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 800,
+          topP: 0.9,
+        },
+        safetySettings: [
+          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+        ],
+      }),
+    })
+
+    if (!response.ok) throw new Error(`Gemini API error: ${response.status}`)
+
+    const data = await response.json()
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+
+    const parsed = parseGeminiResponse(text)
+    if (parsed.insights.length > 0) {
+      return { ...parsed, source: 'gemini' }
+    }
+
+    // If parsing failed, fall back
+    return { ...generateRuleBasedInsights(ctx), source: 'rule-based' }
+  } catch (err) {
+    console.warn('[AI] Gemini request failed, using rule-based fallback:', err)
+    return { ...generateRuleBasedInsights(ctx), source: 'rule-based' }
+  }
+}
+
+/** Build a structured prompt for Gemini */
+function buildPrompt(ctx: FinancialContext): string {
+  const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
+  const catList = ctx.categoryBreakdown
+    .slice(0, 5)
+    .map((c) => `${c.category}: ${fmt(c.amount)} (${c.percentage.toFixed(0)}%)`)
+    .join(', ')
+
+  return `You are a senior Chartered Accountant and personal CFO for an Indian professional. Analyse this user's financial data for ${ctx.month} and provide highly personalised, specific, actionable advice.
+
+FINANCIAL DATA:
+- Monthly Income: ${fmt(ctx.totalIncome)}
+- Total Expenses: ${fmt(ctx.totalExpenses)}
+- Net Savings: ${fmt(ctx.savings)} (${ctx.savingsRate.toFixed(0)}% savings rate)
+- 50/30/20 Split: Needs ${ctx.needsPct}% | Wants ${ctx.wantsPct}% | Savings ${ctx.savingsPct}%
+- Financial Health Score: ${ctx.healthScore}/100
+- Top Expense Category: ${ctx.topCategory} — ${fmt(ctx.topCategoryAmount)} (${ctx.topCategoryPct.toFixed(0)}% of expenses)
+- Category Breakdown: ${catList}
+- Subscription Burn Rate: ${fmt(ctx.subscriptionBurn)}/month
+- Emergency Fund Coverage: ${ctx.emergencyMonths} months
+${ctx.momTrend ? `- Month-over-Month Expense Change: ${ctx.momTrend.increased ? '+' : '-'}${Math.abs(ctx.momTrend.pct).toFixed(0)}% vs ${ctx.momTrend.prevLabel}` : ''}
+
+INSTRUCTIONS:
+1. Generate exactly 3 INSIGHTS (specific, personal, data-driven — not generic advice)
+2. Generate ALERTS only for genuine financial risks (0-2 alerts max)
+3. Each insight must reference the user's actual numbers
+4. Use Indian financial context (SIPs, LIC, FD, GST, ITR, etc.) where relevant
+5. Be direct, like a trusted CA speaking to a client — not a chatbot
+
+Respond in this EXACT JSON format (no markdown, pure JSON):
+{
+  "insights": [
+    "First specific insight with actual numbers...",
+    "Second insight...",
+    "Third insight..."
+  ],
+  "alerts": [
+    "Alert if there is a genuine risk..."
+  ]
+}`
+}
+
+/** Parse Gemini JSON response */
+function parseGeminiResponse(text: string): { insights: string[]; alerts: string[] } {
+  try {
+    // Extract JSON block — Gemini sometimes wraps in markdown
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) throw new Error('No JSON found')
+    const parsed = JSON.parse(jsonMatch[0])
+    return {
+      insights: Array.isArray(parsed.insights) ? parsed.insights.filter(Boolean) : [],
+      alerts: Array.isArray(parsed.alerts) ? parsed.alerts.filter(Boolean) : [],
+    }
+  } catch {
+    return { insights: [], alerts: [] }
+  }
+}
+
+/** Rule-based fallback insights (always works, no API needed) */
+export function generateRuleBasedInsights(ctx: FinancialContext): {
+  insights: string[]
+  alerts: string[]
+} {
+  const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
+  const insights: string[] = []
+  const alerts: string[] = []
+
+  // Insight 1: Savings rate
+  if (ctx.savingsRate >= 20) {
+    insights.push(
+      `Excellent wealth accumulation velocity. Your ${ctx.savingsRate.toFixed(0)}% savings rate (${fmt(ctx.savings)}) this period significantly exceeds the 20% golden benchmark. Redirect this surplus into SIP top-ups or FD laddering to maximise compounding.`
+    )
+  } else if (ctx.savingsRate >= 10) {
+    insights.push(
+      `Your savings rate of ${ctx.savingsRate.toFixed(0)}% (${fmt(ctx.savings)}) is on track but has room to grow. Automating a SIP of ${fmt(ctx.totalIncome * 0.05)} more per month would bridge you to the 20% target within 3 months.`
+    )
+  } else {
+    insights.push(
+      `Your savings rate of ${Math.max(0, ctx.savingsRate).toFixed(0)}% (${fmt(Math.max(0, ctx.savings))}) is below the recommended 20%. Your discretionary spending is absorbing ${fmt(ctx.totalExpenses - ctx.totalIncome * 0.8)} more than optimal. Immediate budget caps on top categories needed.`
+    )
+  }
+
+  // Insight 2: Top category
+  if (ctx.topCategoryAmount > 0) {
+    const potential = fmt(ctx.topCategoryAmount * 0.15)
+    insights.push(
+      `${ctx.topCategory.charAt(0).toUpperCase() + ctx.topCategory.slice(1)} is your largest expense absorber at ${fmt(ctx.topCategoryAmount)} (${ctx.topCategoryPct.toFixed(0)}% of total spend). A disciplined 15% reduction here would free up ${potential} — enough to fully fund a monthly SIP or build your emergency buffer faster.`
+    )
+  }
+
+  // Insight 3: Emergency fund / subscriptions / MoM
+  if (ctx.emergencyMonths < 3) {
+    insights.push(
+      `Your emergency reserve covers only ${ctx.emergencyMonths} month(s) of expenses — dangerously low. The standard recommendation is 6 months (${fmt(ctx.totalExpenses * 6)}). Prioritise this before increasing discretionary spending.`
+    )
+  } else if (ctx.subscriptionBurn > ctx.totalIncome * 0.05) {
+    insights.push(
+      `Your subscription stack is costing ${fmt(ctx.subscriptionBurn)}/month — ${((ctx.subscriptionBurn / ctx.totalIncome) * 100).toFixed(0)}% of your income. Audit each service: cancel those unused for 30+ days and you could reclaim ${fmt(ctx.subscriptionBurn * 0.3)} monthly.`
+    )
+  } else if (ctx.momTrend) {
+    insights.push(
+      ctx.momTrend.increased
+        ? `Your spending surged ${ctx.momTrend.pct.toFixed(0)}% compared to ${ctx.momTrend.prevLabel}. Identify the spike category and set a hard budget cap immediately to prevent this from becoming a habit.`
+        : `Outstanding control — your expenses dropped ${Math.abs(ctx.momTrend.pct).toFixed(0)}% vs ${ctx.momTrend.prevLabel}. This trajectory, sustained for 6 months, would compound your savings by approximately ${fmt(Math.abs((ctx.momTrend.pct / 100) * ctx.totalExpenses) * 6)}.`
+    )
+  } else {
+    insights.push(
+      `Your emergency fund of ${ctx.emergencyMonths} month(s) is healthy. Consider channel-shifting the next salary increment directly into a liquid FD to hit 6 months coverage while maintaining daily cash flow.`
+    )
+  }
+
+  // Alerts
+  if (ctx.needsPct > 60) {
+    alerts.push(`Critical: Essential obligations consuming ${ctx.needsPct}% of income (target: <50%). Review fixed costs — negotiate rent, switch utility plans, or restructure EMIs.`)
+  } else if (ctx.needsPct > 55) {
+    alerts.push(`Essential expenses at ${ctx.needsPct}% of income — above the 50% safe threshold. This limits your savings headroom significantly.`)
+  }
+
+  if (ctx.wantsPct > 40) {
+    alerts.push(`Discretionary spending at ${ctx.wantsPct}% of income (target: ≤30%). Your lifestyle inflation is eroding your compounding potential.`)
+  }
+
+  if (ctx.savingsPct < 5 && ctx.totalIncome > 0) {
+    alerts.push(`Savings rate critically low at ${ctx.savingsPct}%. Without intervention, wealth accumulation will stall entirely.`)
+  }
+
+  return { insights, alerts }
+}
+
+/** Detect spending anomalies (spikes vs personal baseline) */
+export function detectAnomalies(
+  transactions: Array<{ amount: number; category: string; date: string; merchant: string; type: string }>
+): Array<{ category: string; thisMonth: number; baseline: number; spike: number; merchant?: string }> {
+  const anomalies: Array<{ category: string; thisMonth: number; baseline: number; spike: number; merchant?: string }> = []
+
+  // Get current month and last 3 months
+  const now = new Date()
+  const currentMonth = now.toISOString().substring(0, 7)
+
+  const monthlySpend: Record<string, Record<string, number>> = {}
+
+  transactions
+    .filter((t) => t.type === 'debit')
+    .forEach((t) => {
+      const month = t.date.substring(0, 7)
+      if (!monthlySpend[month]) monthlySpend[month] = {}
+      monthlySpend[month][t.category] = (monthlySpend[month][t.category] || 0) + Number(t.amount)
+    })
+
+  const currentSpend = monthlySpend[currentMonth] || {}
+
+  // Get baseline from previous 3 months
+  const prevMonths = Object.keys(monthlySpend)
+    .filter((m) => m < currentMonth)
+    .sort()
+    .slice(-3)
+
+  if (prevMonths.length === 0) return anomalies
+
+  // Check each category
+  for (const [category, amount] of Object.entries(currentSpend)) {
+    const prevAmounts = prevMonths.map((m) => monthlySpend[m]?.[category] || 0)
+    const baseline = prevAmounts.reduce((a, b) => a + b, 0) / prevMonths.length
+
+    if (baseline === 0) continue
+
+    const spike = ((amount - baseline) / baseline) * 100
+
+    // Flag if >80% above baseline and > ₹1000 absolute difference
+    if (spike > 80 && amount - baseline > 1000) {
+      anomalies.push({ category, thisMonth: amount, baseline, spike })
+    }
+  }
+
+  return anomalies.sort((a, b) => b.spike - a.spike).slice(0, 3)
+}
+
+/** Generate 3-month cash flow forecast */
+export function generateForecast(
+  transactions: Array<{ amount: number; type: string; date: string; category: string }>
+): Array<{ month: string; label: string; forecastIncome: number; forecastExpenses: number; forecastSavings: number; confidence: number }> {
+  const now = new Date()
+
+  // Build monthly history for past 6 months
+  const monthlyData: Record<string, { income: number; expenses: number }> = {}
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    monthlyData[key] = { income: 0, expenses: 0 }
+  }
+
+  transactions.forEach((t) => {
+    const month = t.date.substring(0, 7)
+    if (!monthlyData[month]) return
+    if (t.type === 'credit') monthlyData[month].income += Number(t.amount)
+    else monthlyData[month].expenses += Number(t.amount)
+  })
+
+  const months = Object.entries(monthlyData).filter(([, d]) => d.income > 0 || d.expenses > 0)
+  if (months.length < 2) return []
+
+  // Compute weighted moving average (more weight to recent months)
+  const weights = [1, 1.5, 2, 2.5, 3, 3.5].slice(-months.length)
+  const totalWeight = weights.reduce((a, b) => a + b, 0)
+
+  const avgIncome = months.reduce((sum, [, d], i) => sum + d.income * weights[i], 0) / totalWeight
+  const avgExpenses = months.reduce((sum, [, d], i) => sum + d.expenses * weights[i], 0) / totalWeight
+
+  // Month-over-month trend (last 3 months)
+  const recentMonths = months.slice(-3)
+  const incomeTrend = recentMonths.length >= 2
+    ? (recentMonths[recentMonths.length - 1][1].income - recentMonths[0][1].income) / recentMonths.length
+    : 0
+  const expenseTrend = recentMonths.length >= 2
+    ? (recentMonths[recentMonths.length - 1][1].expenses - recentMonths[0][1].expenses) / recentMonths.length
+    : 0
+
+  // Generate 3-month forecast
+  const forecast = []
+  for (let i = 1; i <= 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const label = d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
+
+    // Apply trend dampening — further months have less confidence
+    const dampening = 1 - i * 0.1
+    const forecastIncome = Math.max(0, avgIncome + incomeTrend * i * dampening)
+    const forecastExpenses = Math.max(0, avgExpenses + expenseTrend * i * dampening)
+    const confidence = Math.max(40, 85 - i * 15) // 85%, 70%, 55%
+
+    forecast.push({
+      month,
+      label,
+      forecastIncome,
+      forecastExpenses,
+      forecastSavings: forecastIncome - forecastExpenses,
+      confidence,
+    })
+  }
+
+  return forecast
+}
+
+export interface AITransactionResult {
+  is_transaction: boolean
+  transaction_type: 'debit' | 'credit' | null
+  amount: number | null
+  merchant: string | null
+  category: string | null
+  description: string | null
+  payment_mode: 'upi' | 'credit_card' | 'debit_card' | 'net_banking' | 'wallet' | 'neft' | 'imps' | 'rtgs' | 'atm' | 'nach' | 'cheque' | 'unknown' | null
+  card_issuer: string | null
+  card_last4: string | null
+  reference_id: string | null
+  date: string | null
+  confidence_score: number
+}
+
+/**
+ * Use Gemini AI to verify if an email represents a completed transaction,
+ * and if so, extract structured transaction metadata.
+ */
+export async function analyzeTransactionEmailWithAI(
+  subject: string,
+  body: string,
+  emailDate: string
+): Promise<AITransactionResult | null> {
+  if (!GEMINI_API_KEY) return null
+
+  try {
+    const prompt = `
+Analyze the following email subject and content to determine if it describes a COMPLETED financial transaction in India (either a debit/spend or a credit/receipt of money).
+
+Subject: "${subject}"
+Date: "${emailDate}"
+Body:
+"""
+${body.substring(0, 1500)}
+"""
+
+Rules:
+1. ONLY identify COMPLETED transactions. A transaction is completed if money actually moved (debited, credited, spent, paid, charged, received, deposited, salary, refund).
+2. EXCLUDE non-transactional or incomplete alerts. Set is_transaction to false for:
+   - One-Time Passwords (OTP), login alerts, verification codes.
+   - Payment reminders, bill generation alerts, due statements, upcoming scheduled payments, auto-debit registration confirmations (unless money was actually debited now).
+   - Declined, failed, or unsuccessful transactions.
+   - Promotional emails, discount coupons, or newsletter updates.
+3. Extract the following details:
+   - transaction_type: 'debit' if money went out, 'credit' if money came in.
+   - amount: number representing the transaction amount in INR. Do not include balance or limit amounts. Strip formatting and return as a raw number (e.g. 1500.50).
+   - merchant: name of the merchant/vendor or peer recipient (e.g. 'Swiggy', 'Zomato', 'Amazon', 'Airtel', or personal names). If generic or bank transfer, use the bank name or 'Bank Transfer'. Clean up terms like 'Ltd', 'Pvt', 'Successful'.
+   - category: classify into one of: 'food', 'groceries', 'transport', 'utilities', 'shopping', 'entertainment', 'subscriptions', 'salary', 'travel', 'medical', 'other'.
+   - description: a short, clear description (e.g., 'Swiggy food order', 'Salary credit').
+   - payment_mode: classify into one of: 'upi', 'credit_card', 'debit_card', 'net_banking', 'wallet', 'neft', 'imps', 'rtgs', 'atm', 'nach', 'cheque', 'unknown'.
+   - card_issuer: bank brand name or card brand name (e.g., 'HDFC', 'SBI', 'ICICI', 'Axis', 'Kotak', 'Amex', 'RBL', 'Federal', 'IndusInd'). Pay special attention to extracting this brand name with high precision. This is critical.
+   - card_last4: 4-digit card or account number if mentioned (e.g. '4321'). Return exactly 4 digits as a string, or null if not found. (Note: this is optional/secondary).
+   - reference_id: transaction ref number (UPI transaction ID, NEFT reference, UTR, etc.) if found.
+   - date: date of transaction in YYYY-MM-DD format. If email specifies a date, parse it. Otherwise, use the email date "${emailDate}".
+   - confidence_score: integer from 0 to 100 representing your confidence.
+4. Pay special attention to identifying the correct card brand name or card bank name (e.g. HDFC, SBI, ICICI, Amex, Axis, Kotak, BOB, PNB, RBL, Federal, IndusInd, IDFC, Yes Bank, Paytm, StanChart, Citi, Canara, etc.). Review the email details meticulously to extract the correct card/bank brand name for card_issuer. Be completely sure of this.
+
+Respond in this EXACT JSON format (no markdown, pure JSON):
+{
+  "is_transaction": true,
+  "transaction_type": "debit",
+  "amount": 1500.00,
+  "merchant": "Merchant Name",
+  "category": "category_name",
+  "description": "Short description",
+  "payment_mode": "upi",
+  "card_issuer": "Bank Name",
+  "card_last4": "1234",
+  "reference_id": "1234567890",
+  "date": "YYYY-MM-DD",
+  "confidence_score": 95
+}
+If it is NOT a completed transaction, return:
+{
+  "is_transaction": false,
+  "transaction_type": null,
+  "amount": null,
+  "merchant": null,
+  "category": null,
+  "description": null,
+  "payment_mode": null,
+  "card_issuer": null,
+  "card_last4": null,
+  "reference_id": null,
+  "date": null,
+  "confidence_score": 0
+}
+`
+
+    const response = await fetch(GEMINI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 500,
+          topP: 0.9,
+          responseMimeType: 'application/json',
+        },
+      }),
+    })
+
+    if (!response.ok) throw new Error(`Gemini API error: ${response.status}`)
+
+    const data = await response.json()
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    
+    // Parse json
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) return null
+    const result: AITransactionResult = JSON.parse(jsonMatch[0])
+    
+    if (result && typeof result.is_transaction === 'boolean') {
+      return result
+    }
+    return null
+  } catch (e) {
+    console.warn('[AI] Gemini email parsing failed:', e)
+    return null
+  }
+}
+

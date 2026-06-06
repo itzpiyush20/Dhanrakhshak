@@ -1,6 +1,7 @@
 {
   "name": "dhanrakshak",
   "private": true,
+  "license": "UNLICENSED",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
@@ -10,8 +11,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/ios": "^8.4.0",
     "@supabase/supabase-js": "^2.106.2",
     "@tailwindcss/vite": "^4.3.0",
+    "posthog-js": "^1.378.1",
+    "razorpay": "^2.9.6",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.15.1",
@@ -19,9 +26,10 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^24.12.3",
+    "@types/node": "^24.13.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vercel/node": "^5.8.12",
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",

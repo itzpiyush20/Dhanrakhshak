@@ -2,11 +2,12 @@
 // ProtectedRoute — Redirect to login if not authenticated
 // ============================================
 
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 
 export default function ProtectedRoute() {
-  const { user, loading } = useAuth()
+  const { user, loading, isSubscriptionActive } = useAuth()
+  const location = useLocation()
 
   if (loading) {
     return (
@@ -20,7 +21,14 @@ export default function ProtectedRoute() {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/login" replace state={{ from: location }} />
+  }
+
+  // Exemptions list for expired accounts: /settings, /profile, /support, and /pricing itself
+  const isExempted = ['/settings', '/profile', '/support', '/pricing'].includes(location.pathname)
+
+  if (!isSubscriptionActive && !isExempted) {
+    return <Navigate to="/pricing" replace />
   }
 
   return <Outlet />

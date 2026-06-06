@@ -1,0 +1,24 @@
+{
+  "short_name": "Dhanrakshak",
+  "name": "Dhanrakshak — Personal Finance Tracker",
+  "description": "Your secure sandboxed personal wealth guardian. Track expenses, manage budgets, and safeguard savings.",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": "/dashboard",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "display": "standalone",
+  "orientation": "portrait-primary"
+}

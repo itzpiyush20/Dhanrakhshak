@@ -2,7 +2,7 @@
 // ForgotPasswordPage — Password reset via email
 // ============================================
 
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import AuthLayout from '@/layouts/AuthLayout'
 import { Button, Input } from '@/components/ui'
@@ -10,6 +10,10 @@ import { useAuth } from '@/context/AuthContext'
 
 export default function ForgotPasswordPage() {
   const { resetPassword } = useAuth()
+
+  useEffect(() => {
+    document.title = 'Forgot Password | Dhanrakshak'
+  }, [])
 
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
@@ -63,7 +67,7 @@ export default function ForgotPasswordPage() {
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
-          <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">
+          <div role="alert" className="rounded-xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-3 text-sm text-[var(--status-danger-text)]">
             {error}
           </div>
         )}

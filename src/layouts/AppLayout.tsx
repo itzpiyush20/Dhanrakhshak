@@ -13,6 +13,7 @@ import { submitFeedback, getTesterFeedbackLogs, supabase } from '@/services'
 
 interface AppLayoutProps {
   children: ReactNode
+  isStaticLight?: boolean
 }
 
 const navItems = [
@@ -22,11 +23,10 @@ const navItems = [
   { label: 'Pending Alerts', path: ROUTES.PENDING },
   { label: 'Insights', path: ROUTES.INSIGHTS },
   { label: 'Subscriptions', path: ROUTES.SUBSCRIPTIONS },
-  { label: 'Cards', path: ROUTES.CARDS },
   { label: 'Pricing & Plans', path: ROUTES.PRICING },
 ]
 
-export default function AppLayout({ children }: AppLayoutProps) {
+export default function AppLayout({ children, isStaticLight = false }: AppLayoutProps) {
   const { user, signOut, profile, daysLeft } = useAuth()
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -306,7 +306,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-surface-0 text-zinc-100">
+    <div className={cn("min-h-screen flex flex-col", isStaticLight ? "bg-sb-canvas text-sb-ink" : "bg-surface-0 text-zinc-100")}>
       <a href="#main-content" className="skip-to-content">
         Skip to main content
       </a>
@@ -320,15 +320,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </div>
 
           {/* Secure Loading Text */}
-          <h3 className="text-lg font-bold tracking-tight text-white mb-2 text-center">
+          <h3 className="text-lg font-bold tracking-tight text-static-white mb-2 text-center">
             Secure Sandbox Acknowledgment
           </h3>
-          <p className="text-xs text-zinc-500 mb-6 font-semibold uppercase tracking-widest text-center">
+          <p className="text-xs text-static-zinc-500 mb-6 font-semibold uppercase tracking-widest text-center">
             Dhanrakshak Financial Security Protocol
           </p>
 
           {/* Glowing brand-gradient progress bar */}
-          <div className="h-1.5 w-64 bg-zinc-800 rounded-full overflow-hidden mb-3 shadow-inner border border-zinc-700/30">
+          <div className="h-1.5 w-64 bg-static-zinc-800 rounded-full overflow-hidden mb-3 shadow-inner border border-static-zinc-700/30">
             <div
               className="h-full bg-gradient-to-r from-brand-400 to-brand-600 rounded-full transition-all duration-75 ease-out"
               style={{ width: `${progress}%` }}
@@ -341,26 +341,26 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </p>
 
           {/* Solid Reassurance Card with High Contrast */}
-          <div className="w-full max-w-md bg-surface-1 border border-border-subtle rounded-2xl p-5 backdrop-blur-md shadow-lg animate-fade-in space-y-4 mb-8">
-            <p className="text-xs font-bold text-[var(--status-positive-text)] uppercase tracking-widest flex items-center justify-center gap-1.5">
+          <div className="w-full max-w-md bg-static-zinc-900/60 border border-static-zinc-800 rounded-2xl p-5 backdrop-blur-md shadow-lg animate-fade-in space-y-4 mb-8">
+            <p className="text-xs font-bold text-[#4ade80] uppercase tracking-widest flex items-center justify-center gap-1.5">
               <span>🔒</span> Zero-Trust Data Integrity Architecture
             </p>
             
-            <div className="space-y-3 text-xs text-zinc-200 leading-relaxed font-medium">
+            <div className="space-y-3 text-xs text-static-zinc-200 leading-relaxed font-medium">
               <p className="flex items-start gap-2">
-                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
+                <span className="text-[#4ade80] mt-0.5 select-none">✔</span>
                 <span><strong>100% Local Scans:</strong> Email scanning is processed directly in your browser. Raw messages are parsed and discarded instantly.</span>
               </p>
               <p className="flex items-start gap-2">
-                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
+                <span className="text-[#4ade80] mt-0.5 select-none">✔</span>
                 <span><strong>Read-Only Google Access:</strong> Our Google OAuth integration requests restricted read-only permissions, unable to send or modify any emails.</span>
               </p>
               <p className="flex items-start gap-2">
-                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
+                <span className="text-[#4ade80] mt-0.5 select-none">✔</span>
                 <span><strong>No Passwords Requested:</strong> We never prompt for credit card PINs, banking credentials, net-banking security passwords, or OTPs.</span>
               </p>
               <p className="flex items-start gap-2">
-                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
+                <span className="text-[#4ade80] mt-0.5 select-none">✔</span>
                 <span><strong>Supabase Isolation:</strong> Extracted data is saved inside your private database instance, fully isolated via Row-Level Security (RLS).</span>
               </p>
             </div>
@@ -371,12 +371,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
             {progress === 100 ? (
               <button
                 onClick={handleAcknowledgeSplash}
-                className="px-8 py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 text-white font-bold text-sm tracking-wide shadow-xl shadow-brand-500/25 border border-brand-400/30 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer animate-scale-up"
+                className="px-8 py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 text-static-white font-bold text-sm tracking-wide shadow-xl shadow-brand-500/25 border border-brand-400/30 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer animate-scale-up"
               >
                 Verify & Enter Dashboard
               </button>
             ) : (
-              <p className="text-zinc-500 text-xs font-semibold uppercase tracking-widest animate-pulse">
+              <p className="text-static-zinc-500 text-xs font-semibold uppercase tracking-widest animate-pulse">
                 Auditing System Security Policies...
               </p>
             )}
@@ -384,45 +384,82 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </div>
       )}
 
-      {/* Two-Row Navigation Header */}
-      <header className="sticky top-0 z-50 w-full flex flex-col">
-        {/* 1. Global Navigation Bar (Apple style, 44px, Black) */}
-        <nav className="h-11 bg-black text-white text-[12px] font-sans border-b border-white/10 safe-area-inset-top select-none" aria-label="Global Directory">
-          <div className="mx-auto max-w-7xl h-full flex items-center justify-between px-4 sm:px-6">
-            {/* Logo */}
-            <Link to="/" className="flex items-center gap-2 text-white hover:opacity-80 transition-opacity">
-              <span className="text-base font-bold" aria-hidden="true">₹</span>
-              <span className="font-semibold tracking-tight">Dhanrakshak</span>
-            </Link>
-            
-            {/* Menu items inside global nav */}
-            {user && (
-              <div className="hidden md:flex items-center gap-6 text-zinc-400 font-normal">
-                {navItems.map((item) => {
-                  const isActive = location.pathname === item.path
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      className={cn(
-                        "hover:text-white transition-colors",
-                        isActive && "text-white font-semibold"
-                      )}
-                    >
-                      {item.label}
-                    </Link>
-                  )
-                })}
-              </div>
-            )}
-            
-            {/* Right section - User profile dropdown & Theme Toggle & Notifications */}
-            <div className="flex items-center gap-4">
-              
+      {/* Unified Single Navigation Header */}
+      <header className={cn("sticky top-0 z-50 w-full border-b select-none transition-colors", isStaticLight ? "border-sb-hairline bg-sb-canvas text-sb-ink" : "border-border-subtle bg-surface-1/80 backdrop-blur-md text-zinc-100")}>
+        <div className="mx-auto max-w-7xl h-14 flex items-center justify-between px-4 sm:px-6 gap-4">
+          <Link to="/" className="flex items-center gap-3 shrink-0 group">
+            <span className={cn(
+              "text-sm font-bold flex h-8 w-8 items-center justify-center rounded-xl border transition-all duration-300 shadow-sm",
+              isStaticLight 
+                ? "bg-zinc-100 border-zinc-200 text-zinc-700 group-hover:scale-105" 
+                : "bg-gradient-to-br from-brand-500/20 to-emerald-500/5 border-brand-500/30 text-brand-400 shadow-brand-500/10 group-hover:scale-110 group-hover:rotate-12 group-hover:shadow-brand-500/25"
+            )} aria-hidden="true">₹</span>
+            <div className="flex items-center gap-2.5">
+              <span className={cn(
+                "text-base font-extrabold tracking-tight leading-none bg-gradient-to-r bg-clip-text text-transparent transition-all duration-300",
+                isStaticLight 
+                  ? "from-zinc-900 to-zinc-700" 
+                  : "from-brand-400 via-brand-500 to-emerald-400"
+              )}>Dhanrakshak</span>
+              <span className={cn(
+                "text-[8px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full border hidden md:inline-flex items-center gap-1.5 transition-all duration-300 shadow-sm",
+                isStaticLight 
+                  ? "bg-zinc-50 border-zinc-200/60 text-zinc-500" 
+                  : "bg-brand-500/10 border-brand-500/20 text-brand-400 shadow-brand-500/5"
+              )}>
+                <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />
+                Automated Tracker
+              </span>
+            </div>
+          </Link>
+
+          {/* Navigation Links & Actions */}
+          <div className="flex items-center gap-4 sm:gap-6 min-w-0 flex-1 justify-end">
+            {/* Horizontal Nav Links for desktop */}
+            <nav className="hidden lg:flex items-center gap-4 text-xs font-semibold" aria-label="Desktop navigation">
+              {user ? (
+                <>
+                  {navItems.map((item) => {
+                    const isActive = location.pathname === item.path
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        className={cn(
+                          "transition-colors py-1.5 px-3 rounded-lg text-xs font-semibold shrink-0",
+                          isActive 
+                            ? (isStaticLight ? "bg-sb-canvas-soft text-sb-ink font-bold border border-sb-hairline" : "bg-white/10 text-white font-bold") 
+                            : (isStaticLight ? "text-sb-ink-muted hover:text-sb-ink" : "text-zinc-400 hover:text-white")
+                        )}
+                      >
+                        {item.label}
+                      </Link>
+                    )
+                  })}
+                </>
+              ) : (
+                <>
+                  <a href="/#daily-utility" className="hover:text-sb-primary transition-colors whitespace-nowrap">Daily Life</a>
+                  <a href="/#features" className="hover:text-sb-primary transition-colors whitespace-nowrap">Features</a>
+                  <a href="/#download" className="hover:text-sb-primary transition-colors whitespace-nowrap">Download App</a>
+                  <a href="/#faq" className="hover:text-sb-primary transition-colors whitespace-nowrap">FAQ</a>
+                  <Link to="/pricing" className="hover:text-sb-primary transition-colors whitespace-nowrap">Pricing</Link>
+                  <Link to="/support" className="hover:text-sb-primary transition-colors whitespace-nowrap">Support</Link>
+                </>
+              )}
+            </nav>
+
+            {/* Actions: Theme Toggle, Notifications, Profile, Hamburger, Upgrade CTA */}
+            <div className="flex items-center gap-3 sm:gap-4 shrink-0">
               {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
-                className="text-zinc-400 hover:text-white transition-colors h-7 w-7 flex items-center justify-center rounded-lg hover:bg-white/5 cursor-pointer"
+                className={cn(
+                  "transition-colors h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer shrink-0",
+                  isStaticLight 
+                    ? "text-sb-ink-muted hover:text-sb-ink hover:bg-sb-canvas-soft" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                )}
                 title={isLight ? 'Switch to Night Mode' : 'Switch to Day Mode'}
                 aria-label={isLight ? 'Switch to Night Mode' : 'Switch to Day Mode'}
               >
@@ -431,43 +468,42 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
               {/* Notification Bell */}
               {user && (
-                <div className="relative">
+                <div className="relative shrink-0">
                   <button
                     onClick={() => setNotificationDropdownOpen(!notificationDropdownOpen)}
-                    className="text-zinc-400 hover:text-white transition-colors h-7 w-7 flex items-center justify-center rounded-lg hover:bg-white/5 relative cursor-pointer"
+                    className={cn(
+                      "transition-colors h-8 w-8 flex items-center justify-center rounded-lg relative cursor-pointer",
+                      isStaticLight 
+                        ? "text-sb-ink-muted hover:text-sb-ink hover:bg-sb-canvas-soft" 
+                        : "text-zinc-400 hover:text-white hover:bg-white/5"
+                    )}
                     title="Notifications"
                     aria-label="View notifications"
                     aria-expanded={notificationDropdownOpen}
                   >
                     <span aria-hidden="true" className="text-sm">🔔</span>
                     {notifications.length > 0 && (
-                      <span className="absolute top-0 right-0 flex h-3 w-3 items-center justify-center rounded-full bg-red-500 text-[7px] font-bold text-white ring-2 ring-black">
-                        {notifications.length}
-                      </span>
+                      <span className="absolute top-1.5 right-1.5 flex h-2 w-2 items-center justify-center rounded-full bg-red-500 ring-1 ring-white/10" />
                     )}
                   </button>
 
                   {notificationDropdownOpen && (
                     <>
-                      <div 
-                        className="fixed inset-0 z-40" 
-                        onClick={() => setNotificationDropdownOpen(false)}
-                      />
-                      <div className="absolute right-0 mt-2 w-64 rounded-xl border border-white/10 bg-[#16181c] p-3 shadow-2xl z-50 animate-scale-up backdrop-blur-xl max-h-[80vh] overflow-y-auto">
-                        <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-2">
-                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                      <div className="fixed inset-0 z-40" onClick={() => setNotificationDropdownOpen(false)} />
+                      <div className={cn("absolute right-0 mt-2 w-64 rounded-xl border p-3 shadow-2xl z-50 animate-scale-up backdrop-blur-xl max-h-[80vh] overflow-y-auto", isStaticLight ? "border-sb-hairline bg-sb-canvas text-sb-ink" : "border-border-subtle bg-surface-1 text-zinc-100")}>
+                        <div className="flex items-center justify-between border-b border-border-subtle pb-2 mb-2">
+                          <span className={cn("text-[10px] font-bold uppercase tracking-widest", isStaticLight ? "text-sb-ink-muted" : "text-zinc-400")}>
                             🔔 Notifications
                           </span>
                           {notifications.length > 0 && (
                             <button
                               onClick={() => setNotifications([])}
-                              className="text-[8px] font-bold text-zinc-500 hover:text-zinc-300 uppercase tracking-wider transition-colors cursor-pointer"
+                              className={cn("text-[8px] font-bold uppercase tracking-wider transition-colors cursor-pointer", isStaticLight ? "text-sb-primary hover:text-sb-primary-deep" : "text-zinc-500 hover:text-zinc-300")}
                             >
                               Clear
                             </button>
                           )}
                         </div>
-                        
                         {notifications.length === 0 ? (
                           <p className="text-[10px] text-zinc-500 py-4 text-center font-medium">
                             No new notifications. All caught up!
@@ -477,15 +513,16 @@ export default function AppLayout({ children }: AppLayoutProps) {
                             {notifications.map((n, idx) => (
                               <div
                                 key={idx}
-                                className={`p-2.5 rounded-lg border text-[10px] leading-relaxed font-semibold transition-all ${
+                                className={cn(
+                                  "p-2.5 rounded-lg border text-[10px] leading-relaxed font-semibold transition-all",
                                   n.type === 'danger'
                                     ? 'bg-[var(--status-danger-subtle)] border-[var(--status-danger-border)] text-[var(--status-danger-text)]'
                                     : n.type === 'warning'
                                     ? 'bg-[var(--status-warning-subtle)] border-[var(--status-warning-border)] text-[var(--status-warning-text)]'
-                                    : 'bg-zinc-800 border-white/5 text-zinc-300'
-                                }`}
+                                    : (isStaticLight ? 'bg-sb-canvas-soft border-sb-hairline text-sb-ink' : 'bg-surface-2 border-border-subtle text-zinc-300')
+                                )}
                               >
-                                 {n.message}
+                                {n.message}
                               </div>
                             ))}
                           </div>
@@ -496,63 +533,83 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 </div>
               )}
 
+              {/* Upgrade or Status CTA */}
+              <div className="hidden sm:flex items-center shrink-0">
+                {profile?.subscription_status === 'active' ? (
+                  <span className="px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] shrink-0 select-none">
+                    Premium 👑
+                  </span>
+                ) : user ? (
+                  <Link
+                    to="/pricing"
+                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-[6px] text-[11px] font-bold uppercase tracking-wider text-[var(--sb-on-primary)] bg-[var(--sb-primary)] hover:bg-[var(--sb-primary-deep)] active:scale-97 transition-all cursor-pointer shrink-0 whitespace-nowrap shadow-sm"
+                  >
+                    Upgrade
+                  </Link>
+                ) : (
+                  <Link
+                    to="/signup"
+                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-[6px] text-[11px] font-bold uppercase tracking-wider text-[var(--sb-on-primary)] bg-[var(--sb-primary)] hover:bg-[var(--sb-primary-deep)] active:scale-97 transition-all cursor-pointer shrink-0 whitespace-nowrap shadow-sm"
+                  >
+                    Get Started
+                  </Link>
+                )}
+              </div>
+
               {/* Profile Dropdown */}
               {user ? (
-                <div className="relative">
+                <div className="relative shrink-0">
                   <button
                     onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                    className="flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                    className={cn(
+                      "flex items-center gap-1.5 transition-colors cursor-pointer",
+                      isStaticLight ? "text-sb-ink hover:text-sb-ink" : "text-zinc-400 hover:text-white"
+                    )}
                     aria-label="User profile menu"
                     aria-expanded={profileDropdownOpen}
                   >
-                    <div className="h-6 w-6 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-300 overflow-hidden ring-1 ring-white/10 shrink-0">
+                    <div className="h-6 w-6 rounded-full bg-brand-500/10 flex items-center justify-center text-[10px] font-bold text-brand-500 overflow-hidden border border-brand-500/25 shrink-0">
                       {user?.user_metadata?.avatar_url ? (
                         <img src={user.user_metadata.avatar_url} alt="Avatar" className="h-full w-full object-cover" />
                       ) : (
                         user?.user_metadata?.full_name?.substring(0, 1).toUpperCase() || 'U'
                       )}
                     </div>
-                    <span className="text-[11px] truncate max-w-[60px] hidden sm:inline">{getFirstName()}</span>
+                    <span className="text-[11px] font-medium truncate max-w-[60px] hidden sm:inline">{getFirstName()}</span>
                     <span className="text-[8px] opacity-60">▼</span>
                   </button>
 
                   {profileDropdownOpen && (
                     <>
-                      <div 
-                        className="fixed inset-0 z-40" 
-                        onClick={() => setProfileDropdownOpen(false)}
-                      />
-                      <div className="absolute right-0 mt-2 w-48 rounded-xl border border-white/10 bg-[#16181c] p-2 shadow-xl z-50 animate-scale-up">
+                      <div className="fixed inset-0 z-40" onClick={() => setProfileDropdownOpen(false)} />
+                      <div className={cn("absolute right-0 mt-2 w-48 rounded-xl border p-2 shadow-xl z-50 animate-scale-up", isStaticLight ? "border-sb-hairline bg-sb-canvas text-sb-ink" : "border-border-subtle bg-surface-1 text-zinc-100")}>
                         <Link
                           to="/profile"
                           onClick={() => setProfileDropdownOpen(false)}
-                          className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white transition-colors"
+                          className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-400 hover:bg-surface-2 hover:text-zinc-100")}
                         >
                           👤 Profile Section
                         </Link>
-
                         <Link
                           to="/settings"
                           onClick={() => setProfileDropdownOpen(false)}
-                          className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white transition-colors"
+                          className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-400 hover:bg-surface-2 hover:text-zinc-100")}
                         >
                           ⚙️ Settings Section
                         </Link>
-
                         <Link
                           to="/pricing"
                           onClick={() => setProfileDropdownOpen(false)}
-                          className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white transition-colors"
+                          className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-400 hover:bg-surface-2 hover:text-zinc-100")}
                         >
                           👑 Pricing & Plans
                         </Link>
-
                         <button
                           onClick={() => {
                             setProfileDropdownOpen(false)
                             signOut()
                           }}
-                          className="w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] transition-colors border-t border-white/5 mt-1.5 pt-1.5 cursor-pointer"
+                          className={cn("w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors border-t mt-1.5 pt-1.5 cursor-pointer", isStaticLight ? "border-sb-hairline text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)]" : "border-border-subtle text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)]")}
                         >
                           🚪 Sign Out
                         </button>
@@ -561,14 +618,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   )}
                 </div>
               ) : (
-                <Link to="/login" className="text-zinc-400 hover:text-white transition-colors font-semibold">
+                <Link to="/login" className={cn("text-xs font-semibold transition-colors shrink-0", isStaticLight ? "text-sb-ink hover:text-sb-primary" : "text-zinc-400 hover:text-white")}>
                   Sign In
                 </Link>
               )}
 
-              {/* Mobile menu toggle */}
+              {/* Hamburger Menu button for mobile */}
               <button
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:text-white md:hidden hover:bg-white/5 cursor-pointer"
+                className={cn(
+                  "flex lg:hidden h-8 w-8 items-center justify-center rounded-lg transition-colors cursor-pointer shrink-0",
+                  isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-400 hover:bg-white/5 hover:text-white"
+                )}
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
                 aria-expanded={mobileMenuOpen}
@@ -577,49 +637,36 @@ export default function AppLayout({ children }: AppLayoutProps) {
               </button>
             </div>
           </div>
-        </nav>
+        </div>
 
-        {/* 2. Product Sub-Nav Bar (Apple style, 52px, Frosted glass) */}
-        <div className="h-[52px] border-b border-border-subtle bg-surface-1/85 backdrop-blur-xl flex items-center select-none">
-          <div className="mx-auto max-w-7xl w-full flex items-center justify-between px-4 sm:px-6">
-            <div className="flex items-center gap-3">
-              <span className="text-[17px] font-semibold text-white tracking-tight">Dhanrakshak</span>
-              <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold hidden sm:inline">Automatic Expense Tracker</span>
-            </div>
-            
-            <div className="flex items-center gap-4 text-[12px] font-normal text-zinc-400">
-              <a href="/#daily-utility" className="hover:text-white transition-colors">Daily Life</a>
-              <a href="/#features" className="hover:text-white transition-colors">Features</a>
-              <a href="/#download" className="hover:text-white transition-colors">Download App</a>
-              <a href="/#faq" className="hover:text-white transition-colors">FAQ</a>
-              <Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link>
-              <Link to="/support" className="hover:text-white transition-colors">Support</Link>
-              {profile?.subscription_status === 'active' ? (
-                <span className="px-3 py-1 rounded-full text-[11px] font-semibold text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)]">
-                  Premium
-                </span>
-              ) : user ? (
-                <Link
-                  to="/pricing"
-                  className="inline-flex items-center justify-center px-3 py-1 rounded-full text-[11px] font-semibold text-white bg-brand-500 hover:bg-brand-600 active:scale-95 transition-all cursor-pointer"
-                >
-                  Upgrade to Premium 👑
-                </Link>
-              ) : (
-                <Link
-                  to="/signup"
-                  className="inline-flex items-center justify-center px-3 py-1 rounded-full text-[11px] font-semibold text-white bg-brand-500 hover:bg-brand-600 active:scale-95 transition-all cursor-pointer"
-                >
-                  Get Started
-                </Link>
-              )}
+        {/* Mobile/Tablet Horizontal Scrollable Sub-Nav Row (Only visible if logged in and below lg viewport) */}
+        {user && (
+          <div className={cn("h-9 border-t flex items-center lg:hidden overflow-hidden select-none", isStaticLight ? "border-sb-hairline bg-sb-canvas-soft" : "border-border-subtle bg-surface-1/40")}>
+            <div className="mx-auto max-w-7xl w-full flex items-center px-4 sm:px-6 overflow-x-auto scrollbar-none flex-nowrap py-1 gap-2">
+              {navItems.map((item) => {
+                const isActive = location.pathname === item.path
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={cn(
+                      "transition-colors py-1 px-2.5 rounded-lg text-xs font-semibold shrink-0",
+                      isActive 
+                        ? (isStaticLight ? "bg-sb-canvas text-sb-ink font-bold border border-sb-hairline" : "bg-white/10 text-white font-bold") 
+                        : (isStaticLight ? "text-sb-ink-muted hover:text-sb-ink" : "text-zinc-400 hover:text-white")
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                )
+              })}
             </div>
           </div>
-        </div>
+        )}
 
         {/* Mobile menu dropdown */}
         {mobileMenuOpen && (
-          <nav className="border-b border-border-subtle bg-black text-white px-4 py-3 space-y-1 md:hidden animate-fade-in" aria-label="Mobile navigation">
+          <nav className={cn("border-b px-4 py-3 space-y-1 lg:hidden animate-fade-in", isStaticLight ? "border-sb-hairline bg-sb-canvas text-sb-ink" : "border-static-white/10 bg-black text-static-white")} aria-label="Mobile navigation">
             {user ? (
               <>
                 {navItems.map((item) => {
@@ -632,79 +679,76 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       className={cn(
                         'block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                         isActive
-                          ? 'bg-zinc-800 text-white'
-                          : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                          ? (isStaticLight ? 'bg-sb-canvas-soft text-sb-ink font-bold' : 'bg-static-zinc-800 text-static-white')
+                          : (isStaticLight ? 'text-sb-ink-muted hover:bg-sb-canvas-soft' : 'text-static-zinc-400 hover:bg-static-zinc-800 hover:text-static-white')
                       )}
                     >
                       {item.label}
                     </Link>
                   )
                 })}
-
                 <Link
                   to="/profile"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-400 hover:text-white border-t border-border-subtle/30 mt-2 pt-3"
+                  className={cn("block rounded-lg px-3 py-2.5 text-sm font-medium border-t mt-2 pt-3", isStaticLight ? "text-sb-ink border-sb-hairline hover:bg-sb-canvas-soft" : "text-static-zinc-400 hover:text-static-white border-static-white/10")}
                 >
                   👤 Profile Section
                 </Link>
-
                 <Link
                   to="/settings"
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     'block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                     location.pathname === '/settings'
-                      ? 'text-white font-bold'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'font-bold'
+                      : ''
                   )}
                 >
                   ⚙️ Settings Section
                 </Link>
-
                 <Link
                   to="/pricing"
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     'block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                     location.pathname === '/pricing'
-                      ? 'text-white font-bold'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'font-bold'
+                      : ''
                   )}
                 >
                   👑 Pricing & Plans
                 </Link>
-              </>
-            ) : (
-              <Link
-                to="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="block rounded-lg px-3 py-2.5 text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 text-center"
-              >
-                Sign In to Account
-              </Link>
-            )}
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false)
-                toggleTheme()
-              }}
-              className="w-full text-left block rounded-lg px-3 py-2.5 text-sm font-medium text-brand-400 hover:bg-brand-500/10 transition-colors border-t border-border-subtle/30 mt-1 pt-3 cursor-pointer"
-            >
-              {isLight ? '🌙 Switch to Night Mode' : '☀️ Switch to Day Mode'}
-            </button>
-            {user && (
-              <button
-                onClick={() => {
-                  if (window.confirm('Are you sure you want to sign out?')) {
+                {/* Switch theme directly in mobile menu dropdown */}
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    toggleTheme()
+                  }}
+                  className={cn("w-full text-left block rounded-lg px-3 py-2.5 text-sm font-medium border-t mt-1 pt-3 cursor-pointer", isStaticLight ? "border-sb-hairline text-sb-primary" : "border-static-white/10 text-brand-400")}
+                >
+                  {isLight ? '🌙 Switch to Night Mode' : '☀️ Switch to Day Mode'}
+                </button>
+                <button
+                  onClick={() => {
                     setMobileMenuOpen(false)
                     signOut()
-                  }
-                }}
-                className="w-full text-left block rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] transition-colors border-t border-border-subtle/30 mt-1 pt-3 cursor-pointer"
-              >
-                🚪 Sign Out
-              </button>
+                  }}
+                  className={cn("w-full text-left block rounded-lg px-3 py-2.5 text-sm font-medium border-t mt-1 pt-3 cursor-pointer", isStaticLight ? "border-sb-hairline text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)]" : "border-static-white/10 text-[#f87171] hover:bg-[#f87171]/15")}
+                >
+                  🚪 Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <a href="/#daily-utility" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">Daily Life</a>
+                <a href="/#features" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">Features</a>
+                <a href="/#download" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">Download App</a>
+                <a href="/#faq" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">FAQ</a>
+                <Link to="/pricing" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">Pricing</Link>
+                <Link to="/support" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">Support</Link>
+                <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium text-center bg-sb-canvas-soft border border-sb-hairline rounded-[6px] mt-2">Sign In</Link>
+                <Link to="/signup" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2.5 text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 text-center rounded-[6px] mt-1">Get Started</Link>
+              </>
             )}
           </nav>
         )}
@@ -712,9 +756,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
       {/* Main Content */}
       {profile?.subscription_status === 'trial' && (
-        <div className="bg-[#0052ff] text-white text-xs font-semibold py-2.5 px-4 text-center flex flex-col sm:flex-row items-center justify-center gap-1.5 shadow-inner border-b border-[#003ecc]">
+        <div className="bg-[var(--status-warning-subtle)] text-[var(--status-warning-text)] text-xs font-semibold py-2.5 px-4 text-center flex flex-col sm:flex-row items-center justify-center gap-1.5 shadow-inner border-b border-[var(--status-warning-border)]">
           <span>⏳ Dhanrakshak Trial: You have {daysLeft} days remaining of full premium access.</span>
-          <Link to="/pricing" className="underline hover:text-zinc-200 transition-colors font-bold">
+          <Link to="/pricing" className="underline hover:opacity-85 transition-opacity font-bold text-[var(--status-warning-text)]">
             Upgrade Account to Keep Auto-Sync Active 👑
           </Link>
         </div>
@@ -724,13 +768,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
       </main>
 
       {/* Footer Nav and Legal compliance links */}
-      <footer className="border-t border-border-subtle bg-surface-1/40 pt-8 pb-20 md:pb-8 px-4 sm:px-6 mt-auto">
-        <div className="mx-auto max-w-7xl flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left text-zinc-400 text-xs">
+      <footer className={cn("border-t pt-8 pb-20 md:pb-8 px-4 sm:px-6 mt-auto", isStaticLight ? "border-sb-hairline bg-sb-canvas-soft text-sb-ink-muted" : "border-border-subtle bg-surface-1/40 text-zinc-400")}>
+        <div className={cn("mx-auto max-w-7xl flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left text-xs", isStaticLight ? "text-sb-ink-muted" : "text-zinc-400")}>
           <div>
-            <p className="font-semibold text-zinc-300">Dhanrakshak · Smart Financial Safety</p>
-            <p className="mt-1">Version 1.0.0 (Production Build) · MIT Open-Source License</p>
+            <p className={cn("font-semibold", isStaticLight ? "text-sb-ink" : "text-zinc-300")}>© 2026 Dhanrakshak · All Rights Reserved</p>
+            <p className="mt-1">Version 1.0.0 (Production Build) · Proprietary Closed-Source License</p>
           </div>
-          <div className="flex flex-wrap justify-center gap-6 font-medium md:pr-44">
+          <div className={cn("flex flex-wrap justify-center gap-6 font-medium md:pr-44", isStaticLight ? "text-sb-ink-muted" : "")}>
             <Link to="/privacy" className="hover:text-brand-400 transition-colors">Privacy Policy</Link>
             <Link to="/terms" className="hover:text-brand-400 transition-colors">Terms of Service</Link>
             <Link to="/support?tab=faq" className="hover:text-brand-400 transition-colors">FAQs</Link>
@@ -919,7 +963,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                                 log.category === 'bug'
                                   ? 'bg-red-500/10 text-red-400 border-red-500/20'
                                   : log.category === 'feature_request'
-                                  ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                  ? 'bg-brand-500/10 text-brand-400 border-brand-500/20'
                                   : 'bg-zinc-800 text-zinc-300 border-zinc-700/50'
                               )}>
                                 {log.category === 'bug'

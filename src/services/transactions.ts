@@ -37,7 +37,10 @@ export async function getTransactions(options?: {
     const startDate = `${options.month}-01`
     const [year, mon] = options.month.split('-').map(Number)
     const endDate = new Date(year, mon, 0).toISOString().split('T')[0]
-    query = query.gte('date', startDate).lte('date', endDate)
+    const effectiveStart = startDate < '2026-01-01' ? '2026-01-01' : startDate
+    query = query.gte('date', effectiveStart).lte('date', endDate)
+  } else {
+    query = query.gte('date', '2026-01-01')
   }
 
   if (options?.type) {
@@ -100,11 +103,14 @@ export async function getMonthlySummary(month: string) {
   const [year, mon] = month.split('-').map(Number)
   const endDate = new Date(year, mon, 0).toISOString().split('T')[0]
 
+  // Enforce starting January 2026 threshold
+  const effectiveStart = startDate < '2026-01-01' ? '2026-01-01' : startDate
+
   const { data, error } = await supabase
     .from('transactions')
     .select('amount, type, category')
     .eq('approval_status', 'approved')
-    .gte('date', startDate)
+    .gte('date', effectiveStart)
     .lte('date', endDate)
 
   if (error || !data) return { data: null, error }
@@ -155,14 +161,21 @@ export async function getHistoricalAnalytics(monthsCount = 6) {
   if (!user) return { data: null, error: new Error('User not authenticated') }
 
   // Generate target months list (e.g. ["2026-05", "2026-04", ...])
-  const months: string[] = []
+  const rawMonths: string[] = []
   const now = new Date()
   for (let i = 0; i < monthsCount; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    months.unshift(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+    rawMonths.unshift(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
   }
 
-  // Get start date of the oldest month
+  // Filter out any months before January 2026
+  const months = rawMonths.filter((m) => m >= '2026-01')
+
+  if (months.length === 0) {
+    return { data: [], error: null }
+  }
+
+  // Get start date of the oldest month, ensuring it is at least 2026-01-01
   const startDate = `${months[0]}-01`
 
   const { data, error } = await supabase
@@ -202,3 +215,24 @@ export async function getHistoricalAnalytics(monthsCount = 6) {
 
   return { data: monthlyData, error: null }
 }
+
+/** Bulk delete transactions */
+export async function bulkDeleteTransactions(ids: string[]) {
+  const { error } = await supabase
+    .from('transactions')
+    .delete()
+    .in('id', ids)
+
+  return { error }
+}
+
+/** Bulk update transactions category */
+export async function bulkUpdateTransactionsCategory(ids: string[], category: string) {
+  const { error } = await supabase
+    .from('transactions')
+    .update({ category })
+    .in('id', ids)
+
+  return { error }
+}
+

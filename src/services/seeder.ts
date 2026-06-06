@@ -25,7 +25,6 @@ export async function seedSandboxData() {
   const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
 
   const todayStr = new Date().toISOString().split('T')[0]
-  const prevMonthDateStr = new Date(year, mon - 2, 15).toISOString().split('T')[0]
 
   // ==========================================
   // A. PREPARE BUDGETS
@@ -215,9 +214,9 @@ export async function seedSandboxData() {
       amount: 450,
       type: 'debit',
       category: 'food',
-      merchant: 'Zomato Outflow',
-      description: 'UPI: Zomato Order Checkout',
-      notes: 'Dear Customer, your Account xx4321 was debited for Rs 450.00 on 29-May-2026 by UPI Ref 91028304 to ZOMATO.',
+      merchant: 'Zomato',
+      description: 'Zomato Food Order',
+      notes: 'Dear Customer, your HDFC Bank A/c xx4321 was debited for Rs 450.00 on 29-May-2026 13:22:18 by UPI Ref 91028304 to ZOMATO.',
       date: todayStr,
       source: 'email',
       approval_status: 'pending',
@@ -227,9 +226,9 @@ export async function seedSandboxData() {
       amount: 120,
       type: 'debit',
       category: 'transport',
-      merchant: 'Uber Rides',
-      description: 'UPI: Uber ride payment',
-      notes: 'Transaction Alert: Your Account xx4321 was debited with INR 120.00 on 29-May-2026 for a UPI txn to UBER RIDES. Ref 60192837.',
+      merchant: 'Uber',
+      description: 'Uber Cab Ride',
+      notes: 'Transaction Alert: Your ICICI Bank A/c xx7890 was debited with INR 120.00 on 29-May-2026 08:45:30 for a UPI txn to UBER RIDES. Ref 60192837.',
       date: todayStr,
       source: 'email',
       approval_status: 'pending',

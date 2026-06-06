@@ -1,6 +1,6 @@
 // ============================================
-// PricingPage — Stripe-design-language version
-// Featured dark-navy tier, tabular figures, indigo pill CTAs
+// PricingPage — Supabaze Design Language version
+// White standard cards, inverted dark featured card, 6px buttons, green accents
 // ============================================
 
 import { useState, useEffect } from 'react'
@@ -64,7 +64,7 @@ export default function PricingPage() {
         name: 'Dhanrakshak', description: `Upgrade to Premium (${planName})`,
         order_id: orderData.id,
         prefill: { name: profile?.full_name || '', email: user.email || '' },
-        theme: { color: '#533afd' },
+        theme: { color: '#3ecf8e' },
         handler: async (paymentResponse: any) => {
           setProcessing(true)
           try {
@@ -103,24 +103,17 @@ export default function PricingPage() {
 
   // ── Render ────────────────────────────────────────────────────
   return (
-    <AppLayout>
-      <div
-        className="min-h-screen"
-        style={{
-          background: 'var(--s-canvas-soft)',
-          fontFamily: "'Inter', system-ui, sans-serif",
-          fontFeatureSettings: '"ss01"',
-        }}
-      >
+    <AppLayout isStaticLight={true}>
+      <div className="min-h-screen bg-sb-canvas-soft" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
 
         {/* ── HEADER BAND ─────────────────────────────────────── */}
-        <div className="stripe-mesh-bg py-16 text-center">
+        <div className="py-16 text-center border-b border-sb-hairline bg-sb-canvas">
           <div className="mx-auto max-w-[700px] px-6 space-y-4">
-            <div className="s-pill-tag" style={{ display: 'inline-flex' }}>Pricing & Plans</div>
-            <h1 className="s-display-xl" style={{ color: 'var(--s-ink)' }}>
+            <div className="sb-pill-tag-soft">Pricing & Plans</div>
+            <h1 className="sb-display-xl" style={{ color: 'var(--sb-ink)' }}>
               Simple, honest pricing
             </h1>
-            <p className="s-body-lg" style={{ color: 'var(--s-ink-mute)', maxWidth: 480, margin: '0 auto' }}>
+            <p className="sb-body-lg" style={{ color: 'var(--sb-ink-muted)', maxWidth: 480, margin: '0 auto' }}>
               Gain full automated tracking with any plan. No hidden fees, no dark patterns. Cancel at any time.
             </p>
           </div>
@@ -129,35 +122,35 @@ export default function PricingPage() {
         {/* ── STATUS BANNERS ──────────────────────────────────── */}
         <div className="mx-auto max-w-[1100px] px-6 pt-8 space-y-3">
           {isTrial && daysLeft > 0 && (
-            <div className="rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3" style={{ background: '#fffbeb', border: '1px solid #f59e0b' }}>
+            <div className="rounded-[6px] p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-sb-canvas border border-sb-hairline shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">⏳</span>
                 <div>
-                  <p className="s-caption" style={{ color: 'var(--s-ink)', fontWeight: 500 }}>Trial Active — {daysLeft} day{daysLeft !== 1 ? 's' : ''} remaining</p>
-                  <p className="s-caption" style={{ color: 'var(--s-ink-mute)' }}>Full premium access including automated Gmail Sync. Upgrade to keep it after your trial ends.</p>
+                  <p className="sb-caption font-semibold" style={{ color: 'var(--sb-ink)' }}>Trial Active — {daysLeft} day{daysLeft !== 1 ? 's' : ''} remaining</p>
+                  <p className="sb-caption" style={{ color: 'var(--sb-ink-muted)' }}>Full premium access including automated Gmail Sync. Upgrade to keep it after your trial ends.</p>
                 </div>
               </div>
-              <span className="s-micro-cap px-3 py-1.5 rounded-full whitespace-nowrap shrink-0" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }}>Trial access</span>
+              <span className="sb-micro px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-amber-50 text-amber-800 border border-amber-200">Trial access</span>
             </div>
           )}
 
           {(!profile?.subscription_status || (isTrial && daysLeft <= 0)) && (
-            <div className="rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3" style={{ background: '#fef2f2', border: '1px solid #fca5a5' }}>
+            <div className="rounded-[6px] p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-sb-canvas border border-sb-hairline shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">🔒</span>
                 <div>
-                  <p className="s-caption" style={{ color: 'var(--s-ink)', fontWeight: 500 }}>Trial Expired — Dashboard Gated</p>
-                  <p className="s-caption" style={{ color: 'var(--s-ink-mute)' }}>Upgrade to restore access to analytics, expenses, and automated email scans.</p>
+                  <p className="sb-caption font-semibold" style={{ color: 'var(--sb-ink)' }}>Trial Expired — Dashboard Gated</p>
+                  <p className="sb-caption" style={{ color: 'var(--sb-ink-muted)' }}>Upgrade to restore access to analytics, expenses, and automated email scans.</p>
                 </div>
               </div>
-              <span className="s-micro-cap px-3 py-1.5 rounded-full whitespace-nowrap shrink-0" style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' }}>Access locked</span>
+              <span className="sb-micro px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-red-50 text-red-800 border border-red-200">Access locked</span>
             </div>
           )}
 
           {isActive && (
-            <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: '#f0fdf4', border: '1px solid #86efac' }}>
+            <div className="rounded-[6px] p-4 flex items-center gap-3 bg-sb-canvas border border-sb-hairline shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
               <span className="text-2xl">✅</span>
-              <p className="s-caption" style={{ color: '#166534', fontWeight: 500 }}>You're on Premium — all features are fully unlocked.</p>
+              <p className="sb-caption font-semibold" style={{ color: '#16a34a' }}>You're on Premium — all features are fully unlocked.</p>
             </div>
           )}
         </div>
@@ -168,28 +161,28 @@ export default function PricingPage() {
 
             {/* ── Standard: Monthly ─────────────────────────────── */}
             <div
-              className="s-card s-shadow-1 flex flex-col cursor-pointer transition-all hover:s-shadow-2"
-              style={{ borderColor: selectedPlan === 'monthly' ? 'var(--s-primary)' : 'var(--s-hairline)', borderWidth: selectedPlan === 'monthly' ? 2 : 1 }}
+              className="sb-card-light shadow-[0_1px_3px_rgba(0,0,0,0.06)] flex flex-col cursor-pointer transition-all duration-200 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] bg-sb-canvas"
+              style={{ borderColor: selectedPlan === 'monthly' ? 'var(--sb-primary)' : 'var(--sb-hairline)', borderWidth: selectedPlan === 'monthly' ? 2 : 1 }}
               onClick={() => setSelectedPlan('monthly')}
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="s-heading-lg" style={{ color: 'var(--s-ink)' }}>Starter Monthly</h2>
-                <input type="radio" readOnly checked={selectedPlan === 'monthly'} className="h-4 w-4 cursor-pointer accent-[#533afd]" />
+                <h2 className="sb-heading-lg" style={{ color: 'var(--sb-ink)' }}>Starter Monthly</h2>
+                <input type="radio" readOnly checked={selectedPlan === 'monthly'} className="h-4 w-4 cursor-pointer accent-[#3ecf8e]" />
               </div>
 
               <div className="mb-6">
                 <div className="flex items-baseline gap-1">
-                  <span className="tnum" style={{ fontSize: 36, fontWeight: 300, color: 'var(--s-ink)', letterSpacing: '-0.8px' }}>₹31</span>
-                  <span className="s-caption" style={{ color: 'var(--s-ink-mute)' }}>/month</span>
+                  <span className="font-bold text-4xl" style={{ color: 'var(--sb-ink)', letterSpacing: '-0.8px', fontFamily: 'Inter' }}>₹31</span>
+                  <span className="sb-caption" style={{ color: 'var(--sb-ink-muted)' }}>/month</span>
                 </div>
-                <p className="s-caption mt-1" style={{ color: 'var(--s-ink-mute)' }}>Billed monthly · cancel anytime</p>
+                <p className="sb-caption mt-1" style={{ color: 'var(--sb-ink-muted)' }}>Billed every month · cancel anytime</p>
               </div>
 
               <ul className="space-y-3 flex-1">
                 {FEATURES.map((f) => (
                   <li key={f} className="flex items-start gap-3">
-                    <span style={{ color: 'var(--s-primary)', flexShrink: 0, fontSize: 13, marginTop: 1 }}>✓</span>
-                    <span className="s-caption" style={{ color: 'var(--s-ink-mute)' }}>{f}</span>
+                    <span style={{ color: 'var(--sb-primary)', flexShrink: 0, fontSize: 13, marginTop: 1, fontWeight: 'bold' }}>✓</span>
+                    <span className="sb-caption" style={{ color: 'var(--sb-ink-secondary)' }}>{f}</span>
                   </li>
                 ))}
               </ul>
@@ -197,46 +190,46 @@ export default function PricingPage() {
               <div className="mt-8">
                 <button
                   onClick={() => { setSelectedPlan('monthly'); setPaymentMethod('razorpay') }}
-                  className="s-btn-secondary"
-                  style={{ width: '100%', padding: '10px 20px', justifyContent: 'center' }}
+                  className="sb-btn-secondary"
+                  style={{ width: '100%', justifyContent: 'center' }}
                 >
                   Choose Monthly
                 </button>
               </div>
             </div>
 
-            {/* ── Featured: Annual (deep navy) ───────────────────── */}
+            {/* ── Featured: Annual (Inverted Canvas Night dark card) ── */}
             <div
-              className="s-card-featured flex flex-col cursor-pointer relative overflow-hidden"
-              style={{ boxShadow: 'rgba(83,58,253,0.20) 0 8px 32px, rgba(83,58,253,0.08) 0 2px 8px', cursor: 'pointer' }}
+              className="sb-card-dark shadow-[0_8px_24px_rgba(0,0,0,0.12)] flex flex-col cursor-pointer relative overflow-hidden transition-all duration-200"
+              style={{ borderColor: selectedPlan === 'annual' ? 'var(--sb-primary)' : 'rgba(255,255,255,0.15)', borderWidth: selectedPlan === 'annual' ? 2 : 1 }}
               onClick={() => setSelectedPlan('annual')}
             >
               {/* Best value badge */}
-              <div className="absolute top-0 right-0 text-[9px] font-bold uppercase tracking-widest px-4 py-2 rounded-bl-xl" style={{ background: 'var(--s-primary)', color: '#fff', letterSpacing: '0.08em' }}>
+              <div className="absolute top-0 right-0 text-[9px] font-bold uppercase tracking-widest px-4 py-2 rounded-bl-xl bg-sb-primary text-sb-on-primary" style={{ letterSpacing: '0.08em' }}>
                 Best value · Save 15%
               </div>
 
               <div className="flex items-center justify-between mb-6 mt-2">
-                <h2 className="s-heading-lg" style={{ color: '#fff' }}>Investor Annual</h2>
-                <input type="radio" readOnly checked={selectedPlan === 'annual'} className="h-4 w-4 cursor-pointer accent-[#533afd]" />
+                <h2 className="sb-heading-lg" style={{ color: 'var(--sb-on-dark)' }}>Investor Annual</h2>
+                <input type="radio" readOnly checked={selectedPlan === 'annual'} className="h-4 w-4 cursor-pointer accent-[#3ecf8e]" />
               </div>
 
               <div className="mb-6">
                 <div className="flex items-baseline gap-1">
-                  <span className="tnum" style={{ fontSize: 36, fontWeight: 300, color: '#fff', letterSpacing: '-0.8px' }}>₹365</span>
-                  <span className="s-caption" style={{ color: 'rgba(255,255,255,0.55)' }}>/year</span>
+                  <span className="font-bold text-4xl" style={{ color: 'var(--sb-on-dark)', letterSpacing: '-0.8px', fontFamily: 'Inter' }}>₹365</span>
+                  <span className="sb-caption" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>/year</span>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className="tnum s-micro-cap px-2 py-0.5 rounded-full" style={{ background: 'rgba(83,58,253,0.3)', color: 'var(--s-primary-soft)', border: '1px solid rgba(102,94,253,0.3)' }}>₹1 per day</span>
-                  <span className="s-caption" style={{ color: 'rgba(255,255,255,0.55)' }}>Billed once per year</span>
+                  <span className="sb-micro px-2 py-0.5 rounded-full bg-[rgba(62,207,142,0.15)] text-sb-primary border border-[rgba(62,207,142,0.3)]">₹1 per day</span>
+                  <span className="sb-caption" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>Billed once per year</span>
                 </div>
               </div>
 
               <ul className="space-y-3 flex-1">
                 {FEATURES.map((f) => (
                   <li key={f} className="flex items-start gap-3">
-                    <span style={{ color: 'var(--s-primary-soft)', flexShrink: 0, fontSize: 13, marginTop: 1 }}>✓</span>
-                    <span className="s-caption" style={{ color: 'rgba(255,255,255,0.72)' }}>{f}</span>
+                    <span style={{ color: 'var(--sb-primary)', flexShrink: 0, fontSize: 13, marginTop: 1, fontWeight: 'bold' }}>✓</span>
+                    <span className="sb-caption" style={{ color: 'rgba(255, 255, 255, 0.8)' }}>{f}</span>
                   </li>
                 ))}
               </ul>
@@ -244,34 +237,34 @@ export default function PricingPage() {
               <div className="mt-8 space-y-3">
                 <button
                   onClick={() => { setSelectedPlan('annual'); setPaymentMethod('razorpay') }}
-                  className="s-btn-primary"
-                  style={{ width: '100%', padding: '11px 20px', justifyContent: 'center', fontSize: 15 }}
+                  className="sb-btn-primary"
+                  style={{ width: '100%', justifyContent: 'center' }}
                 >
                   Get Investor Annual
                 </button>
-                <p className="s-micro-cap text-center" style={{ color: 'rgba(255,255,255,0.40)' }}>Secured via Razorpay · 256-bit SSL</p>
+                <p className="sb-micro text-center text-sb-ink-muted">Secured via Razorpay · 256-bit SSL</p>
               </div>
             </div>
 
             {/* ── Promo / Coupon ────────────────────────────────── */}
-            <div className="s-card s-shadow-1 flex flex-col" style={{ borderColor: 'var(--s-hairline)' }}>
+            <div className="sb-card-light shadow-[0_1px_3px_rgba(0,0,0,0.06)] flex flex-col bg-sb-canvas" style={{ borderColor: 'var(--sb-hairline)' }}>
               <div className="mb-6">
-                <span className="s-pill-tag">Special Access</span>
-                <h2 className="s-heading-lg mt-4" style={{ color: 'var(--s-ink)' }}>Coupon Code</h2>
+                <span className="sb-pill-tag-soft">Special Access</span>
+                <h2 className="sb-heading-lg mt-4" style={{ color: 'var(--sb-ink)' }}>Coupon Code</h2>
               </div>
 
               <div className="mb-6">
                 <div className="flex items-baseline gap-1">
-                  <span className="tnum" style={{ fontSize: 36, fontWeight: 300, color: 'var(--s-ink)', letterSpacing: '-0.8px' }}>Free</span>
+                  <span className="font-bold text-4xl" style={{ color: 'var(--sb-ink)', letterSpacing: '-0.8px', fontFamily: 'Inter' }}>Free</span>
                 </div>
-                <p className="s-caption mt-1" style={{ color: 'var(--s-ink-mute)' }}>Lifetime access with a valid coupon</p>
+                <p className="sb-caption mt-1" style={{ color: 'var(--sb-ink-muted)' }}>Lifetime access with a valid coupon</p>
               </div>
 
               <ul className="space-y-3 flex-1">
                 {['All Premium features', 'Lifetime access', 'No payment required', 'Instant activation'].map((f) => (
                   <li key={f} className="flex items-start gap-3">
-                    <span style={{ color: 'var(--s-primary)', flexShrink: 0, fontSize: 13, marginTop: 1 }}>✓</span>
-                    <span className="s-caption" style={{ color: 'var(--s-ink-mute)' }}>{f}</span>
+                    <span style={{ color: 'var(--sb-primary)', flexShrink: 0, fontSize: 13, marginTop: 1, fontWeight: 'bold' }}>✓</span>
+                    <span className="sb-caption" style={{ color: 'var(--sb-ink-secondary)' }}>{f}</span>
                   </li>
                 ))}
               </ul>
@@ -279,8 +272,8 @@ export default function PricingPage() {
               <div className="mt-8">
                 <button
                   onClick={() => setPaymentMethod('promo')}
-                  className="s-btn-secondary"
-                  style={{ width: '100%', padding: '10px 20px', justifyContent: 'center' }}
+                  className="sb-btn-secondary"
+                  style={{ width: '100%', justifyContent: 'center' }}
                 >
                   Enter Coupon Code
                 </button>
@@ -292,22 +285,19 @@ export default function PricingPage() {
 
         {/* ── CHECKOUT SECTION ────────────────────────────────── */}
         <div className="mx-auto max-w-[680px] px-6 pb-20">
-          <div className="s-card s-shadow-2" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="sb-card-light shadow-[0_4px_12px_rgba(0,0,0,0.05)] bg-sb-canvas" style={{ padding: 0, overflow: 'hidden' }}>
 
             {/* Tab switcher */}
-            <div className="flex" style={{ borderBottom: '1px solid var(--s-hairline)' }}>
+            <div className="flex bg-sb-canvas-soft" style={{ borderBottom: '1px solid var(--sb-hairline)' }}>
               {([['razorpay', '💳 Pay Securely'], ['promo', '🎟️ Promo Code']] as const).map(([tab, label]) => (
                 <button
                   key={tab}
                   onClick={() => setPaymentMethod(tab)}
-                  className="flex-1 py-4 s-caption cursor-pointer transition-colors"
+                  className="flex-1 py-4 sb-caption cursor-pointer transition-colors border-none bg-transparent"
                   style={{
-                    background: 'none', border: 'none',
-                    color: paymentMethod === tab ? 'var(--s-primary)' : 'var(--s-ink-mute)',
-                    borderBottom: paymentMethod === tab ? '2px solid var(--s-primary)' : '2px solid transparent',
-                    fontWeight: paymentMethod === tab ? 500 : 300,
-                    fontFamily: "'Inter', system-ui",
-                    fontFeatureSettings: '"ss01"',
+                    color: paymentMethod === tab ? 'var(--sb-primary)' : 'var(--sb-ink-muted)',
+                    borderBottom: paymentMethod === tab ? '2px solid var(--sb-primary)' : '2px solid transparent',
+                    fontWeight: paymentMethod === tab ? 600 : 400,
                   }}
                 >
                   {label}
@@ -321,15 +311,15 @@ export default function PricingPage() {
               {paymentMethod === 'razorpay' && (
                 <div className="space-y-6 animate-fade-in">
                   {/* Order summary card */}
-                  <div className="rounded-xl p-5 flex justify-between items-start" style={{ background: 'var(--s-canvas-soft)', border: '1px solid var(--s-hairline)' }}>
+                  <div className="rounded-[6px] p-5 flex justify-between items-start bg-sb-canvas-soft border border-sb-hairline">
                     <div>
-                      <p className="s-micro-cap" style={{ color: 'var(--s-ink-mute)' }}>Order Summary</p>
-                      <p className="s-heading-md mt-1" style={{ color: 'var(--s-ink)' }}>{planName} Plan</p>
-                      <p className="s-caption mt-0.5" style={{ color: 'var(--s-ink-mute)' }}>{planSub}</p>
+                      <p className="sb-micro" style={{ color: 'var(--sb-ink-muted)' }}>Order Summary</p>
+                      <p className="sb-heading-md mt-1" style={{ color: 'var(--sb-ink)' }}>{planName} Plan</p>
+                      <p className="sb-caption mt-0.5" style={{ color: 'var(--sb-ink-muted)' }}>{planSub}</p>
                     </div>
                     <div className="text-right">
-                      <p className="tnum" style={{ fontSize: 26, fontWeight: 300, color: 'var(--s-ink)', letterSpacing: '-0.6px' }}>₹{planPrice}</p>
-                      <p className="s-micro-cap" style={{ color: 'var(--s-ink-mute)' }}>incl. GST</p>
+                      <p className="font-bold" style={{ fontSize: 26, color: 'var(--sb-ink)', letterSpacing: '-0.6px', fontFamily: 'Inter' }}>₹{planPrice}</p>
+                      <p className="sb-micro" style={{ color: 'var(--sb-ink-muted)' }}>incl. GST</p>
                     </div>
                   </div>
 
@@ -339,13 +329,11 @@ export default function PricingPage() {
                       <button
                         key={plan}
                         onClick={() => setSelectedPlan(plan)}
-                        className="flex-1 py-2.5 rounded-full s-caption cursor-pointer transition-all"
+                        className="flex-1 py-2 rounded-[6px] sb-caption cursor-pointer transition-all bg-transparent"
                         style={{
-                          background: selectedPlan === plan ? 'var(--s-primary)' : 'transparent',
-                          color: selectedPlan === plan ? '#fff' : 'var(--s-ink-mute)',
-                          border: selectedPlan === plan ? '1px solid var(--s-primary)' : '1px solid var(--s-hairline)',
-                          fontFamily: "'Inter', system-ui",
-                          fontFeatureSettings: '"ss01"',
+                          color: selectedPlan === plan ? 'var(--sb-primary)' : 'var(--sb-ink-muted)',
+                          border: selectedPlan === plan ? '1px solid var(--sb-primary)' : '1px solid var(--sb-hairline)',
+                          fontWeight: selectedPlan === plan ? 600 : 400,
                         }}
                       >
                         {plan === 'annual' ? 'Annual — ₹365/yr' : 'Monthly — ₹31/mo'}
@@ -354,22 +342,22 @@ export default function PricingPage() {
                   </div>
 
                   {/* Trust bar */}
-                  <div className="rounded-xl p-3 flex flex-wrap items-center justify-center gap-4" style={{ background: 'var(--s-canvas-soft)', border: '1px solid var(--s-hairline)' }}>
+                  <div className="rounded-[6px] p-3 flex flex-wrap items-center justify-center gap-4 bg-sb-canvas-soft border border-sb-hairline">
                     {['UPI', 'Cards', 'NetBanking', 'GPay', 'PhonePe'].map((m) => (
-                      <span key={m} className="s-micro-cap px-2 py-1 rounded-full" style={{ background: 'var(--s-canvas)', color: 'var(--s-ink-mute)', border: '1px solid var(--s-hairline)' }}>{m}</span>
+                      <span key={m} className="sb-micro px-2.5 py-1 rounded-full bg-sb-canvas border border-sb-hairline text-sb-ink-muted">{m}</span>
                     ))}
                   </div>
 
                   <button
                     onClick={handleRazorpayCheckout}
                     disabled={processing}
-                    className="s-btn-primary"
-                    style={{ width: '100%', padding: '13px 20px', fontSize: 16, justifyContent: 'center', opacity: processing ? 0.6 : 1 }}
+                    className="sb-btn-primary w-full text-center"
+                    style={{ opacity: processing ? 0.6 : 1 }}
                   >
                     {processing ? 'Opening payment…' : `Pay ₹${planPrice} & Unlock Premium`}
                   </button>
 
-                  <p className="s-caption text-center" style={{ color: 'var(--s-ink-mute)' }}>
+                  <p className="sb-caption text-center" style={{ color: 'var(--sb-ink-muted)' }}>
                     🔒 Secured with 256-bit SSL · Powered by Razorpay
                   </p>
                 </div>
@@ -378,16 +366,16 @@ export default function PricingPage() {
               {/* ── Promo flow ────────────────────────────────── */}
               {paymentMethod === 'promo' && (
                 <div className="space-y-6 animate-fade-in">
-                  <div className="rounded-xl p-4" style={{ background: 'rgba(83,58,253,0.04)', border: '1px solid rgba(83,58,253,0.15)' }}>
-                    <p className="s-caption" style={{ color: 'var(--s-ink-secondary)' }}>
-                      🎟️ <strong style={{ color: 'var(--s-ink)' }}>Have a coupon?</strong> Enter your unique code below to unlock lifetime access to all premium features instantly.
+                  <div className="rounded-[6px] p-4 bg-[rgba(62,207,142,0.08)] border border-[rgba(62,207,142,0.2)]">
+                    <p className="sb-caption" style={{ color: 'var(--sb-ink-secondary)' }}>
+                      🎟️ <strong style={{ color: 'var(--sb-ink)' }}>Have a coupon?</strong> Enter your unique code below to unlock lifetime access to all premium features instantly.
                     </p>
                   </div>
                   <div className="space-y-3">
                     <div>
-                      <label className="s-micro-cap block mb-2" style={{ color: 'var(--s-ink-mute)' }}>Coupon Code</label>
+                      <label className="sb-micro block mb-2 font-medium" style={{ color: 'var(--sb-ink-muted)' }}>Coupon Code</label>
                       <input
-                        className="s-input"
+                        className="sb-text-input"
                         type="text"
                         placeholder="e.g. DHANVIP"
                         value={promoCode}
@@ -398,8 +386,8 @@ export default function PricingPage() {
                     <button
                       onClick={handlePromoSimulator}
                       disabled={processing || !promoCode.trim()}
-                      className="s-btn-primary"
-                      style={{ width: '100%', padding: '12px 20px', fontSize: 15, justifyContent: 'center', opacity: processing || !promoCode.trim() ? 0.5 : 1 }}
+                      className="sb-btn-primary w-full text-center"
+                      style={{ opacity: processing || !promoCode.trim() ? 0.5 : 1 }}
                     >
                       {processing ? 'Applying coupon…' : 'Apply & Unlock Access'}
                     </button>
@@ -411,9 +399,9 @@ export default function PricingPage() {
           </div>
 
           {/* Footer note */}
-          <p className="s-caption text-center mt-6" style={{ color: 'var(--s-ink-mute)' }}>
+          <p className="sb-caption text-center mt-6" style={{ color: 'var(--sb-ink-muted)' }}>
             Have questions?{' '}
-            <Link to="/support" className="s-link">Contact support</Link> · All plans come with a 7-day refund guarantee.
+            <Link to="/support" className="text-sb-primary no-underline hover:underline">Contact support</Link> · All plans come with a 7-day refund guarantee.
           </p>
         </div>
 

@@ -40,7 +40,6 @@ export const ROUTES = {
   PROFILE: '/profile',
   INSIGHTS: '/insights',
   SUBSCRIPTIONS: '/subscriptions',
-  CARDS: '/cards',
   PRICING: '/pricing',
   PRIVACY: '/privacy',
   ABOUT: '/about',

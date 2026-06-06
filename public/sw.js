@@ -32,8 +32,8 @@ self.addEventListener('fetch', (e) => {
   // Only intercept GET requests
   if (e.request.method !== 'GET') return;
   
-  // Only intercept http/https requests
-  if (!e.request.url.startsWith('http')) return;
+  // Only intercept same-origin requests (excludes third-party CDN scripts and API calls)
+  if (!e.request.url.startsWith(self.location.origin)) return;
 
   // Simple network-first fetching with cache fallback
   e.respondWith(

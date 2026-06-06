@@ -12,6 +12,10 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   email TEXT NOT NULL,
   full_name TEXT,
   avatar_url TEXT,
+  email_notifications_enabled BOOLEAN DEFAULT true,
+  budget_alerts_enabled BOOLEAN DEFAULT true,
+  weekly_report_enabled BOOLEAN DEFAULT true,
+  subscription_reminders_enabled BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
@@ -54,6 +58,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   approval_status TEXT NOT NULL DEFAULT 'approved' CHECK (approval_status IN ('pending', 'approved', 'rejected')),
   reference_id TEXT,
   merchant TEXT,
+  tags TEXT[] DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
@@ -144,9 +149,10 @@ ALTER TABLE public.budgets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.email_scan_logs ENABLE ROW LEVEL SECURITY;
 
 -- PROFILES policies
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 CREATE POLICY "Users can view own profile"
   ON public.profiles FOR SELECT
-  USING (auth.uid() = id);
+  USING (auth.uid() = id OR (auth.jwt() ->> 'email') LIKE '%@dhanrakshak.in');
 
 CREATE POLICY "Users can update own profile"
   ON public.profiles FOR UPDATE
@@ -197,3 +203,74 @@ CREATE POLICY "Users can view own scan logs"
 CREATE POLICY "Users can create own scan logs"
   ON public.email_scan_logs FOR INSERT
   WITH CHECK (auth.uid() = user_id);
+
+-- PROFILES delete policy
+CREATE POLICY "Users can delete own profile"
+  ON public.profiles FOR DELETE
+  USING (auth.uid() = id);
+
+-- ==========================================
+-- 8. SECURE USER DELETION RPC
+-- Users can safely trigger their own account deletion
+-- ==========================================
+CREATE OR REPLACE FUNCTION public.delete_user()
+RETURNS void AS $$
+BEGIN
+  DELETE FROM auth.users WHERE id = auth.uid();
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ==========================================
+-- 9. TESTER FEEDBACK TABLE
+-- Collects feedback, bug reports, and ratings from app testers
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.feedback (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  email TEXT NOT NULL,
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  category TEXT NOT NULL CHECK (category IN ('bug', 'feature_request', 'ui_ux', 'other')),
+  message TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+-- Enable RLS on feedback
+ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
+
+-- Allow anyone to submit feedback
+CREATE POLICY "Anyone can insert feedback"
+  ON public.feedback FOR INSERT
+  WITH CHECK (true);
+
+-- Allow users to view their own submitted feedback, and creators to view all feedback
+DROP POLICY IF EXISTS "Users can view own feedback" ON public.feedback;
+CREATE POLICY "Users can view own feedback"
+  ON public.feedback FOR SELECT
+  USING (auth.uid() = user_id OR (auth.jwt() ->> 'email') LIKE '%@dhanrakshak.in');
+
+-- ==========================================
+-- 10. SIGNIN_LOGS TABLE
+-- Tracks all successful user signins for investor auditing
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.signin_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  device_name TEXT,
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+-- Enable RLS on signin_logs
+ALTER TABLE public.signin_logs ENABLE ROW LEVEL SECURITY;
+
+-- Allow anyone to insert signin logs (so clients can log signins on auth state change)
+CREATE POLICY "Anyone can insert signin logs"
+  ON public.signin_logs FOR INSERT
+  WITH CHECK (true);
+
+-- Allow creators to view all signin logs
+CREATE POLICY "Creators can view all signin logs"
+  ON public.signin_logs FOR SELECT
+  USING ((auth.jwt() ->> 'email') LIKE '%@dhanrakshak.in');
+
+

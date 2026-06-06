@@ -26,7 +26,7 @@ const variantStyles: Record<ButtonVariant, string> = {
   ghost:
     'text-zinc-400 hover:text-white hover:bg-surface-2 active:bg-surface-3',
   danger:
-    'bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 hover:border-red-500/30 active:bg-red-500/30',
+    'bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] text-[var(--status-danger-text)] hover:bg-[var(--status-danger-border)] hover:border-[var(--status-danger-text)]/40 active:opacity-80',
 }
 
 const sizeStyles: Record<ButtonSize, string> = {
@@ -58,6 +58,7 @@ export default function Button({
         className
       )}
       disabled={disabled || loading}
+      aria-busy={loading}
       {...props}
     >
       {loading && (
@@ -65,6 +66,7 @@ export default function Button({
           className="h-4 w-4 animate-spin"
           viewBox="0 0 24 24"
           fill="none"
+          aria-hidden="true"
         >
           <circle
             className="opacity-25"

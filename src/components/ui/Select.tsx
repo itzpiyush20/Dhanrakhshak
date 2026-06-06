@@ -37,6 +37,8 @@ export default function Select({
       )}
       <select
         id={selectId}
+        aria-invalid={!!error}
+        aria-describedby={error ? `${selectId}-error` : undefined}
         className={cn(
           'h-11 w-full rounded-xl border bg-surface-2 px-3 text-sm text-white',
           'transition-all duration-200 appearance-none cursor-pointer',
@@ -61,7 +63,7 @@ export default function Select({
         ))}
         {children}
       </select>
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p id={`${selectId}-error`} role="alert" aria-live="assertive" className="text-xs text-red-400">{error}</p>}
     </div>
   )
 }

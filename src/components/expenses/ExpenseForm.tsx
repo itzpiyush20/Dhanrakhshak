@@ -7,7 +7,7 @@ import { Button, Input, Card } from '@/components/ui'
 import Select from '@/components/ui/Select'
 import { CATEGORIES } from '@/constants'
 import { useAuth } from '@/context/AuthContext'
-import { createTransaction, updateTransaction } from '@/services/transactions'
+import { createTransaction, updateTransaction, saveMerchantRule, cleanMerchantName, supabase } from '@/services'
 import type { Database } from '@/types/database'
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row']
@@ -35,11 +35,14 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
   const { user } = useAuth()
   const isEditing = !!editingTransaction
 
-  const [type, setType] = useState(editingTransaction?.type || 'debit')
+  const [type, setType] = useState<string>(editingTransaction?.type || 'debit')
   const [amount, setAmount] = useState(editingTransaction?.amount?.toString() || '')
   const [category, setCategory] = useState(editingTransaction?.category || 'other')
   const [description, setDescription] = useState(editingTransaction?.description || '')
   const [notes, setNotes] = useState(editingTransaction?.notes || '')
+  const [tagsInput, setTagsInput] = useState(
+    editingTransaction?.tags?.join(', ') || ''
+  )
   const [date, setDate] = useState(
     editingTransaction?.date || new Date().toISOString().split('T')[0]
   )
@@ -57,7 +60,17 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
       return
     }
 
+    if (date < '2026-01-01') {
+      setError('Date must be starting January 2026 (2026-01-01 or later)')
+      return
+    }
+
     setLoading(true)
+
+    const tags = tagsInput
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0)
 
     if (isEditing && editingTransaction) {
       const { error } = await updateTransaction(editingTransaction.id, {
@@ -67,12 +80,26 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
         description,
         notes: notes || null,
         date,
+        tags,
       })
 
       if (error) {
         setError(error.message)
         setLoading(false)
         return
+      }
+
+      // Automatically bulk-categorize every other transaction from the same merchant/vendor
+      if (editingTransaction.merchant) {
+        const { error: bulkErr } = await supabase
+          .from('transactions')
+          .update({ category })
+          .eq('user_id', user.id)
+          .eq('merchant', editingTransaction.merchant)
+        
+        if (bulkErr) {
+          console.error('Failed to bulk-categorize matching transactions:', bulkErr)
+        }
       }
     } else {
       const { error } = await createTransaction({
@@ -85,6 +112,7 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
         date,
         source: 'manual',
         approval_status: 'approved',
+        tags,
       })
 
       if (error) {
@@ -99,8 +127,17 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
       setAmount('')
       setDescription('')
       setNotes('')
+      setTagsInput('')
       setCategory('other')
       setDate(new Date().toISOString().split('T')[0])
+    }
+
+    // Learn manual categorization rules based on description / merchant entry
+    if (description && category) {
+      const cleanDesc = cleanMerchantName(description)
+      if (cleanDesc && cleanDesc.length > 2) {
+        saveMerchantRule(cleanDesc, category, true)
+      }
     }
 
     setLoading(false)
@@ -114,7 +151,7 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
       </h2>
 
       {error && (
-        <div className="mb-4 rounded-xl bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">
+        <div role="alert" className="mb-4 rounded-xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-3 text-sm text-[var(--status-danger-text)]">
           {error}
         </div>
       )}
@@ -155,6 +192,7 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
+            min="2026-01-01"
             required
           />
         </div>
@@ -174,12 +212,37 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
           onChange={(e) => setNotes(e.target.value)}
         />
 
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" loading={loading}>
+        <div className="space-y-1.5">
+          <Input
+            label="Tags (comma-separated)"
+            placeholder="e.g. food, vacation, work"
+            value={tagsInput}
+            onChange={(e) => setTagsInput(e.target.value)}
+          />
+          {tagsInput && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {tagsInput
+                .split(',')
+                .map((t) => t.trim())
+                .filter((t) => t.length > 0)
+                .map((t, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center px-2 py-0.5 rounded-lg bg-brand-500/10 border border-brand-500/25 text-[10px] font-semibold text-brand-400"
+                  >
+                    #{t}
+                  </span>
+                ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3 pt-2 w-full">
+          <Button type="submit" loading={loading} className="w-full sm:w-auto justify-center">
             {isEditing ? 'Update' : 'Add Transaction'}
           </Button>
           {onCancel && (
-            <Button type="button" variant="ghost" onClick={onCancel}>
+            <Button type="button" variant="ghost" className="w-full sm:w-auto justify-center" onClick={onCancel}>
               Cancel
             </Button>
           )}

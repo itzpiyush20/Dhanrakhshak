@@ -2,7 +2,7 @@
 // LoginPage — Email/password + Google OAuth
 // ============================================
 
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '@/layouts/AuthLayout'
 import { Button, Input } from '@/components/ui'
@@ -11,6 +11,10 @@ import { useAuth } from '@/context/AuthContext'
 export default function LoginPage() {
   const navigate = useNavigate()
   const { signIn, signInWithGoogle } = useAuth()
+
+  useEffect(() => {
+    document.title = 'Login | Dhanrakshak'
+  }, [])
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -44,7 +48,7 @@ export default function LoginPage() {
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
-          <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">
+          <div role="alert" className="rounded-xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-3 text-sm text-[var(--status-danger-text)]">
             {error}
           </div>
         )}
@@ -95,7 +99,7 @@ export default function LoginPage() {
         onClick={handleGoogleLogin}
         type="button"
       >
-        <svg className="h-4 w-4" viewBox="0 0 24 24">
+        <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
           <path
             d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
             fill="#4285F4"

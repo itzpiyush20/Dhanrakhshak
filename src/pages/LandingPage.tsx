@@ -4,6 +4,258 @@ import { useAuth } from '@/context'
 import { ROUTES } from '@/constants'
 import { Capacitor } from '@capacitor/core'
 
+interface InteractionSimulationProps {}
+
+function InteractionSimulation({}: InteractionSimulationProps) {
+  const [step, setStep] = useState(0)
+  const [budgetAmount, setBudgetAmount] = useState(4000)
+
+  useEffect(() => {
+    let active = true
+    
+    const runSimulation = () => {
+      if (!active) return
+      
+      // Step 0: Idle/Reset state
+      setStep(0)
+      setBudgetAmount(4000)
+      
+      // Step 1: Alert notification slides in (SMS/Email alert)
+      setTimeout(() => {
+        if (!active) return
+        setStep(1)
+      }, 1000)
+
+      // Step 2: Scanner laser sweep starts
+      setTimeout(() => {
+        if (!active) return
+        setStep(2)
+      }, 3500)
+
+      // Step 3: Parsed details insert into the database table
+      setTimeout(() => {
+        if (!active) return
+        setStep(3)
+      }, 6000)
+
+      // Step 4: Budget progress bar updates
+      setTimeout(() => {
+        if (!active) return
+        setStep(4)
+        setBudgetAmount(4250)
+      }, 8500)
+
+      // Hold before restarting
+      setTimeout(() => {
+        if (active) {
+          runSimulation()
+        }
+      }, 12500)
+    }
+
+    runSimulation()
+    
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // Budget calculations
+  const totalBudget = 5000
+  const budgetPercent = (budgetAmount / totalBudget) * 100
+
+  return (
+    <div className="relative w-full max-w-[480px] bg-sb-canvas border border-sb-hairline rounded-[6px] p-6 shadow-[0_12px_30px_rgba(0,0,0,0.04)] flex flex-col gap-5 overflow-hidden select-none font-sans">
+      <style>{`
+        @keyframes laser-sweep {
+          0% { top: 0%; opacity: 0; }
+          15% { opacity: 1; }
+          85% { opacity: 1; }
+          100% { top: 100%; opacity: 0; }
+        }
+        .laser-glow {
+          position: absolute;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background: #3ecf8e;
+          box-shadow: 0 0 10px #3ecf8e, 0 0 20px #3ecf8e;
+          opacity: 0;
+          z-index: 10;
+        }
+        .laser-glow-active {
+          animation: laser-sweep 2.2s ease-in-out infinite;
+        }
+        .pulse-emerald {
+          animation: pulse-border 1.5s infinite alternate;
+        }
+        @keyframes pulse-border {
+          0% { border-color: rgba(62, 207, 142, 0.3); box-shadow: 0 0 4px rgba(62, 207, 142, 0.1); }
+          100% { border-color: rgba(62, 207, 142, 1); box-shadow: 0 0 12px rgba(62, 207, 142, 0.2); }
+        }
+        @keyframes insert-flash {
+          0% { background-color: rgba(62, 207, 142, 0.3); }
+          100% { background-color: transparent; }
+        }
+        .animate-insert {
+          animation: insert-flash 1.5s ease-out;
+        }
+      `}</style>
+
+      {/* Title block */}
+      <div className="flex items-center justify-between border-b border-sb-hairline-cool pb-3">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-[#3ecf8e] animate-pulse" />
+          <span className="text-[11px] font-medium tracking-tight uppercase text-sb-ink" style={{ letterSpacing: '-0.2px' }}>
+            Live Parser Engine
+          </span>
+        </div>
+        <span className="text-[10px] font-mono text-sb-ink-muted bg-sb-canvas-soft px-1.5 py-0.5 rounded-[4px] border border-sb-hairline">
+          STATUS: {step === 0 ? 'READY' : step === 1 ? 'ALERT_INCOMING' : step === 2 ? 'PARSING_LOCAL' : step === 3 ? 'DB_COMMIT' : 'BUDGET_SYNCED'}
+        </span>
+      </div>
+
+      {/* Phase 1 & 2: Alert Notification SMS / Email Card */}
+      <div className="flex flex-col gap-2">
+        <span className="text-[10px] font-medium tracking-tight text-sb-ink-muted-2 uppercase">
+          1. Incoming Bank Alert
+        </span>
+        <div className="relative min-h-[76px] bg-sb-canvas-soft rounded-[6px] border border-sb-hairline p-3 overflow-hidden transition-all duration-500 flex flex-col justify-center">
+          {/* Laser line overlay during parsing */}
+          {step === 2 && (
+            <div className="laser-glow laser-glow-active" />
+          )}
+
+          {step === 0 ? (
+            <div className="text-center text-xs text-sb-ink-muted font-mono italic">
+              Waiting for incoming transaction...
+            </div>
+          ) : (
+            <div 
+              className={`transition-all duration-700 ease-out flex gap-3 items-start ${
+                step === 1 ? 'translate-y-0 opacity-100' : ''
+              } ${
+                step === 2 ? 'pulse-emerald border-sb-primary' : ''
+              }`}
+              style={{
+                transform: step >= 1 ? 'translateY(0)' : 'translateY(-20px)',
+                opacity: step >= 1 ? 1 : 0,
+              }}
+            >
+              <div className="h-8 w-8 rounded-[6px] bg-[rgba(62,207,142,0.06)] border border-[rgba(62,207,142,0.15)] flex items-center justify-center shrink-0 text-sb-primary font-mono text-sm font-bold">
+                ₹
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs font-semibold text-sb-ink">SMS Notification (ICICI Bank)</span>
+                  <span className="text-[10px] text-sb-ink-muted">Just now</span>
+                </div>
+                <p className="text-xs text-sb-ink-secondary leading-normal font-mono">
+                  UPI debit of INR 250.00 at Starbucks Coffee successful. Ref: 290812.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Secure badge */}
+          {step >= 3 && (
+            <div className="absolute right-2 bottom-2 bg-[rgba(62,207,142,0.1)] text-sb-primary-deep border border-[rgba(62,207,142,0.25)] px-2 py-0.5 rounded-[4px] text-[9px] font-medium tracking-tight flex items-center gap-1 animate-scale-up">
+              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+              Parsed Locally (100% Secure)
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Phase 3: Transaction Logs Table */}
+      <div className="flex flex-col gap-2">
+        <span className="text-[10px] font-medium tracking-tight text-sb-ink-muted-2 uppercase">
+          2. Dhanrakshak Client Log Database (device-only)
+        </span>
+        <div className="border border-sb-hairline rounded-[6px] overflow-hidden bg-sb-canvas">
+          <div className="grid grid-cols-4 bg-sb-canvas-soft border-b border-sb-hairline px-3 py-2 text-[10px] font-medium text-sb-ink-muted tracking-tight">
+            <div>DATE</div>
+            <div className="col-span-2">MERCHANT & CATEGORY</div>
+            <div className="text-right">AMOUNT</div>
+          </div>
+          <div className="divide-y divide-sb-hairline-cool min-h-[110px]">
+            {/* Row 1: The animated row */}
+            {step >= 3 ? (
+              <div className="grid grid-cols-4 px-3 py-2 text-xs items-center transition-all duration-500 ease-out overflow-hidden bg-[rgba(62,207,142,0.1)] border-b border-sb-hairline animate-insert">
+                <div className="text-sb-ink-muted-2 font-mono">Today</div>
+                <div className="col-span-2 min-w-0">
+                  <div className="font-semibold text-sb-ink truncate">Starbucks Coffee</div>
+                  <div className="text-[10px] text-sb-primary font-medium tracking-tight">Food & Dining 🍔</div>
+                </div>
+                <div className="text-right font-bold text-sb-ink font-mono">-₹250.00</div>
+              </div>
+            ) : null}
+
+            {/* Static Row A */}
+            <div className="grid grid-cols-4 px-3 py-2 text-xs bg-sb-canvas items-center">
+              <div className="text-sb-ink-muted font-mono">Yesterday</div>
+              <div className="col-span-2 min-w-0">
+                <div className="font-medium text-sb-ink truncate">Netflix India</div>
+                <div className="text-[10px] text-sb-ink-muted-2 tracking-tight">Subscriptions 🔄</div>
+              </div>
+              <div className="text-right font-semibold text-sb-ink font-mono">-₹649.00</div>
+            </div>
+
+            {/* Static Row B */}
+            <div className="grid grid-cols-4 px-3 py-2 text-xs bg-sb-canvas items-center">
+              <div className="text-sb-ink-muted font-mono">Jun 04</div>
+              <div className="col-span-2 min-w-0">
+                <div className="font-medium text-sb-ink truncate">Zomato Delivery</div>
+                <div className="text-[10px] text-sb-ink-muted-2 tracking-tight">Food & Dining 🍔</div>
+              </div>
+              <div className="text-right font-semibold text-sb-ink font-mono">-₹649.00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Phase 4: Budget Progress */}
+      <div className="flex flex-col gap-2">
+        <span className="text-[10px] font-medium tracking-tight text-sb-ink-muted-2 uppercase">
+          3. Monthly Budgets Update
+        </span>
+        <div className="border border-sb-hairline rounded-[6px] p-3.5 bg-sb-canvas-soft flex flex-col gap-2">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm">🍔</span>
+              <span className="text-xs font-semibold text-sb-ink">Food & Dining</span>
+            </div>
+            <div className="text-right">
+              <span className="text-xs font-semibold text-sb-ink font-mono">
+                ₹{budgetAmount.toLocaleString('en-IN')}
+              </span>
+              <span className="text-[10px] text-sb-ink-muted font-mono"> / ₹{totalBudget.toLocaleString('en-IN')}</span>
+            </div>
+          </div>
+
+          {/* Progress bar wrapper */}
+          <div className="h-2 w-full bg-[var(--sb-hairline)] rounded-[6px] overflow-hidden">
+            <div 
+              className="h-full rounded-[6px] bg-[#3ecf8e] transition-all duration-1000 ease-out"
+              style={{ width: `${budgetPercent}%` }}
+            />
+          </div>
+          <div className="flex justify-between items-center text-[10px] text-sb-ink-muted font-medium">
+            <span>{budgetPercent.toFixed(0)}% Used</span>
+            {step === 4 ? (
+              <span className="text-sb-primary animate-pulse font-mono">+₹250 added just now</span>
+            ) : (
+              <span>₹{(totalBudget - budgetAmount).toLocaleString('en-IN')} remaining</span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function LandingPage() {
   const { user, loading } = useAuth()
   const navigate = useNavigate()
@@ -59,15 +311,15 @@ export default function LandingPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-white flex flex-col" style={{ fontFamily: "'Inter', system-ui, sans-serif", fontFeatureSettings: '"ss01"' }}>
+    <div className="min-h-screen bg-sb-canvas flex flex-col" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
 
-      {/* ── NAV (nav-bar-on-mesh) ─────────────────────────────── */}
-      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-[#e3e8ee]">
-        <nav className="mx-auto max-w-[1200px] px-6 h-[60px] flex items-center justify-between" aria-label="Primary">
+      {/* ── NAV (Supabaze style, white canvas bar) ───────────────── */}
+      <header className="sticky top-0 z-50 bg-sb-canvas border-b border-sb-hairline">
+        <nav className="mx-auto max-w-[1280px] px-6 h-[64px] flex items-center justify-between" aria-label="Primary">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 no-underline">
-            <span className="text-lg font-bold" style={{ color: 'var(--s-primary)' }}>₹</span>
-            <span style={{ fontSize: 17, fontWeight: 600, color: 'var(--s-ink)', letterSpacing: '-0.3px' }}>Dhanrakshak</span>
+            <span className="text-lg font-bold" style={{ color: 'var(--sb-primary)' }}>₹</span>
+            <span style={{ fontSize: 17, fontWeight: 500, color: 'var(--sb-ink)', letterSpacing: '-0.3px' }}>Dhanrakshak</span>
           </Link>
 
           {/* Center links */}
@@ -81,21 +333,21 @@ export default function LandingPage() {
               { label: 'Support', href: '/support', isLink: true },
             ].map((item) =>
               item.isLink ? (
-                <Link key={item.label} to={item.href!} className="s-caption" style={{ color: 'var(--s-ink-mute-2)', textDecoration: 'none' }}>{item.label}</Link>
+                <Link key={item.label} to={item.href!} className="sb-caption font-medium" style={{ color: 'var(--sb-ink-muted)', textDecoration: 'none' }}>{item.label}</Link>
               ) : (
-                <a key={item.label} href={item.href} className="s-caption" style={{ color: 'var(--s-ink-mute-2)', textDecoration: 'none' }}>{item.label}</a>
+                <a key={item.label} href={item.href} className="sb-caption font-medium" style={{ color: 'var(--sb-ink-muted)', textDecoration: 'none' }}>{item.label}</a>
               )
             )}
           </div>
 
           {/* Right CTAs */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             {user ? (
-              <Link to={ROUTES.DASHBOARD} className="s-btn-primary">Dashboard</Link>
+              <Link to={ROUTES.DASHBOARD} className="sb-btn-primary rounded-[6px]">Dashboard</Link>
             ) : (
               <>
-                <Link to={ROUTES.LOGIN} className="s-caption" style={{ color: 'var(--s-ink-mute-2)', textDecoration: 'none' }}>Sign in</Link>
-                <Link to={ROUTES.SIGNUP} className="s-btn-primary">Get started</Link>
+                <Link to={ROUTES.LOGIN} className="sb-caption font-medium" style={{ color: 'var(--sb-ink-muted)', textDecoration: 'none' }}>Sign in</Link>
+                <Link to={ROUTES.SIGNUP} className="sb-btn-primary rounded-[6px]">Get started</Link>
               </>
             )}
           </div>
@@ -104,102 +356,87 @@ export default function LandingPage() {
 
       <main id="main-content">
 
-        {/* ── BAND 1: HERO (gradient mesh backdrop) ─────────────────── */}
-        <section className="stripe-mesh-bg pt-24 pb-32 relative overflow-hidden">
-          {/* subtle noise texture overlay */}
-          <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\'/%3E%3C/svg%3E")' }} />
-
-          <div className="mx-auto max-w-[1200px] px-6 grid lg:grid-cols-2 gap-16 items-center relative z-10">
+        {/* ── BAND 1: HERO (pure white canvas with product UI stacked panes) ─── */}
+        <section className="py-24 bg-sb-canvas border-b border-sb-hairline-cool overflow-hidden">
+          <div className="mx-auto max-w-[1280px] px-6 grid lg:grid-cols-2 gap-16 items-center">
             {/* Left: copy */}
-            <div className="space-y-7">
-              <div className="s-pill-tag">100% Private · Local Scans</div>
+            <div className="space-y-6">
+              <div className="inline-flex items-center gap-1.5 bg-[#e6fbf3] text-[#16a34a] border border-[#a7f3d0] px-3 py-1 rounded-[6px] text-xs font-semibold tracking-tight">
+                <span>🔒</span> 100% Local Scanning · Zero Bank Passwords Required
+              </div>
 
-              <h1 className="s-display-xxl" style={{ color: 'var(--s-ink)' }}>
-                Stop typing your expenses.<br />
-                <span style={{ color: 'var(--s-primary)' }}>Let Dhanrakshak</span><br />
-                track them.
+              <h1 className="sb-display-xl tracking-tight text-sb-ink" style={{ letterSpacing: '-1.5px', lineHeight: '1.15' }}>
+                Auto-track your spends.<br />
+                <span className="text-[#24b47e]">Zero manual typing.</span>
               </h1>
 
-              <p className="s-body-lg" style={{ color: 'var(--s-ink-mute)', maxWidth: 440 }}>
-                Tired of writing down every rupee you spend? Dhanrakshak automatically maps your budget from your bank alerts. Safe, automatic, and simple.
+              <p className="sb-body-md max-w-[500px]" style={{ color: 'var(--sb-ink-muted)', lineHeight: '1.6' }}>
+                Dhanrakshak reads secure, read-only transaction alert SMS and emails and compiles your expenses automatically. Designed for developers and privacy-focused spenders, the entire parsing engine runs <strong className="font-medium" style={{ color: 'var(--sb-ink)' }}>locally on your device</strong>. Your private financial data never hits our servers.
               </p>
 
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                <Link to={user ? ROUTES.DASHBOARD : ROUTES.SIGNUP} className="s-btn-primary" style={{ fontSize: 16, padding: '11px 28px' }}>
+              {/* Quick How It Works Steps for 5-Second Comprehension */}
+              <div className="space-y-3 pt-2 border-t border-sb-hairline-cool">
+                <p className="text-xs font-bold uppercase tracking-wider text-sb-ink-muted-2">How it works in 5 seconds:</p>
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="flex gap-3 items-start">
+                    <div className="h-5 w-5 rounded-[6px] bg-[rgba(62,207,142,0.1)] text-[#24b47e] font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">1</div>
+                    <p className="sb-caption leading-normal" style={{ color: 'var(--sb-ink-muted)' }}>
+                      <strong className="font-medium" style={{ color: 'var(--sb-ink)' }}>Make a transaction:</strong> Spend via any UPI app, credit card, or bank card as usual.
+                    </p>
+                  </div>
+                  <div className="flex gap-3 items-start">
+                    <div className="h-5 w-5 rounded-[6px] bg-[rgba(62,207,142,0.1)] text-[#24b47e] font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">2</div>
+                    <p className="sb-caption leading-normal" style={{ color: 'var(--sb-ink-muted)' }}>
+                      <strong className="font-medium" style={{ color: 'var(--sb-ink)' }}>Local detection:</strong> Our client-side parser scans the bank notification alert instantly.
+                    </p>
+                  </div>
+                  <div className="flex gap-3 items-start">
+                    <div className="h-5 w-5 rounded-[6px] bg-[rgba(62,207,142,0.1)] text-[#24b47e] font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">3</div>
+                    <p className="sb-caption leading-normal" style={{ color: 'var(--sb-ink-muted)' }}>
+                      <strong className="font-medium" style={{ color: 'var(--sb-ink)' }}>Live budget update:</strong> Dhanrakshak logs the spend and updates category budgets automatically.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-sb-hairline-cool">
+                <Link to={user ? ROUTES.DASHBOARD : ROUTES.SIGNUP} className="sb-btn-primary rounded-[6px]" style={{ padding: '12px 24px', fontWeight: 500 }}>
                   {user ? 'Go to Dashboard' : 'Start free — no card needed'}
                 </Link>
-                <a href="#download" className="s-btn-secondary" style={{ fontSize: 16, padding: '10px 28px' }}>
+                <a href="#download" className="sb-btn-secondary rounded-[6px]" style={{ padding: '12px 24px', fontWeight: 500 }}>
                   Download App
                 </a>
               </div>
 
               {/* Mini metrics */}
-              <div className="flex gap-8 pt-4 border-t" style={{ borderColor: 'rgba(13,37,61,0.1)' }}>
+              <div className="flex gap-8 pt-4 border-t border-sb-hairline-cool">
                 {[
-                  { val: 'Zero', label: 'Manual typing' },
-                  { val: '100%', label: 'Local scans', accent: true },
-                  { val: 'All', label: 'Major UPI banks' },
+                  { val: 'Zero', label: 'Manual entries' },
+                  { val: '100%', label: 'Local-only parsing', accent: true },
+                  { val: 'All', label: 'Indian Banks & UPI' },
                 ].map((m) => (
                   <div key={m.label}>
-                    <p className="tnum" style={{ fontSize: 20, fontWeight: 300, color: m.accent ? 'var(--s-primary)' : 'var(--s-ink)', letterSpacing: '-0.4px' }}>{m.val}</p>
-                    <p className="s-micro-cap" style={{ color: 'var(--s-ink-mute)', marginTop: 4 }}>{m.label}</p>
+                    <p className="sb-caption font-bold text-base" style={{ color: m.accent ? 'var(--sb-primary)' : 'var(--sb-ink)' }}>{m.val}</p>
+                    <p className="sb-micro" style={{ color: 'var(--sb-ink-muted-2)', marginTop: 2 }}>{m.label}</p>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Right: product UI mockup composite */}
-            <div className="relative flex items-center justify-center h-[420px]">
-              {/* Back card */}
-              <div className="absolute w-[300px] bg-white border rounded-2xl p-6 s-shadow-2 -translate-y-8 -translate-x-6 -rotate-3 hover:rotate-0 transition-transform duration-300" style={{ borderColor: 'var(--s-hairline)' }}>
-                <div className="flex justify-between items-start mb-5">
-                  <div>
-                    <p className="s-micro-cap" style={{ color: 'var(--s-ink-mute)' }}>Active Spend Limit</p>
-                    <p className="s-caption" style={{ color: 'var(--s-ink-secondary)', marginTop: 2 }}>Primary Bank Account</p>
-                  </div>
-                  <span className="text-[8px] font-bold italic px-1.5 py-0.5 rounded border" style={{ borderColor: 'var(--s-hairline)', color: 'var(--s-ink-mute)' }}>VISA</span>
-                </div>
-                <p className="tnum" style={{ fontSize: 26, fontWeight: 300, color: 'var(--s-ink)', letterSpacing: '-0.6px' }}>₹4,250.00</p>
-                <p className="s-caption" style={{ color: 'var(--s-ink-mute)', marginTop: 2 }}>Remaining of ₹15,000 budget</p>
-                <div className="mt-4 h-1.5 w-full rounded-full" style={{ background: 'var(--s-hairline)' }}>
-                  <div className="h-full rounded-full" style={{ width: '28%', background: 'var(--s-primary)' }} />
-                </div>
-              </div>
-
-              {/* Front card */}
-              <div className="absolute w-[290px] bg-white border rounded-2xl p-5 s-shadow-2 translate-y-16 translate-x-14 rotate-2 hover:rotate-0 transition-transform duration-300" style={{ borderColor: 'var(--s-primary)', borderWidth: 1.5 }}>
-                <div className="flex gap-3 items-center mb-3">
-                  <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm" style={{ background: 'rgba(83,58,253,0.08)' }}>💡</div>
-                  <div>
-                    <p className="s-caption font-medium" style={{ color: 'var(--s-ink)' }}>Dhanrakshak Auto-Read</p>
-                    <p className="s-micro-cap" style={{ color: 'var(--s-ink-mute)' }}>Bank alert email read instantly</p>
-                  </div>
-                </div>
-                <div className="rounded-xl p-3 flex justify-between items-center" style={{ background: 'var(--s-canvas-soft)', border: '1px solid var(--s-hairline)' }}>
-                  <div>
-                    <p className="s-caption font-medium" style={{ color: 'var(--s-ink)' }}>Zomato Food</p>
-                    <p className="tnum" style={{ fontSize: 11, color: 'var(--s-ink-mute)' }}>04 Jun, 23:42</p>
-                  </div>
-                  <p className="tnum" style={{ fontSize: 15, fontWeight: 400, color: 'var(--s-ink)' }}>₹649.00</p>
-                </div>
-              </div>
-
-              {/* Float accent circle */}
-              <div className="absolute h-20 w-20 rounded-full flex flex-col items-center justify-center text-center s-shadow-1 -translate-y-24 translate-x-28" style={{ background: 'var(--s-canvas)', border: '1px solid var(--s-hairline)' }}>
-                <span className="s-micro-cap" style={{ color: 'var(--s-ink-mute)' }}>Saved</span>
-                <span className="tnum" style={{ fontSize: 14, fontWeight: 400, color: 'var(--s-primary)', marginTop: 2 }}>+12%</span>
-              </div>
+            {/* Right: live interactive simulation */}
+            <div className="flex items-center justify-center lg:justify-end">
+              <InteractionSimulation />
             </div>
           </div>
         </section>
 
-        {/* ── BAND 2: DAILY LIFE (canvas-soft) ─────────────────── */}
-        <section id="daily-utility" className="py-24" style={{ background: 'var(--s-canvas-soft)' }}>
-          <div className="mx-auto max-w-[1200px] px-6">
+        {/* ── BAND 2: DAILY LIFE (canvas-soft warm paper floor) ─────────────────── */}
+        <section id="daily-utility" className="py-24 bg-sb-canvas-soft">
+          <div className="mx-auto max-w-[1280px] px-6">
             <div className="text-center mb-16">
-              <div className="s-pill-tag mb-4" style={{ display: 'inline-flex' }}>Rhythm of tracking</div>
-              <h2 className="s-display-lg" style={{ color: 'var(--s-ink)' }}>A day in your spend routine</h2>
-              <p className="s-body-lg mt-4 mx-auto" style={{ color: 'var(--s-ink-mute)', maxWidth: 500 }}>
+              <div className="sb-pill-tag-soft mb-4">Rhythm of tracking</div>
+              <h2 className="sb-display-lg" style={{ color: 'var(--sb-ink)' }}>A day in your spend routine</h2>
+              <p className="sb-body-lg mt-4 mx-auto" style={{ color: 'var(--sb-ink-muted)', maxWidth: 520 }}>
                 See how Dhanrakshak helps you keep track of your money automatically as you go about your day.
               </p>
             </div>
@@ -210,28 +447,28 @@ export default function LandingPage() {
                 { time: '01:15 PM', emoji: '🍔', title: 'Smart Budget Guard', body: 'You treat yourself to lunch. Dhanrakshak updates your monthly lunch budget immediately. If you are close to your spending limit, the app gently flags it to keep you on track.' },
                 { time: '10:00 PM', emoji: '📊', title: 'Simple Daily Summary', body: 'Open the app before bed to view a beautiful, easy-to-understand breakdown of what you spent today and how much you saved. Complete clarity without the stress of manual accounts.' },
               ].map((card) => (
-                <div key={card.title} className="s-card s-shadow-1 hover:s-shadow-2 transition-shadow" style={{ padding: 32 }}>
+                <div key={card.title} className="sb-card-light shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all duration-200 bg-sb-canvas">
                   <div className="flex items-center justify-between mb-6">
-                    <span className="s-micro-cap px-3 py-1 rounded-full" style={{ background: 'rgba(83,58,253,0.08)', color: 'var(--s-primary)' }}>{card.time}</span>
+                    <span className="sb-micro px-2 py-1 rounded-full bg-[rgba(62,207,142,0.1)] text-[#24b47e] font-semibold">{card.time}</span>
                     <span className="text-2xl">{card.emoji}</span>
                   </div>
-                  <h3 className="s-heading-md" style={{ color: 'var(--s-ink)' }}>{card.title}</h3>
-                  <p className="s-body-md mt-3" style={{ color: 'var(--s-ink-mute)' }}>{card.body}</p>
+                  <h3 className="sb-heading-md" style={{ color: 'var(--sb-ink)' }}>{card.title}</h3>
+                  <p className="sb-caption mt-3 leading-relaxed" style={{ color: 'var(--sb-ink-muted)' }}>{card.body}</p>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* ── BAND 3: FEATURES (white canvas + cream interlude) ─── */}
-        <section id="features" className="py-24" style={{ background: 'var(--s-canvas)' }}>
-          <div className="mx-auto max-w-[1200px] px-6 grid lg:grid-cols-2 gap-16 items-center">
+        {/* ── BAND 3: FEATURES (white canvas) ─── */}
+        <section id="features" className="py-24 bg-sb-canvas border-b border-sb-hairline-cool">
+          <div className="mx-auto max-w-[1280px] px-6 grid lg:grid-cols-2 gap-16 items-center">
             {/* Left */}
             <div className="space-y-8">
               <div>
-                <div className="s-pill-tag mb-4" style={{ display: 'inline-flex' }}>Product design</div>
-                <h2 className="s-display-lg" style={{ color: 'var(--s-ink)' }}>Smart, simple, and 100% private.</h2>
-                <p className="s-body-lg mt-4" style={{ color: 'var(--s-ink-mute)' }}>
+                <div className="sb-pill-tag-soft mb-4">Product design</div>
+                <h2 className="sb-display-lg" style={{ color: 'var(--sb-ink)' }}>Smart, simple, and 100% private.</h2>
+                <p className="sb-body-lg mt-4" style={{ color: 'var(--sb-ink-muted)' }}>
                   Keeping track of your hard-earned money should not feel like a chore. Dhanrakshak does the heavy lifting while keeping your information strictly confidential.
                 </p>
               </div>
@@ -243,10 +480,10 @@ export default function LandingPage() {
                   { emoji: '📱', title: 'Install on Any Phone', body: 'Download the lightweight app for your Android phone or add it directly to your iPhone home screen in seconds.' },
                 ].map((f) => (
                   <div key={f.title} className="flex gap-4">
-                    <div className="h-10 w-10 rounded-xl flex items-center justify-center text-lg shrink-0" style={{ background: 'var(--s-canvas-soft)', border: '1px solid var(--s-hairline)' }}>{f.emoji}</div>
+                    <div className="h-10 w-10 rounded-[6px] flex items-center justify-center text-lg shrink-0 bg-sb-canvas-soft border border-sb-hairline">{f.emoji}</div>
                     <div>
-                      <h3 className="s-caption font-semibold" style={{ color: 'var(--s-ink)', fontWeight: 500 }}>{f.title}</h3>
-                      <p className="s-caption mt-1" style={{ color: 'var(--s-ink-mute)' }}>{f.body}</p>
+                      <h3 className="sb-caption font-semibold" style={{ color: 'var(--sb-ink)' }}>{f.title}</h3>
+                      <p className="sb-caption mt-1" style={{ color: 'var(--sb-ink-muted)' }}>{f.body}</p>
                     </div>
                   </div>
                 ))}
@@ -254,40 +491,41 @@ export default function LandingPage() {
             </div>
 
             {/* Right: Try the parser */}
-            <div className="s-card s-shadow-2" style={{ padding: 32 }}>
-              <h3 className="s-heading-md" style={{ color: 'var(--s-ink)' }}>⚡ Try the Auto-Detector</h3>
-              <p className="s-body-md mt-2" style={{ color: 'var(--s-ink-mute)' }}>
-                Paste any transaction message below and see how we understand it instantly:
+            <div className="sb-card-light shadow-[0_4px_12px_rgba(0,0,0,0.05)] border border-sb-hairline bg-sb-canvas">
+              <h3 className="sb-heading-md flex items-center gap-2" style={{ color: 'var(--sb-ink)' }}>
+                <span>⚡</span> Try the Auto-Detector
+              </h3>
+              <p className="sb-caption mt-2" style={{ color: 'var(--sb-ink-muted)' }}>
+                Paste any transaction message below and see how our engine parses details in real-time:
               </p>
 
               <div className="space-y-4 mt-6">
                 <textarea
                   value={mockEmail}
                   onChange={(e) => setMockEmail(e.target.value)}
-                  className="s-input resize-none"
-                  style={{ height: 80, fontFamily: "'Inter', system-ui", fontSize: 13, fontWeight: 300 }}
+                  className="sb-text-input resize-none h-[85px] font-mono text-xs"
                   placeholder="Enter transaction text..."
                 />
                 <button
                   onClick={handleTestParse}
                   disabled={parsing || !mockEmail.trim()}
-                  className="s-btn-primary"
-                  style={{ width: '100%', padding: '11px 20px', fontSize: 15, opacity: parsing || !mockEmail.trim() ? 0.5 : 1 }}
+                  className="sb-btn-primary w-full text-center"
+                  style={{ opacity: parsing || !mockEmail.trim() ? 0.5 : 1 }}
                 >
                   {parsing ? 'Reading alert text…' : 'Auto-Read Transaction'}
                 </button>
 
                 {parsedResult && (
-                  <div className="rounded-xl p-4 space-y-3 animate-fade-in" style={{ background: 'var(--s-canvas-soft)', border: '1px solid var(--s-hairline)' }}>
-                    <div className="flex justify-between items-center s-micro-cap pb-2" style={{ borderBottom: '1px solid var(--s-hairline)', color: 'var(--s-ink-mute)' }}>
-                      <span>Detected details</span>
-                      <span style={{ color: 'var(--s-primary)' }}>{parsedResult.status}</span>
+                  <div className="sb-code-block mt-4 border border-[#2e2e2e]">
+                    <div className="flex justify-between items-center text-xs pb-2 border-b border-[#2e2e2e] text-static-zinc-500 mb-3">
+                      <span>Parser scan result</span>
+                      <span className="text-sb-primary font-bold">{parsedResult.status}</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 s-caption" style={{ color: 'var(--s-ink)' }}>
-                      <div><p style={{ color: 'var(--s-ink-mute)' }}>Merchant:</p><p style={{ fontWeight: 500 }}>{parsedResult.merchant}</p></div>
-                      <div><p style={{ color: 'var(--s-ink-mute)' }}>Amount:</p><p className="tnum" style={{ color: 'var(--s-primary)', fontWeight: 500 }}>₹{parsedResult.amount.toLocaleString('en-IN')}</p></div>
-                      <div><p style={{ color: 'var(--s-ink-mute)' }}>Bank:</p><p style={{ fontWeight: 500 }}>{parsedResult.bank}</p></div>
-                      <div><p style={{ color: 'var(--s-ink-mute)' }}>Category:</p><p style={{ fontWeight: 500 }}>{parsedResult.category}</p></div>
+                    <div className="grid grid-cols-2 gap-3 text-xs leading-normal">
+                      <div><p className="text-static-zinc-500">Merchant:</p><p className="font-semibold text-static-white">{parsedResult.merchant}</p></div>
+                      <div><p className="text-static-zinc-500">Amount:</p><p className="font-bold text-sb-primary">₹{parsedResult.amount.toLocaleString('en-IN')}</p></div>
+                      <div><p className="text-static-zinc-500">Bank Source:</p><p className="font-semibold text-static-white">{parsedResult.bank}</p></div>
+                      <div><p className="text-static-zinc-500">Spend Category:</p><p className="font-semibold text-static-white">{parsedResult.category}</p></div>
                     </div>
                   </div>
                 )}
@@ -296,37 +534,39 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── BAND 3b: CREAM INTERLUDE ──────────────────────────── */}
-        <section className="py-20" style={{ background: 'var(--s-canvas-cream)' }}>
-          <div className="mx-auto max-w-[1200px] px-6 flex flex-col md:flex-row items-center justify-between gap-10">
-            <div className="max-w-lg">
-              <h2 className="s-display-md" style={{ color: 'var(--s-ink)' }}>Your money, your data.<br />Always local. Always yours.</h2>
-              <p className="s-body-md mt-4" style={{ color: 'var(--s-ink-secondary)' }}>
-                Dhanrakshak never stores your transaction emails on any server. Everything is parsed locally, on your own device — so your financial data stays yours, period.
-              </p>
-            </div>
-            <div className="flex gap-12 shrink-0">
-              {[
-                { val: '0', label: 'Emails uploaded to cloud', sub: 'All parsing is local' },
-                { val: '256-bit', label: 'SSL on every request', sub: 'Bank-grade security' },
-              ].map((s) => (
-                <div key={s.label} className="text-center">
-                  <p className="tnum" style={{ fontSize: 28, fontWeight: 300, color: 'var(--s-ink)', letterSpacing: '-0.6px' }}>{s.val}</p>
-                  <p className="s-caption" style={{ color: 'var(--s-ink-secondary)', marginTop: 4 }}>{s.label}</p>
-                  <p className="s-micro-cap" style={{ color: 'var(--s-ink-mute)', marginTop: 2 }}>{s.sub}</p>
-                </div>
-              ))}
+        {/* ── BAND 3b: SUPABAZE TRUST / LOCAL SECURITY CARD ──────────────────────────── */}
+        <section className="py-20 bg-sb-canvas-soft border-b border-sb-hairline-cool">
+          <div className="mx-auto max-w-[1280px] px-6">
+            <div className="sb-card-light bg-sb-canvas rounded-[12px] p-8 shadow-[0_4px_12px_rgba(0,0,0,0.05)] border-t-4 border-t border-sb-primary flex flex-col md:flex-row items-center justify-between gap-10">
+              <div className="max-w-lg">
+                <h2 className="sb-heading-lg" style={{ color: 'var(--sb-ink)' }}>Your money, your data. Always local. Always yours.</h2>
+                <p className="sb-caption mt-4 leading-relaxed" style={{ color: 'var(--sb-ink-muted)' }}>
+                  Dhanrakshak never uploads your emails to any servers. The transaction scanner parses your local bank alerts directly on your device, ensuring total privacy.
+                </p>
+              </div>
+              <div className="flex gap-12 shrink-0">
+                {[
+                  { val: '0', label: 'Cloud uploads', sub: 'Completely local parsing' },
+                  { val: '256-bit', label: 'Request security', sub: 'SSL bank-grade safety' },
+                ].map((s) => (
+                  <div key={s.label} className="text-center">
+                    <p className="sb-code font-bold text-4xl" style={{ color: 'var(--sb-ink)' }}>{s.val}</p>
+                    <p className="sb-caption font-semibold mt-2" style={{ color: 'var(--sb-ink)' }}>{s.label}</p>
+                    <p className="sb-micro text-static-zinc-500" style={{ marginTop: 2 }}>{s.sub}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </section>
 
         {/* ── BAND 4: DOWNLOAD (canvas-soft) ───────────────────── */}
-        <section id="download" className="py-24" style={{ background: 'var(--s-canvas-soft)' }}>
-          <div className="mx-auto max-w-[1200px] px-6 grid lg:grid-cols-2 gap-16 items-center">
+        <section id="download" className="py-24 bg-sb-canvas-soft border-b border-sb-hairline-cool">
+          <div className="mx-auto max-w-[1280px] px-6 grid lg:grid-cols-2 gap-16 items-center">
             <div className="space-y-6">
-              <div className="s-pill-tag" style={{ display: 'inline-flex' }}>Get the app</div>
-              <h2 className="s-display-lg" style={{ color: 'var(--s-ink)' }}>Easy setup on mobile</h2>
-              <p className="s-body-lg" style={{ color: 'var(--s-ink-mute)' }}>
+              <div className="sb-pill-tag-soft">Get the app</div>
+              <h2 className="sb-display-lg" style={{ color: 'var(--sb-ink)' }}>Easy setup on mobile</h2>
+              <p className="sb-body-lg" style={{ color: 'var(--sb-ink-muted)' }}>
                 Dhanrakshak is lightweight and fast. Download the app directly for your Android phone or link it as a web app on your iPhone.
               </p>
               <div className="space-y-3">
@@ -335,27 +575,25 @@ export default function LandingPage() {
                   { icon: '🔒', text: '100% safe to install & use' },
                 ].map((item) => (
                   <div key={item.text} className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm s-shadow-1" style={{ background: 'var(--s-canvas)', border: '1px solid var(--s-hairline)' }}>{item.icon}</div>
-                    <p className="s-caption" style={{ color: 'var(--s-ink-secondary)', fontWeight: 500 }}>{item.text}</p>
+                    <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm bg-sb-canvas border border-sb-hairline shadow-[0_1px_3px_rgba(0,0,0,0.06)]">{item.icon}</div>
+                    <p className="sb-caption font-semibold" style={{ color: 'var(--sb-ink-secondary)' }}>{item.text}</p>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="s-card s-shadow-2" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="sb-card-light shadow-[0_8px_24px_rgba(0,0,0,0.08)] bg-sb-canvas" style={{ padding: 0, overflow: 'hidden' }}>
               {/* Tab bar */}
-              <div className="flex" style={{ borderBottom: '1px solid var(--s-hairline)' }}>
+              <div className="flex bg-sb-canvas-soft border-b border-sb-hairline">
                 {(['android', 'ios'] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setDownloadTab(tab)}
-                    className="flex-1 py-4 s-caption cursor-pointer transition-colors"
+                    className="flex-1 py-4 sb-caption cursor-pointer transition-colors border-none bg-transparent"
                     style={{
-                      color: downloadTab === tab ? 'var(--s-primary)' : 'var(--s-ink-mute)',
-                      borderBottom: downloadTab === tab ? '2px solid var(--s-primary)' : '2px solid transparent',
-                      borderTop: 'none', borderLeft: 'none', borderRight: 'none',
-                      background: 'none',
-                      fontWeight: downloadTab === tab ? 500 : 300,
+                      color: downloadTab === tab ? 'var(--sb-primary)' : 'var(--sb-ink-muted)',
+                      borderBottom: downloadTab === tab ? '2px solid var(--sb-primary)' : '2px solid transparent',
+                      fontWeight: downloadTab === tab ? 600 : 400,
                     }}
                   >
                     {tab === 'android' ? '🤖 Android App' : '🍎 iPhone / iOS'}
@@ -363,21 +601,21 @@ export default function LandingPage() {
                 ))}
               </div>
 
-              <div className="p-8 animate-fade-in">
+              <div className="p-8 bg-sb-canvas">
                 {downloadTab === 'android' ? (
                   <div className="space-y-6">
-                    <div className="rounded-xl p-4 flex items-center justify-between flex-wrap gap-4" style={{ background: 'var(--s-canvas-soft)', border: '1px solid var(--s-hairline)' }}>
+                    <div className="rounded-[6px] p-4 flex items-center justify-between flex-wrap gap-4 bg-sb-canvas-soft border border-sb-hairline">
                       <div>
-                        <p className="s-caption font-medium" style={{ color: 'var(--s-ink)', fontWeight: 500 }}>Android APK File</p>
-                        <p className="s-micro-cap mt-0.5" style={{ color: 'var(--s-ink-mute)' }}>Version 1.0.4 · Official package</p>
+                        <p className="sb-caption font-semibold" style={{ color: 'var(--sb-ink)' }}>Android APK File</p>
+                        <p className="sb-micro mt-0.5" style={{ color: 'var(--sb-ink-muted)' }}>Version 1.0.4 · Official package</p>
                       </div>
-                      <a href="/dhanrakshak.apk" download className="s-btn-primary" style={{ fontSize: 13, padding: '8px 16px' }}>📥 Download APK</a>
+                      <a href="/dhanrakshak.apk" download className="sb-btn-primary">📥 Download APK</a>
                     </div>
                     <div className="space-y-2">
-                      <p className="s-micro-cap" style={{ color: 'var(--s-ink-mute)' }}>Installation steps</p>
-                      <ol className="space-y-1.5 s-caption pl-4 list-decimal" style={{ color: 'var(--s-ink-mute)' }}>
+                      <p className="sb-micro font-semibold" style={{ color: 'var(--sb-ink-muted)' }}>Installation steps</p>
+                      <ol className="space-y-1.5 sb-caption pl-4 list-decimal" style={{ color: 'var(--sb-ink-muted)' }}>
                         <li>Tap the download button above.</li>
-                        <li>Open the downloaded <code>.apk</code> file from your phone.</li>
+                        <li>Open the downloaded <code className="bg-sb-canvas-soft border border-sb-hairline text-sb-primary font-mono text-xs px-1.5 py-0.5 rounded">.apk</code> file.</li>
                         <li>If prompted, approve permission to install packages.</li>
                         <li>Open Dhanrakshak from your home screen and sign in.</li>
                       </ol>
@@ -385,17 +623,17 @@ export default function LandingPage() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    <div className="rounded-xl p-4" style={{ background: 'var(--s-canvas-soft)', border: '1px solid var(--s-hairline)' }}>
-                      <p className="s-caption font-medium" style={{ color: 'var(--s-ink)', fontWeight: 500 }}>iPhone Web App Setup</p>
-                      <p className="s-micro-cap mt-1" style={{ color: 'var(--s-ink-mute)' }}>Launches full screen from your home screen.</p>
+                    <div className="rounded-[6px] p-4 bg-sb-canvas-soft border border-sb-hairline">
+                      <p className="sb-caption font-semibold" style={{ color: 'var(--sb-ink)' }}>iPhone Web App Setup</p>
+                      <p className="sb-micro mt-1" style={{ color: 'var(--sb-ink-muted)' }}>Launches full screen from your home screen.</p>
                     </div>
                     <div className="space-y-2">
-                      <p className="s-micro-cap" style={{ color: 'var(--s-ink-mute)' }}>Easy iOS steps</p>
-                      <ul className="space-y-1.5 s-caption pl-4 list-disc" style={{ color: 'var(--s-ink-mute)' }}>
+                      <p className="sb-micro font-semibold" style={{ color: 'var(--sb-ink-muted)' }}>Easy iOS steps</p>
+                      <ul className="space-y-1.5 sb-caption pl-4 list-disc" style={{ color: 'var(--sb-ink-muted)' }}>
                         <li>Open Safari and visit this web address.</li>
-                        <li>Tap the <strong style={{ color: 'var(--s-ink)' }}>Share</strong> icon at the bottom of Safari.</li>
-                        <li>Choose <strong style={{ color: 'var(--s-ink)' }}>Add to Home Screen</strong>.</li>
-                        <li>Name the app and tap <strong style={{ color: 'var(--s-ink)' }}>Add</strong>.</li>
+                        <li>Tap the <strong style={{ color: 'var(--sb-ink)' }}>Share</strong> icon at the bottom.</li>
+                        <li>Choose <strong style={{ color: 'var(--sb-ink)' }}>Add to Home Screen</strong>.</li>
+                        <li>Name the app and tap <strong style={{ color: 'var(--sb-ink)' }}>Add</strong>.</li>
                       </ul>
                     </div>
                   </div>
@@ -405,29 +643,28 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── BAND 5: FAQ (white) ───────────────────────────────── */}
-        <section id="faq" className="py-24" style={{ background: 'var(--s-canvas)' }}>
+        {/* ── BAND 5: FAQ (white canvas) ───────────────────────────────── */}
+        <section id="faq" className="py-24 bg-sb-canvas border-b border-sb-hairline-cool">
           <div className="mx-auto max-w-[800px] px-6">
             <div className="text-center mb-14">
-              <div className="s-pill-tag mb-4" style={{ display: 'inline-flex' }}>Questions</div>
-              <h2 className="s-display-lg" style={{ color: 'var(--s-ink)' }}>Frequently asked questions</h2>
+              <div className="sb-pill-tag-soft mb-4">Questions</div>
+              <h2 className="sb-display-lg" style={{ color: 'var(--sb-ink)' }}>Frequently asked questions</h2>
             </div>
             <div className="space-y-3">
               {faqItems.map((item, idx) => {
                 const isOpen = expandedFaq === idx
                 return (
-                  <div key={idx} className="s-card s-shadow-1" style={{ padding: 0, overflow: 'hidden' }}>
+                  <div key={idx} className="sb-card-light shadow-[0_1px_3px_rgba(0,0,0,0.06)] bg-sb-canvas" style={{ padding: 0, overflow: 'hidden' }}>
                     <button
                       onClick={() => setExpandedFaq(isOpen ? null : idx)}
-                      className="w-full text-left px-6 py-5 flex items-center justify-between cursor-pointer"
-                      style={{ background: 'none', border: 'none' }}
+                      className="w-full text-left px-6 py-5 flex items-center justify-between cursor-pointer border-none bg-transparent"
                     >
-                      <span className="s-body-md" style={{ color: 'var(--s-ink)', fontWeight: isOpen ? 500 : 300 }}>{item.q}</span>
-                      <span style={{ color: 'var(--s-primary)', fontSize: 20, transition: 'transform 0.2s', transform: isOpen ? 'rotate(45deg)' : 'none', flexShrink: 0, marginLeft: 16 }}>＋</span>
+                      <span className="sb-heading-md font-semibold" style={{ color: 'var(--sb-ink)' }}>{item.q}</span>
+                      <span style={{ color: 'var(--sb-primary)', fontSize: 20, transition: 'transform 0.2s', transform: isOpen ? 'rotate(45deg)' : 'none', flexShrink: 0, marginLeft: 16 }}>＋</span>
                     </button>
                     {isOpen && (
-                      <div className="px-6 pb-5 animate-fade-in">
-                        <p className="s-body-md" style={{ color: 'var(--s-ink-mute)' }}>{item.a}</p>
+                      <div className="px-6 pb-5 animate-fade-in border-t border-sb-hairline pt-4">
+                        <p className="sb-body-md leading-relaxed" style={{ color: 'var(--sb-ink-muted)' }}>{item.a}</p>
                       </div>
                     )}
                   </div>
@@ -437,18 +674,18 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── BAND 6: CTA (deep navy brand-dark) ───────────────── */}
-        <section className="py-24 text-center" style={{ background: 'var(--s-brand-dark)' }}>
+        {/* ── BAND 6: CTA (deep dark canvas-night) ───────────────── */}
+        <section className="py-24 text-center bg-sb-canvas-night border-b border-[#2e2e2e]">
           <div className="mx-auto max-w-[600px] px-6 space-y-6">
-            <h2 className="s-display-lg" style={{ color: '#fff' }}>Ready to automate your savings?</h2>
-            <p className="s-body-lg" style={{ color: 'rgba(255,255,255,0.65)' }}>
+            <h2 className="sb-display-lg" style={{ color: 'var(--sb-on-dark)' }}>Ready to automate your savings?</h2>
+            <p className="sb-body-lg" style={{ color: 'rgba(255,255,255,0.7)' }}>
               Create a free account in less than 60 seconds. You can delete or export your records anytime.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-              <Link to={user ? ROUTES.DASHBOARD : ROUTES.SIGNUP} className="s-btn-primary" style={{ fontSize: 16, padding: '11px 28px' }}>
+              <Link to={user ? ROUTES.DASHBOARD : ROUTES.SIGNUP} className="sb-btn-primary" style={{ padding: '10px 24px' }}>
                 {user ? 'Go to Dashboard' : 'Get started free'}
               </Link>
-              <Link to={ROUTES.PRICING} className="s-btn-on-dark" style={{ fontSize: 16, padding: '10px 28px' }}>
+              <Link to={ROUTES.PRICING} className="sb-btn-on-dark" style={{ padding: '10px 24px' }}>
                 View pricing
               </Link>
             </div>
@@ -457,15 +694,15 @@ export default function LandingPage() {
 
       </main>
 
-      {/* ── FOOTER ───────────────────────────────────────────── */}
-      <footer style={{ background: 'var(--s-canvas)', borderTop: '1px solid var(--s-hairline)' }} className="py-16">
-        <div className="mx-auto max-w-[1200px] px-6 flex flex-col md:flex-row items-center justify-between gap-6">
+      {/* ── FOOTER (Supabaze style, white footer) ─────────── */}
+      <footer style={{ background: 'var(--sb-canvas-soft)', borderTop: '1px solid var(--sb-hairline)' }} className="py-16">
+        <div className="mx-auto max-w-[1280px] px-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex flex-col items-center md:items-start gap-1">
             <div className="flex items-center gap-2">
-              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--s-primary)' }}>₹</span>
-              <span className="s-body-md" style={{ color: 'var(--s-ink)', fontWeight: 500 }}>Dhanrakshak</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--sb-primary)' }}>₹</span>
+              <span className="sb-body-md font-semibold" style={{ color: 'var(--sb-ink)' }}>Dhanrakshak</span>
             </div>
-            <p className="s-caption" style={{ color: 'var(--s-ink-mute)' }}>© 2026 Dhanrakshak. Built with privacy by design.</p>
+            <p className="sb-caption" style={{ color: 'var(--sb-ink-muted)' }}>© 2026 Dhanrakshak. Built with privacy by design.</p>
           </div>
           <div className="flex flex-wrap justify-center gap-6">
             {[
@@ -475,7 +712,7 @@ export default function LandingPage() {
               { label: 'About', to: ROUTES.ABOUT },
               { label: 'Support', to: '/support' },
             ].map((l) => (
-              <Link key={l.label} to={l.to} className="s-caption s-link" style={{ color: 'var(--s-ink-mute)' }}>{l.label}</Link>
+              <Link key={l.label} to={l.to} className="sb-caption font-medium" style={{ color: 'var(--sb-ink-muted)', textDecoration: 'none' }}>{l.label}</Link>
             ))}
           </div>
         </div>

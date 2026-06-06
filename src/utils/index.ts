@@ -28,6 +28,50 @@ export function formatCurrencyCompact(amount: number): string {
   return INR_COMPACT_FORMATTER.format(amount)
 }
 
+/**
+ * Wraps a promise with a timeout. If the promise doesn't resolve
+ * within `ms` milliseconds, it rejects with a timeout error.
+ * Prevents Supabase or network queries from hanging the UI forever.
+ */
+export function withTimeout<T>(promise: Promise<T>, ms: number, label = 'Request'): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`${label} timed out after ${ms / 1000}s. Please refresh the page or check your connection.`)),
+        ms
+      )
+    }),
+  ]).finally(() => clearTimeout(timer))
+}
+
+/**
+ * Retries an async function with exponential backoff.
+ * Useful for transient Supabase / network failures.
+ * @param fn - Async function to retry
+ * @param retries - Number of additional attempts after first failure (default 2)
+ * @param delayMs - Initial delay in ms, doubles each retry (default 800ms)
+ */
+export async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  retries = 2,
+  delayMs = 800
+): Promise<T> {
+  let lastError: unknown
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastError = err
+      if (attempt < retries) {
+        await new Promise((res) => setTimeout(res, delayMs * Math.pow(2, attempt)))
+      }
+    }
+  }
+  throw lastError
+}
+
 /** Format date as "28 May 2026" */
 export function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-IN', {
@@ -64,3 +108,178 @@ export function getCurrentMonth(): string {
 export function cn(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(' ')
 }
+
+// ============================================
+// BANK NAME DICTIONARY — for matching
+// ============================================
+const BANK_NAMES: { pattern: RegExp; label: string }[] = [
+  { pattern: /\bhdfc\b/i, label: 'HDFC' },
+  { pattern: /\bicici\b/i, label: 'ICICI' },
+  { pattern: /\bsbi\b|\bstate\s*bank\b/i, label: 'SBI' },
+  { pattern: /\baxis\b/i, label: 'Axis' },
+  { pattern: /\bkotak\b/i, label: 'Kotak' },
+  { pattern: /\bpnb\b|\bpunjab\s*national\b/i, label: 'PNB' },
+  { pattern: /\bbob\b|\bbank\s*of\s*baroda\b/i, label: 'Bank of Baroda' },
+  { pattern: /\bcanara\b/i, label: 'Canara' },
+  { pattern: /\byes\s*bank\b|\byesbank\b/i, label: 'Yes Bank' },
+  { pattern: /\bpaytm\b/i, label: 'Paytm' },
+  { pattern: /\bidfc\b/i, label: 'IDFC First' },
+  { pattern: /\bfederal\s*bank\b/i, label: 'Federal' },
+  // Require 'union bank' — bare 'union' matches too many non-bank phrases
+  { pattern: /\bunion\s*bank\s*of\s*india\b|\bunion\s*bank\b/i, label: 'Union Bank' },
+  { pattern: /\bindusind\b/i, label: 'IndusInd' },
+  { pattern: /\bciti\b|\bcitibank\b/i, label: 'Citi' },
+  { pattern: /\brbl\b/i, label: 'RBL' },
+  { pattern: /\bau\s*small\s*finance\b|\bau\s*bank\b/i, label: 'AU Bank' },
+  { pattern: /\bbandhan\b/i, label: 'Bandhan' },
+  { pattern: /\bindian\s*overseas\b|\biob\b/i, label: 'IOB' },
+  // Require 'central bank' — bare 'central' is too generic
+  { pattern: /\bcentral\s*bank\s*of\s*india\b|\bcentral\s*bank\b/i, label: 'Central Bank' },
+  { pattern: /\buco\s*bank\b/i, label: 'UCO Bank' },
+  { pattern: /\bboi\b|\bbank\s*of\s*india\b/i, label: 'Bank of India' },
+  { pattern: /\bstandard\s*chartered\b|\bsc\s*bank\b/i, label: 'StanChart' },
+  { pattern: /\bhsbc\b/i, label: 'HSBC' },
+  { pattern: /\bdbs\b/i, label: 'DBS' },
+  { pattern: /\bamex\b|\bamerican\s*express\b/i, label: 'Amex' },
+]
+
+/** Extract bank brand name from text */
+export function extractBankName(text: string): string {
+  for (const bank of BANK_NAMES) {
+    if (bank.pattern.test(text)) {
+      return bank.label
+    }
+  }
+  return ''
+}
+
+/** Extract last 4 digits of card/account number from text */
+export function extractLast4Digits(text: string): string {
+  // Match patterns like: xx1234, *1234, ending 1234, card 1234, a/c 1234, ac 1234, account 1234, ending in 1234, *******1234, xxxx-xxxx-1234
+  const patterns = [
+    /(?:[xX\*]+-?)+\s*(\d{4})\b/,
+    /(?:ending|ends)\s*(?:in\s*)?(\d{4})\b/i,
+    /(?:card|cc|a\/c|ac|account|acct)\s*(?:no\.?\s*)?(?:ending\s*)?(?:in\s*)?(?:xx|XX|\*+|x+)?\s*(\d{4})\b/i,
+    /(?:card|cc|a\/c|ac|account|acct)\s*(?:no\.?\s*)?(\d{4})(?:\s|$|\.|\,)/i,
+  ]
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    if (match && match[1]) {
+      const digits = match[1]
+      // Reject obvious years (2020-2035) — these are not card/account numbers
+      const num = parseInt(digits, 10)
+      if (num >= 2020 && num <= 2035) continue
+      return digits
+    }
+  }
+  return ''
+}
+
+/** 
+ * Determine the payment instrument type (credit card, debit card, bank account, UPI, wallet)
+ * by analyzing the email snippet / notes text.
+ * Returns: 'credit_card' | 'debit_card' | 'upi' | 'bank_account' | 'wallet' | 'unknown'
+ */
+function detectPaymentInstrument(text: string): 'credit_card' | 'debit_card' | 'upi' | 'bank_account' | 'wallet' | 'unknown' {
+  const lower = text.toLowerCase()
+
+  // CREDIT CARD: must have explicit "credit card" or "CC ending/no" context
+  if (/credit\s*card/i.test(text)) return 'credit_card'
+  // "your CC" or "CC ending" 
+  if (/\bcc\s+(?:ending|xx|no|number)/i.test(text)) return 'credit_card'
+  // "card ending XXXX" or "card no. XXXX" — explicit card number reference
+  if (/card\s*(?:ending|no\.?\s*\d)/i.test(text) && !/debit\s*card/i.test(text) && !/a\/c|account|savings|current/i.test(text)) {
+    return 'credit_card'
+  }
+
+  // DEBIT CARD: explicit keywords only
+  if (/debit\s*card/i.test(text)) return 'debit_card'
+
+  // UPI: explicit keywords
+  if (/\bupi\b/i.test(text)) return 'upi'
+  if (/@[a-z]+/i.test(lower) && /(?:paid|txn|transfer)/i.test(text)) return 'upi'
+
+  // BANK ACCOUNT / TRANSFERS (NEFT/RTGS/IMPS/Net Banking): explicit keywords
+  if (/\b(?:neft|imps|rtgs|ft|netbanking|internetbanking)\b/i.test(text)) return 'bank_account'
+  if (/net\s*banking|internet\s*banking|online\s*transfer|fund\s*transfer/i.test(text)) return 'bank_account'
+  if (/a\/c|account|acct|savings\s*(?:a\/c|account)?|current\s*(?:a\/c|account)?/i.test(text)) return 'bank_account'
+  if (/debited\s+from|credited\s+to|your\s+(?:bank|a\/c)/i.test(text)) return 'bank_account'
+
+  // WALLET
+  if (/wallet|paytm\s*wallet|phonepe\s*wallet|freecharge|mobikwik/i.test(lower)) return 'wallet'
+
+  // NOTE: Bare "card" mention (e.g. "Dear Card Holder") is NOT sufficient to classify as credit card.
+  // We return 'unknown' and let the caller use a sensible default.
+  return 'unknown'
+}
+
+/** 
+ * Parses payment transaction details (notes / snippet) to extract and format 
+ * the human-readable payment source label.
+ * 
+ * EXAMPLES of outputs:
+ *   "HDFC Credit Card xx9876"
+ *   "SBI Bank A/c xx4321"
+ *   "ICICI UPI A/c xx7890"
+ *   "Debit Card xx5678"
+ *   "UPI"
+ *   "Bank A/c"
+ *   "Main Wallet"
+ */
+export function parsePaymentSource(notes: string | null | undefined): string {
+  if (!notes) return 'Main Wallet'
+
+  const instrument = detectPaymentInstrument(notes)
+  const bankName = extractBankName(notes)
+
+  switch (instrument) {
+    case 'credit_card':
+      return bankName
+        ? `${bankName} Credit Card`
+        : 'Credit Card'
+    
+    case 'debit_card':
+      return bankName
+        ? `${bankName} Debit Card`
+        : 'Debit Card'
+    
+    case 'upi':
+      return bankName
+        ? `${bankName} UPI`
+        : 'UPI'
+    
+    case 'bank_account':
+      return bankName
+        ? `${bankName} Bank A/c`
+        : 'Bank A/c'
+    
+    case 'wallet':
+      return bankName
+        ? `${bankName} Wallet`
+        : 'Digital Wallet'
+    
+    default:
+      // Try to construct the most informative label possible
+      if (bankName) {
+        return `${bankName} Bank`
+      }
+      // Last resort: check for common payment keywords to give a more specific label
+      if (/\bpos\b|\bswipe\b|\bterminal\b/i.test(notes)) return 'Card (POS Swipe)'
+      if (/\batm\b/i.test(notes)) return 'ATM Withdrawal'
+      if (/\bcash\b/i.test(notes)) return 'Cash'
+      return 'Bank'
+  }
+}
+
+/**
+ * Determine if the payment was via a card (credit or debit) vs bank/UPI.
+ * Used for icon selection in the UI.
+ */
+export function isCardPayment(notes: string | null | undefined): boolean {
+  if (!notes) return false
+  const instrument = detectPaymentInstrument(notes)
+  return instrument === 'credit_card' || instrument === 'debit_card'
+}
+
+export { encryptText, decryptText } from './crypto'

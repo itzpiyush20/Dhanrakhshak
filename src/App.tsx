@@ -27,7 +27,6 @@ const AnalyticsPage    = lazy(() => import('@/pages/AnalyticsPage'))
 const SettingsPage     = lazy(() => import('@/pages/SettingsPage'))
 const ProfilePage      = lazy(() => import('@/pages/ProfilePage'))
 const SubscriptionsPage = lazy(() => import('@/pages/SubscriptionsPage'))
-const CardsPage        = lazy(() => import('@/pages/CardsPage'))
 const PrivacyPage      = lazy(() => import('@/pages/PrivacyPage'))
 const AboutPage        = lazy(() => import('@/pages/AboutPage'))
 const TermsPage        = lazy(() => import('@/pages/TermsPage'))
@@ -92,7 +91,6 @@ function App() {
                 <Route path="/settings"        element={<SettingsPage />} />
                 <Route path="/profile"         element={<ProfilePage />} />
                 <Route path="/subscriptions"   element={<SubscriptionsPage />} />
-                <Route path="/cards"           element={<CardsPage />} />
                 <Route path="/payment-success" element={<PaymentSuccessPage />} />
               </Route>
 
