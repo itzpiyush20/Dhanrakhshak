@@ -388,7 +388,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
       <header className={cn("sticky top-0 z-50 w-full border-b select-none transition-colors", isStaticLight ? "border-sb-hairline bg-sb-canvas text-sb-ink" : "border-border-subtle bg-surface-1/80 backdrop-blur-md text-zinc-100")}>
         <div className="mx-auto max-w-7xl h-14 flex items-center justify-between px-4 sm:px-6 gap-4">
           <Link to="/" className="flex items-center gap-3 shrink-0 group">
-            <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] border-0 group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300" aria-hidden="true">₹</span>
+            <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-static-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] border-0 group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300" aria-hidden="true">₹</span>
             <div className="flex items-center gap-2.5">
               <div className="flex items-center gap-1 text-base tracking-tight leading-none">
                 <span className={cn(
@@ -397,7 +397,10 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                     ? "from-emerald-600 to-teal-500"
                     : "from-brand-300 to-emerald-400"
                 )}>Dhan</span>
-                <span className="font-bold text-white transition-colors duration-300">rakshak</span>
+                <span className={cn(
+                  "font-bold transition-colors duration-300",
+                  isStaticLight ? "text-sb-ink" : "text-white"
+                )}>rakshak</span>
               </div>
               <span className={cn(
                 "text-[8px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full border hidden md:inline-flex items-center gap-1.5 transition-all duration-300 shadow-sm",
@@ -745,7 +748,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                 <Link to="/pricing" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">Pricing</Link>
                 <Link to="/support" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">Support</Link>
                 <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium text-center bg-sb-canvas-soft border border-sb-hairline rounded-[6px] mt-2">Sign In</Link>
-                <Link to="/signup" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2.5 text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 text-center rounded-[6px] mt-1">Get Started</Link>
+                <Link to="/signup" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2.5 text-sm font-medium text-static-white bg-brand-500 hover:bg-brand-600 text-center rounded-[6px] mt-1">Get Started</Link>
               </>
             )}
           </nav>
@@ -785,7 +788,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
       {/* Floating Action Button (FAB) for Tester Feedback */}
       <button
         onClick={() => setFeedbackOpen(true)}
-        className="fixed bottom-6 right-6 z-[40] flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 text-white font-bold text-[11px] tracking-wider uppercase shadow-xl shadow-brand-500/20 border border-brand-400/30 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
+        className="fixed bottom-6 right-6 z-[40] flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 text-static-white font-bold text-[11px] tracking-wider uppercase shadow-xl shadow-brand-500/20 border border-brand-400/30 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
         title="Send Tester Feedback"
         aria-label="Open tester feedback form"
       >
@@ -930,7 +933,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                   <button
                     type="submit"
                     disabled={feedbackMessage.trim().length < 5 || feedbackLoading}
-                    className="w-full h-11 rounded-2xl bg-gradient-to-r from-brand-400 to-brand-600 hover:from-brand-300 hover:to-brand-500 text-white font-bold text-[11px] uppercase tracking-wider disabled:opacity-40 disabled:hover:from-brand-400 disabled:hover:to-brand-600 flex items-center justify-center gap-2 border border-brand-400/20 shadow-md shadow-brand-500/5 cursor-pointer transition-all duration-200"
+                    className="w-full h-11 rounded-2xl bg-gradient-to-r from-brand-400 to-brand-600 hover:from-brand-300 hover:to-brand-500 text-static-white font-bold text-[11px] uppercase tracking-wider disabled:opacity-40 disabled:hover:from-brand-400 disabled:hover:to-brand-600 flex items-center justify-center gap-2 border border-brand-400/20 shadow-md shadow-brand-500/5 cursor-pointer transition-all duration-200"
                   >
                     {feedbackLoading ? 'Submitting...' : '🚀 Submit Suggestion'}
                   </button>
@@ -997,7 +1000,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           <div className="bg-surface-1/95 border border-border-subtle/85 backdrop-blur-xl rounded-2xl p-4 shadow-2xl flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 shadow-md shadow-brand-500/10">
-                <span className="text-base font-bold text-surface-0">₹</span>
+                <span className="text-base font-bold text-static-white">₹</span>
               </div>
               <div>
                 <h4 className="text-xs font-bold text-white leading-tight">Install Dhanrakshak PWA</h4>
@@ -1013,7 +1016,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               </button>
               <button
                 onClick={handleInstallClick}
-                className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-brand-600 text-[10px] font-bold text-white shadow-lg border border-brand-400/20 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-brand-600 text-static-white shadow-lg border border-brand-400/20 cursor-pointer transition-all hover:scale-105 active:scale-95"
               >
                 Install
               </button>
@@ -1068,7 +1071,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                 className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 shadow-lg shadow-brand-500/30 border border-brand-400/30 hover:scale-110 active:scale-95 transition-all duration-200"
                 aria-label="Quick add transaction"
               >
-                <span className="text-xl font-bold text-white leading-none">+</span>
+                <span className="text-xl font-bold text-static-white leading-none">+</span>
               </Link>
             </div>
 
