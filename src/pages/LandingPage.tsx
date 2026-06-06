@@ -321,7 +321,7 @@ export default function LandingPage() {
             <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300" aria-hidden="true">₹</span>
             <div className="flex items-center gap-1.5 text-base tracking-tight leading-none">
               <span className="font-extrabold bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">Dhan</span>
-              <span className="font-bold text-zinc-800 transition-colors duration-300">rakshak</span>
+              <span className="font-bold text-white transition-colors duration-300">rakshak</span>
             </div>
           </Link>
 
@@ -705,7 +705,7 @@ export default function LandingPage() {
               <span className="text-xs font-black flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-sm" aria-hidden="true">₹</span>
               <div className="flex items-center gap-1 text-sm tracking-tight leading-none">
                 <span className="font-extrabold bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">Dhan</span>
-                <span className="font-bold text-zinc-800">rakshak</span>
+                <span className="font-bold text-white">rakshak</span>
               </div>
             </div>
             <p className="sb-caption" style={{ color: 'var(--sb-ink-muted)' }}>© 2026 Dhanrakshak. Built with privacy by design.</p>

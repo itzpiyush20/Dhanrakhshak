@@ -30,3 +30,17 @@ android/
 jdk/
 jdk21/
 ios/
+
+# Scratch & Audit files
+scratch_line.txt
+scratch_transactions.json
+scratch_audit_results.json
+scratch_audit_results.md
+scratch_inspect.txt
+temp_chrome_profile/
+
+# Local test & utility scripts (root-level only)
+/*.js
+!/eslint.config.js
+/*.py
+

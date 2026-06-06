@@ -605,3 +605,8 @@ html {
   border-color: var(--sb-primary);
 }
 .sb-text-input::placeholder { color: var(--sb-ink-faint); }
+
+.bg-grid-pattern {
+  background-image: radial-gradient(rgba(16, 185, 129, 0.08) 1.2px, transparent 1.2px);
+  background-size: 20px 20px;
+}
