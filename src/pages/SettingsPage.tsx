@@ -14,14 +14,49 @@ import {
   getTransactions,
   supabase
 } from '@/services'
-import { encryptText, decryptText } from '@/utils'
-import { APP_CONFIG, CATEGORIES } from '@/constants'
+import { encryptText, decryptText, cn } from '@/utils'
+import { CATEGORIES } from '@/constants'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
 
 export default function SettingsPage() {
-  const { user } = useAuth()
+  const { user, currency, setCurrency } = useAuth()
   const { showToast } = useToast()
+
+  const [isLight, setIsLight] = useState(() => {
+    try {
+      const stored = localStorage.getItem('dhanrakshak_theme')
+      return stored !== 'dark'
+    } catch (e) {
+      return true
+    }
+  })
+
+  useEffect(() => {
+    const handleThemeEvent = () => {
+      const stored = localStorage.getItem('dhanrakshak_theme')
+      setIsLight(stored !== 'dark')
+    }
+    window.addEventListener('dhanrakshak_theme_changed', handleThemeEvent)
+    return () => {
+      window.removeEventListener('dhanrakshak_theme_changed', handleThemeEvent)
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    const newMode = !isLight
+    setIsLight(newMode)
+    try {
+      if (newMode) {
+        document.documentElement.classList.add('light')
+        localStorage.setItem('dhanrakshak_theme', 'light')
+      } else {
+        document.documentElement.classList.remove('light')
+        localStorage.setItem('dhanrakshak_theme', 'dark')
+      }
+    } catch (e) {}
+    window.dispatchEvent(new Event('dhanrakshak_theme_changed'))
+  }
 
   // Merchant Rules State
   const [merchantRules, setMerchantRules] = useState<Record<string, { category: string; autoApprove: boolean }>>({})
@@ -431,16 +466,58 @@ export default function SettingsPage() {
             </Card>
 
             {/* General Preferences Card */}
-            <Card>
-              <h2 className="text-base font-bold text-white mb-6">Localization Preferences</h2>
+            <Card className="border-border-subtle bg-surface-1 shadow-md">
+              <h2 className="text-base font-bold text-zinc-200 mb-2">🌍 General & Theme Preferences</h2>
+              <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
+                Configure your currency formatting, locale structure, and theme color mode.
+              </p>
+              
               <div className="space-y-4 text-xs">
-                <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-                  <span className="text-zinc-400">Local Currency</span>
-                  <span className="font-bold text-white">{APP_CONFIG.CURRENCY}</span>
+                <div className="flex items-center justify-between border-b border-border-subtle/30 pb-3">
+                  <span className="text-zinc-400 font-medium">Local Currency</span>
+                  <select
+                    value={currency}
+                    onChange={(e) => {
+                      const val = e.target.value as 'INR' | 'USD'
+                      setCurrency(val)
+                      showToast(`Currency changed to ${val === 'INR' ? 'Indian Rupee (₹)' : 'US Dollar ($)'}`, 'success')
+                    }}
+                    aria-label="Localization Currency Preference"
+                    className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold"
+                  >
+                    <option value="INR">🇮🇳 INR (₹)</option>
+                    <option value="USD">🇺🇸 USD ($)</option>
+                  </select>
                 </div>
-                <div className="flex items-center justify-between">
+
+                <div className="flex items-center justify-between border-b border-border-subtle/30 pb-3 pt-1">
+                  <div className="flex flex-col">
+                    <span className="text-zinc-400 font-medium">Night Mode</span>
+                    <span className="text-[10px] text-zinc-500">Enable dark theme for low-light environments</span>
+                  </div>
+                  <button
+                    onClick={toggleTheme}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-brand-400",
+                      isLight ? "bg-zinc-700" : "bg-brand-500"
+                    )}
+                    role="switch"
+                    aria-checked={!isLight}
+                  >
+                    <span
+                      className={cn(
+                        "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                        isLight ? "translate-x-0" : "translate-x-5"
+                      )}
+                    />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
                   <span className="text-zinc-400">Language Locale</span>
-                  <span className="font-bold text-white">{APP_CONFIG.LOCALE}</span>
+                  <span className="font-bold text-zinc-300 font-mono">
+                    {currency === 'INR' ? 'en-IN' : 'en-US'}
+                  </span>
                 </div>
               </div>
             </Card>

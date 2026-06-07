@@ -11,10 +11,15 @@ export default function PaymentSuccessPage() {
   const [verifying, setVerifying] = useState(true)
   const [attempts, setAttempts] = useState(0)
 
-  const { planName, expiresAt } = location.state || {
-    planName: 'Dhanrakshak Premium',
+  const rawState = location.state || {
+    planName: 'Pro',
     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
   }
+
+  const expiresAt = rawState.expiresAt
+  const planName = (rawState.planName === 'monthly' || rawState.planName === 'Starter Monthly' || rawState.planName === 'Basic')
+    ? 'Basic'
+    : 'Pro'
 
   // Poll profile to check if backend/webhook has updated status to active
   useEffect(() => {
@@ -109,7 +114,7 @@ export default function PaymentSuccessPage() {
             
             {profile?.subscription_status !== 'active' && (
               <p className="text-[10px] text-zinc-500 leading-normal">
-                Status syncing in background. If your premium access doesn't unlock immediately, click return and refresh the page.
+                Status syncing in background. If your Pro or Basic access doesn't unlock immediately, click return and refresh the page.
               </p>
             )}
           </div>

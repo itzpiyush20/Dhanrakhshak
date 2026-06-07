@@ -80,6 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .update({
           subscription_status: 'active',
           subscription_expires_at,
+          subscription_plan_type: planType,
           updated_at: new Date().toISOString()
         })
         .eq('id', userId)

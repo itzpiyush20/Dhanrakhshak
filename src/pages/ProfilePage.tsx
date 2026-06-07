@@ -107,8 +107,8 @@ export default function ProfilePage() {
       setSeedSuccess(true)
       setTimeout(() => setSeedSuccess(false), 4000)
     } catch (err: any) {
-      console.error('Error seeding sandbox data:', err)
-      setError(err.message || 'Failed to seed sandbox demo data.')
+      console.error('Error seeding demo data:', err)
+      setError(err.message || 'Failed to populate account with demo data.')
     } finally {
       setSeedLoading(false)
     }
@@ -131,8 +131,8 @@ export default function ProfilePage() {
       setResetSuccess(true)
       setTimeout(() => setResetSuccess(false), 4000)
     } catch (err: any) {
-      console.error('Error wiping sandbox data:', err)
-      setError(err.message || 'Failed to clear sandbox account databases.')
+      console.error('Error wiping user data:', err)
+      setError(err.message || 'Failed to clear account databases.')
     } finally {
       setResetLoading(false)
     }
@@ -155,11 +155,11 @@ export default function ProfilePage() {
       }
 
       if (deleteErr) {
-        alert(`✨ Sandbox records wiped successfully!\n\nNote: Auth deletion requires executing the 'delete_user()' SQL function in Supabase. You are being logged out now.`)
+        alert(`✨ Account records wiped successfully!\n\nNote: Auth deletion requires executing the 'delete_user()' SQL function in Supabase. You are being logged out now.`)
       } else {
         alert(method === 'rpc' 
           ? '🛡️ Your account and all secure data have been completely deleted. Thank you for using Dhanrakshak!'
-          : '✨ Sandbox data purged successfully! You have been signed out.'
+          : '✨ Account data purged successfully! You have been signed out.'
         )
       }
 
@@ -278,19 +278,19 @@ export default function ProfilePage() {
             </Card>
           </div>
 
-          {/* Right panel: Sandbox & Danger zones */}
+          {/* Right panel: Demo & Data Reset zones */}
           <div className="md:col-span-5 space-y-6">
-            {/* Sandbox Playground Seed Card */}
+            {/* Demo Playground Seed Card */}
             <Card className="border-brand-500/20 bg-brand-500/[0.01]">
-              <h2 className="text-base font-bold text-zinc-200 mb-2">Sandbox Playground</h2>
+              <h2 className="text-base font-bold text-zinc-200 mb-2">Interactive Demo Mode</h2>
               <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
-                Automatically seed your account with realistic financial entries spread across multiple months. Instantly populates stats, MoM trends, category budgets, pending alerts, and scan logs.
+                Instantly fill your account with sample transactions, MoM charts, category budgets, and pending alerts. Perfect for exploring Dhanrakshak before linking your email.
               </p>
 
               <div className="space-y-4">
                 {seedSuccess && (
                   <div className="rounded-xl bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] p-3 text-xs text-[var(--status-positive-text)] leading-relaxed animate-fade-in">
-                    🌱 Seed completed! 16 Transactions, 3 Budgets, 2 Auto-Detected Alerts, and 1 Scan Log generated.
+                    🌱 Success! Sample transactions, category budgets, and tracking logs successfully activated.
                   </div>
                 )}
                 <Button
@@ -300,16 +300,16 @@ export default function ProfilePage() {
                   loading={seedLoading}
                   disabled={seedLoading}
                 >
-                  🌱 Seed Sandbox Demo Data
+                  🌱 Populate Demo Data
                 </Button>
               </div>
             </Card>
 
-            {/* Danger sandbox wipe zone */}
+            {/* Account Data Reset zone */}
             <Card className="border-[var(--status-danger-border)]/50 bg-[var(--status-danger-subtle)]/10">
-              <h2 className="text-base font-bold text-[var(--status-danger-text)] mb-2">Danger Sandbox Zone</h2>
+              <h2 className="text-base font-bold text-[var(--status-danger-text)] mb-2">Danger Zone: Data Reset</h2>
               <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
-                Cleanly purge all manual transaction entries, custom budget targets, and email scan records associated with this credentials log. This is an irreversible sandbox action!
+                Permanently delete all your transaction entries, custom budgets, and inbox scan logs from our database. This returns your account to a clean starting state and is irreversible!
               </p>
 
               <div className="space-y-4">
@@ -325,7 +325,7 @@ export default function ProfilePage() {
                   loading={resetLoading}
                   disabled={resetLoading}
                 >
-                  ⚠️ Reset Sandbox Data
+                  ⚠️ Reset Account Data
                 </Button>
               </div>
             </Card>

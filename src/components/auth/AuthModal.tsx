@@ -18,6 +18,7 @@ export default function AuthModal() {
     signIn,
     signUp,
     signInWithGoogle,
+    currencySymbol,
   } = useAuth()
 
   const { showToast } = useToast()
@@ -112,7 +113,7 @@ export default function AuthModal() {
         {/* Brand Header */}
         <div className="mb-6 flex flex-col items-center">
           <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] border-0" aria-hidden="true">
-            <span className="text-xl font-bold">₹</span>
+            <span className="text-xl font-bold">{currencySymbol || '₹'}</span>
           </div>
           <h1 className="text-2xl font-black tracking-tight text-white mb-1 flex items-center justify-center gap-1 select-none">
             <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">Dhan</span>
@@ -239,7 +240,7 @@ export default function AuthModal() {
         </Button>
 
         <p className="mt-5 text-center text-[10px] text-zinc-500 font-medium">
-          🔒 Secure read-only access · 100% Sandbox Isolation
+          🔒 Secure read-only access · 100% Private local processing
         </p>
       </div>
     </div>

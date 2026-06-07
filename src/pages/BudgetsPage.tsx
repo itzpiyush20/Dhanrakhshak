@@ -11,7 +11,7 @@ import { getMonthlySummary } from '@/services/transactions'
 import { formatCurrency, getCurrentMonth, withTimeout } from '@/utils'
 import { CATEGORIES } from '@/constants'
 import type { Database } from '@/types/database'
-import { useToast } from '@/context'
+import { useToast, useAuth } from '@/context'
 
 type BudgetRow = Database['public']['Tables']['budgets']['Row']
 
@@ -32,6 +32,7 @@ const BUDGET_ELIGIBLE_CATEGORIES = [
 ]
 
 export default function BudgetsPage() {
+  const { currencySymbol } = useAuth()
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
   const [budgets, setBudgets] = useState<BudgetRow[]>([])
   const [spentMap, setSpentMap] = useState<Record<string, number>>({})
@@ -416,7 +417,7 @@ export default function BudgetsPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-                  Limit Amount (₹)
+                  Limit Amount ({currencySymbol})
                 </label>
                 <Input
                   type="number"

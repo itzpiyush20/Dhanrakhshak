@@ -330,7 +330,7 @@ export default function SupportPage() {
                       <div>
                         <h2 className="text-lg font-bold text-white">Submit Support Ticket</h2>
                         <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mt-1">
-                          Sandbox Ticket simulator
+                          Local Ticket Log Simulator
                         </p>
                       </div>
                     </div>
@@ -348,7 +348,7 @@ export default function SupportPage() {
                     <div className="rounded-2xl p-4 bg-emerald-500/10 border border-emerald-500/20">
                       <p className="text-xs font-bold text-emerald-400">👑 Ticket Logged Successfully!</p>
                       <p className="text-[10px] mt-1 text-zinc-400">
-                        This sandbox ticket has been written directly to your local workspace records.
+                        This simulated ticket has been recorded directly to your device storage.
                       </p>
                     </div>
                   )}
@@ -415,7 +415,7 @@ export default function SupportPage() {
                   {/* Local Ticket Log */}
                   {tickets.length > 0 && (
                     <div className="pt-6 border-t border-border-subtle space-y-4">
-                      <h3 className="text-base font-bold text-white">Your Ticket Log (Sandbox Local)</h3>
+                      <h3 className="text-base font-bold text-white">Your Ticket Log (Device Local)</h3>
                       <div className="space-y-3">
                         {tickets.map((t) => (
                           <div key={t.id} className="rounded-2xl p-4 bg-surface-2/40 border border-border-subtle/50 text-xs space-y-2">

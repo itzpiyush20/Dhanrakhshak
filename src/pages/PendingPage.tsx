@@ -532,7 +532,7 @@ export default function PendingPage() {
                   Connect Google to Enable Live Scanning
                 </p>
                 <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
-                  Sign in with Google to allow Dhanrakshak to read your bank alert emails and auto-detect transactions. {profile?.subscription_status === 'trial' && '(Trial account active)'}
+                  Sign in with Google to allow Dhanrakshak to read your bank alert emails and auto-detect transactions. {profile?.subscription_status === 'trial' ? '(Trial account active)' : (profile?.subscription_plan_type === 'monthly' ? '(Basic account active)' : '(Pro account active)')}
                 </p>
               </div>
             </div>
@@ -547,14 +547,14 @@ export default function PendingPage() {
               >
                 🔑 Connect Google Account
               </Button>
-              {profile?.subscription_status === 'trial' && (
+              {(profile?.subscription_status === 'trial' || (profile?.subscription_status === 'active' && profile?.subscription_plan_type === 'monthly')) && (
                 <Link to="/pricing" className="shrink-0">
                   <Button
                     size="sm"
                     variant="secondary"
                     className="text-brand-300 border-brand-500/20 bg-brand-500/5 hover:bg-brand-500/10 hover:border-brand-500/35 transition-all text-xs justify-center font-bold"
                   >
-                    👑 Upgrade
+                    👑 Upgrade to Pro
                   </Button>
                 </Link>
               )}
@@ -562,6 +562,40 @@ export default function PendingPage() {
           </div>
         )}
 
+        {!isGoogleConnected && (
+          <div className="grid gap-6 md:grid-cols-2 animate-fade-in">
+            <Card className="bg-surface-1 border-border-subtle p-6 space-y-4 shadow-md">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl" aria-hidden="true">🛡️</span>
+                <h3 className="font-bold text-white text-base">Your Data Stays on Your Device</h3>
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed font-medium">
+                Dhanrakshak uses <strong>Private Local Processing</strong>. When you connect your Google account, our app fetches your bank alert emails and reads them <em>directly inside your browser</em>.
+              </p>
+              <div className="rounded-xl bg-surface-2 p-3 text-[11px] text-zinc-500 font-medium">
+                💡 <strong>Think of it like an offline desk calculator:</strong> We never upload your raw emails, passwords, or transaction details to our servers. Your banking information is processed and stored locally on this device.
+              </div>
+            </Card>
+
+            <Card className="bg-surface-1 border-border-subtle p-6 space-y-4 shadow-md">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl" aria-hidden="true">🌱</span>
+                <h3 className="font-bold text-white text-base">Explore with Demo Data</h3>
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed font-medium">
+                Not ready to connect your Gmail yet? You can try out every feature (budgets, charts, and transaction alerts) using pre-generated sample transactions.
+              </p>
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wide">No credentials required</span>
+                <Link to="/profile">
+                  <Button size="sm" variant="secondary" className="text-xs font-bold text-brand-400 border-brand-500/20 bg-brand-500/5 hover:bg-brand-500/10">
+                    Go to Demo Setup
+                  </Button>
+                </Link>
+              </div>
+            </Card>
+          </div>
+        )}
 
         {/* Quick summary stats */}
         <div className="grid gap-4 sm:grid-cols-2">
@@ -797,7 +831,7 @@ export default function PendingPage() {
 
                   <div className="flex items-center gap-3 shrink-0 justify-between sm:justify-end">
                     <span className="text-sm font-bold text-[var(--status-positive-text)] font-mono pr-1">
-                      ₹{Number(txn.amount).toFixed(2)}
+                      {formatCurrency(Number(txn.amount))}
                     </span>
                     
                     <div className="flex items-center gap-1.5 relative">

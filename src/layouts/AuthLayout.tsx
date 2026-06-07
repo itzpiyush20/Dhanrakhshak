@@ -6,6 +6,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { APP_CONFIG } from '@/constants'
+import { getGlobalCurrencySymbol } from '@/utils'
 
 interface AuthLayoutProps {
   children: ReactNode
@@ -25,7 +26,7 @@ export default function AuthLayout({ children, title, subtitle }: AuthLayoutProp
         {/* Logo & Brand Header */}
         <div className="mb-6 flex flex-col items-center">
           <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 shadow-xl shadow-brand-500/20 transition-transform duration-300 hover:scale-105">
-            <span className="text-2xl font-bold text-static-white" aria-hidden="true">₹</span>
+            <span className="text-2xl font-bold text-static-white" aria-hidden="true">{getGlobalCurrencySymbol()}</span>
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1 flex items-center justify-center gap-1 select-none">
             <span className="bg-gradient-to-r from-brand-300 to-emerald-400 bg-clip-text text-transparent">Dhan</span>
@@ -35,26 +36,6 @@ export default function AuthLayout({ children, title, subtitle }: AuthLayoutProp
             {APP_CONFIG.APP_TAGLINE}
           </p>
 
-          {/* Premium Benefits Panel */}
-          <div className="w-full bg-surface-1/45 border border-border-subtle/60 rounded-2xl p-4 backdrop-blur-md shadow-lg flex flex-col items-center gap-3">
-            <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-              Core Benefits
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--status-info-subtle)] border border-[var(--status-info-border)] px-3 py-1 text-xs font-bold text-[var(--status-info-text)] shadow-sm transition-all duration-200 hover:opacity-90 hover:scale-102">
-                ⚡ Gmail Sync
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-500/10 border border-brand-500/20 px-3 py-1 text-xs font-bold text-brand-400 shadow-sm transition-all duration-200 hover:bg-brand-500/20 hover:scale-102">
-                🧠 Auto-Categorize
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] px-3 py-1 text-xs font-bold text-[var(--status-positive-text)] shadow-sm transition-all duration-200 hover:opacity-90 hover:scale-102">
-                🛡️ Budget Shield
-              </span>
-            </div>
-            <p className="text-[11px] text-zinc-400 text-center leading-relaxed max-w-[320px]">
-              Automatic secure email scanning, AI-powered category mapping, and instant budget alerts.
-            </p>
-          </div>
         </div>
 
         {/* Auth form card */}

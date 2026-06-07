@@ -17,6 +17,7 @@ import { supabase } from '@/services/supabase'
 import { saveGoogleToken, clearGoogleToken, isGoogleConnected, purgeOldTokenKey } from '@/services/googleAuth'
 import { Button } from '@/components/ui'
 import { identifyUser, resetAnalytics, track, EVENTS } from '@/services/analytics'
+import { getGlobalCurrency, getGlobalCurrencySymbol, setGlobalCurrency } from '@/utils'
 
 interface AuthState {
   user: User | null
@@ -42,6 +43,9 @@ interface AuthContextValue extends AuthState {
   authModalTab: 'login' | 'signup'
   openAuthModal: (redirectPath?: string, tab?: 'login' | 'signup') => void
   closeAuthModal: () => void
+  currency: 'INR' | 'USD'
+  setCurrency: (currency: 'INR' | 'USD') => void
+  currencySymbol: string
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -98,6 +102,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionModalError, setSessionModalError] = useState<string | null>(null)
   const [profile, setProfile] = useState<any>(null)
 
+  const [currency, setCurrencyState] = useState<'INR' | 'USD'>(() => getGlobalCurrency())
+  const [currencySymbol, setCurrencySymbol] = useState<string>(() => getGlobalCurrencySymbol())
+
+  const setCurrency = useCallback((newCurrency: 'INR' | 'USD') => {
+    setGlobalCurrency(newCurrency)
+    setCurrencyState(newCurrency)
+    setCurrencySymbol(newCurrency === 'INR' ? '₹' : '$')
+  }, [])
+
   // hasGoogleToken is a proper useState — not a computed value from localStorage.
   // It is SET explicitly when a token arrives (onAuthStateChange) or is cleared
   // (sign-out, expiry detection). This guarantees React re-renders whenever the
@@ -140,6 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       const localStatus = localStorage.getItem(`dhanrakshak_sub_status_${state.user.id}`)
       const localExpires = localStorage.getItem(`dhanrakshak_sub_expires_${state.user.id}`)
+      const localPlan = localStorage.getItem(`dhanrakshak_sub_plan_${state.user.id}`)
 
       if (!error && data) {
         const createdAtTime = data.created_at ? new Date(data.created_at).getTime() : Date.now()
@@ -152,17 +166,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ? (data.subscription_status === 'active' ? data.subscription_expires_at : localExpires)
           : (data.subscription_expires_at || localExpires || new Date(safeCreatedAtTime + 14 * 24 * 60 * 60 * 1000).toISOString())
 
+        // Infer plan type if missing
+        let subPlan = 'trial'
+        if (isSubscribed) {
+          subPlan = data.subscription_plan_type || localPlan || ''
+          if (!subPlan) {
+            // Infer from expiration length
+            const expiresTime = new Date(subExpires).getTime()
+            const diffDays = Math.ceil((expiresTime - Date.now()) / (1000 * 60 * 60 * 24))
+            subPlan = diffDays > 35 ? 'annual' : 'monthly'
+          }
+        }
+
         setProfile({
           ...data,
           subscription_status: subStatus,
-          subscription_expires_at: subExpires
+          subscription_expires_at: subExpires,
+          subscription_plan_type: subPlan
         })
       } else {
+        let subPlan = 'trial'
+        if (localStatus === 'active') {
+          subPlan = localPlan || ''
+          if (!subPlan && localExpires) {
+            const expiresTime = new Date(localExpires).getTime()
+            const diffDays = Math.ceil((expiresTime - Date.now()) / (1000 * 60 * 60 * 24))
+            subPlan = diffDays > 35 ? 'annual' : 'monthly'
+          }
+        }
         setProfile({
           id: state.user.id,
           email: state.user.email,
           subscription_status: localStatus || 'trial',
-          subscription_expires_at: localExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+          subscription_expires_at: localExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          subscription_plan_type: subPlan
         })
       }
     } catch (e) {
@@ -170,11 +207,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fallback profile to prevent app from hanging
       const localStatus = localStorage.getItem(`dhanrakshak_sub_status_${state.user.id}`)
       const localExpires = localStorage.getItem(`dhanrakshak_sub_expires_${state.user.id}`)
+      const localPlan = localStorage.getItem(`dhanrakshak_sub_plan_${state.user.id}`)
+      let subPlan = 'trial'
+      if (localStatus === 'active') {
+        subPlan = localPlan || ''
+        if (!subPlan && localExpires) {
+          const expiresTime = new Date(localExpires).getTime()
+          const diffDays = Math.ceil((expiresTime - Date.now()) / (1000 * 60 * 60 * 24))
+          subPlan = diffDays > 35 ? 'annual' : 'monthly'
+        }
+      }
       setProfile({
         id: state.user.id,
         email: state.user.email,
         subscription_status: localStatus || 'trial',
-        subscription_expires_at: localExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+        subscription_expires_at: localExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        subscription_plan_type: subPlan
       })
     }
   }
@@ -535,22 +583,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ? new Date(Date.now() + (planType === 'lifetime' ? 36500 : (planType === 'annual' ? 365 : 30)) * 24 * 60 * 60 * 1000).toISOString()
         : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
 
+      const subPlanType = planType || (status === 'active' ? 'monthly' : 'trial')
+
       // Attempt to save to Supabase profiles table
       const { error } = await supabase
         .from('profiles')
         .update({
           subscription_status: status,
-          subscription_expires_at: expiresAt
+          subscription_expires_at: expiresAt,
+          subscription_plan_type: subPlanType
         })
         .eq('id', state.user.id)
 
       if (error) {
-        console.warn('Supabase profile update failed (falling back to local storage):', error.message)
+        console.warn('Supabase profile update with plan type failed, retrying without plan type column:', error.message)
+        const { error: retryError } = await supabase
+          .from('profiles')
+          .update({
+            subscription_status: status,
+            subscription_expires_at: expiresAt
+          })
+          .eq('id', state.user.id)
+        if (retryError) {
+          console.warn('Supabase profile retry update failed:', retryError.message)
+        }
       }
 
       // Always update localStorage fallback
       localStorage.setItem(`dhanrakshak_sub_status_${state.user.id}`, status)
       localStorage.setItem(`dhanrakshak_sub_expires_${state.user.id}`, expiresAt)
+      localStorage.setItem(`dhanrakshak_sub_plan_${state.user.id}`, subPlanType)
 
       await refreshProfile()
       return true
@@ -583,7 +645,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authModalRedirect,
         authModalTab,
         openAuthModal,
-        closeAuthModal
+        closeAuthModal,
+        currency,
+        setCurrency,
+        currencySymbol
       }}
     >
       {children}

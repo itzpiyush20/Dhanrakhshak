@@ -5,6 +5,8 @@
 // is absent or request fails
 // ============================================
 
+import { formatCurrency } from '@/utils'
+
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
 
@@ -80,7 +82,7 @@ export async function generateAIInsights(ctx: FinancialContext): Promise<{
 
 /** Build a structured prompt for Gemini */
 function buildPrompt(ctx: FinancialContext): string {
-  const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
+  const fmt = (n: number) => formatCurrency(Math.round(n))
   const catList = ctx.categoryBreakdown
     .slice(0, 5)
     .map((c) => `${c.category}: ${fmt(c.amount)} (${c.percentage.toFixed(0)}%)`)
@@ -141,7 +143,7 @@ export function generateRuleBasedInsights(ctx: FinancialContext): {
   insights: string[]
   alerts: string[]
 } {
-  const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
+  const fmt = (n: number) => formatCurrency(Math.round(n))
   const insights: string[] = []
   const alerts: string[] = []
 

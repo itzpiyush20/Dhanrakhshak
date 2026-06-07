@@ -438,14 +438,14 @@ export default function DashboardPage() {
                 >
                   🔄 Sync Now
                 </Button>
-                {profile?.subscription_status === 'trial' && (
+                {(profile?.subscription_status === 'trial' || (profile?.subscription_status === 'active' && profile?.subscription_plan_type === 'monthly')) && (
                   <Link to="/pricing" className="shrink-0">
                     <Button
                       size="sm"
                       variant="secondary"
                       className="text-brand-300 border-brand-500/20 bg-brand-500/5 hover:bg-brand-500/10 hover:border-brand-500/35 transition-all text-xs justify-center font-bold"
                     >
-                      👑 Upgrade
+                      👑 Upgrade to Pro
                     </Button>
                   </Link>
                 )}

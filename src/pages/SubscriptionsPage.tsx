@@ -29,7 +29,7 @@ interface Subscription {
 }
 
 export default function SubscriptionsPage() {
-  const { user } = useAuth()
+  const { user, currencySymbol } = useAuth()
   const [transactions, setTransactions] = useState<TransactionRow[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -286,7 +286,7 @@ export default function SubscriptionsPage() {
                   />
 
                   <Input
-                    label="Monthly Price (₹)"
+                    label={`Monthly Price (${currencySymbol})`}
                     type="number"
                     placeholder="649"
                     value={subAmount}

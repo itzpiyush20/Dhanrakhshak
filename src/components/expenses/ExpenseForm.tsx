@@ -32,7 +32,7 @@ const typeOptions = [
 ]
 
 export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: ExpenseFormProps) {
-  const { user } = useAuth()
+  const { user, currencySymbol } = useAuth()
   const isEditing = !!editingTransaction
 
   const [type, setType] = useState<string>(editingTransaction?.type || 'debit')
@@ -167,7 +167,7 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
           />
 
           <Input
-            label="Amount (₹)"
+            label={`Amount (${currencySymbol})`}
             type="number"
             placeholder="0.00"
             value={amount}

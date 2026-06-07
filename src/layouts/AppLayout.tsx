@@ -27,7 +27,7 @@ const navItems = [
 ]
 
 export default function AppLayout({ children, isStaticLight = false }: AppLayoutProps) {
-  const { user, signOut, profile, daysLeft, openAuthModal } = useAuth()
+  const { user, signOut, profile, daysLeft, openAuthModal, currencySymbol } = useAuth()
   const location = useLocation()
   const isAppRoute = [
     '/dashboard',
@@ -205,7 +205,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
     }
   })
   const [progress, setProgress] = useState(0)
-  const [splashStepText, setSplashStepText] = useState('Initializing Sandbox Environment...')
+  const [splashStepText, setSplashStepText] = useState('Initializing Private Local Environment...')
 
   useEffect(() => {
     if (showSecuritySplash) {
@@ -217,7 +217,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           setSplashStepText('Security checks complete. Connection verified!')
           clearInterval(interval)
         } else if (currentProgress < 25) {
-          setSplashStepText('Initializing secure device sandbox...')
+          setSplashStepText('Initializing secure device-only zone...')
         } else if (currentProgress < 50) {
           setSplashStepText('Enabling row-level security (RLS) policies...')
         } else if (currentProgress < 75) {
@@ -265,7 +265,18 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
     } catch (e) {}
   }, [isLight])
 
-  const toggleTheme = () => setIsLight(!isLight)
+  useEffect(() => {
+    const handleThemeEvent = () => {
+      const stored = localStorage.getItem('dhanrakshak_theme')
+      setIsLight(stored === 'light')
+    }
+    window.addEventListener('dhanrakshak_theme_changed', handleThemeEvent)
+    return () => {
+      window.removeEventListener('dhanrakshak_theme_changed', handleThemeEvent)
+    }
+  }, [])
+
+
 
   // PWA Install Prompt State and Logic for Mobile Viewports
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
@@ -332,7 +343,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
 
           {/* Secure Loading Text */}
           <h3 className="text-lg font-bold tracking-tight text-static-white mb-2 text-center">
-            Secure Sandbox Acknowledgment
+            Secure Local Data Acknowledgment
           </h3>
           <p className="text-xs text-static-zinc-500 mb-6 font-semibold uppercase tracking-widest text-center">
             Dhanrakshak Financial Security Protocol
@@ -398,7 +409,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
       <header className={cn("sticky top-0 z-50 w-full border-b select-none transition-colors", isStaticLight ? "border-sb-hairline bg-sb-canvas text-sb-ink" : "border-border-subtle bg-surface-1/80 backdrop-blur-md text-zinc-100")}>
         <div className="mx-auto max-w-[1280px] h-[64px] flex items-center justify-between px-6 gap-4">
           <Link to="/" className="flex items-center gap-3 shrink-0 group">
-            <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-static-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] border-0 group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300" aria-hidden="true">₹</span>
+            <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-static-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] border-0 group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300" aria-hidden="true">{currencySymbol}</span>
             <div className="flex items-center gap-2.5">
               <div className="text-base tracking-tight leading-none">
                 <span className={cn(
@@ -479,20 +490,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
 
             {/* Actions: Theme Toggle, Notifications, Profile, Hamburger, Upgrade CTA */}
             <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-              {/* Theme Toggle */}
-              <button
-                onClick={toggleTheme}
-                className={cn(
-                  "hidden md:flex transition-colors h-8 w-8 items-center justify-center rounded-lg cursor-pointer shrink-0",
-                  isStaticLight 
-                    ? "text-sb-ink-muted hover:text-sb-ink hover:bg-sb-canvas-soft" 
-                    : "text-zinc-400 hover:text-white hover:bg-white/5"
-                )}
-                title={isLight ? 'Switch to Night Mode' : 'Switch to Day Mode'}
-                aria-label={isLight ? 'Switch to Night Mode' : 'Switch to Day Mode'}
-              >
-                <span aria-hidden="true" className="text-sm">{isLight ? '🌙' : '☀️'}</span>
-              </button>
+
 
               {/* Notification Bell */}
               {user && (
@@ -571,9 +569,28 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                     Dashboard
                   </Link>
                 ) : profile?.subscription_status === 'active' ? (
-                  <span className="px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] shrink-0 select-none">
-                    Premium 👑
-                  </span>
+                  profile?.subscription_plan_type === 'monthly' ? (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider text-zinc-300 bg-surface-2 border border-border-subtle shrink-0 select-none">
+                        Basic Plan 👑
+                      </span>
+                      <Link
+                        to="/pricing"
+                        className="inline-flex items-center justify-center px-3 py-1.5 rounded-[6px] text-[11px] font-bold uppercase tracking-wider text-[var(--sb-on-primary)] bg-[var(--sb-primary)] hover:bg-[var(--sb-primary-deep)] active:scale-97 transition-all cursor-pointer shrink-0 whitespace-nowrap shadow-sm"
+                      >
+                        Upgrade to Pro
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] text-zinc-400 font-semibold hidden md:inline shrink-0">
+                        Pro plan active until {new Date(profile.subscription_expires_at).toLocaleDateString('en-IN')}
+                      </span>
+                      <span className="px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] shrink-0 select-none">
+                        Pro Plan 👑
+                      </span>
+                    </div>
+                  )
                 ) : user ? (
                   <Link
                     to="/pricing"
@@ -759,16 +776,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                 >
                   👑 Pricing & Plans
                 </Link>
-                {/* Switch theme directly in mobile menu dropdown */}
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false)
-                    toggleTheme()
-                  }}
-                  className={cn("w-full text-left block rounded-lg px-3 py-2.5 text-sm font-medium border-t mt-1 pt-3 cursor-pointer", isStaticLight ? "border-sb-hairline text-sb-primary" : "border-static-white/10 text-brand-400")}
-                >
-                  {isLight ? '🌙 Switch to Night Mode' : '☀️ Switch to Day Mode'}
-                </button>
+
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false)
@@ -796,15 +804,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                 <a href="/#faq" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>FAQ</a>
                 <Link to="/pricing" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium no-underline", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>Pricing</Link>
                 <Link to="/support" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium no-underline", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>Support</Link>
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false)
-                    toggleTheme()
-                  }}
-                  className={cn("w-full text-left block rounded-lg px-3 py-2.5 text-sm font-medium border-t mt-2 pt-3 cursor-pointer", isStaticLight ? "border-sb-hairline text-sb-primary" : "border-static-white/10 text-brand-400")}
-                >
-                  {isLight ? '🌙 Switch to Night Mode' : '☀️ Switch to Day Mode'}
-                </button>
+
                 {user ? (
                   <button
                     onClick={() => {
@@ -846,7 +846,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
       {/* Main Content */}
       {profile?.subscription_status === 'trial' && (
         <div className="bg-[var(--status-warning-subtle)] text-[var(--status-warning-text)] text-xs font-semibold py-2.5 px-4 text-center flex flex-col sm:flex-row items-center justify-center gap-1.5 shadow-inner border-b border-[var(--status-warning-border)]">
-          <span>⏳ Dhanrakshak Trial: You have {daysLeft} days remaining of full premium access.</span>
+          <span>⏳ Dhanrakshak Trial: You have {daysLeft} days remaining of full Pro access.</span>
           <Link to="/pricing" className="underline hover:opacity-85 transition-opacity font-bold text-[var(--status-warning-text)]">
             Upgrade Account to Keep Auto-Sync Active 👑
           </Link>
@@ -1087,7 +1087,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           <div className="bg-surface-1/95 border border-border-subtle/85 backdrop-blur-xl rounded-2xl p-4 shadow-2xl flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 shadow-md shadow-brand-500/10">
-                <span className="text-base font-bold text-static-white">₹</span>
+                <span className="text-base font-bold text-static-white">{currencySymbol}</span>
               </div>
               <div>
                 <h4 className="text-xs font-bold text-white leading-tight">Install Dhanrakshak PWA</h4>

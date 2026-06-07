@@ -3,6 +3,13 @@
 // Designed for Indian locale (INR, dd/mm/yyyy)
 // ============================================
 
+let activeCurrency: 'INR' | 'USD' = (() => {
+  if (typeof window !== 'undefined') {
+    return (localStorage.getItem('dhanrakshak_currency_preference') as 'INR' | 'USD') || 'INR'
+  }
+  return 'INR'
+})()
+
 const INR_FORMATTER = new Intl.NumberFormat('en-IN', {
   style: 'currency',
   currency: 'INR',
@@ -18,13 +25,49 @@ const INR_COMPACT_FORMATTER = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 1,
 })
 
-/** Format amount as ₹1,23,456.78 */
+const USD_FORMATTER = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+})
+
+const USD_COMPACT_FORMATTER = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  notation: 'compact',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+})
+
+export function getGlobalCurrency(): 'INR' | 'USD' {
+  return activeCurrency
+}
+
+export function getGlobalCurrencySymbol(): string {
+  return activeCurrency === 'INR' ? '₹' : '$'
+}
+
+export function setGlobalCurrency(currency: 'INR' | 'USD') {
+  activeCurrency = currency
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('dhanrakshak_currency_preference', currency)
+  }
+}
+
+/** Format amount as ₹1,23,456.78 or $123,456.78 */
 export function formatCurrency(amount: number): string {
+  if (activeCurrency === 'USD') {
+    return USD_FORMATTER.format(amount)
+  }
   return INR_FORMATTER.format(amount)
 }
 
-/** Format large amounts as ₹1.2L, ₹3.5Cr */
+/** Format large amounts as ₹1.2L or $1.2M */
 export function formatCurrencyCompact(amount: number): string {
+  if (activeCurrency === 'USD') {
+    return USD_COMPACT_FORMATTER.format(amount)
+  }
   return INR_COMPACT_FORMATTER.format(amount)
 }
 

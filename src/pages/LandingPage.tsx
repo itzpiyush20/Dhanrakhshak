@@ -263,7 +263,7 @@ export default function LandingPage() {
   const [downloadTab, setDownloadTab] = useState<'android' | 'ios'>('android')
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null)
 
-  const [isLight, setIsLight] = useState(() => {
+  const isLight = (() => {
     try {
       const stored = localStorage.getItem('dhanrakshak_theme')
       if (stored !== null) {
@@ -273,7 +273,7 @@ export default function LandingPage() {
     } catch (e) {
       return true
     }
-  })
+  })()
 
   useEffect(() => {
     try {
@@ -287,7 +287,6 @@ export default function LandingPage() {
     } catch (e) {}
   }, [isLight])
 
-  const toggleTheme = () => setIsLight(!isLight)
 
 
   // Minimal Parser Demo State
@@ -335,7 +334,7 @@ export default function LandingPage() {
     { q: 'Can the app see my bank passwords or take money from my account?', a: 'Absolutely not. Dhanrakshak is completely read-only. We never ask for your passwords, net-banking PINs, card numbers, CVV, or OTPs. We cannot touch your money, move funds, or make payments. Your money remains 100% secure in your bank.' },
     { q: 'Do my private emails leave my phone or device?', a: 'No. Privacy is our top priority. The scanning of bank alerts happens locally inside your browser or app. Your personal emails are never sent to our servers or shared with anyone else.' },
     { q: 'Do I have to connect my email to use the app?', a: 'No, it is entirely optional. You can type in your spends manually, copy-paste bank SMS texts, or import them from a spreadsheet. The app works great either way.' },
-    { q: 'What happens after the 14-day free trial ends?', a: 'During the 14-day trial, you get full access to all features including automatic email tracking. Once the trial ends, automatic email scanning is paused, but you can upgrade to a premium plan to keep it going.' },
+    { q: 'What happens after the 14-day free trial ends?', a: 'During the 14-day trial, you get full access to all features including automatic email tracking. Once the trial ends, automatic email scanning is paused, but you can upgrade to a Basic or Pro plan to keep it going.' },
   ]
 
   return (
@@ -402,15 +401,7 @@ export default function LandingPage() {
 
           {/* Right CTAs */}
           <div className="flex items-center gap-4">
-            {/* Theme Toggle */}
-            <button
-              onClick={toggleTheme}
-              className="transition-colors h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer shrink-0 text-sb-ink-muted hover:text-sb-ink hover:bg-sb-canvas-soft border-0 bg-transparent"
-              title={isLight ? 'Switch to Night Mode' : 'Switch to Day Mode'}
-              aria-label={isLight ? 'Switch to Night Mode' : 'Switch to Day Mode'}
-            >
-              <span aria-hidden="true" className="text-sm">{isLight ? '🌙' : '☀️'}</span>
-            </button>
+
 
             {user ? (
               <Link to={ROUTES.DASHBOARD} className="sb-btn-primary rounded-[6px]">Dashboard</Link>
