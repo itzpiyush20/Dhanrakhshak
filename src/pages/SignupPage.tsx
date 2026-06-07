@@ -1,19 +1,28 @@
-// ============================================
-// SignupPage — New account registration
-// ============================================
-
 import { useState, useEffect, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import AuthLayout from '@/layouts/AuthLayout'
 import { Button, Input } from '@/components/ui'
 import { useAuth } from '@/context/AuthContext'
 
 export default function SignupPage() {
-  const { signUp, signInWithGoogle } = useAuth()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const location = useLocation()
+  const { user, signUp, signInWithGoogle } = useAuth()
+
+  const handleRedirect = () => {
+    const fromState = (location.state as any)?.from?.pathname
+    const fromQuery = searchParams.get('redirect')
+    const destination = fromState || fromQuery || '/dashboard'
+    navigate(destination, { replace: true })
+  }
 
   useEffect(() => {
     document.title = 'Sign Up | Dhanrakshak'
-  }, [])
+    if (user) {
+      handleRedirect()
+    }
+  }, [user])
 
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -44,7 +53,10 @@ export default function SignupPage() {
   }
 
   const handleGoogleSignup = async () => {
-    const { error } = await signInWithGoogle()
+    const fromState = (location.state as any)?.from?.pathname
+    const fromQuery = searchParams.get('redirect')
+    const destination = fromState || fromQuery || '/dashboard'
+    const { error } = await signInWithGoogle(destination)
     if (error) setError(error)
   }
 
@@ -62,7 +74,7 @@ export default function SignupPage() {
             Click the link in the email sent to <span className="text-white font-medium">{email}</span> to verify your account.
           </p>
           <Link
-            to="/login"
+            to={searchParams.get('redirect') ? `/login?redirect=${encodeURIComponent(searchParams.get('redirect')!)}` : "/login"}
             className="inline-block text-sm text-brand-400 hover:text-brand-300 font-medium transition-colors"
           >
             Back to login
@@ -141,7 +153,10 @@ export default function SignupPage() {
       {/* Login link */}
       <p className="mt-6 text-center text-sm text-zinc-400">
         Already have an account?{' '}
-        <Link to="/login" className="text-brand-400 hover:text-brand-300 font-medium transition-colors">
+        <Link
+          to={searchParams.get('redirect') ? `/login?redirect=${encodeURIComponent(searchParams.get('redirect')!)}` : "/login"}
+          className="text-brand-400 hover:text-brand-300 font-medium transition-colors"
+        >
           Sign in
         </Link>
       </p>

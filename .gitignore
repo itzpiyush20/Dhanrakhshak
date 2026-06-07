@@ -44,3 +44,7 @@ temp_chrome_profile/
 !/eslint.config.js
 /*.py
 
+# Scratch directories
+scratch/
+
+

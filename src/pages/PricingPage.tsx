@@ -49,7 +49,7 @@ export default function PricingPage() {
     })
 
   const handleRazorpayCheckout = async () => {
-    if (!user) { showToast('Please log in to upgrade to Premium.', 'warning'); navigate('/login'); return }
+    if (!user) { showToast('Please log in to upgrade to Premium.', 'warning'); navigate('/login?redirect=/pricing'); return }
     setProcessing(true)
     const scriptLoaded = await loadRazorpayScript()
     if (!scriptLoaded) { showToast('Failed to load Razorpay SDK. Check your internet.', 'error'); setProcessing(false); return }
@@ -83,10 +83,51 @@ export default function PricingPage() {
     } catch (err: any) { showToast(`Checkout error: ${err.message}`, 'error'); setProcessing(false) }
   }
 
+  const handleSelectPlan = (plan: 'monthly' | 'annual') => {
+    if (!user) {
+      showToast('Please sign in or create an account to proceed.', 'warning')
+      navigate('/login?redirect=/pricing')
+      return
+    }
+    setSelectedPlan(plan)
+    setPaymentMethod('razorpay')
+    const checkoutElem = document.getElementById('checkout-section')
+    if (checkoutElem) {
+      checkoutElem.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+
+  const handleSelectPromo = () => {
+    if (!user) {
+      showToast('Please sign in or create an account to redeem a coupon.', 'warning')
+      navigate('/login?redirect=/pricing')
+      return
+    }
+    setPaymentMethod('promo')
+    const checkoutElem = document.getElementById('checkout-section')
+    if (checkoutElem) {
+      checkoutElem.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+
   // ── Promo code ────────────────────────────────────────────────
   const handlePromoSimulator = () => {
+    if (!user) {
+      showToast('Please log in to redeem a promo code.', 'warning')
+      navigate('/login?redirect=/pricing')
+      return
+    }
+    const enteredCode = promoCode.trim()
     const validCodes = ['DHANVIP', 'UNLIMITED_VIP', 'FREE_LIFETIME', 'ITZPIYUSH', 'INVESTOR_UNLIMITED']
-    if (!validCodes.includes(promoCode.trim().toUpperCase())) { showToast('❌ Invalid or expired coupon code.', 'error'); return }
+    
+    // DHANI2007 is case-sensitive as requested
+    const isSpecialCode = enteredCode === 'DHANI2007'
+    const isStandardCode = validCodes.includes(enteredCode.toUpperCase())
+    
+    if (!isSpecialCode && !isStandardCode) {
+      showToast('❌ Invalid or expired coupon code.', 'error')
+      return
+    }
     setProcessing(true)
     setTimeout(async () => {
       try {
@@ -200,7 +241,7 @@ export default function PricingPage() {
 
               <div className="mt-8">
                 <button
-                  onClick={() => { setSelectedPlan('monthly'); setPaymentMethod('razorpay') }}
+                  onClick={() => handleSelectPlan('monthly')}
                   className="sb-btn-secondary w-full justify-center rounded-xl py-3 font-semibold text-xs border border-border-default/60 hover:bg-zinc-100 transition-all active:scale-98 shadow-sm cursor-pointer"
                 >
                   Choose Monthly
@@ -246,7 +287,7 @@ export default function PricingPage() {
 
               <div className="mt-8 space-y-3">
                 <button
-                  onClick={() => { setSelectedPlan('annual'); setPaymentMethod('razorpay') }}
+                  onClick={() => handleSelectPlan('annual')}
                   className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-static-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer transition-all active:scale-98 border border-emerald-400/20"
                 >
                   Get Investor Annual
@@ -283,7 +324,7 @@ export default function PricingPage() {
 
               <div className="mt-8">
                 <button
-                  onClick={() => setPaymentMethod('promo')}
+                  onClick={handleSelectPromo}
                   className="sb-btn-secondary w-full justify-center rounded-xl py-3 font-semibold text-xs border border-border-default/60 hover:bg-zinc-100 transition-all active:scale-98 shadow-sm cursor-pointer"
                 >
                   Enter Coupon Code
@@ -295,119 +336,144 @@ export default function PricingPage() {
         </div>
 
         {/* ── CHECKOUT SECTION ────────────────────────────────── */}
-        <div className="mx-auto max-w-[680px] px-6 pb-12">
-          <div className="sb-card-light rounded-2xl shadow-md bg-sb-canvas border border-sb-hairline" style={{ padding: 0, overflow: 'hidden' }}>
-
-            {/* Tab switcher */}
-            <div className="flex bg-sb-canvas-soft" style={{ borderBottom: '1px solid var(--sb-hairline)' }}>
-              {([['razorpay', '💳 Pay Securely'], ['promo', '🎟️ Promo Code']] as const).map(([tab, label]) => (
-                <button
-                  key={tab}
-                  onClick={() => setPaymentMethod(tab)}
-                  className="flex-1 py-4 text-xs cursor-pointer transition-colors border-none bg-transparent"
-                  style={{
-                    color: paymentMethod === tab ? 'var(--sb-primary)' : 'var(--sb-ink-muted)',
-                    borderBottom: paymentMethod === tab ? '2px solid var(--sb-primary)' : '2px solid transparent',
-                    fontWeight: paymentMethod === tab ? 700 : 500,
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
+        <div id="checkout-section" className="mx-auto max-w-[680px] px-6 pb-12">
+          {!user ? (
+            <div className="sb-card-light rounded-2xl shadow-md bg-sb-canvas border border-sb-hairline p-8 text-center space-y-6 animate-fade-in">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-3xl shadow-sm">
+                🔒
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-extrabold text-sb-ink">Sign in to complete checkout</h3>
+                <p className="text-xs text-sb-ink-muted leading-relaxed font-medium max-w-sm mx-auto">
+                  To secure your billing and activate automated spends tracking, please log in or create an account first.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <Link to="/login?redirect=/pricing" className="sb-btn-primary w-full sm:w-auto rounded-xl py-3 px-6 text-xs font-bold transition-all active:scale-98">
+                  Sign in
+                </Link>
+                <Link to="/signup?redirect=/pricing" className="sb-btn-secondary w-full sm:w-auto rounded-xl py-3 px-6 text-xs font-bold transition-all active:scale-98 border border-border-default/60">
+                  Create account
+                </Link>
+              </div>
+              <p className="text-[10px] text-sb-ink-muted font-medium">
+                Standard stepwise checkout · 100% Secure & encrypted
+              </p>
             </div>
+          ) : (
+            <div className="sb-card-light rounded-2xl shadow-md bg-sb-canvas border border-sb-hairline" style={{ padding: 0, overflow: 'hidden' }}>
 
-            <div className="p-8 space-y-6">
-
-              {/* ── Razorpay flow ─────────────────────────────── */}
-              {paymentMethod === 'razorpay' && (
-                <div className="space-y-6 animate-fade-in">
-                  {/* Order summary card */}
-                  <div className="rounded-xl p-5 flex justify-between items-start bg-sb-canvas-soft border border-sb-hairline">
-                    <div>
-                      <p className="text-[10px] text-sb-ink-muted font-bold uppercase tracking-widest">Order Summary</p>
-                      <p className="sb-heading-md mt-2 font-extrabold text-sb-ink">{planName} Plan</p>
-                      <p className="text-xs text-sb-ink-muted font-medium mt-0.5">{planSub}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-black text-2xl text-sb-ink tracking-tight">₹{planPrice}</p>
-                      <p className="text-[10px] text-sb-ink-muted font-bold uppercase">incl. GST</p>
-                    </div>
-                  </div>
-
-                  {/* Plan picker */}
-                  <div className="flex gap-3">
-                    {(['annual', 'monthly'] as const).map((plan) => (
-                      <button
-                        key={plan}
-                        onClick={() => setSelectedPlan(plan)}
-                        className="flex-1 py-3 rounded-xl text-xs cursor-pointer transition-all bg-transparent"
-                        style={{
-                          color: selectedPlan === plan ? 'var(--sb-primary)' : 'var(--sb-ink-muted)',
-                          border: selectedPlan === plan ? '1px solid var(--sb-primary)' : '1px solid var(--sb-hairline)',
-                          fontWeight: selectedPlan === plan ? 700 : 500,
-                        }}
-                      >
-                        {plan === 'annual' ? 'Annual — ₹365/yr' : 'Monthly — ₹31/mo'}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Trust bar */}
-                  <div className="rounded-xl p-3 flex flex-wrap items-center justify-center gap-3 bg-sb-canvas-soft border border-sb-hairline">
-                    {['UPI', 'Debit/Credit Cards', 'NetBanking', 'Google Pay', 'PhonePe'].map((m) => (
-                      <span key={m} className="text-[10px] px-3 py-1 rounded-full bg-sb-canvas border border-sb-hairline text-sb-ink-muted font-bold uppercase tracking-wider">{m}</span>
-                    ))}
-                  </div>
-
+              {/* Tab switcher */}
+              <div className="flex bg-sb-canvas-soft" style={{ borderBottom: '1px solid var(--sb-hairline)' }}>
+                {([['razorpay', '💳 Pay Securely'], ['promo', '🎟️ Promo Code']] as const).map(([tab, label]) => (
                   <button
-                    onClick={handleRazorpayCheckout}
-                    disabled={processing}
-                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-static-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer transition-all active:scale-98 border border-emerald-400/20"
-                    style={{ opacity: processing ? 0.6 : 1 }}
+                    key={tab}
+                    onClick={() => setPaymentMethod(tab)}
+                    className="flex-1 py-4 text-xs cursor-pointer transition-colors border-none bg-transparent"
+                    style={{
+                      color: paymentMethod === tab ? 'var(--sb-primary)' : 'var(--sb-ink-muted)',
+                      borderBottom: paymentMethod === tab ? '2px solid var(--sb-primary)' : '2px solid transparent',
+                      fontWeight: paymentMethod === tab ? 700 : 500,
+                    }}
                   >
-                    {processing ? 'Opening secure checkout…' : `Pay ₹${planPrice} & Activate Premium`}
+                    {label}
                   </button>
+                ))}
+              </div>
 
-                  <p className="text-[10px] text-center text-sb-ink-muted font-medium">
-                    🔒 Secured with bank-grade 256-bit SSL encryption · Powered by Razorpay
-                  </p>
-                </div>
-              )}
+              <div className="p-8 space-y-6">
 
-              {/* ── Promo flow ────────────────────────────────── */}
-              {paymentMethod === 'promo' && (
-                <div className="space-y-6 animate-fade-in">
-                  <div className="rounded-xl p-4 bg-emerald-500/5 border border-emerald-500/25">
-                    <p className="text-xs text-sb-ink-muted leading-relaxed font-medium">
-                      🎟️ <strong className="text-sb-ink font-bold">Have a promo code?</strong> Enter your exclusive code below to unlock lifetime access to all tracking, backup, and dashboard automation tools instantly.
+                {/* ── Razorpay flow ─────────────────────────────── */}
+                {paymentMethod === 'razorpay' && (
+                  <div className="space-y-6 animate-fade-in">
+                    {/* Order summary card */}
+                    <div className="rounded-xl p-5 flex justify-between items-start bg-sb-canvas-soft border border-sb-hairline">
+                      <div>
+                        <p className="text-[10px] text-sb-ink-muted font-bold uppercase tracking-widest">Order Summary</p>
+                        <p className="sb-heading-md mt-2 font-extrabold text-sb-ink">{planName} Plan</p>
+                        <p className="text-xs text-sb-ink-muted font-medium mt-0.5">{planSub}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-2xl text-sb-ink tracking-tight">₹{planPrice}</p>
+                        <p className="text-[10px] text-sb-ink-muted font-bold uppercase">incl. GST</p>
+                      </div>
+                    </div>
+
+                    {/* Plan picker */}
+                    <div className="flex gap-3">
+                      {(['annual', 'monthly'] as const).map((plan) => (
+                        <button
+                          key={plan}
+                          onClick={() => setSelectedPlan(plan)}
+                          className="flex-1 py-3 rounded-xl text-xs cursor-pointer transition-all bg-transparent"
+                          style={{
+                            color: selectedPlan === plan ? 'var(--sb-primary)' : 'var(--sb-ink-muted)',
+                            border: selectedPlan === plan ? '1px solid var(--sb-primary)' : '1px solid var(--sb-hairline)',
+                            fontWeight: selectedPlan === plan ? 700 : 500,
+                          }}
+                        >
+                          {plan === 'annual' ? 'Annual — ₹365/yr' : 'Monthly — ₹31/mo'}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Trust bar */}
+                    <div className="rounded-xl p-3 flex flex-wrap items-center justify-center gap-3 bg-sb-canvas-soft border border-sb-hairline">
+                      {['UPI', 'Debit/Credit Cards', 'NetBanking', 'Google Pay', 'PhonePe'].map((m) => (
+                        <span key={m} className="text-[10px] px-3 py-1 rounded-full bg-sb-canvas border border-sb-hairline text-sb-ink-muted font-bold uppercase tracking-wider">{m}</span>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={handleRazorpayCheckout}
+                      disabled={processing}
+                      className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-static-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer transition-all active:scale-98 border border-emerald-400/20"
+                      style={{ opacity: processing ? 0.6 : 1 }}
+                    >
+                      {processing ? 'Opening secure checkout…' : `Pay ₹${planPrice} & Activate Premium`}
+                    </button>
+
+                    <p className="text-[10px] text-center text-sb-ink-muted font-medium">
+                      🔒 Secured with bank-grade 256-bit SSL encryption · Powered by Razorpay
                     </p>
                   </div>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-[10px] block mb-2 font-bold uppercase tracking-widest text-sb-ink-muted">Promo Code</label>
-                      <input
-                        className="sb-text-input rounded-xl border border-border-default bg-sb-canvas-soft text-sb-ink px-4 py-3 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                        type="text"
-                        placeholder="e.g. DHANVIP"
-                        value={promoCode}
-                        onChange={(e) => setPromoCode(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handlePromoSimulator()}
-                      />
-                    </div>
-                    <button
-                      onClick={handlePromoSimulator}
-                      disabled={processing || !promoCode.trim()}
-                      className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-static-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer transition-all active:scale-98 border border-emerald-400/20"
-                      style={{ opacity: processing || !promoCode.trim() ? 0.5 : 1 }}
-                    >
-                      {processing ? 'Applying promo coupon…' : 'Redeem Code & Activate'}
-                    </button>
-                  </div>
-                </div>
-              )}
+                )}
 
+                {/* ── Promo flow ────────────────────────────────── */}
+                {paymentMethod === 'promo' && (
+                  <div className="space-y-6 animate-fade-in">
+                    <div className="rounded-xl p-4 bg-emerald-500/5 border border-emerald-500/25">
+                      <p className="text-xs text-sb-ink-muted leading-relaxed font-medium">
+                        🎟️ <strong className="text-sb-ink font-bold">Have a promo code?</strong> Enter your exclusive code below to unlock lifetime access to all tracking, backup, and dashboard automation tools instantly.
+                      </p>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-[10px] block mb-2 font-bold uppercase tracking-widest text-sb-ink-muted">Promo Code</label>
+                        <input
+                          className="sb-text-input rounded-xl border border-border-default bg-sb-canvas-soft text-sb-ink px-4 py-3 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                          type="text"
+                          placeholder="e.g. DHANVIP"
+                          value={promoCode}
+                          onChange={(e) => setPromoCode(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handlePromoSimulator()}
+                        />
+                      </div>
+                      <button
+                        onClick={handlePromoSimulator}
+                        disabled={processing || !promoCode.trim()}
+                        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-static-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer transition-all active:scale-98 border border-emerald-400/20"
+                        style={{ opacity: processing || !promoCode.trim() ? 0.5 : 1 }}
+                      >
+                        {processing ? 'Applying promo coupon…' : 'Redeem Code & Activate'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Refund note */}
           <p className="text-xs text-center mt-6 text-zinc-500 font-medium">

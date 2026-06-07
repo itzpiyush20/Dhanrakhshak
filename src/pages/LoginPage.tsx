@@ -3,18 +3,30 @@
 // ============================================
 
 import { useState, useEffect, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import AuthLayout from '@/layouts/AuthLayout'
 import { Button, Input } from '@/components/ui'
 import { useAuth } from '@/context/AuthContext'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const { signIn, signInWithGoogle } = useAuth()
+  const [searchParams] = useSearchParams()
+  const location = useLocation()
+  const { user, signIn, signInWithGoogle } = useAuth()
+
+  const handleRedirect = () => {
+    const fromState = (location.state as any)?.from?.pathname
+    const fromQuery = searchParams.get('redirect')
+    const destination = fromState || fromQuery || '/dashboard'
+    navigate(destination, { replace: true })
+  }
 
   useEffect(() => {
     document.title = 'Login | Dhanrakshak'
-  }, [])
+    if (user) {
+      handleRedirect()
+    }
+  }, [user])
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -32,12 +44,15 @@ export default function LoginPage() {
       setError(error)
       setLoading(false)
     } else {
-      navigate('/dashboard')
+      handleRedirect()
     }
   }
 
   const handleGoogleLogin = async () => {
-    const { error } = await signInWithGoogle()
+    const fromState = (location.state as any)?.from?.pathname
+    const fromQuery = searchParams.get('redirect')
+    const destination = fromState || fromQuery || '/dashboard'
+    const { error } = await signInWithGoogle(destination)
     if (error) setError(error)
   }
 
@@ -123,7 +138,10 @@ export default function LoginPage() {
       {/* Sign up link */}
       <p className="mt-6 text-center text-sm text-zinc-400">
         Don't have an account?{' '}
-        <Link to="/signup" className="text-brand-400 hover:text-brand-300 font-medium transition-colors">
+        <Link
+          to={searchParams.get('redirect') ? `/signup?redirect=${encodeURIComponent(searchParams.get('redirect')!)}` : "/signup"}
+          className="text-brand-400 hover:text-brand-300 font-medium transition-colors"
+        >
           Sign up
         </Link>
       </p>
