@@ -95,7 +95,7 @@ export default function AuthModal() {
       onClick={closeAuthModal}
     >
       <div 
-        className="relative w-full max-w-md bg-sb-canvas border border-sb-hairline rounded-2xl shadow-2xl p-6 sm:p-8 animate-scale-up text-sb-ink"
+        className="relative w-full max-w-md bg-surface-1 border border-border-subtle rounded-3xl shadow-2xl p-6 sm:p-8 animate-scale-up text-zinc-100"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -103,7 +103,7 @@ export default function AuthModal() {
         {/* Close Button */}
         <button
           onClick={closeAuthModal}
-          className="absolute top-4 right-4 text-sb-ink-muted hover:text-sb-ink p-1.5 rounded-lg hover:bg-sb-canvas-soft border-0 bg-transparent transition-colors cursor-pointer text-lg leading-none"
+          className="absolute top-4 right-4 text-zinc-500 hover:text-white p-1.5 rounded-xl hover:bg-surface-2 border-0 bg-transparent transition-colors cursor-pointer text-lg leading-none"
           aria-label="Close authentication modal"
         >
           ✕
@@ -124,14 +124,14 @@ export default function AuthModal() {
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex bg-sb-canvas-soft rounded-lg p-1 mb-5 border border-sb-hairline">
+        <div className="flex bg-surface-2 rounded-xl p-1 mb-5 border border-border-subtle/50">
           <button
             type="button"
             onClick={() => { setIsSignUp(false); setError('') }}
-            className={`flex-1 py-2 text-xs font-semibold rounded-md border-0 cursor-pointer transition-all ${
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg border-0 cursor-pointer transition-all ${
               !isSignUp 
-                ? 'bg-sb-canvas text-white shadow-sm border border-sb-hairline/10' 
-                : 'bg-transparent text-sb-ink-muted hover:text-white'
+                ? 'bg-surface-1 text-white shadow-md border border-border-subtle/30' 
+                : 'bg-transparent text-zinc-400 hover:text-white'
             }`}
           >
             Sign In
@@ -139,10 +139,10 @@ export default function AuthModal() {
           <button
             type="button"
             onClick={() => { setIsSignUp(true); setError('') }}
-            className={`flex-1 py-2 text-xs font-semibold rounded-md border-0 cursor-pointer transition-all ${
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg border-0 cursor-pointer transition-all ${
               isSignUp 
-                ? 'bg-sb-canvas text-white shadow-sm border border-sb-hairline/10' 
-                : 'bg-transparent text-sb-ink-muted hover:text-white'
+                ? 'bg-surface-1 text-white shadow-md border border-border-subtle/30' 
+                : 'bg-transparent text-zinc-400 hover:text-white'
             }`}
           >
             Create Account
@@ -152,7 +152,7 @@ export default function AuthModal() {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div role="alert" className="rounded-xl bg-red-500/10 border border-red-500/25 p-3 text-xs text-red-400">
+            <div role="alert" className="rounded-xl bg-red-500/10 border border-red-500/20 p-3 text-xs text-red-400">
               {error}
             </div>
           )}
@@ -197,23 +197,25 @@ export default function AuthModal() {
             </div>
           )}
 
-          <Button type="submit" block loading={loading} className="w-full py-2.5 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-static-white transition-all">
+          <Button type="submit" block loading={loading} className="w-full py-2.5 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white transition-all">
             {isSignUp ? 'Create Account' : 'Sign In'}
           </Button>
         </form>
 
         {/* Divider */}
         <div className="my-5 flex items-center gap-3">
-          <div className="h-px flex-1 bg-sb-hairline" />
-          <span className="text-[10px] text-sb-ink-muted font-bold uppercase tracking-wider">or</span>
-          <div className="h-px flex-1 bg-sb-hairline" />
+          <div className="h-px flex-1 bg-border-subtle/50" />
+          <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">or</span>
+          <div className="h-px flex-1 bg-border-subtle/50" />
         </div>
 
         {/* Google OAuth */}
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          block
           onClick={handleGoogleAuth}
-          className="w-full flex items-center justify-center gap-2.5 py-2.5 rounded-xl border border-sb-hairline bg-sb-canvas-soft hover:bg-sb-canvas text-xs font-semibold text-white cursor-pointer transition-colors shadow-sm"
+          className="flex items-center justify-center gap-2.5 text-xs font-semibold !h-11 shadow-sm"
         >
           <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
             <path
@@ -234,9 +236,9 @@ export default function AuthModal() {
             />
           </svg>
           Continue with Google
-        </button>
+        </Button>
 
-        <p className="mt-5 text-center text-[10px] text-sb-ink-muted font-medium">
+        <p className="mt-5 text-center text-[10px] text-zinc-500 font-medium">
           🔒 Secure read-only access · 100% Sandbox Isolation
         </p>
       </div>
