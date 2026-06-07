@@ -746,12 +746,7 @@ export async function scanRealGmailInbox() {
       }
     }
 
-    // Fetch profile to determine lookback window
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('created_at')
-      .eq('id', user.id)
-      .single()
+
 
     // Fetch user's registered cards/accounts and past approved transactions to map last4 digits to issuers dynamically
     const [{ data: registeredCards }, { data: pastCards }] = await Promise.all([
@@ -772,20 +767,59 @@ export async function scanRealGmailInbox() {
     }
 
 
-    const installDate = profile?.created_at ? new Date(profile.created_at) : new Date()
-    // Both owner and regular users get a 7-day lookback window
-    const startLimitTime = Math.max(
-      installDate.getTime() - 7 * 24 * 60 * 60 * 1000,
-      new Date('2026-01-01T00:00:00Z').getTime()
-    )
+    // Fetch active financial year (default to 2026)
+    let activeYear = 2026
+    try {
+      const storedYear = localStorage.getItem(`dhanrakshak_active_financial_year_${user.id}`)
+      if (storedYear) {
+        activeYear = parseInt(storedYear, 10)
+      }
+    } catch (e) {
+      console.warn('Failed to load active year from localStorage, using default 2026', e)
+    }
 
-    const startLimitDate = new Date(startLimitTime)
-    const yyyy = startLimitDate.getFullYear()
-    const mm = String(startLimitDate.getMonth() + 1).padStart(2, '0')
-    const dd = String(startLimitDate.getDate()).padStart(2, '0')
+    const today = new Date()
+    const activeYearEnd = new Date(`${activeYear}-12-31T23:59:59Z`)
+    if (today > activeYearEnd) {
+      return {
+        data: null,
+        error: new Error(`Financial Year ${activeYear} has ended. Please start the new financial year in settings to resume tracking.`)
+      }
+    }
 
-    // Gmail query — broad financial keywords
-    const q = `after:${yyyy}/${mm}/${dd} (debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
+    // Check if this is the user's first successful email scan
+    let isFirstScan = true
+    try {
+      const { data: logs } = await supabase
+        .from('email_scan_logs')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'success')
+        .limit(1)
+      if (logs && logs.length > 0) {
+        isFirstScan = false
+      }
+    } catch (e) {
+      console.warn('Failed to query email scan logs, assuming first scan', e)
+    }
+
+    let startLimitTime = 0
+    let q = ''
+    if (isFirstScan) {
+      // First scan: last 7 days lookback window
+      startLimitTime = Date.now() - 7 * 24 * 60 * 60 * 1000
+      const startLimitDate = new Date(startLimitTime)
+      const yyyy = startLimitDate.getFullYear()
+      const mm = String(startLimitDate.getMonth() + 1).padStart(2, '0')
+      const dd = String(startLimitDate.getDate()).padStart(2, '0')
+      
+      q = `after:${yyyy}/${mm}/${dd} (debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
+    } else {
+      // Subsequent scans: full calendar year (Jan 1 to Dec 31 of active year)
+      startLimitTime = new Date(`${activeYear}-01-01T00:00:00Z`).getTime()
+      // Gmail before is exclusive, so before:YYYY-01-01 matches up to Dec 31
+      q = `after:${activeYear}/01/01 before:${activeYear + 1}/01/01 (debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
+    }
 
     // --- Fetch message list ---
     let messages: { id: string; threadId: string }[] = []
@@ -862,7 +896,8 @@ export async function scanRealGmailInbox() {
       const mailTime = mail.internalDate ? Number(mail.internalDate) : Date.now()
       if (mailTime < startLimitTime) continue
       const mailDate = new Date(mailTime).toISOString().split('T')[0]
-      if (mailDate < '2026-01-01') continue
+      if (mailDate < `${activeYear}-01-01`) continue
+      if (mailDate > `${activeYear}-12-31`) continue
 
       const bodyText = extractEmailBody(mail)
       const headers = mail.payload?.headers || []

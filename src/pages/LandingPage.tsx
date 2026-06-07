@@ -676,38 +676,29 @@ export default function LandingPage() {
 
               <div className="p-8 bg-sb-canvas">
                 {downloadTab === 'android' ? (
-                  <div className="space-y-6">
-                    <div className="rounded-[6px] p-4 flex items-center justify-between flex-wrap gap-4 bg-sb-canvas-soft border border-sb-hairline">
-                      <div>
-                        <p className="sb-caption font-semibold" style={{ color: 'var(--sb-ink)' }}>Android APK File</p>
-                        <p className="sb-micro mt-0.5" style={{ color: 'var(--sb-ink-muted)' }}>Version 1.0.4 · Official package</p>
-                      </div>
-                      <a href="/dhanrakshak.apk" download className="sb-btn-primary">📥 Download APK</a>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="sb-micro font-semibold" style={{ color: 'var(--sb-ink-muted)' }}>Installation steps</p>
-                      <ol className="space-y-1.5 sb-caption pl-4 list-decimal" style={{ color: 'var(--sb-ink-muted)' }}>
-                        <li>Tap the download button above.</li>
-                        <li>Open the downloaded <code className="bg-sb-canvas-soft border border-sb-hairline text-sb-primary font-mono text-xs px-1.5 py-0.5 rounded">.apk</code> file.</li>
-                        <li>If prompted, approve permission to install packages.</li>
-                        <li>Open Dhanrakshak from your home screen and sign in.</li>
-                      </ol>
+                  <div className="space-y-4 text-center py-6">
+                    <span className="text-4xl" role="img" aria-label="Android">🤖</span>
+                    <h3 className="text-base font-bold" style={{ color: 'var(--sb-ink)' }}>Dhanrakshak for Android</h3>
+                    <p className="sb-caption max-w-sm mx-auto" style={{ color: 'var(--sb-ink-secondary)' }}>
+                      We are currently polishing the mobile application. The native Android app will be available for download here soon!
+                    </p>
+                    <div className="pt-2">
+                      <span className="inline-block bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
+                        Coming Soon
+                      </span>
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-6">
-                    <div className="rounded-[6px] p-4 bg-sb-canvas-soft border border-sb-hairline">
-                      <p className="sb-caption font-semibold" style={{ color: 'var(--sb-ink)' }}>iPhone Web App Setup</p>
-                      <p className="sb-micro mt-1" style={{ color: 'var(--sb-ink-muted)' }}>Launches full screen from your home screen.</p>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="sb-micro font-semibold" style={{ color: 'var(--sb-ink-muted)' }}>Easy iOS steps</p>
-                      <ul className="space-y-1.5 sb-caption pl-4 list-disc" style={{ color: 'var(--sb-ink-muted)' }}>
-                        <li>Open Safari and visit this web address.</li>
-                        <li>Tap the <strong style={{ color: 'var(--sb-ink)' }}>Share</strong> icon at the bottom.</li>
-                        <li>Choose <strong style={{ color: 'var(--sb-ink)' }}>Add to Home Screen</strong>.</li>
-                        <li>Name the app and tap <strong style={{ color: 'var(--sb-ink)' }}>Add</strong>.</li>
-                      </ul>
+                  <div className="space-y-4 text-center py-6">
+                    <span className="text-4xl" role="img" aria-label="iOS">🍎</span>
+                    <h3 className="text-base font-bold" style={{ color: 'var(--sb-ink)' }}>Dhanrakshak for iOS</h3>
+                    <p className="sb-caption max-w-sm mx-auto" style={{ color: 'var(--sb-ink-secondary)' }}>
+                      The iOS version is undergoing beta testing. You will be able to add it to your Home Screen or download it from the App Store soon!
+                    </p>
+                    <div className="pt-2">
+                      <span className="inline-block bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
+                        Coming Soon
+                      </span>
                     </div>
                   </div>
                 )}

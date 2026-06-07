@@ -20,7 +20,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
 
 export default function SettingsPage() {
-  const { user, currency, setCurrency } = useAuth()
+  const { user, currency, setCurrency, activeYear, startNewFinancialYear } = useAuth()
   const { showToast } = useToast()
 
   const [isLight, setIsLight] = useState(() => {
@@ -518,6 +518,40 @@ export default function SettingsPage() {
                   <span className="font-bold text-zinc-300 font-mono">
                     {currency === 'INR' ? 'en-IN' : 'en-US'}
                   </span>
+                </div>
+              </div>
+            </Card>
+
+            {/* Financial Year Management Card */}
+            <Card className="border-border-subtle bg-surface-1 shadow-md">
+              <h2 className="text-base font-bold text-zinc-200 mb-2">📅 Financial Year Management</h2>
+              <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
+                Transactions are scanned and updated within the active financial year. Scans for this year will not update after December 31.
+              </p>
+              
+              <div className="space-y-4 text-xs">
+                <div className="flex items-center justify-between border-b border-border-subtle/30 pb-3">
+                  <span className="text-zinc-400 font-medium">Active Calendar Year</span>
+                  <span className="font-bold text-zinc-200 text-sm font-mono">{activeYear}</span>
+                </div>
+                
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex flex-col">
+                    <span className="text-zinc-400 font-medium">Start New Financial Year</span>
+                    <span className="text-[10px] text-zinc-500">Enable scanning for the next calendar year ({activeYear + 1})</span>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      if (window.confirm(`Are you sure you want to start the ${activeYear + 1} financial year? Scanning for ${activeYear} transactions will stop, and scans for the new year ${activeYear + 1} will begin.`)) {
+                        startNewFinancialYear()
+                        showToast(`Started ${activeYear + 1} Financial Year!`, 'success')
+                      }
+                    }}
+                    size="sm"
+                    className="py-1.5 px-3.5 text-[11px] font-bold cursor-pointer"
+                  >
+                    Start {activeYear + 1} 🚀
+                  </Button>
                 </div>
               </div>
             </Card>

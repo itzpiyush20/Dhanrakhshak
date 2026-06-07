@@ -46,6 +46,8 @@ interface AuthContextValue extends AuthState {
   currency: 'INR' | 'USD'
   setCurrency: (currency: 'INR' | 'USD') => void
   currencySymbol: string
+  activeYear: number
+  startNewFinancialYear: (year?: number) => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -110,6 +112,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrencyState(newCurrency)
     setCurrencySymbol(newCurrency === 'INR' ? '₹' : '$')
   }, [])
+
+  const [activeYear, setActiveYearState] = useState<number>(2026)
+
+  useEffect(() => {
+    if (state.user) {
+      try {
+        const stored = localStorage.getItem(`dhanrakshak_active_financial_year_${state.user.id}`)
+        setActiveYearState(stored ? parseInt(stored, 10) : 2026)
+      } catch {
+        setActiveYearState(2026)
+      }
+    }
+  }, [state.user])
+
+  const startNewFinancialYear = useCallback((targetYear?: number) => {
+    if (!state.user) return
+    const nextYear = targetYear || (activeYear + 1)
+    try {
+      localStorage.setItem(`dhanrakshak_active_financial_year_${state.user.id}`, String(nextYear))
+      setActiveYearState(nextYear)
+    } catch (e) {
+      console.error('Failed to save active year:', e)
+    }
+  }, [state.user, activeYear])
 
   // hasGoogleToken is a proper useState — not a computed value from localStorage.
   // It is SET explicitly when a token arrives (onAuthStateChange) or is cleared
@@ -648,7 +674,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         closeAuthModal,
         currency,
         setCurrency,
-        currencySymbol
+        currencySymbol,
+        activeYear,
+        startNewFinancialYear
       }}
     >
       {children}
