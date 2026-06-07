@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context'
 import { ROUTES } from '@/constants'
 import { Capacitor } from '@capacitor/core'
+import { cn } from '@/utils'
 
 interface InteractionSimulationProps {}
 
@@ -344,11 +345,29 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 bg-sb-canvas border-b border-sb-hairline">
         <nav className="mx-auto max-w-[1280px] px-6 h-[64px] flex items-center justify-between" aria-label="Primary">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-3 no-underline group">
-            <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-static-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300" aria-hidden="true">₹</span>
-            <div className="flex items-center gap-1.5 text-base tracking-tight leading-none">
-              <span className="font-extrabold bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">Dhan</span>
-              <span className="font-bold text-sb-ink transition-colors duration-300">rakshak</span>
+          <Link to="/" className="flex items-center gap-3 shrink-0 group no-underline">
+            <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-static-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] border-0 group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300" aria-hidden="true">₹</span>
+            <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-1 text-base tracking-tight leading-none font-sans">
+                <span className={cn(
+                  "font-extrabold bg-gradient-to-r bg-clip-text text-transparent transition-all duration-300",
+                  isLight
+                    ? "from-emerald-600 to-teal-500"
+                    : "from-brand-300 to-emerald-400"
+                )}>Dhan</span>
+                <span className={cn(
+                  "font-bold transition-colors duration-300 text-sb-ink"
+                )}>rakshak</span>
+              </div>
+              <span className={cn(
+                "text-[8px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full border hidden md:inline-flex items-center gap-1.5 transition-all duration-300 shadow-sm",
+                isLight
+                  ? "bg-emerald-50 border-emerald-200/50 text-emerald-700 shadow-emerald-500/5"
+                  : "bg-brand-500/10 border-brand-500/20 text-brand-400 shadow-brand-500/5"
+              )}>
+                <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isLight ? "bg-emerald-500" : "bg-brand-400")} />
+                Automated Tracker
+              </span>
             </div>
           </Link>
 
@@ -363,9 +382,21 @@ export default function LandingPage() {
               { label: 'Support', href: '/support', isLink: true },
             ].map((item) =>
               item.isLink ? (
-                <Link key={item.label} to={item.href!} className="sb-caption font-medium" style={{ color: 'var(--sb-ink-muted)', textDecoration: 'none' }}>{item.label}</Link>
+                <Link
+                  key={item.label}
+                  to={item.href!}
+                  className="sb-caption font-semibold transition-colors text-sb-ink-muted hover:text-sb-primary whitespace-nowrap no-underline"
+                >
+                  {item.label}
+                </Link>
               ) : (
-                <a key={item.label} href={item.href} className="sb-caption font-medium" style={{ color: 'var(--sb-ink-muted)', textDecoration: 'none' }}>{item.label}</a>
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className="sb-caption font-semibold transition-colors text-sb-ink-muted hover:text-sb-primary whitespace-nowrap no-underline"
+                >
+                  {item.label}
+                </a>
               )
             )}
           </div>

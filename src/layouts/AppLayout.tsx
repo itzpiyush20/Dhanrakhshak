@@ -424,11 +424,9 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
             </div>
           </Link>
 
-          {/* Navigation Links & Actions */}
-          <div className="flex items-center gap-4 sm:gap-6 min-w-0 flex-1 justify-end">
-            {/* Horizontal Nav Links for desktop */}
-            {user && isAppRoute ? (
-              <nav className="hidden lg:flex items-center gap-4 text-xs font-semibold" aria-label="Desktop navigation">
+          {/* Desktop Navigation Links */}
+          {user && isAppRoute ? (
+            <nav className="hidden lg:flex items-center gap-4 text-xs font-semibold" aria-label="Desktop navigation">
                 {navItems
                   .filter(item => item.path !== ROUTES.PRICING)
                   .map((item) => {
@@ -678,7 +676,6 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               </button>
             </div>
           </div>
-        </div>
 
         {/* Mobile/Tablet Horizontal Scrollable Sub-Nav Row (Only visible if logged in and below lg viewport) */}
         {user && isAppRoute && (
