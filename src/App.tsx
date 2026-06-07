@@ -29,6 +29,23 @@ function SignupRedirect() {
   return <Navigate to={`/?auth=signup${location.search ? '&' + location.search.substring(1) : ''}`} replace />
 }
 
+function ScrollToTop() {
+  const { pathname, search } = useLocation()
+
+  useEffect(() => {
+    // Check if the change is just an auth modal query param opening/closing
+    const params = new URLSearchParams(search)
+    // If it has 'auth' and nothing else, ignore. If it has 'auth' and others, or no 'auth', we scroll to top.
+    const isOnlyAuthChange = params.has('auth') && Array.from(params.keys()).length === 1
+    
+    if (!isOnlyAuthChange) {
+      window.scrollTo(0, 0)
+    }
+  }, [pathname, search])
+
+  return null
+}
+
 // ─── Lazy loaded (protected pages — code split) ─────────
 const DashboardPage    = lazy(() => import('@/pages/DashboardPage'))
 const ExpensesPage     = lazy(() => import('@/pages/ExpensesPage'))
@@ -74,6 +91,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <AutoUpdateChecker />
       <CookieConsent />
       <AuthProvider>

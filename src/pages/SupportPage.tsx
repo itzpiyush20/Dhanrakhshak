@@ -53,6 +53,7 @@ export default function SupportPage() {
 
   const handleTabChange = (tabId: string) => {
     setSearchParams({ tab: tabId })
+    window.scrollTo(0, 0)
   }
 
   // Toggle FAQ accordion
