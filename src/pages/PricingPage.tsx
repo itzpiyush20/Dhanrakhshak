@@ -22,7 +22,7 @@ const FEATURES = [
 
 export default function PricingPage() {
   const navigate = useNavigate()
-  const { user, profile, updateSubscriptionStatus, daysLeft } = useAuth()
+  const { user, profile, updateSubscriptionStatus, daysLeft, openAuthModal } = useAuth()
   const { showToast } = useToast()
 
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('annual')
@@ -86,7 +86,7 @@ export default function PricingPage() {
   const handleSelectPlan = (plan: 'monthly' | 'annual') => {
     if (!user) {
       showToast('Please sign in or create an account to proceed.', 'warning')
-      navigate('/login?redirect=/pricing')
+      openAuthModal('/pricing')
       return
     }
     setSelectedPlan(plan)
@@ -100,7 +100,7 @@ export default function PricingPage() {
   const handleSelectPromo = () => {
     if (!user) {
       showToast('Please sign in or create an account to redeem a coupon.', 'warning')
-      navigate('/login?redirect=/pricing')
+      openAuthModal('/pricing')
       return
     }
     setPaymentMethod('promo')
@@ -114,7 +114,7 @@ export default function PricingPage() {
   const handlePromoSimulator = () => {
     if (!user) {
       showToast('Please log in to redeem a promo code.', 'warning')
-      navigate('/login?redirect=/pricing')
+      openAuthModal('/pricing')
       return
     }
     const enteredCode = promoCode.trim()
@@ -349,12 +349,18 @@ export default function PricingPage() {
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                <Link to="/login?redirect=/pricing" className="sb-btn-primary w-full sm:w-auto rounded-xl py-3 px-6 text-xs font-bold transition-all active:scale-98">
+                <button
+                  onClick={() => openAuthModal('/pricing')}
+                  className="sb-btn-primary w-full sm:w-auto rounded-xl py-3 px-6 text-xs font-bold transition-all active:scale-98 border-0 cursor-pointer"
+                >
                   Sign in
-                </Link>
-                <Link to="/signup?redirect=/pricing" className="sb-btn-secondary w-full sm:w-auto rounded-xl py-3 px-6 text-xs font-bold transition-all active:scale-98 border border-border-default/60">
+                </button>
+                <button
+                  onClick={() => openAuthModal('/pricing')}
+                  className="sb-btn-secondary w-full sm:w-auto rounded-xl py-3 px-6 text-xs font-bold transition-all active:scale-98 border border-border-default/60 cursor-pointer"
+                >
                   Create account
-                </Link>
+                </button>
               </div>
               <p className="text-[10px] text-sb-ink-muted font-medium">
                 Standard stepwise checkout · 100% Secure & encrypted

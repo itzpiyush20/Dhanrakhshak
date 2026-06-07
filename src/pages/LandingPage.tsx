@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context'
 import { ROUTES } from '@/constants'
 import { Capacitor } from '@capacitor/core'
+import AuthModal from '@/components/auth/AuthModal'
 
 interface InteractionSimulationProps {}
 
@@ -257,7 +258,7 @@ function InteractionSimulation({}: InteractionSimulationProps) {
 }
 
 export default function LandingPage() {
-  const { user, loading } = useAuth()
+  const { user, loading, openAuthModal } = useAuth()
   const navigate = useNavigate()
   const [downloadTab, setDownloadTab] = useState<'android' | 'ios'>('android')
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null)
@@ -386,8 +387,19 @@ export default function LandingPage() {
               <Link to={ROUTES.DASHBOARD} className="sb-btn-primary rounded-[6px]">Dashboard</Link>
             ) : (
               <>
-                <Link to={ROUTES.LOGIN} className="sb-caption font-medium" style={{ color: 'var(--sb-ink-muted)', textDecoration: 'none' }}>Sign in</Link>
-                <Link to={ROUTES.SIGNUP} className="sb-btn-primary rounded-[6px]">Get started</Link>
+                <button
+                  onClick={() => openAuthModal()}
+                  className="sb-caption font-medium border-0 bg-transparent cursor-pointer"
+                  style={{ color: 'var(--sb-ink-muted)', textDecoration: 'none' }}
+                >
+                  Sign in
+                </button>
+                <button
+                  onClick={() => openAuthModal()}
+                  className="sb-btn-primary rounded-[6px] border-0 cursor-pointer text-xs"
+                >
+                  Get started
+                </button>
               </>
             )}
           </div>
@@ -723,9 +735,19 @@ export default function LandingPage() {
               Create a free account in less than 60 seconds. You can delete or export your records anytime.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-              <Link to={user ? ROUTES.DASHBOARD : ROUTES.SIGNUP} className="sb-btn-primary" style={{ padding: '10px 24px' }}>
-                {user ? 'Go to Dashboard' : 'Get started free'}
-              </Link>
+              {user ? (
+                <Link to={ROUTES.DASHBOARD} className="sb-btn-primary" style={{ padding: '10px 24px' }}>
+                  Go to Dashboard
+                </Link>
+              ) : (
+                <button
+                  onClick={() => openAuthModal()}
+                  className="sb-btn-primary border-0 cursor-pointer text-xs"
+                  style={{ padding: '12px 24px', fontWeight: 500 }}
+                >
+                  Get started free
+                </button>
+              )}
               <Link to={ROUTES.PRICING} className="sb-btn-on-dark" style={{ padding: '10px 24px' }}>
                 View pricing
               </Link>
@@ -761,6 +783,9 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Global Auth Modal Popup */}
+      <AuthModal />
     </div>
   )
 }

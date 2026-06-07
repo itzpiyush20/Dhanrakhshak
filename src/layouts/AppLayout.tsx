@@ -10,6 +10,7 @@ import { cn } from '@/utils'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/context'
 import { submitFeedback, getTesterFeedbackLogs, supabase } from '@/services'
+import AuthModal from '@/components/auth/AuthModal'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -27,7 +28,7 @@ const navItems = [
 ]
 
 export default function AppLayout({ children, isStaticLight = false }: AppLayoutProps) {
-  const { user, signOut, profile, daysLeft } = useAuth()
+  const { user, signOut, profile, daysLeft, openAuthModal } = useAuth()
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [notifications, setNotifications] = useState<Array<{ message: string; type: 'danger' | 'warning' | 'info' }>>([])
@@ -548,12 +549,12 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                     Upgrade
                   </Link>
                 ) : (
-                  <Link
-                    to="/signup"
-                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-[6px] text-[11px] font-bold uppercase tracking-wider text-[var(--sb-on-primary)] bg-[var(--sb-primary)] hover:bg-[var(--sb-primary-deep)] active:scale-97 transition-all cursor-pointer shrink-0 whitespace-nowrap shadow-sm"
+                  <button
+                    onClick={() => openAuthModal()}
+                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-[6px] text-[11px] font-bold uppercase tracking-wider text-[var(--sb-on-primary)] bg-[var(--sb-primary)] hover:bg-[var(--sb-primary-deep)] active:scale-97 transition-all cursor-pointer shrink-0 whitespace-nowrap shadow-sm border-0"
                   >
                     Get Started
-                  </Link>
+                  </button>
                 )}
               </div>
 
@@ -619,9 +620,12 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                   )}
                 </div>
               ) : (
-                <Link to="/login" className={cn("text-xs font-semibold transition-colors shrink-0", isStaticLight ? "text-sb-ink hover:text-sb-primary" : "text-zinc-400 hover:text-white")}>
+                <button
+                  onClick={() => openAuthModal()}
+                  className={cn("text-xs font-semibold transition-colors shrink-0 border-0 bg-transparent cursor-pointer", isStaticLight ? "text-sb-ink hover:text-sb-primary" : "text-zinc-400 hover:text-white")}
+                >
                   Sign In
-                </Link>
+                </button>
               )}
 
               {/* Hamburger Menu button for mobile */}
@@ -756,8 +760,24 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                 >
                   {isLight ? '🌙 Switch to Night Mode' : '☀️ Switch to Day Mode'}
                 </button>
-                <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium text-center bg-sb-canvas-soft border border-sb-hairline rounded-[6px] mt-2">Sign In</Link>
-                <Link to="/signup" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2.5 text-sm font-medium text-static-white bg-brand-500 hover:bg-brand-600 text-center rounded-[6px] mt-1">Get Started</Link>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    openAuthModal()
+                  }}
+                  className="w-full block rounded-lg px-3 py-2 text-sm font-medium text-center bg-sb-canvas-soft border border-sb-hairline rounded-[6px] mt-2 cursor-pointer"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    openAuthModal()
+                  }}
+                  className="w-full block rounded-lg px-3 py-2.5 text-sm font-medium text-static-white bg-brand-500 hover:bg-brand-600 text-center rounded-[6px] mt-1 border-0 cursor-pointer"
+                >
+                  Get Started
+                </button>
               </>
             )}
           </nav>
@@ -1123,6 +1143,9 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           </div>
         </nav>
       )}
+      
+      {/* Global Auth Modal Popup */}
+      <AuthModal />
 
     </div>
   )

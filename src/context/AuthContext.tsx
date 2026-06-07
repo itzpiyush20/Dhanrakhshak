@@ -37,6 +37,10 @@ interface AuthContextValue extends AuthState {
   isSubscriptionActive: boolean
   daysLeft: number
   updateSubscriptionStatus: (status: 'active' | 'trial', planType?: 'monthly' | 'annual' | 'lifetime') => Promise<boolean>
+  authModalOpen: boolean
+  authModalRedirect: string | null
+  openAuthModal: (redirectPath?: string) => void
+  closeAuthModal: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -98,6 +102,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // (sign-out, expiry detection). This guarantees React re-renders whenever the
   // connection status changes, including after the user clears an expired token.
   const [hasGoogleToken, setHasGoogleToken] = useState<boolean>(() => isGoogleConnected())
+
+  const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [authModalRedirect, setAuthModalRedirect] = useState<string | null>(null)
+
+  const openAuthModal = useCallback((redirectPath?: string) => {
+    setAuthModalRedirect(redirectPath || null)
+    setAuthModalOpen(true)
+  }, [])
+
+  const closeAuthModal = useCallback(() => {
+    setAuthModalOpen(false)
+    setAuthModalRedirect(null)
+  }, [])
 
   // Call this from anywhere to reactively update the "disconnected" UI
   // when a token is cleared due to expiry or error.
@@ -548,7 +565,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         resetPassword,
         isSubscriptionActive,
         daysLeft,
-        updateSubscriptionStatus
+        updateSubscriptionStatus,
+        authModalOpen,
+        authModalRedirect,
+        openAuthModal,
+        closeAuthModal
       }}
     >
       {children}
