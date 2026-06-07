@@ -71,6 +71,10 @@ export default function PricingPage() {
             const verifyResponse = await fetch('/api/verify-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...paymentResponse, userId: user.id, planType: selectedPlan }) })
             const verifyData = await verifyResponse.json()
             if (!verifyResponse.ok || verifyData.error) throw new Error(verifyData.error || 'Payment verification failed')
+            
+            // Instantly update local subscription status and local storage to prevent override to trial
+            await updateSubscriptionStatus('active', selectedPlan)
+
             showToast('👑 Payment Successful! Premium features unlocked.', 'success')
             navigate('/payment-success', { state: { planName, expiresAt: verifyData.expiresAt } })
           } catch (err: any) { showToast(`Verification Failed: ${err.message}`, 'error') }

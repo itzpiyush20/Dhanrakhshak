@@ -144,10 +144,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!error && data) {
         const createdAtTime = data.created_at ? new Date(data.created_at).getTime() : Date.now()
         const safeCreatedAtTime = isNaN(createdAtTime) ? Date.now() : createdAtTime
+        
+        // Prioritize 'active' subscription if either database or local storage indicates active
+        const isSubscribed = data.subscription_status === 'active' || localStatus === 'active'
+        const subStatus = isSubscribed ? 'active' : 'trial'
+        const subExpires = isSubscribed
+          ? (data.subscription_status === 'active' ? data.subscription_expires_at : localExpires)
+          : (data.subscription_expires_at || localExpires || new Date(safeCreatedAtTime + 14 * 24 * 60 * 60 * 1000).toISOString())
+
         setProfile({
           ...data,
-          subscription_status: data.subscription_status || localStatus || 'trial',
-          subscription_expires_at: data.subscription_expires_at || localExpires || new Date(safeCreatedAtTime + 14 * 24 * 60 * 60 * 1000).toISOString()
+          subscription_status: subStatus,
+          subscription_expires_at: subExpires
         })
       } else {
         setProfile({
@@ -160,11 +168,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.error('Error fetching profile in AuthContext:', e)
       // Fallback profile to prevent app from hanging
+      const localStatus = localStorage.getItem(`dhanrakshak_sub_status_${state.user.id}`)
+      const localExpires = localStorage.getItem(`dhanrakshak_sub_expires_${state.user.id}`)
       setProfile({
         id: state.user.id,
         email: state.user.email,
-        subscription_status: 'trial',
-        subscription_expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+        subscription_status: localStatus || 'trial',
+        subscription_expires_at: localExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
       })
     }
   }
