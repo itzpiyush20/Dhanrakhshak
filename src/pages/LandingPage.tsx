@@ -262,6 +262,33 @@ export default function LandingPage() {
   const [downloadTab, setDownloadTab] = useState<'android' | 'ios'>('android')
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null)
 
+  const [isLight, setIsLight] = useState(() => {
+    try {
+      const stored = localStorage.getItem('dhanrakshak_theme')
+      if (stored !== null) {
+        return stored === 'light'
+      }
+      return true
+    } catch (e) {
+      return true
+    }
+  })
+
+  useEffect(() => {
+    try {
+      if (isLight) {
+        document.documentElement.classList.add('light')
+        localStorage.setItem('dhanrakshak_theme', 'light')
+      } else {
+        document.documentElement.classList.remove('light')
+        localStorage.setItem('dhanrakshak_theme', 'dark')
+      }
+    } catch (e) {}
+  }, [isLight])
+
+  const toggleTheme = () => setIsLight(!isLight)
+
+
   // Minimal Parser Demo State
   const [mockEmail, setMockEmail] = useState(
     'Alert: UPI debit of INR 649.00 on ICICI Bank Card XX9008 at NETFLIX is successful. Ref: 98127301.'
@@ -345,6 +372,16 @@ export default function LandingPage() {
 
           {/* Right CTAs */}
           <div className="flex items-center gap-4">
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="transition-colors h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer shrink-0 text-sb-ink-muted hover:text-sb-ink hover:bg-sb-canvas-soft border-0 bg-transparent"
+              title={isLight ? 'Switch to Night Mode' : 'Switch to Day Mode'}
+              aria-label={isLight ? 'Switch to Night Mode' : 'Switch to Day Mode'}
+            >
+              <span aria-hidden="true" className="text-sm">{isLight ? '🌙' : '☀️'}</span>
+            </button>
+
             {user ? (
               <Link to={ROUTES.DASHBOARD} className="sb-btn-primary rounded-[6px]">Dashboard</Link>
             ) : (
@@ -354,6 +391,7 @@ export default function LandingPage() {
               </>
             )}
           </div>
+
         </nav>
       </header>
 

@@ -456,7 +456,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               <button
                 onClick={toggleTheme}
                 className={cn(
-                  "transition-colors h-8 w-8 flex items-center justify-center rounded-lg cursor-pointer shrink-0",
+                  "hidden md:flex transition-colors h-8 w-8 items-center justify-center rounded-lg cursor-pointer shrink-0",
                   isStaticLight 
                     ? "text-sb-ink-muted hover:text-sb-ink hover:bg-sb-canvas-soft" 
                     : "text-zinc-400 hover:text-white hover:bg-white/5"
@@ -747,6 +747,15 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                 <a href="/#faq" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">FAQ</a>
                 <Link to="/pricing" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">Pricing</Link>
                 <Link to="/support" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">Support</Link>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    toggleTheme()
+                  }}
+                  className={cn("w-full text-left block rounded-lg px-3 py-2.5 text-sm font-medium border-t mt-1 pt-3 cursor-pointer", isStaticLight ? "border-sb-hairline text-sb-primary" : "border-static-white/10 text-brand-400")}
+                >
+                  {isLight ? '🌙 Switch to Night Mode' : '☀️ Switch to Day Mode'}
+                </button>
                 <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium text-center bg-sb-canvas-soft border border-sb-hairline rounded-[6px] mt-2">Sign In</Link>
                 <Link to="/signup" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2.5 text-sm font-medium text-static-white bg-brand-500 hover:bg-brand-600 text-center rounded-[6px] mt-1">Get Started</Link>
               </>

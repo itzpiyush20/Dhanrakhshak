@@ -160,7 +160,7 @@ export default function SupportPage() {
   ]
 
   return (
-    <AppLayout isStaticLight={true}>
+    <AppLayout>
       <div className="min-h-screen bg-sb-canvas-soft -mx-4 -my-6 px-4 py-8 sm:-mx-6 sm:px-6" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
         
         {/* Header */}

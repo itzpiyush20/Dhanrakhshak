@@ -144,7 +144,7 @@ export default function PricingPage() {
 
   // ── Render ────────────────────────────────────────────────────
   return (
-    <AppLayout isStaticLight={true}>
+    <AppLayout>
       <div className="min-h-screen bg-sb-canvas-soft" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
 
         {/* ── HEADER BAND WITH GRID PATTERN & GLOWS ──────────────── */}

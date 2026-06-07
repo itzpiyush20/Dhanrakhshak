@@ -402,6 +402,23 @@ html {
   --sb-primary:           rgb(62, 207, 142); /* #3ecf8e */
   --sb-primary-deep:      rgb(36, 180, 126); /* #24b47e */
   --sb-primary-soft:      rgb(74, 222, 128); /* #4ade80 */
+  --sb-canvas:            rgb(20, 20, 20); /* Dark void canvas */
+  --sb-canvas-soft:       rgb(28, 28, 30); /* Dark card/bg canvas */
+  --sb-canvas-night:      rgb(20, 20, 20);
+  --sb-canvas-night-soft: rgb(28, 28, 30);
+  --sb-hairline:          rgba(255, 255, 255, 0.08); /* Low opacity border */
+  --sb-hairline-strong:   rgba(255, 255, 255, 0.15);
+  --sb-hairline-cool:     rgba(255, 255, 255, 0.06);
+  --sb-ink:               rgb(245, 245, 247); /* Near white text */
+  --sb-ink-secondary:     rgb(212, 212, 216); /* Zinc 300 */
+  --sb-ink-muted:         rgb(152, 152, 157); /* Gray text */
+  --sb-ink-muted-2:       rgb(110, 110, 115);
+  --sb-ink-faint:         rgb(80, 80, 85);
+  --sb-on-primary:        rgb(20, 20, 20); /* Dark text on emerald green button */
+  --sb-on-dark:           rgb(255, 255, 255);
+}
+
+.light {
   --sb-canvas:            rgb(255, 255, 255); /* Pure White */
   --sb-canvas-soft:       rgb(250, 250, 250); /* #fafafa */
   --sb-canvas-night:      rgb(28, 28, 28); /* #1c1c1c */
@@ -418,32 +435,28 @@ html {
   --sb-on-dark:           rgb(255, 255, 255);
 }
 
-/* Static utility classes for guest/marketing pages to override any theme inverting rules */
-.bg-sb-canvas { background-color: rgb(255, 255, 255) !important; }
-.bg-sb-canvas-soft { background-color: rgb(250, 250, 250) !important; }
-.bg-sb-canvas-night { background-color: rgb(28, 28, 28) !important; }
-.bg-sb-canvas-night-soft { background-color: rgb(32, 32, 32) !important; }
-.bg-sb-primary { background-color: rgb(62, 207, 142) !important; }
+/* Theme-aware dynamic utility classes for guest/marketing pages */
+.bg-sb-canvas { background-color: var(--sb-canvas) !important; }
+.bg-sb-canvas-soft { background-color: var(--sb-canvas-soft) !important; }
+.bg-sb-canvas-night { background-color: var(--sb-canvas-night) !important; }
+.bg-sb-canvas-night-soft { background-color: var(--sb-canvas-night-soft) !important; }
+.bg-sb-primary { background-color: var(--sb-primary) !important; }
 
-.text-sb-ink { color: rgb(23, 23, 23) !important; }
-.text-sb-ink-secondary { color: rgb(33, 33, 33) !important; }
-.text-sb-ink-muted { color: rgb(112, 112, 112) !important; }
-.text-sb-ink-muted-2 { color: rgb(154, 154, 154) !important; }
-.text-sb-ink-faint { color: rgb(178, 178, 178) !important; }
-.text-sb-on-primary { color: rgb(23, 23, 23) !important; }
-.text-sb-on-dark { color: rgb(255, 255, 255) !important; }
-.text-sb-primary { color: rgb(62, 207, 142) !important; }
+.text-sb-ink { color: var(--sb-ink) !important; }
+.text-sb-ink-secondary { color: var(--sb-ink-secondary) !important; }
+.text-sb-ink-muted { color: var(--sb-ink-muted) !important; }
+.text-sb-ink-muted-2 { color: var(--sb-ink-muted-2) !important; }
+.text-sb-ink-faint { color: var(--sb-ink-faint) !important; }
+.text-sb-on-primary { color: var(--sb-on-primary) !important; }
+.text-sb-on-dark { color: var(--sb-on-dark) !important; }
+.text-sb-primary { color: var(--sb-primary) !important; }
+.text-sb-primary-deep { color: var(--sb-primary-deep) !important; }
 
-.border-sb-hairline { border-color: rgb(223, 223, 223) !important; }
-.border-sb-hairline-strong { border-color: rgb(199, 199, 199) !important; }
-.border-sb-hairline-cool { border-color: rgb(237, 237, 237) !important; }
-
-
-.bg-sb-primary { background-color: rgb(62, 207, 142) !important; }
-.text-sb-primary { color: rgb(62, 207, 142) !important; }
-.text-sb-primary-deep { color: rgb(36, 180, 126) !important; }
-.border-sb-primary { border-color: rgb(62, 207, 142) !important; }
-.divide-sb-hairline-cool > :not([hidden]) ~ :not([hidden]) { border-color: rgb(237, 237, 237) !important; }
+.border-sb-hairline { border-color: var(--sb-hairline) !important; }
+.border-sb-hairline-strong { border-color: var(--sb-hairline-strong) !important; }
+.border-sb-hairline-cool { border-color: var(--sb-hairline-cool) !important; }
+.border-sb-primary { border-color: var(--sb-primary) !important; }
+.divide-sb-hairline-cool > :not([hidden]) ~ :not([hidden]) { border-color: var(--sb-hairline-cool) !important; }
 
 /* ── Supabaze Typography Utilities ────────────────────────────── */
 .sb-display-xxl {
