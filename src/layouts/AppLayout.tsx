@@ -400,14 +400,13 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           <Link to="/" className="flex items-center gap-3 shrink-0 group">
             <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-static-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] border-0 group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300" aria-hidden="true">₹</span>
             <div className="flex items-center gap-2.5">
-              <div className="flex items-center gap-1 text-base tracking-tight leading-none">
+              <div className="text-base tracking-tight leading-none">
                 <span className={cn(
                   "font-extrabold bg-gradient-to-r bg-clip-text text-transparent transition-all duration-300",
                   (isStaticLight || isLight)
                     ? "from-emerald-600 to-teal-500"
                     : "from-brand-300 to-emerald-400"
-                )}>Dhan</span>
-                <span className={cn(
+                )}>Dhan</span><span className={cn(
                   "font-bold transition-colors duration-300",
                   isStaticLight ? "text-sb-ink" : "text-white"
                 )}>rakshak</span>
