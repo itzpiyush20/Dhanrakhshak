@@ -157,7 +157,6 @@ export default function SupportPage() {
     { id: 'privacy', label: 'Privacy Policy', icon: '🛡️' },
     { id: 'faq', label: 'FAQs', icon: '❓' },
     { id: 'contact', label: 'Help & Contact', icon: '✉️' },
-    { id: 'developer', label: 'Developer Details', icon: '💻' },
   ]
 
   return (
@@ -435,125 +434,6 @@ export default function SupportPage() {
                       </div>
                     </div>
                   )}
-                </div>
-              </div>
-            )}
-
-            {/* Tab 4: Developer Details */}
-            {activeTab === 'developer' && (
-              <div className="space-y-6 animate-scale-up" role="tabpanel" aria-label="Developer Details">
-                <div className="rounded-3xl border border-border-subtle bg-surface-1 p-8 shadow-md space-y-6">
-                  <div className="flex items-center gap-3 border-b border-border-subtle pb-4">
-                    <span className="text-3xl" aria-hidden="true">💻</span>
-                    <div>
-                      <h2 className="text-lg font-bold text-white">Developer Details & Audits</h2>
-                      <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mt-1">
-                        Build Integrity & Open Source Core
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Creator Card */}
-                  <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-2">
-                    <p className="text-emerald-400 font-bold uppercase tracking-wider text-[10px]">Creator & Lead Architect</p>
-                    <p className="text-white text-sm font-bold flex items-center gap-1.5">
-                      👤 Piyush Khandelwal <span className="text-xs font-normal text-zinc-400">(Chartered Accountant & Developer)</span>
-                    </p>
-                    <p className="text-zinc-300 leading-relaxed">
-                      Dhanrakshak was conceptualized, designed, and developed by <strong>Piyush Khandelwal</strong>, a Chartered Accountant. 
-                      Built to combine professional financial domain expertise with a strict focus on local client-side processing, secure row-level isolated databases (Supabase), and seamless automated wealth guarding.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="p-5 rounded-2xl bg-surface-2/40 border border-border-subtle/50 text-xs space-y-2">
-                      <p className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Release Version</p>
-                      <p className="text-white text-sm font-semibold">1.0.0 (Stable Production Build)</p>
-                      <p className="text-zinc-400 leading-normal">
-                        Verified cryptographic release with local regular expressions modules active.
-                      </p>
-                    </div>
-
-                    <div className="p-5 rounded-2xl bg-surface-2/40 border border-border-subtle/50 text-xs space-y-2">
-                      <p className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Open Source License</p>
-                      <p className="text-white text-sm font-semibold">MIT License (Open-Source)</p>
-                      <p className="text-zinc-400 leading-normal">
-                        Dhanrakshak is fully auditable. Anyone can clone, test, or modify the source repository.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Architecture spec */}
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-bold text-white">System Architecture Specifications</h3>
-                    <div className="rounded-2xl border border-border-subtle/50 bg-surface-2/40 overflow-hidden text-xs">
-                      <div className="grid grid-cols-3 border-b border-border-subtle/50 p-3 font-semibold text-zinc-300 bg-surface-2/60">
-                        <div>Layer</div>
-                        <div>Technology</div>
-                        <div>Deployment Mode</div>
-                      </div>
-                      <div className="grid grid-cols-3 border-b border-border-subtle/50 p-3 text-zinc-400">
-                        <div className="font-medium text-white">Frontend Client</div>
-                        <div>React (Vite) + TypeScript</div>
-                        <div>Client-Side SPA</div>
-                      </div>
-                      <div className="grid grid-cols-3 border-b border-border-subtle/50 p-3 text-zinc-400">
-                        <div className="font-medium text-white">Database & Security</div>
-                        <div>Supabase Engine</div>
-                        <div>Row-Level Security (RLS)</div>
-                      </div>
-                      <div className="grid grid-cols-3 border-b border-border-subtle/50 p-3 text-zinc-400">
-                        <div className="font-medium text-white">Email Delegation</div>
-                        <div>Google OAuth 2.0</div>
-                        <div>Restricted gmail.readonly API</div>
-                      </div>
-                      <div className="grid grid-cols-3 p-3 text-zinc-400">
-                        <div className="font-medium text-white">Parsing Engine</div>
-                        <div>RegExp Regex Rules</div>
-                        <div>100% Browser Local Parsing</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Repos and info */}
-                  <div className="space-y-4 pt-4 border-t border-border-subtle">
-                    <h3 className="text-sm font-bold text-white">Auditable Repositories</h3>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <a
-                        href="https://github.com/dhanrakshak/app"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 p-4 rounded-2xl border border-border-subtle/50 hover:border-emerald-500/40 bg-surface-2/40 hover:bg-surface-2 flex items-center justify-between text-xs transition-all group no-underline"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-lg">📁</span>
-                          <div>
-                            <p className="font-bold text-white group-hover:text-emerald-400 transition-colors">
-                              dhanrakshak/app
-                            </p>
-                            <p className="text-[10px] text-zinc-400 mt-0.5">Core application repo</p>
-                          </div>
-                        </div>
-                        <span className="text-zinc-500 group-hover:text-zinc-300 transition-colors">↗</span>
-                      </a>
-
-                      <a
-                        href="mailto:support@dhanrakshak.org"
-                        className="flex-1 p-4 rounded-2xl border border-border-subtle/50 hover:border-emerald-500/40 bg-surface-2/40 hover:bg-surface-2 flex items-center justify-between text-xs transition-all group no-underline"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-lg">📧</span>
-                          <div>
-                            <p className="font-bold text-white group-hover:text-emerald-400 transition-colors">
-                              support@dhanrakshak.org
-                            </p>
-                            <p className="text-[10px] text-zinc-400 mt-0.5">Official email contact</p>
-                          </div>
-                        </div>
-                        <span className="text-zinc-500 group-hover:text-zinc-300 transition-colors">↗</span>
-                      </a>
-                    </div>
-                  </div>
                 </div>
               </div>
             )}

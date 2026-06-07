@@ -869,7 +869,6 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
             <Link to="/terms" className="hover:text-brand-400 transition-colors">Terms of Service</Link>
             <Link to="/support?tab=faq" className="hover:text-brand-400 transition-colors">FAQs</Link>
             <Link to="/support?tab=contact" className="hover:text-brand-400 transition-colors">Help & Contact</Link>
-            <Link to="/support?tab=developer" className="hover:text-brand-400 transition-colors">Developer Details</Link>
           </div>
         </div>
       </footer>
