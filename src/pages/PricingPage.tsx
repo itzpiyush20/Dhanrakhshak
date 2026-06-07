@@ -312,8 +312,13 @@ export default function PricingPage() {
               <div className="mt-8 space-y-3">
                 {isPro ? (
                   <button
-                    disabled
-                    className="w-full py-3 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold text-xs tracking-wide cursor-not-allowed"
+                    onClick={() => {
+                      if (profile?.subscription_expires_at) {
+                        showToast(`Your Pro Plan is active until ${new Date(profile.subscription_expires_at).toLocaleDateString('en-IN')}`, 'info')
+                      }
+                    }}
+                    className="w-full py-3 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold text-xs tracking-wide cursor-pointer hover:bg-emerald-500/20 transition-all select-none"
+                    title="Click to view validity"
                   >
                     Current Plan
                   </button>

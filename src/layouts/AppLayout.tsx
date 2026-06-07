@@ -8,7 +8,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { ROUTES } from '@/constants'
 import { cn } from '@/utils'
 import { useState, useEffect, useCallback } from 'react'
-import { useAuth } from '@/context'
+import { useAuth, useToast } from '@/context'
 import { submitFeedback, getTesterFeedbackLogs, supabase } from '@/services'
 
 interface AppLayoutProps {
@@ -28,6 +28,7 @@ const navItems = [
 
 export default function AppLayout({ children, isStaticLight = false }: AppLayoutProps) {
   const { user, signOut, profile, daysLeft, openAuthModal, currencySymbol } = useAuth()
+  const { showToast } = useToast()
   const location = useLocation()
   const isAppRoute = [
     '/dashboard',
@@ -583,12 +584,17 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] text-zinc-400 font-semibold hidden md:inline shrink-0">
-                        Pro plan active until {new Date(profile.subscription_expires_at).toLocaleDateString('en-IN')}
-                      </span>
-                      <span className="px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] shrink-0 select-none">
+                      <button
+                        onClick={() => {
+                          if (profile?.subscription_expires_at) {
+                            showToast(`Your Pro Plan is active until ${new Date(profile.subscription_expires_at).toLocaleDateString('en-IN')}`, 'info')
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] shrink-0 cursor-pointer hover:bg-[var(--status-positive-border)]/20 transition-all select-none"
+                        title="Click to view validity"
+                      >
                         Pro Plan 👑
-                      </span>
+                      </button>
                     </div>
                   )
                 ) : user ? (
