@@ -50,7 +50,7 @@ export default function ForgotPasswordPage() {
             Follow the instructions to set a new password.
           </p>
           <Link
-            to="/login"
+            to="/?auth=login"
             className="inline-block text-sm text-brand-400 hover:text-brand-300 font-medium transition-colors"
           >
             Back to login
@@ -88,7 +88,7 @@ export default function ForgotPasswordPage() {
 
       <p className="mt-6 text-center text-sm text-zinc-400">
         Remember your password?{' '}
-        <Link to="/login" className="text-brand-400 hover:text-brand-300 font-medium transition-colors">
+        <Link to="/?auth=login" className="text-brand-400 hover:text-brand-300 font-medium transition-colors">
           Sign in
         </Link>
       </p>

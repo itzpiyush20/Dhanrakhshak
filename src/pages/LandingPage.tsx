@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context'
 import { ROUTES } from '@/constants'
 import { Capacitor } from '@capacitor/core'
-import AuthModal from '@/components/auth/AuthModal'
 
 interface InteractionSimulationProps {}
 
@@ -302,9 +301,9 @@ export default function LandingPage() {
   useEffect(() => {
     if (!loading && Capacitor.isNativePlatform()) {
       if (user) navigate(ROUTES.DASHBOARD || '/dashboard', { replace: true })
-      else navigate(ROUTES.LOGIN || '/login', { replace: true })
+      else openAuthModal()
     }
-  }, [user, loading, navigate])
+  }, [user, loading, navigate, openAuthModal])
 
   useEffect(() => {
     document.title = 'Dhanrakshak | Automatically Track Spends & Budgets'
@@ -783,9 +782,6 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
-
-      {/* Global Auth Modal Popup */}
-      <AuthModal />
     </div>
   )
 }

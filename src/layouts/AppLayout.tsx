@@ -10,7 +10,6 @@ import { cn } from '@/utils'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/context'
 import { submitFeedback, getTesterFeedbackLogs, supabase } from '@/services'
-import AuthModal from '@/components/auth/AuthModal'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -421,8 +420,10 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
             <nav className="hidden lg:flex items-center gap-4 text-xs font-semibold" aria-label="Desktop navigation">
               {user ? (
                 <>
-                  {navItems.map((item) => {
-                    const isActive = location.pathname === item.path
+                  {navItems
+                    .filter(item => item.path !== ROUTES.PRICING)
+                    .map((item) => {
+                      const isActive = location.pathname === item.path
                     return (
                       <Link
                         key={item.path}
@@ -648,8 +649,10 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
         {user && (
           <div className={cn("h-9 border-t flex items-center lg:hidden overflow-hidden select-none", isStaticLight ? "border-sb-hairline bg-sb-canvas-soft" : "border-border-subtle bg-surface-1/40")}>
             <div className="mx-auto max-w-7xl w-full flex items-center px-4 sm:px-6 overflow-x-auto scrollbar-none flex-nowrap py-1 gap-2">
-              {navItems.map((item) => {
-                const isActive = location.pathname === item.path
+              {navItems
+                .filter(item => item.path !== ROUTES.PRICING)
+                .map((item) => {
+                  const isActive = location.pathname === item.path
                 return (
                   <Link
                     key={item.path}
@@ -674,8 +677,10 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           <nav className={cn("border-b px-4 py-3 space-y-1 lg:hidden animate-fade-in", isStaticLight ? "border-sb-hairline bg-sb-canvas text-sb-ink" : "border-static-white/10 bg-black text-static-white")} aria-label="Mobile navigation">
             {user ? (
               <>
-                {navItems.map((item) => {
-                  const isActive = location.pathname === item.path
+                {navItems
+                  .filter(item => item.path !== ROUTES.PRICING)
+                  .map((item) => {
+                    const isActive = location.pathname === item.path
                   return (
                     <Link
                       key={item.path}
@@ -1143,10 +1148,6 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           </div>
         </nav>
       )}
-      
-      {/* Global Auth Modal Popup */}
-      <AuthModal />
-
     </div>
   )
 }

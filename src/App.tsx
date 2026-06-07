@@ -4,19 +4,30 @@
 // ============================================
 
 import { useEffect, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, ToastProvider } from '@/context'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import AutoUpdateChecker from '@/components/AutoUpdateChecker'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import CookieConsent from '@/components/CookieConsent'
+import URLAuthTrigger from '@/components/auth/URLAuthTrigger'
+import AuthModal from '@/components/auth/AuthModal'
 
 // ─── Eagerly loaded (public pages — tiny) ───────────────
 import LandingPage from '@/pages/LandingPage'
-import LoginPage from '@/pages/LoginPage'
-import SignupPage from '@/pages/SignupPage'
 import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
 import SupportPage from '@/pages/SupportPage'
+
+// Helper redirects for in-context authentication modal triggers
+function LoginRedirect() {
+  const location = useLocation()
+  return <Navigate to={`/?auth=login${location.search ? '&' + location.search.substring(1) : ''}`} replace />
+}
+
+function SignupRedirect() {
+  const location = useLocation()
+  return <Navigate to={`/?auth=signup${location.search ? '&' + location.search.substring(1) : ''}`} replace />
+}
 
 // ─── Lazy loaded (protected pages — code split) ─────────
 const DashboardPage    = lazy(() => import('@/pages/DashboardPage'))
@@ -69,11 +80,14 @@ function App() {
         <ToastProvider>
           <ErrorBoundary>
             <Suspense fallback={<PageLoader />}>
+              <URLAuthTrigger />
+              <AuthModal />
+              
               <Routes>
               {/* Public routes */}
               <Route path="/"                element={<LandingPage />} />
-              <Route path="/login"           element={<LoginPage />} />
-              <Route path="/signup"          element={<SignupPage />} />
+              <Route path="/login"           element={<LoginRedirect />} />
+              <Route path="/signup"          element={<SignupRedirect />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/support"         element={<SupportPage />} />
               <Route path="/privacy"         element={<PrivacyPage />} />

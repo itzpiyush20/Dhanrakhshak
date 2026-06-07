@@ -39,7 +39,8 @@ interface AuthContextValue extends AuthState {
   updateSubscriptionStatus: (status: 'active' | 'trial', planType?: 'monthly' | 'annual' | 'lifetime') => Promise<boolean>
   authModalOpen: boolean
   authModalRedirect: string | null
-  openAuthModal: (redirectPath?: string) => void
+  authModalTab: 'login' | 'signup'
+  openAuthModal: (redirectPath?: string, tab?: 'login' | 'signup') => void
   closeAuthModal: () => void
 }
 
@@ -105,9 +106,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [authModalRedirect, setAuthModalRedirect] = useState<string | null>(null)
+  const [authModalTab, setAuthModalTab] = useState<'login' | 'signup'>('login')
 
-  const openAuthModal = useCallback((redirectPath?: string) => {
+  const openAuthModal = useCallback((redirectPath?: string, tab?: 'login' | 'signup') => {
     setAuthModalRedirect(redirectPath || null)
+    setAuthModalTab(tab || 'login')
     setAuthModalOpen(true)
   }, [])
 
@@ -220,7 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.removeItem(key)
         }
       }
-      window.location.href = '/login'
+      window.location.href = '/'
     }
   }
 
@@ -568,6 +571,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateSubscriptionStatus,
         authModalOpen,
         authModalRedirect,
+        authModalTab,
         openAuthModal,
         closeAuthModal
       }}

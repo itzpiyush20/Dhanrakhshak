@@ -145,6 +145,10 @@ const BANK_NAMES: { pattern: RegExp; label: string }[] = [
 
 /** Extract bank brand name from text */
 export function extractBankName(text: string): string {
+  // If the account number is the user's Axis Bank account ending in 5154
+  if (/\b(?:5154|xx5154|x5154)\b/i.test(text)) {
+    return 'Axis'
+  }
   for (const bank of BANK_NAMES) {
     if (bank.pattern.test(text)) {
       return bank.label

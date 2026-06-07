@@ -161,33 +161,33 @@ export default function SupportPage() {
 
   return (
     <AppLayout>
-      <div className="min-h-screen bg-sb-canvas-soft -mx-4 -my-6 px-4 py-8 sm:-mx-6 sm:px-6" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
+      <div className="space-y-6 animate-fade-in" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
         
         {/* Header */}
-        <div className="mb-8 max-w-[1200px] mx-auto">
-          <h1 className="sb-display-lg" style={{ color: 'var(--sb-ink)' }}>Support Center</h1>
-          <p className="mt-1 sb-caption animate-fade-in" style={{ color: 'var(--sb-ink-muted)' }}>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">Support Center</h1>
+          <p className="text-sm text-zinc-400">
             Review security compliance documents, browse FAQs, contact support, and explore technical details.
           </p>
         </div>
 
         {/* Outer Grid layout */}
-        <div className="grid gap-6 md:grid-cols-12 max-w-[1200px] mx-auto">
+        <div className="grid gap-6 md:grid-cols-12">
           
           {/* Navigation Tabs Bar / Sidebar */}
           <div className="md:col-span-3 space-y-2">
             {/* Desktop vertical sidebar navigation */}
-            <div className="hidden md:flex flex-col space-y-1.5 p-2 rounded-[12px] bg-sb-canvas border border-sb-hairline shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+            <div className="hidden md:flex flex-col space-y-1.5 p-2 rounded-[20px] bg-surface-1 border border-border-subtle shadow-md">
               {tabs.map((tab) => {
                 const isActive = activeTab === tab.id
                 return (
                   <button
                     key={tab.id}
                     onClick={() => handleTabChange(tab.id)}
-                    className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-[6px] text-left transition-all cursor-pointer border-none bg-transparent ${
+                    className={`flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl text-left transition-all cursor-pointer border border-transparent bg-transparent ${
                       isActive
-                        ? 'bg-[rgba(62,207,142,0.1)] text-[#24b47e] border border-[rgba(62,207,142,0.25)]'
-                        : 'text-sb-ink-muted hover:text-sb-ink hover:bg-sb-canvas-soft'
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        : 'text-zinc-400 hover:text-white hover:bg-surface-2'
                     }`}
                     aria-selected={isActive}
                     role="tab"
@@ -207,10 +207,10 @@ export default function SupportPage() {
                   <button
                     key={tab.id}
                     onClick={() => handleTabChange(tab.id)}
-                    className={`flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-[6px] whitespace-nowrap transition-all shrink-0 cursor-pointer border-none bg-transparent ${
+                    className={`flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition-all shrink-0 cursor-pointer border ${
                       isActive
-                        ? 'bg-[rgba(62,207,142,0.1)] text-[#24b47e] border border-[rgba(62,207,142,0.25)]'
-                        : 'bg-sb-canvas text-sb-ink-muted border border-sb-hairline'
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 bg-transparent'
+                        : 'bg-surface-1 text-zinc-400 border-border-subtle'
                     }`}
                     aria-selected={isActive}
                     role="tab"
@@ -229,20 +229,20 @@ export default function SupportPage() {
             {/* Tab 1: Privacy Policy */}
             {activeTab === 'privacy' && (
               <div className="space-y-6 animate-scale-up" role="tabpanel" aria-label="Privacy Policy">
-                <div className="sb-card-light shadow-[0_1px_3px_rgba(0,0,0,0.06)] bg-sb-canvas space-y-6">
-                  <div className="flex items-center gap-3 border-b border-sb-hairline pb-4">
+                <div className="rounded-3xl border border-border-subtle bg-surface-1 p-8 shadow-md space-y-6">
+                  <div className="flex items-center gap-3 border-b border-border-subtle pb-4">
                     <span className="text-3xl" aria-hidden="true">🛡️</span>
                     <div>
-                      <h2 className="sb-heading-md" style={{ color: 'var(--sb-ink)' }}>Privacy Policy & Security Standards</h2>
-                      <p className="sb-micro uppercase tracking-wider font-semibold mt-0.5 text-sb-ink-muted">
+                      <h2 className="text-lg font-bold text-white">Privacy Policy & Security Standards</h2>
+                      <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mt-1">
                         Zero-Trust Client Matching Model
                       </p>
                     </div>
                   </div>
 
-                  <div className="space-y-5 sb-caption leading-relaxed" style={{ color: 'var(--sb-ink-secondary)' }}>
+                  <div className="space-y-5 text-sm text-zinc-300 leading-relaxed">
                     <section className="space-y-2">
-                      <h3 className="sb-heading-md" style={{ color: 'var(--sb-ink)', fontSize: 16 }}>
+                      <h3 className="text-base font-bold text-white">
                         1. Client-Side Processing Architecture
                       </h3>
                       <p>
@@ -251,16 +251,16 @@ export default function SupportPage() {
                     </section>
 
                     <section className="space-y-2">
-                      <h3 className="sb-heading-md" style={{ color: 'var(--sb-ink)', fontSize: 16 }}>
+                      <h3 className="text-base font-bold text-white">
                         2. Restricted OAuth 2.0 Scopes
                       </h3>
                       <p>
-                        We utilize Google OAuth 2.0 configurations targeting the restricted <code className="font-mono text-xs bg-sb-canvas-soft px-1 rounded border border-sb-hairline">gmail.readonly</code> scope. This is a read-only credential that only reads email content. We have zero permissions to write, send, delete, or modify emails.
+                        We utilize Google OAuth 2.0 configurations targeting the restricted <code className="font-mono text-xs bg-surface-2 border border-border-subtle/50 px-1.5 py-0.5 rounded-lg">gmail.readonly</code> scope. This is a read-only credential that only reads email content. We have zero permissions to write, send, delete, or modify emails.
                       </p>
                     </section>
 
                     <section className="space-y-2">
-                      <h3 className="sb-heading-md" style={{ color: 'var(--sb-ink)', fontSize: 16 }}>
+                      <h3 className="text-base font-bold text-white">
                         3. Row-Level Data Security (RLS)
                       </h3>
                       <p>
@@ -268,9 +268,9 @@ export default function SupportPage() {
                       </p>
                     </section>
 
-                    <div className="p-4 rounded-[6px] bg-sb-canvas-soft border border-sb-hairline">
-                      <p className="font-medium" style={{ color: 'var(--sb-ink)' }}>🔒 Summary Security Commitment:</p>
-                      <p className="mt-1" style={{ color: 'var(--sb-ink-muted)' }}>
+                    <div className="p-4 rounded-2xl bg-surface-2/40 border border-border-subtle/50">
+                      <p className="font-bold text-white">🔒 Summary Security Commitment:</p>
+                      <p className="mt-1 text-zinc-400">
                         No selling data · No marketing profiling · No banking passwords requested · Fully auditable open-source code base.
                       </p>
                     </div>
@@ -282,12 +282,12 @@ export default function SupportPage() {
             {/* Tab 2: FAQs */}
             {activeTab === 'faq' && (
               <div className="space-y-4 animate-scale-up" role="tabpanel" aria-label="Frequently Asked Questions">
-                <div className="sb-card-light shadow-[0_1px_3px_rgba(0,0,0,0.06)] bg-sb-canvas space-y-4">
-                  <div className="flex items-center gap-3 border-b border-sb-hairline pb-4">
+                <div className="rounded-3xl border border-border-subtle bg-surface-1 p-8 shadow-md space-y-4">
+                  <div className="flex items-center gap-3 border-b border-border-subtle pb-4">
                     <span className="text-3xl" aria-hidden="true">❓</span>
                     <div>
-                      <h2 className="sb-heading-md" style={{ color: 'var(--sb-ink)' }}>Frequently Asked Questions</h2>
-                      <p className="sb-micro uppercase tracking-wider font-semibold mt-0.5 text-sb-ink-muted">
+                      <h2 className="text-lg font-bold text-white">Frequently Asked Questions</h2>
+                      <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mt-1">
                         Common Security & Product Queries
                       </p>
                     </div>
@@ -297,19 +297,19 @@ export default function SupportPage() {
                     {faqs.map((faq, idx) => {
                       const isExpanded = expandedFaq === idx
                       return (
-                        <div key={idx} className="rounded-[6px] border border-sb-hairline overflow-hidden">
+                        <div key={idx} className="rounded-2xl border border-border-subtle overflow-hidden">
                           <button
                             onClick={() => toggleFaq(idx)}
-                            className="w-full text-left px-4 py-4 flex items-center justify-between font-semibold transition-colors bg-sb-canvas hover:bg-sb-canvas-soft border-none cursor-pointer"
+                            className="w-full text-left px-4 py-4 flex items-center justify-between font-semibold transition-colors bg-surface-2 hover:bg-surface-2/85 border-none cursor-pointer"
                           >
-                            <span className="sb-caption font-semibold" style={{ color: 'var(--sb-ink)' }}>{faq.q}</span>
-                            <span className="text-lg" style={{ color: 'var(--sb-primary)' }}>
+                            <span className="text-sm font-semibold text-white">{faq.q}</span>
+                            <span className="text-lg text-emerald-400">
                               {isExpanded ? '−' : '＋'}
                             </span>
                           </button>
                           {isExpanded && (
-                            <div className="px-4 pb-4 pt-2 border-t border-sb-hairline bg-sb-canvas-soft">
-                              <p className="sb-caption leading-relaxed" style={{ color: 'var(--sb-ink-muted)' }}>{faq.a}</p>
+                            <div className="px-4 pb-4 pt-2 border-t border-border-subtle/50 bg-surface-2/40">
+                              <p className="text-xs text-zinc-400 leading-relaxed">{faq.a}</p>
                             </div>
                           )}
                         </div>
@@ -323,13 +323,13 @@ export default function SupportPage() {
             {/* Tab 3: Help & Contact Form */}
             {activeTab === 'contact' && (
               <div className="space-y-6 animate-scale-up" role="tabpanel" aria-label="Help and Contact">
-                <div className="sb-card-light shadow-[0_1px_3px_rgba(0,0,0,0.06)] bg-sb-canvas space-y-6">
-                  <div className="flex items-center justify-between border-b border-sb-hairline pb-4">
+                <div className="rounded-3xl border border-border-subtle bg-surface-1 p-8 shadow-md space-y-6">
+                  <div className="flex items-center justify-between border-b border-border-subtle pb-4">
                     <div className="flex items-center gap-3">
                       <span className="text-3xl" aria-hidden="true">✉️</span>
                       <div>
-                        <h2 className="sb-heading-md" style={{ color: 'var(--sb-ink)' }}>Submit Support Ticket</h2>
-                        <p className="sb-micro uppercase tracking-wider font-semibold mt-0.5 text-sb-ink-muted">
+                        <h2 className="text-lg font-bold text-white">Submit Support Ticket</h2>
+                        <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mt-1">
                           Sandbox Ticket simulator
                         </p>
                       </div>
@@ -337,7 +337,7 @@ export default function SupportPage() {
                     {tickets.length > 0 && (
                       <button
                         onClick={clearTickets}
-                        className="sb-caption text-red-500 hover:text-red-700 bg-transparent border-none cursor-pointer font-medium"
+                        className="text-xs text-red-400 hover:text-red-500 bg-transparent border-none cursor-pointer font-semibold"
                       >
                         Clear History
                       </button>
@@ -345,9 +345,9 @@ export default function SupportPage() {
                   </div>
 
                   {success && (
-                    <div className="rounded-[6px] p-4 bg-[rgba(62,207,142,0.08)] border border-[rgba(62,207,142,0.2)]">
-                      <p className="sb-caption font-semibold" style={{ color: '#16a34a' }}>👑 Ticket Logged Successfully!</p>
-                      <p className="sb-micro mt-1 text-sb-ink-muted">
+                    <div className="rounded-2xl p-4 bg-emerald-500/10 border border-emerald-500/20">
+                      <p className="text-xs font-bold text-emerald-400">👑 Ticket Logged Successfully!</p>
+                      <p className="text-[10px] mt-1 text-zinc-400">
                         This sandbox ticket has been written directly to your local workspace records.
                       </p>
                     </div>
@@ -356,57 +356,57 @@ export default function SupportPage() {
                   <form onSubmit={handleFormSubmit} className="space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
-                        <label className="sb-micro block mb-1 font-medium text-sb-ink-muted">Full Name</label>
+                        <label className="text-[10px] block mb-1.5 font-bold uppercase tracking-widest text-zinc-500">Full Name</label>
                         <input
                           type="text"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
-                          className="sb-text-input"
+                          className="w-full bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all"
                           placeholder="e.g. Piyush Khandelwal"
                         />
-                        {errors.name && <p className="sb-micro text-red-500 mt-1">{errors.name}</p>}
+                        {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name}</p>}
                       </div>
                       <div>
-                        <label className="sb-micro block mb-1 font-medium text-sb-ink-muted">Email Address</label>
+                        <label className="text-[10px] block mb-1.5 font-bold uppercase tracking-widest text-zinc-500">Email Address</label>
                         <input
                           type="email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          className="sb-text-input"
+                          className="w-full bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all"
                           placeholder="e.g. piyush@example.com"
                         />
-                        {errors.email && <p className="sb-micro text-red-500 mt-1">{errors.email}</p>}
+                        {errors.email && <p className="text-xs text-red-400 mt-1">{errors.email}</p>}
                       </div>
                     </div>
 
                     <div>
-                      <label className="sb-micro block mb-1 font-medium text-sb-ink-muted">Subject</label>
+                      <label className="text-[10px] block mb-1.5 font-bold uppercase tracking-widest text-zinc-500">Subject</label>
                       <input
                         type="text"
                         value={subject}
                         onChange={(e) => setSubject(e.target.value)}
-                        className="sb-text-input"
+                        className="w-full bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all"
                         placeholder="e.g. Gmail integration scan error"
                       />
-                      {errors.subject && <p className="sb-micro text-red-500 mt-1">{errors.subject}</p>}
+                      {errors.subject && <p className="text-xs text-red-400 mt-1">{errors.subject}</p>}
                     </div>
 
                     <div>
-                      <label className="sb-micro block mb-1 font-medium text-sb-ink-muted">Detailed Message</label>
+                      <label className="text-[10px] block mb-1.5 font-bold uppercase tracking-widest text-zinc-500">Detailed Message</label>
                       <textarea
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         rows={4}
-                        className="sb-text-input resize-none"
+                        className="w-full bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all resize-none"
                         placeholder="Tell us what went wrong. Include bank or credit card names..."
                       />
-                      {errors.message && <p className="sb-micro text-red-500 mt-1">{errors.message}</p>}
+                      {errors.message && <p className="text-xs text-red-400 mt-1">{errors.message}</p>}
                     </div>
 
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="sb-btn-primary w-full text-center"
+                      className="w-full justify-center py-2.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs tracking-wide transition-all active:scale-98 shadow-md cursor-pointer border-0"
                     >
                       {submitting ? 'Logging ticket…' : 'Submit Ticket'}
                     </button>
@@ -414,19 +414,19 @@ export default function SupportPage() {
 
                   {/* Local Ticket Log */}
                   {tickets.length > 0 && (
-                    <div className="pt-6 border-t border-sb-hairline space-y-4">
-                      <h3 className="sb-heading-md" style={{ color: 'var(--sb-ink)', fontSize: 16 }}>Your Ticket Log (Sandbox Local)</h3>
+                    <div className="pt-6 border-t border-border-subtle space-y-4">
+                      <h3 className="text-base font-bold text-white">Your Ticket Log (Sandbox Local)</h3>
                       <div className="space-y-3">
                         {tickets.map((t) => (
-                          <div key={t.id} className="rounded-[6px] p-4 bg-sb-canvas-soft border border-sb-hairline text-xs space-y-2">
+                          <div key={t.id} className="rounded-2xl p-4 bg-surface-2/40 border border-border-subtle/50 text-xs space-y-2">
                             <div className="flex justify-between items-center">
-                              <span className="font-bold text-sb-ink-secondary">{t.id} · {t.subject}</span>
-                              <span className="sb-micro px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span className="font-bold text-white">{t.id} · {t.subject}</span>
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wide">
                                 {t.status}
                               </span>
                             </div>
-                            <p className="text-sb-ink-muted leading-relaxed">{t.message}</p>
-                            <p className="sb-micro text-sb-ink-faint">
+                            <p className="text-zinc-400 leading-relaxed">{t.message}</p>
+                            <p className="text-[9px] text-zinc-500 font-semibold">
                               Logged on: {new Date(t.createdAt).toLocaleString()}
                             </p>
                           </div>
@@ -441,42 +441,42 @@ export default function SupportPage() {
             {/* Tab 4: Developer Details */}
             {activeTab === 'developer' && (
               <div className="space-y-6 animate-scale-up" role="tabpanel" aria-label="Developer Details">
-                <div className="sb-card-light shadow-[0_1px_3px_rgba(0,0,0,0.06)] bg-sb-canvas space-y-6">
-                  <div className="flex items-center gap-3 border-b border-sb-hairline pb-4">
+                <div className="rounded-3xl border border-border-subtle bg-surface-1 p-8 shadow-md space-y-6">
+                  <div className="flex items-center gap-3 border-b border-border-subtle pb-4">
                     <span className="text-3xl" aria-hidden="true">💻</span>
                     <div>
-                      <h2 className="sb-heading-md" style={{ color: 'var(--sb-ink)' }}>Developer Details & Audits</h2>
-                      <p className="sb-micro uppercase tracking-wider font-semibold mt-0.5 text-sb-ink-muted">
+                      <h2 className="text-lg font-bold text-white">Developer Details & Audits</h2>
+                      <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mt-1">
                         Build Integrity & Open Source Core
                       </p>
                     </div>
                   </div>
 
                   {/* Creator Card */}
-                  <div className="p-5 rounded-[12px] bg-[rgba(62,207,142,0.08)] border border-[rgba(62,207,142,0.2)] text-xs space-y-2">
-                    <p className="text-[#24b47e] font-bold uppercase tracking-wider">Creator & Lead Architect</p>
-                    <p className="text-sb-ink text-sm font-bold flex items-center gap-1.5">
-                      👤 Piyush Khandelwal <span className="text-xs font-normal text-sb-ink-muted">(Chartered Accountant & Developer)</span>
+                  <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-2">
+                    <p className="text-emerald-400 font-bold uppercase tracking-wider text-[10px]">Creator & Lead Architect</p>
+                    <p className="text-white text-sm font-bold flex items-center gap-1.5">
+                      👤 Piyush Khandelwal <span className="text-xs font-normal text-zinc-400">(Chartered Accountant & Developer)</span>
                     </p>
-                    <p className="text-sb-ink-secondary leading-relaxed">
+                    <p className="text-zinc-300 leading-relaxed">
                       Dhanrakshak was conceptualized, designed, and developed by <strong>Piyush Khandelwal</strong>, a Chartered Accountant. 
                       Built to combine professional financial domain expertise with a strict focus on local client-side processing, secure row-level isolated databases (Supabase), and seamless automated wealth guarding.
                     </p>
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="p-4 rounded-[6px] bg-sb-canvas-soft border border-sb-hairline text-xs space-y-2">
-                      <p className="text-sb-ink-muted font-bold uppercase tracking-wider">Release Version</p>
-                      <p className="text-sb-ink text-sm font-semibold">1.0.0 (Stable Production Build)</p>
-                      <p className="text-sb-ink-muted leading-normal">
+                    <div className="p-5 rounded-2xl bg-surface-2/40 border border-border-subtle/50 text-xs space-y-2">
+                      <p className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Release Version</p>
+                      <p className="text-white text-sm font-semibold">1.0.0 (Stable Production Build)</p>
+                      <p className="text-zinc-400 leading-normal">
                         Verified cryptographic release with local regular expressions modules active.
                       </p>
                     </div>
 
-                    <div className="p-4 rounded-[6px] bg-sb-canvas-soft border border-sb-hairline text-xs space-y-2">
-                      <p className="text-sb-ink-muted font-bold uppercase tracking-wider">Open Source License</p>
-                      <p className="text-sb-ink text-sm font-semibold">MIT License (Open-Source)</p>
-                      <p className="text-sb-ink-muted leading-normal">
+                    <div className="p-5 rounded-2xl bg-surface-2/40 border border-border-subtle/50 text-xs space-y-2">
+                      <p className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Open Source License</p>
+                      <p className="text-white text-sm font-semibold">MIT License (Open-Source)</p>
+                      <p className="text-zinc-400 leading-normal">
                         Dhanrakshak is fully auditable. Anyone can clone, test, or modify the source repository.
                       </p>
                     </div>
@@ -484,30 +484,30 @@ export default function SupportPage() {
 
                   {/* Architecture spec */}
                   <div className="space-y-3">
-                    <h3 className="text-sm font-bold" style={{ color: 'var(--sb-ink)' }}>System Architecture Specifications</h3>
-                    <div className="rounded-[6px] border border-sb-hairline bg-sb-canvas-soft overflow-hidden text-xs">
-                      <div className="grid grid-cols-3 border-b border-sb-hairline p-3 font-semibold text-sb-ink-secondary bg-sb-canvas-soft">
+                    <h3 className="text-sm font-bold text-white">System Architecture Specifications</h3>
+                    <div className="rounded-2xl border border-border-subtle/50 bg-surface-2/40 overflow-hidden text-xs">
+                      <div className="grid grid-cols-3 border-b border-border-subtle/50 p-3 font-semibold text-zinc-300 bg-surface-2/60">
                         <div>Layer</div>
                         <div>Technology</div>
                         <div>Deployment Mode</div>
                       </div>
-                      <div className="grid grid-cols-3 border-b border-sb-hairline p-3 text-sb-ink-muted">
-                        <div className="font-medium text-sb-ink">Frontend Client</div>
+                      <div className="grid grid-cols-3 border-b border-border-subtle/50 p-3 text-zinc-400">
+                        <div className="font-medium text-white">Frontend Client</div>
                         <div>React (Vite) + TypeScript</div>
                         <div>Client-Side SPA</div>
                       </div>
-                      <div className="grid grid-cols-3 border-b border-sb-hairline p-3 text-sb-ink-muted">
-                        <div className="font-medium text-sb-ink">Database & Security</div>
+                      <div className="grid grid-cols-3 border-b border-border-subtle/50 p-3 text-zinc-400">
+                        <div className="font-medium text-white">Database & Security</div>
                         <div>Supabase Engine</div>
                         <div>Row-Level Security (RLS)</div>
                       </div>
-                      <div className="grid grid-cols-3 border-b border-sb-hairline p-3 text-sb-ink-muted">
-                        <div className="font-medium text-sb-ink">Email Delegation</div>
+                      <div className="grid grid-cols-3 border-b border-border-subtle/50 p-3 text-zinc-400">
+                        <div className="font-medium text-white">Email Delegation</div>
                         <div>Google OAuth 2.0</div>
                         <div>Restricted gmail.readonly API</div>
                       </div>
-                      <div className="grid grid-cols-3 p-3 text-sb-ink-muted">
-                        <div className="font-medium text-sb-ink">Parsing Engine</div>
+                      <div className="grid grid-cols-3 p-3 text-zinc-400">
+                        <div className="font-medium text-white">Parsing Engine</div>
                         <div>RegExp Regex Rules</div>
                         <div>100% Browser Local Parsing</div>
                       </div>
@@ -515,41 +515,41 @@ export default function SupportPage() {
                   </div>
 
                   {/* Repos and info */}
-                  <div className="space-y-4 pt-2 border-t border-sb-hairline">
-                    <h3 className="text-sm font-bold" style={{ color: 'var(--sb-ink)' }}>Auditable Repositories</h3>
+                  <div className="space-y-4 pt-4 border-t border-border-subtle">
+                    <h3 className="text-sm font-bold text-white">Auditable Repositories</h3>
                     <div className="flex flex-col sm:flex-row gap-3">
                       <a
                         href="https://github.com/dhanrakshak/app"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 p-3 rounded-[6px] border border-sb-hairline hover:border-[#24b47e]/40 bg-sb-canvas-soft hover:bg-sb-canvas flex items-center justify-between text-xs transition-all group no-underline"
+                        className="flex-1 p-4 rounded-2xl border border-border-subtle/50 hover:border-emerald-500/40 bg-surface-2/40 hover:bg-surface-2 flex items-center justify-between text-xs transition-all group no-underline"
                       >
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                           <span className="text-lg">📁</span>
                           <div>
-                            <p className="font-bold text-sb-ink group-hover:text-[#24b47e] transition-colors">
+                            <p className="font-bold text-white group-hover:text-emerald-400 transition-colors">
                               dhanrakshak/app
                             </p>
-                            <p className="text-[10px] text-sb-ink-muted">Core application repo</p>
+                            <p className="text-[10px] text-zinc-400 mt-0.5">Core application repo</p>
                           </div>
                         </div>
-                        <span className="text-sb-ink-muted group-hover:text-sb-ink-faint">↗</span>
+                        <span className="text-zinc-500 group-hover:text-zinc-300 transition-colors">↗</span>
                       </a>
 
                       <a
                         href="mailto:support@dhanrakshak.org"
-                        className="flex-1 p-3 rounded-[6px] border border-sb-hairline hover:border-[#24b47e]/40 bg-sb-canvas-soft hover:bg-sb-canvas flex items-center justify-between text-xs transition-all group no-underline"
+                        className="flex-1 p-4 rounded-2xl border border-border-subtle/50 hover:border-emerald-500/40 bg-surface-2/40 hover:bg-surface-2 flex items-center justify-between text-xs transition-all group no-underline"
                       >
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                           <span className="text-lg">📧</span>
                           <div>
-                            <p className="font-bold text-sb-ink group-hover:text-[#24b47e] transition-colors">
+                            <p className="font-bold text-white group-hover:text-emerald-400 transition-colors">
                               support@dhanrakshak.org
                             </p>
-                            <p className="text-[10px] text-sb-ink-muted">Official email contact</p>
+                            <p className="text-[10px] text-zinc-400 mt-0.5">Official email contact</p>
                           </div>
                         </div>
-                        <span className="text-sb-ink-muted group-hover:text-sb-ink-faint">↗</span>
+                        <span className="text-zinc-500 group-hover:text-zinc-300 transition-colors">↗</span>
                       </a>
                     </div>
                   </div>

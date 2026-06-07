@@ -753,6 +753,25 @@ export async function scanRealGmailInbox() {
       .eq('id', user.id)
       .single()
 
+    // Fetch user's registered cards/accounts and past approved transactions to map last4 digits to issuers dynamically
+    const [{ data: registeredCards }, { data: pastCards }] = await Promise.all([
+      supabase.from('cards').select('last4, issuer').eq('user_id', user.id),
+      supabase.from('transactions').select('card_last4, card_issuer').eq('user_id', user.id).eq('approval_status', 'approved').not('card_last4', 'is', null).not('card_issuer', 'is', null)
+    ])
+
+    const cardMap: Record<string, string> = {}
+    if (registeredCards) {
+      registeredCards.forEach(c => {
+        if (c.last4 && c.issuer) cardMap[c.last4] = c.issuer
+      })
+    }
+    if (pastCards) {
+      pastCards.forEach(c => {
+        if (c.card_last4 && c.card_issuer) cardMap[c.card_last4] = c.card_issuer
+      })
+    }
+
+
     const installDate = profile?.created_at ? new Date(profile.created_at) : new Date()
     // Both owner and regular users get a 7-day lookback window
     const startLimitTime = Math.max(
@@ -1014,6 +1033,14 @@ export async function scanRealGmailInbox() {
         }
         if (amount < 1) continue
 
+        // ── PAYMENT MODE & CARD METADATA ──
+        const paymentMode = detectPaymentMode(emailContentForParsing)
+        const cardLast4 = extractCardLast4(emailContentForParsing)
+        let cardIssuer = extractBankName(emailContentForParsing) || null
+        if (!cardIssuer && cardLast4 && cardMap[cardLast4]) {
+          cardIssuer = cardMap[cardLast4]
+        }
+
         // ── MERCHANT EXTRACTION ──
         const knownMerchant = extractMerchantFromSnippet(fullText)
         const dynamicMerchant = extractDynamicMerchant(emailContentForParsing)
@@ -1051,20 +1078,14 @@ export async function scanRealGmailInbox() {
 
         const isGenericMerchant = !merchant || merchant.length < 2 || GENERIC_MERCHANT_PATTERNS.some(p => p.test(merchant))
         if (isGenericMerchant) {
-          const bankName = extractBankName(emailContentForParsing)
+          const bankName = cardIssuer || extractBankName(emailContentForParsing)
           if (bankName) {
-            merchant = txType === 'credit' ? ((/salary/i.test(emailContentForParsing)) ? 'Salary Credit' : `${bankName} Credit`) : `${bankName} Payment`
+            merchant = bankName.toLowerCase().includes('bank') ? bankName : `${bankName} Bank`
           } else {
             merchant = txType === 'credit' ? 'Incoming Credit' : 'Bank Transaction'
           }
         }
-
         if (!description) description = generateDescription(merchant, emailContentForParsing, txType)
-
-        // ── PAYMENT MODE & CARD METADATA ──
-        const paymentMode = detectPaymentMode(emailContentForParsing)
-        const cardLast4 = extractCardLast4(emailContentForParsing)
-        const cardIssuer = extractBankName(emailContentForParsing) || null
 
         // ── REFERENCE ID ──
         const refMatch = emailContentForParsing.match(

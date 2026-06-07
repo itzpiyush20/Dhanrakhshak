@@ -3,8 +3,8 @@
 // Handles both Login and Signup processes without page redirects
 // ============================================
 
-import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, type FormEvent } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
 import { Button, Input } from '@/components/ui'
@@ -13,6 +13,7 @@ export default function AuthModal() {
   const {
     authModalOpen,
     authModalRedirect,
+    authModalTab,
     closeAuthModal,
     signIn,
     signUp,
@@ -22,12 +23,19 @@ export default function AuthModal() {
   const { showToast } = useToast()
   const navigate = useNavigate()
 
-  const [isSignUp, setIsSignUp] = useState(false)
+  const [isSignUp, setIsSignUp] = useState(authModalTab === 'signup')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // Keep switcher tab in sync when the modal is opened
+  useEffect(() => {
+    if (authModalOpen) {
+      setIsSignUp(authModalTab === 'signup')
+    }
+  }, [authModalOpen, authModalTab])
 
   if (!authModalOpen) return null
 
@@ -176,6 +184,18 @@ export default function AuthModal() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+
+          {!isSignUp && (
+            <div className="flex justify-end !mt-1">
+              <Link
+                to="/forgot-password"
+                onClick={closeAuthModal}
+                className="text-[11px] text-brand-400 hover:text-brand-300 font-medium transition-colors"
+              >
+                Forgot password?
+              </Link>
+            </div>
+          )}
 
           <Button type="submit" block loading={loading} className="w-full py-2.5 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-static-white transition-all">
             {isSignUp ? 'Create Account' : 'Sign In'}

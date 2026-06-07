@@ -49,7 +49,7 @@ export default function PricingPage() {
     })
 
   const handleRazorpayCheckout = async () => {
-    if (!user) { showToast('Please log in to upgrade to Premium.', 'warning'); navigate('/login?redirect=/pricing'); return }
+    if (!user) { showToast('Please log in to upgrade to Premium.', 'warning'); openAuthModal('/pricing'); return }
     setProcessing(true)
     const scriptLoaded = await loadRazorpayScript()
     if (!scriptLoaded) { showToast('Failed to load Razorpay SDK. Check your internet.', 'error'); setProcessing(false); return }
@@ -145,16 +145,15 @@ export default function PricingPage() {
   // ── Render ────────────────────────────────────────────────────
   return (
     <AppLayout>
-      <div className="min-h-screen bg-sb-canvas-soft" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
+      <div className="space-y-6 animate-fade-in" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
 
-        {/* ── HEADER BAND WITH GRID PATTERN & GLOWS ──────────────── */}
-        <div className="relative py-24 text-center border-b border-sb-hairline bg-sb-canvas overflow-hidden">
-          {/* Grid background & gradient glow */}
-          <div className="absolute inset-0 bg-grid-pattern opacity-75 pointer-events-none" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] rounded-full bg-gradient-to-br from-emerald-500/10 to-teal-500/5 blur-[120px] pointer-events-none" />
+        {/* ── HEADER CARD WITH GRADIENT GLOWS ──────────────── */}
+        <div className="relative rounded-3xl overflow-hidden border border-border-subtle bg-surface-1 p-8 sm:p-10 shadow-md">
+          {/* Gradient glow */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full bg-emerald-500/10 blur-[80px] pointer-events-none" />
           
-          <div className="relative mx-auto max-w-[800px] px-6 space-y-6">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/5 border border-emerald-500/20 text-emerald-600 text-xs font-semibold tracking-wide shadow-sm animate-fade-in">
+          <div className="relative z-10 flex flex-col items-center text-center space-y-4 max-w-2xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold tracking-wide">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
@@ -162,79 +161,79 @@ export default function PricingPage() {
               Verify Dhanrakshak Financial Security Plans
             </div>
             
-            <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-sb-ink leading-tight select-none">
-              Simple, <span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">honest pricing</span>
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white select-none">
+              Simple, <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">honest pricing</span>
             </h1>
-            <p className="sb-body-md text-sb-ink-muted max-w-[500px] mx-auto leading-relaxed">
+            <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
               Unlock automated transaction logs, AI budget mapping, and offline security. No hidden charges, cancel with one click.
             </p>
           </div>
         </div>
 
         {/* ── STATUS BANNERS ──────────────────────────────────── */}
-        <div className="mx-auto max-w-[1100px] px-6 pt-10 space-y-3 animate-fade-in">
+        <div className="space-y-3 animate-fade-in">
           {isTrial && daysLeft > 0 && (
-            <div className="rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-sb-canvas border border-sb-hairline shadow-sm">
+            <div className="rounded-3xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-surface-1 border border-border-subtle shadow-md">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">⏳</span>
                 <div>
-                  <p className="sb-caption font-bold text-sb-ink">Trial Active — {daysLeft} day{daysLeft !== 1 ? 's' : ''} remaining</p>
-                  <p className="text-xs text-sb-ink-muted font-medium">Full access to premium features active. Upgrade to prevent any interruption to your automatic email tracking.</p>
+                  <p className="text-sm font-bold text-white">Trial Active — {daysLeft} day{daysLeft !== 1 ? 's' : ''} remaining</p>
+                  <p className="text-xs text-zinc-400 font-medium mt-0.5">Full access to premium features active. Upgrade to prevent any interruption to your automatic email tracking.</p>
                 </div>
               </div>
-              <span className="sb-micro px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-amber-50 text-amber-800 border border-amber-200/50 font-semibold shadow-inner">Trial Access</span>
+              <span className="text-[10px] px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold uppercase tracking-wider">Trial Access</span>
             </div>
           )}
 
           {(!profile?.subscription_status || (isTrial && daysLeft <= 0)) && (
-            <div className="rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-sb-canvas border border-sb-hairline shadow-sm">
+            <div className="rounded-3xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-surface-1 border border-border-subtle shadow-md">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">🔒</span>
                 <div>
-                  <p className="sb-caption font-bold text-sb-ink">Trial Expired — Dashboard Access Restricted</p>
-                  <p className="text-xs text-sb-ink-muted font-medium">Upgrade to restore local email parsing, budgets, and priority tracking modules.</p>
+                  <p className="text-sm font-bold text-white">Trial Expired — Dashboard Access Restricted</p>
+                  <p className="text-xs text-zinc-400 font-medium mt-0.5">Upgrade to restore local email parsing, budgets, and priority tracking modules.</p>
                 </div>
               </div>
-              <span className="sb-micro px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-red-50 text-red-800 border border-red-200/50 font-semibold shadow-inner">Access Locked</span>
+              <span className="text-[10px] px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-red-500/10 text-red-400 border border-red-500/20 font-bold uppercase tracking-wider">Access Locked</span>
             </div>
           )}
 
           {isActive && (
-            <div className="rounded-2xl p-4 flex items-center gap-3 bg-sb-canvas border border-sb-hairline shadow-sm">
+            <div className="rounded-3xl p-5 flex items-center gap-3 bg-surface-1 border border-border-subtle shadow-md">
               <span className="text-2xl">✅</span>
-              <p className="sb-caption font-bold text-emerald-600">You are on Premium — all automation and sync systems are fully active.</p>
+              <p className="text-sm font-bold text-emerald-400">You are on Premium — all automation and sync systems are fully active.</p>
             </div>
           )}
         </div>
 
         {/* ── PRICING CARDS ───────────────────────────────────── */}
-        <div className="mx-auto max-w-[1100px] px-6 py-12">
-          <div className="grid md:grid-cols-3 gap-8 items-stretch">
+        <div className="py-6 animate-fade-in">
+          <div className="grid md:grid-cols-3 gap-6 items-stretch">
 
             {/* ── Standard: Monthly ─────────────────────────────── */}
             <div
-              className="sb-card-light rounded-2xl shadow-sm flex flex-col cursor-pointer transition-all duration-300 hover:shadow-md bg-sb-canvas relative group hover:-translate-y-1"
-              style={{ borderColor: selectedPlan === 'monthly' ? 'var(--sb-primary)' : 'var(--sb-hairline)', borderWidth: selectedPlan === 'monthly' ? 2 : 1 }}
+              className="rounded-3xl p-8 shadow-md flex flex-col cursor-pointer transition-all duration-300 hover:shadow-lg bg-surface-1 border relative group hover:-translate-y-1"
+              style={{ borderColor: selectedPlan === 'monthly' ? 'var(--sb-primary)' : 'var(--border-subtle)', borderWidth: selectedPlan === 'monthly' ? 2 : 1 }}
               onClick={() => setSelectedPlan('monthly')}
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-black text-sb-ink">Starter Monthly</h2>
+                <h2 className="text-lg font-bold text-white">Starter Monthly</h2>
                 <input type="radio" readOnly checked={selectedPlan === 'monthly'} className="h-4 w-4 cursor-pointer accent-[#3ecf8e]" />
               </div>
 
               <div className="mb-6">
                 <div className="flex items-baseline gap-1">
-                  <span className="font-black text-4xl text-sb-ink tracking-tight">₹31</span>
-                  <span className="sb-caption text-sb-ink-muted">/month</span>
+                  <span className="font-extrabold text-4xl text-white tracking-tight">₹31</span>
+                  <span className="text-xs text-zinc-400">/month</span>
                 </div>
-                <p className="text-xs text-sb-ink-muted mt-1 font-medium">Billed every month · cancel anytime</p>
+                <p className="text-xs text-zinc-400 mt-1 font-medium">Billed every month · cancel anytime</p>
               </div>
 
-              <ul className="space-y-3.5 flex-1 border-t border-sb-hairline-cool pt-5">
+              <ul className="space-y-3.5 flex-1 border-t border-border-subtle pt-5">
                 {FEATURES.map((f) => (
                   <li key={f} className="flex items-start gap-3">
-                    <span className="text-emerald-500 shrink-0 text-sm font-black">✓</span>
-                    <span className="text-xs text-sb-ink-muted font-medium">{f}</span>
+                    <span className="text-emerald-400 shrink-0 text-sm font-bold">✓</span>
+                    <span className="text-xs text-zinc-400 font-medium">{f}</span>
                   </li>
                 ))}
               </ul>
@@ -242,45 +241,45 @@ export default function PricingPage() {
               <div className="mt-8">
                 <button
                   onClick={() => handleSelectPlan('monthly')}
-                  className="sb-btn-secondary w-full justify-center rounded-xl py-3 font-semibold text-xs border border-border-default/60 hover:bg-zinc-100 transition-all active:scale-98 shadow-sm cursor-pointer"
+                  className="w-full justify-center rounded-xl py-3 font-semibold text-xs border border-zinc-700 bg-surface-2 hover:bg-zinc-800 text-zinc-300 transition-all active:scale-98 shadow-sm cursor-pointer"
                 >
                   Choose Monthly
                 </button>
               </div>
             </div>
 
-            {/* ── Featured: Annual (Inverted Canvas Night dark card) ── */}
+            {/* ── Featured: Annual ── */}
             <div
-              className="sb-card-dark rounded-2xl shadow-xl flex flex-col cursor-pointer relative overflow-hidden transition-all duration-300 hover:shadow-2xl bg-sb-canvas-night hover:-translate-y-1"
-              style={{ borderColor: selectedPlan === 'annual' ? 'var(--sb-primary)' : 'rgba(255,255,255,0.12)', borderWidth: selectedPlan === 'annual' ? 2 : 1 }}
+              className="rounded-3xl p-8 shadow-xl flex flex-col cursor-pointer relative overflow-hidden transition-all duration-300 hover:shadow-2xl bg-surface-1 border relative group hover:-translate-y-1"
+              style={{ borderColor: selectedPlan === 'annual' ? 'var(--sb-primary)' : 'var(--border-subtle)', borderWidth: selectedPlan === 'annual' ? 2 : 1 }}
               onClick={() => setSelectedPlan('annual')}
             >
               {/* Best value badge */}
-              <div className="absolute top-0 right-0 text-[9px] font-black uppercase tracking-widest px-4 py-2 rounded-bl-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-static-white shadow-md">
+              <div className="absolute top-0 right-0 text-[9px] font-extrabold uppercase tracking-widest px-4 py-2 rounded-bl-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md">
                 Best Value · Save 15%
               </div>
 
               <div className="flex items-center justify-between mb-6 mt-2">
-                <h2 className="text-lg font-black text-static-white">Investor Annual</h2>
+                <h2 className="text-lg font-bold text-white">Investor Annual</h2>
                 <input type="radio" readOnly checked={selectedPlan === 'annual'} className="h-4 w-4 cursor-pointer accent-[#3ecf8e]" />
               </div>
 
               <div className="mb-6">
                 <div className="flex items-baseline gap-1">
-                  <span className="font-black text-4xl text-static-white tracking-tight">₹365</span>
-                  <span className="sb-caption text-static-zinc-400">/year</span>
+                  <span className="font-extrabold text-4xl text-white tracking-tight">₹365</span>
+                  <span className="text-xs text-zinc-400">/year</span>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className="sb-micro px-2 py-0.5 rounded-full bg-[rgba(62,207,142,0.15)] text-sb-primary border border-[rgba(62,207,142,0.3)] font-bold">₹1 per day</span>
-                  <span className="text-xs text-static-zinc-400 font-medium">Billed once per year</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">₹1 per day</span>
+                  <span className="text-xs text-zinc-400 font-medium">Billed once per year</span>
                 </div>
               </div>
 
-              <ul className="space-y-3.5 flex-1 border-t border-static-zinc-800 pt-5">
+              <ul className="space-y-3.5 flex-1 border-t border-border-subtle pt-5">
                 {FEATURES.map((f) => (
                   <li key={f} className="flex items-start gap-3">
-                    <span className="text-emerald-400 shrink-0 text-sm font-black">✓</span>
-                    <span className="text-xs text-static-zinc-300 font-medium">{f}</span>
+                    <span className="text-emerald-400 shrink-0 text-sm font-bold">✓</span>
+                    <span className="text-xs text-zinc-300 font-medium">{f}</span>
                   </li>
                 ))}
               </ul>
@@ -288,36 +287,36 @@ export default function PricingPage() {
               <div className="mt-8 space-y-3">
                 <button
                   onClick={() => handleSelectPlan('annual')}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-static-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer transition-all active:scale-98 border border-emerald-400/20"
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer transition-all active:scale-98 border border-emerald-400/20"
                 >
                   Get Investor Annual
                 </button>
-                <p className="text-[10px] text-center text-static-zinc-500 font-medium">Secured via Razorpay · 256-bit SSL</p>
+                <p className="text-[10px] text-center text-zinc-500 font-medium">Secured via Razorpay · 256-bit SSL</p>
               </div>
             </div>
 
             {/* ── Promo / Coupon ────────────────────────────────── */}
             <div
-              className="sb-card-light rounded-2xl shadow-sm flex flex-col bg-sb-canvas relative group hover:-translate-y-1"
-              style={{ borderColor: 'var(--sb-hairline)', borderWidth: 1 }}
+              className="rounded-3xl p-8 shadow-md flex flex-col bg-surface-1 border relative group hover:-translate-y-1"
+              style={{ borderColor: 'var(--border-subtle)', borderWidth: 1 }}
             >
               <div className="mb-6">
-                <span className="sb-pill-tag-soft">Special Access</span>
-                <h2 className="text-lg font-black text-sb-ink mt-4">Coupon Code</h2>
+                <span className="inline-flex items-center bg-surface-2 border border-border-subtle px-2.5 py-0.5 rounded-full text-[10px] font-semibold text-zinc-400">Special Access</span>
+                <h2 className="text-lg font-bold text-white mt-4">Coupon Code</h2>
               </div>
 
               <div className="mb-6">
                 <div className="flex items-baseline gap-1">
-                  <span className="font-black text-4xl text-sb-ink tracking-tight">Free</span>
+                  <span className="font-extrabold text-4xl text-white tracking-tight">Free</span>
                 </div>
-                <p className="text-xs text-sb-ink-muted mt-1 font-medium">Lifetime access with a valid coupon</p>
+                <p className="text-xs text-zinc-400 mt-1 font-medium">Lifetime access with a valid coupon</p>
               </div>
 
-              <ul className="space-y-3.5 flex-1 border-t border-sb-hairline-cool pt-5">
+              <ul className="space-y-3.5 flex-1 border-t border-border-subtle pt-5">
                 {['All Premium features unlocked', 'Lifetime access status', 'No payment card required', 'Instant dashboard activation'].map((f) => (
                   <li key={f} className="flex items-start gap-3">
-                    <span className="text-emerald-500 shrink-0 text-sm font-black">✓</span>
-                    <span className="text-xs text-sb-ink-muted font-medium">{f}</span>
+                    <span className="text-emerald-400 shrink-0 text-sm font-bold">✓</span>
+                    <span className="text-xs text-zinc-400 font-medium">{f}</span>
                   </li>
                 ))}
               </ul>
@@ -325,7 +324,7 @@ export default function PricingPage() {
               <div className="mt-8">
                 <button
                   onClick={handleSelectPromo}
-                  className="sb-btn-secondary w-full justify-center rounded-xl py-3 font-semibold text-xs border border-border-default/60 hover:bg-zinc-100 transition-all active:scale-98 shadow-sm cursor-pointer"
+                  className="w-full justify-center rounded-xl py-3 font-semibold text-xs border border-zinc-700 bg-surface-2 hover:bg-zinc-800 text-zinc-300 transition-all active:scale-98 shadow-sm cursor-pointer"
                 >
                   Enter Coupon Code
                 </button>
@@ -336,50 +335,49 @@ export default function PricingPage() {
         </div>
 
         {/* ── CHECKOUT SECTION ────────────────────────────────── */}
-        <div id="checkout-section" className="mx-auto max-w-[680px] px-6 pb-12">
+        <div id="checkout-section" className="max-w-2xl mx-auto pb-12 w-full animate-fade-in">
           {!user ? (
-            <div className="sb-card-light rounded-2xl shadow-md bg-sb-canvas border border-sb-hairline p-8 text-center space-y-6 animate-fade-in">
+            <div className="rounded-3xl shadow-md bg-surface-1 border border-border-subtle p-8 text-center space-y-6">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-3xl shadow-sm">
                 🔒
               </div>
               <div className="space-y-2">
-                <h3 className="text-xl font-extrabold text-sb-ink">Sign in to complete checkout</h3>
-                <p className="text-xs text-sb-ink-muted leading-relaxed font-medium max-w-sm mx-auto">
+                <h3 className="text-xl font-bold text-white">Sign in to complete checkout</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed font-medium max-w-sm mx-auto">
                   To secure your billing and activate automated spends tracking, please log in or create an account first.
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <button
-                  onClick={() => openAuthModal('/pricing')}
-                  className="sb-btn-primary w-full sm:w-auto rounded-xl py-3 px-6 text-xs font-bold transition-all active:scale-98 border-0 cursor-pointer"
+                  onClick={() => openAuthModal('/pricing', 'login')}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer border border-emerald-400/20 transition-all active:scale-98"
                 >
-                  Sign in
+                  Sign In
                 </button>
                 <button
-                  onClick={() => openAuthModal('/pricing')}
-                  className="sb-btn-secondary w-full sm:w-auto rounded-xl py-3 px-6 text-xs font-bold transition-all active:scale-98 border border-border-default/60 cursor-pointer"
+                  onClick={() => openAuthModal('/pricing', 'signup')}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl border border-zinc-700 bg-surface-2 hover:bg-zinc-800 text-zinc-300 font-bold text-xs tracking-wide transition-all active:scale-98 shadow-sm cursor-pointer"
                 >
-                  Create account
+                  Create Account
                 </button>
               </div>
-              <p className="text-[10px] text-sb-ink-muted font-medium">
+              <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">
                 Standard stepwise checkout · 100% Secure & encrypted
               </p>
             </div>
           ) : (
-            <div className="sb-card-light rounded-2xl shadow-md bg-sb-canvas border border-sb-hairline" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="rounded-3xl shadow-md bg-surface-1 border border-border-subtle overflow-hidden">
 
               {/* Tab switcher */}
-              <div className="flex bg-sb-canvas-soft" style={{ borderBottom: '1px solid var(--sb-hairline)' }}>
+              <div className="flex bg-surface-2/40 border-b border-border-subtle">
                 {([['razorpay', '💳 Pay Securely'], ['promo', '🎟️ Promo Code']] as const).map(([tab, label]) => (
                   <button
                     key={tab}
                     onClick={() => setPaymentMethod(tab)}
-                    className="flex-1 py-4 text-xs cursor-pointer transition-colors border-none bg-transparent"
+                    className="flex-1 py-4 text-xs cursor-pointer transition-colors border-none bg-transparent font-bold"
                     style={{
-                      color: paymentMethod === tab ? 'var(--sb-primary)' : 'var(--sb-ink-muted)',
+                      color: paymentMethod === tab ? 'var(--sb-primary)' : 'var(--text-zinc-500)',
                       borderBottom: paymentMethod === tab ? '2px solid var(--sb-primary)' : '2px solid transparent',
-                      fontWeight: paymentMethod === tab ? 700 : 500,
                     }}
                   >
                     {label}
@@ -393,15 +391,15 @@ export default function PricingPage() {
                 {paymentMethod === 'razorpay' && (
                   <div className="space-y-6 animate-fade-in">
                     {/* Order summary card */}
-                    <div className="rounded-xl p-5 flex justify-between items-start bg-sb-canvas-soft border border-sb-hairline">
+                    <div className="rounded-2xl p-5 flex justify-between items-start bg-surface-2/40 border border-border-subtle/50">
                       <div>
-                        <p className="text-[10px] text-sb-ink-muted font-bold uppercase tracking-widest">Order Summary</p>
-                        <p className="sb-heading-md mt-2 font-extrabold text-sb-ink">{planName} Plan</p>
-                        <p className="text-xs text-sb-ink-muted font-medium mt-0.5">{planSub}</p>
+                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Order Summary</p>
+                        <p className="text-lg mt-2 font-extrabold text-white">{planName} Plan</p>
+                        <p className="text-xs text-zinc-400 font-medium mt-0.5">{planSub}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-black text-2xl text-sb-ink tracking-tight">₹{planPrice}</p>
-                        <p className="text-[10px] text-sb-ink-muted font-bold uppercase">incl. GST</p>
+                        <p className="font-extrabold text-2xl text-white tracking-tight">₹{planPrice}</p>
+                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">incl. GST</p>
                       </div>
                     </div>
 
@@ -411,11 +409,10 @@ export default function PricingPage() {
                         <button
                           key={plan}
                           onClick={() => setSelectedPlan(plan)}
-                          className="flex-1 py-3 rounded-xl text-xs cursor-pointer transition-all bg-transparent"
+                          className="flex-1 py-3 rounded-xl text-xs cursor-pointer transition-all bg-transparent border font-bold"
                           style={{
-                            color: selectedPlan === plan ? 'var(--sb-primary)' : 'var(--sb-ink-muted)',
-                            border: selectedPlan === plan ? '1px solid var(--sb-primary)' : '1px solid var(--sb-hairline)',
-                            fontWeight: selectedPlan === plan ? 700 : 500,
+                            color: selectedPlan === plan ? 'var(--sb-primary)' : 'var(--text-zinc-400)',
+                            borderColor: selectedPlan === plan ? 'var(--sb-primary)' : 'var(--border-subtle)',
                           }}
                         >
                           {plan === 'annual' ? 'Annual — ₹365/yr' : 'Monthly — ₹31/mo'}
@@ -424,22 +421,22 @@ export default function PricingPage() {
                     </div>
 
                     {/* Trust bar */}
-                    <div className="rounded-xl p-3 flex flex-wrap items-center justify-center gap-3 bg-sb-canvas-soft border border-sb-hairline">
+                    <div className="rounded-2xl p-3 flex flex-wrap items-center justify-center gap-2 bg-surface-2/40 border border-border-subtle/50">
                       {['UPI', 'Debit/Credit Cards', 'NetBanking', 'Google Pay', 'PhonePe'].map((m) => (
-                        <span key={m} className="text-[10px] px-3 py-1 rounded-full bg-sb-canvas border border-sb-hairline text-sb-ink-muted font-bold uppercase tracking-wider">{m}</span>
+                        <span key={m} className="text-[10px] px-3 py-1 rounded-full bg-surface-1 border border-border-subtle text-zinc-400 font-bold uppercase tracking-wider">{m}</span>
                       ))}
                     </div>
 
                     <button
                       onClick={handleRazorpayCheckout}
                       disabled={processing}
-                      className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-static-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer transition-all active:scale-98 border border-emerald-400/20"
+                      className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer transition-all active:scale-98 border border-emerald-400/20"
                       style={{ opacity: processing ? 0.6 : 1 }}
                     >
                       {processing ? 'Opening secure checkout…' : `Pay ₹${planPrice} & Activate Premium`}
                     </button>
 
-                    <p className="text-[10px] text-center text-sb-ink-muted font-medium">
+                    <p className="text-[10px] text-center text-zinc-500 font-semibold uppercase tracking-wider">
                       🔒 Secured with bank-grade 256-bit SSL encryption · Powered by Razorpay
                     </p>
                   </div>
@@ -448,16 +445,16 @@ export default function PricingPage() {
                 {/* ── Promo flow ────────────────────────────────── */}
                 {paymentMethod === 'promo' && (
                   <div className="space-y-6 animate-fade-in">
-                    <div className="rounded-xl p-4 bg-emerald-500/5 border border-emerald-500/25">
-                      <p className="text-xs text-sb-ink-muted leading-relaxed font-medium">
-                        🎟️ <strong className="text-sb-ink font-bold">Have a promo code?</strong> Enter your exclusive code below to unlock lifetime access to all tracking, backup, and dashboard automation tools instantly.
+                    <div className="rounded-2xl p-4 bg-emerald-500/5 border border-emerald-500/25">
+                      <p className="text-xs text-zinc-400 leading-relaxed font-medium">
+                        🎟️ <strong className="text-white">Have a promo code?</strong> Enter your exclusive code below to unlock lifetime access to all tracking, backup, and dashboard automation tools instantly.
                       </p>
                     </div>
                     <div className="space-y-4">
-                      <div>
-                        <label className="text-[10px] block mb-2 font-bold uppercase tracking-widest text-sb-ink-muted">Promo Code</label>
+                      <div className="flex flex-col gap-2">
+                        <label className="text-[10px] block font-bold uppercase tracking-widest text-zinc-500">Promo Code</label>
                         <input
-                          className="sb-text-input rounded-xl border border-border-default bg-sb-canvas-soft text-sb-ink px-4 py-3 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                          className="w-full bg-surface-2 border border-border-subtle/50 text-zinc-200 text-sm rounded-xl px-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all uppercase font-semibold tracking-wider"
                           type="text"
                           placeholder="e.g. DHANVIP"
                           value={promoCode}
@@ -468,7 +465,7 @@ export default function PricingPage() {
                       <button
                         onClick={handlePromoSimulator}
                         disabled={processing || !promoCode.trim()}
-                        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-static-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer transition-all active:scale-98 border border-emerald-400/20"
+                        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer transition-all active:scale-98 border border-emerald-400/20"
                         style={{ opacity: processing || !promoCode.trim() ? 0.5 : 1 }}
                       >
                         {processing ? 'Applying promo coupon…' : 'Redeem Code & Activate'}
@@ -484,48 +481,48 @@ export default function PricingPage() {
           {/* Refund note */}
           <p className="text-xs text-center mt-6 text-zinc-500 font-medium">
             Have questions?{' '}
-            <Link to="/support" className="text-sb-primary no-underline hover:underline font-bold">Contact support</Link> · All plans include a 7-day hassle-free refund policy.
+            <Link to="/support" className="text-emerald-400 no-underline hover:underline font-bold">Contact support</Link> · All plans include a 7-day hassle-free refund policy.
           </p>
         </div>
 
         {/* ── BRAND PROMISE SECTION (THE DHANRAKSHAK STANDARD) ───── */}
-        <div className="border-t border-sb-hairline bg-sb-canvas py-24">
-          <div className="mx-auto max-w-[1100px] px-6">
-            <div className="text-center max-w-xl mx-auto mb-16 space-y-4">
-              <span className="sb-pill-tag-soft">The Dhanrakshak Standard</span>
-              <h2 className="text-3xl font-extrabold text-sb-ink tracking-tight">Built on Privacy & Local Isolation</h2>
-              <p className="text-xs text-sb-ink-muted leading-relaxed font-medium">
+        <div className="border-t border-border-subtle py-16 animate-fade-in">
+          <div className="mx-auto max-w-7xl">
+            <div className="text-center max-w-xl mx-auto mb-12 space-y-4">
+              <span className="inline-flex items-center bg-surface-1 border border-border-subtle px-3 py-1 rounded-full text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">The Dhanrakshak Standard</span>
+              <h2 className="text-3xl font-extrabold text-white tracking-tight">Built on Privacy & Local Isolation</h2>
+              <p className="text-xs text-zinc-400 leading-relaxed font-medium">
                 We believe your banking transcripts are private. Dhanrakshak is designed from the ground up to prevent data brokerage.
               </p>
             </div>
             
-            <div className="grid md:grid-cols-3 gap-8">
-              <div className="sb-card-light bg-sb-canvas-soft border border-sb-hairline rounded-2xl p-6 space-y-4 shadow-sm hover:shadow-md transition-shadow">
-                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-600 shadow-sm">
+            <div className="grid md:grid-cols-3 gap-6">
+              <div className="rounded-3xl bg-surface-1 border border-border-subtle p-6 space-y-4 shadow-md hover:shadow-lg transition-all">
+                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-400 shadow-sm animate-pulse">
                   🔒
                 </div>
-                <h3 className="font-bold text-sb-ink text-base">Local parsing sandbox</h3>
-                <p className="text-xs text-sb-ink-muted leading-relaxed font-medium">
+                <h3 className="font-bold text-white text-base">Local parsing sandbox</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed font-medium">
                   Your inbox scans happen client-side directly in your browser. We never upload raw emails or transcripts to external clouds.
                 </p>
               </div>
 
-              <div className="sb-card-light bg-sb-canvas-soft border border-sb-hairline rounded-2xl p-6 space-y-4 shadow-sm hover:shadow-md transition-shadow">
-                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-600 shadow-sm">
+              <div className="rounded-3xl bg-surface-1 border border-border-subtle p-6 space-y-4 shadow-md hover:shadow-lg transition-all">
+                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-400 shadow-sm animate-pulse">
                   🛡️
                 </div>
-                <h3 className="font-bold text-sb-ink text-base">Read-only mail scans</h3>
-                <p className="text-xs text-sb-ink-muted leading-relaxed font-medium">
+                <h3 className="font-bold text-white text-base">Read-only mail scans</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed font-medium">
                   Our Google authentication API permissions are strictly read-only. We have no authority to initiate transfers or drafts.
                 </p>
               </div>
 
-              <div className="sb-card-light bg-sb-canvas-soft border border-sb-hairline rounded-2xl p-6 space-y-4 shadow-sm hover:shadow-md transition-shadow">
-                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-600 shadow-sm">
+              <div className="rounded-3xl bg-surface-1 border border-border-subtle p-6 space-y-4 shadow-md hover:shadow-lg transition-all">
+                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-400 shadow-sm animate-pulse">
                   🔑
                 </div>
-                <h3 className="font-bold text-sb-ink text-base">No passwords required</h3>
-                <p className="text-xs text-sb-ink-muted leading-relaxed font-medium">
+                <h3 className="font-bold text-white text-base">No passwords required</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed font-medium">
                   We never prompt for net-banking passwords, PIN numbers, OTPs, or card security details. Your bank credentials remain isolated.
                 </p>
               </div>

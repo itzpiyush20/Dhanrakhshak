@@ -21,7 +21,7 @@ export default function ProtectedRoute() {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace state={{ from: location }} />
+    return <Navigate to={`/?auth=login&redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />
   }
 
   // Exemptions list for expired accounts: /settings, /profile, /support, and /pricing itself
