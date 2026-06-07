@@ -29,6 +29,17 @@ const navItems = [
 export default function AppLayout({ children, isStaticLight = false }: AppLayoutProps) {
   const { user, signOut, profile, daysLeft, openAuthModal } = useAuth()
   const location = useLocation()
+  const isAppRoute = [
+    '/dashboard',
+    '/expenses',
+    '/budgets',
+    '/pending',
+    '/insights',
+    '/settings',
+    '/profile',
+    '/subscriptions',
+    '/payment-success'
+  ].includes(location.pathname)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [notifications, setNotifications] = useState<Array<{ message: string; type: 'danger' | 'warning' | 'info' }>>([])
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false)
@@ -384,9 +395,8 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
         </div>
       )}
 
-      {/* Unified Single Navigation Header */}
       <header className={cn("sticky top-0 z-50 w-full border-b select-none transition-colors", isStaticLight ? "border-sb-hairline bg-sb-canvas text-sb-ink" : "border-border-subtle bg-surface-1/80 backdrop-blur-md text-zinc-100")}>
-        <div className="mx-auto max-w-7xl h-14 flex items-center justify-between px-4 sm:px-6 gap-4">
+        <div className="mx-auto max-w-[1280px] h-[64px] flex items-center justify-between px-6 gap-4">
           <Link to="/" className="flex items-center gap-3 shrink-0 group">
             <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-static-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] border-0 group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300" aria-hidden="true">₹</span>
             <div className="flex items-center gap-2.5">
@@ -417,13 +427,12 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           {/* Navigation Links & Actions */}
           <div className="flex items-center gap-4 sm:gap-6 min-w-0 flex-1 justify-end">
             {/* Horizontal Nav Links for desktop */}
-            <nav className="hidden lg:flex items-center gap-4 text-xs font-semibold" aria-label="Desktop navigation">
-              {user ? (
-                <>
-                  {navItems
-                    .filter(item => item.path !== ROUTES.PRICING)
-                    .map((item) => {
-                      const isActive = location.pathname === item.path
+            {user && isAppRoute ? (
+              <nav className="hidden lg:flex items-center gap-4 text-xs font-semibold" aria-label="Desktop navigation">
+                {navItems
+                  .filter(item => item.path !== ROUTES.PRICING)
+                  .map((item) => {
+                    const isActive = location.pathname === item.path
                     return (
                       <Link
                         key={item.path}
@@ -439,18 +448,37 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                       </Link>
                     )
                   })}
-                </>
-              ) : (
-                <>
-                  <a href="/#daily-utility" className="hover:text-sb-primary transition-colors whitespace-nowrap">Daily Life</a>
-                  <a href="/#features" className="hover:text-sb-primary transition-colors whitespace-nowrap">Features</a>
-                  <a href="/#download" className="hover:text-sb-primary transition-colors whitespace-nowrap">Download App</a>
-                  <a href="/#faq" className="hover:text-sb-primary transition-colors whitespace-nowrap">FAQ</a>
-                  <Link to="/pricing" className="hover:text-sb-primary transition-colors whitespace-nowrap">Pricing</Link>
-                  <Link to="/support" className="hover:text-sb-primary transition-colors whitespace-nowrap">Support</Link>
-                </>
-              )}
-            </nav>
+              </nav>
+            ) : (
+              <nav className="hidden md:flex items-center gap-8" aria-label="Desktop navigation">
+                {[
+                  { label: 'Daily Life', href: '/#daily-utility' },
+                  { label: 'Features', href: '/#features' },
+                  { label: 'Pricing', href: '/pricing', isLink: true },
+                  { label: 'Download', href: '/#download' },
+                  { label: 'FAQ', href: '/#faq' },
+                  { label: 'Support', href: '/support', isLink: true },
+                ].map((item) =>
+                  item.isLink ? (
+                    <Link
+                      key={item.label}
+                      to={item.href}
+                      className="sb-caption font-semibold transition-colors text-sb-ink-muted hover:text-sb-primary whitespace-nowrap no-underline"
+                    >
+                      {item.label}
+                    </Link>
+                  ) : (
+                    <a
+                      key={item.label}
+                      href={item.href}
+                      className="sb-caption font-semibold transition-colors text-sb-ink-muted hover:text-sb-primary whitespace-nowrap no-underline"
+                    >
+                      {item.label}
+                    </a>
+                  )
+                )}
+              </nav>
+            )}
 
             {/* Actions: Theme Toggle, Notifications, Profile, Hamburger, Upgrade CTA */}
             <div className="flex items-center gap-3 sm:gap-4 shrink-0">
@@ -538,7 +566,14 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
 
               {/* Upgrade or Status CTA */}
               <div className="hidden sm:flex items-center shrink-0">
-                {profile?.subscription_status === 'active' ? (
+                {!isAppRoute && user ? (
+                  <Link
+                    to="/dashboard"
+                    className="sb-btn-primary rounded-[6px] text-xs font-semibold border-0 cursor-pointer whitespace-nowrap shadow-sm"
+                  >
+                    Dashboard
+                  </Link>
+                ) : profile?.subscription_status === 'active' ? (
                   <span className="px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] shrink-0 select-none">
                     Premium 👑
                   </span>
@@ -552,9 +587,9 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                 ) : (
                   <button
                     onClick={() => openAuthModal()}
-                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-[6px] text-[11px] font-bold uppercase tracking-wider text-[var(--sb-on-primary)] bg-[var(--sb-primary)] hover:bg-[var(--sb-primary-deep)] active:scale-97 transition-all cursor-pointer shrink-0 whitespace-nowrap shadow-sm border-0"
+                    className="sb-btn-primary rounded-[6px] border-0 cursor-pointer text-xs font-semibold whitespace-nowrap shadow-sm"
                   >
-                    Get Started
+                    Get started
                   </button>
                 )}
               </div>
@@ -623,9 +658,9 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               ) : (
                 <button
                   onClick={() => openAuthModal()}
-                  className={cn("text-xs font-semibold transition-colors shrink-0 border-0 bg-transparent cursor-pointer", isStaticLight ? "text-sb-ink hover:text-sb-primary" : "text-zinc-400 hover:text-white")}
+                  className="sb-caption font-semibold border-0 bg-transparent cursor-pointer text-sb-ink-muted hover:text-sb-ink no-underline whitespace-nowrap px-1"
                 >
-                  Sign In
+                  Sign in
                 </button>
               )}
 
@@ -646,7 +681,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
         </div>
 
         {/* Mobile/Tablet Horizontal Scrollable Sub-Nav Row (Only visible if logged in and below lg viewport) */}
-        {user && (
+        {user && isAppRoute && (
           <div className={cn("h-9 border-t flex items-center lg:hidden overflow-hidden select-none", isStaticLight ? "border-sb-hairline bg-sb-canvas-soft" : "border-border-subtle bg-surface-1/40")}>
             <div className="mx-auto max-w-7xl w-full flex items-center px-4 sm:px-6 overflow-x-auto scrollbar-none flex-nowrap py-1 gap-2">
               {navItems
@@ -675,7 +710,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
         {/* Mobile menu dropdown */}
         {mobileMenuOpen && (
           <nav className={cn("border-b px-4 py-3 space-y-1 lg:hidden animate-fade-in", isStaticLight ? "border-sb-hairline bg-sb-canvas text-sb-ink" : "border-static-white/10 bg-black text-static-white")} aria-label="Mobile navigation">
-            {user ? (
+            {user && isAppRoute ? (
               <>
                 {navItems
                   .filter(item => item.path !== ROUTES.PRICING)
@@ -750,39 +785,62 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               </>
             ) : (
               <>
-                <a href="/#daily-utility" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">Daily Life</a>
-                <a href="/#features" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">Features</a>
-                <a href="/#download" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">Download App</a>
-                <a href="/#faq" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">FAQ</a>
-                <Link to="/pricing" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">Pricing</Link>
-                <Link to="/support" onClick={() => setMobileMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-sb-canvas-soft">Support</Link>
+                {user && (
+                  <Link
+                    to="/dashboard"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="block rounded-xl px-3 py-2.5 text-sm font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-3 text-center no-underline"
+                  >
+                    📊 Go to Dashboard
+                  </Link>
+                )}
+                <a href="/#daily-utility" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>Daily Life</a>
+                <a href="/#features" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>Features</a>
+                <a href="/#download" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>Download App</a>
+                <a href="/#faq" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>FAQ</a>
+                <Link to="/pricing" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium no-underline", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>Pricing</Link>
+                <Link to="/support" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium no-underline", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>Support</Link>
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false)
                     toggleTheme()
                   }}
-                  className={cn("w-full text-left block rounded-lg px-3 py-2.5 text-sm font-medium border-t mt-1 pt-3 cursor-pointer", isStaticLight ? "border-sb-hairline text-sb-primary" : "border-static-white/10 text-brand-400")}
+                  className={cn("w-full text-left block rounded-lg px-3 py-2.5 text-sm font-medium border-t mt-2 pt-3 cursor-pointer", isStaticLight ? "border-sb-hairline text-sb-primary" : "border-static-white/10 text-brand-400")}
                 >
                   {isLight ? '🌙 Switch to Night Mode' : '☀️ Switch to Day Mode'}
                 </button>
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false)
-                    openAuthModal()
-                  }}
-                  className="w-full block rounded-lg px-3 py-2 text-sm font-medium text-center bg-sb-canvas-soft border border-sb-hairline rounded-[6px] mt-2 cursor-pointer"
-                >
-                  Sign In
-                </button>
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false)
-                    openAuthModal()
-                  }}
-                  className="w-full block rounded-lg px-3 py-2.5 text-sm font-medium text-static-white bg-brand-500 hover:bg-brand-600 text-center rounded-[6px] mt-1 border-0 cursor-pointer"
-                >
-                  Get Started
-                </button>
+                {user ? (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false)
+                      signOut()
+                    }}
+                    className={cn("w-full text-left block rounded-lg px-3 py-2.5 text-sm font-medium border-t mt-1 pt-3 cursor-pointer", isStaticLight ? "border-sb-hairline text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)]" : "border-static-white/10 text-[#f87171] hover:bg-[#f87171]/15")}
+                  >
+                    🚪 Sign Out
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false)
+                        openAuthModal()
+                      }}
+                      className={cn("w-full block rounded-lg px-3 py-2 text-sm font-medium text-center border mt-3 cursor-pointer", isStaticLight ? "bg-sb-canvas border-sb-hairline text-sb-ink" : "bg-zinc-900 border-zinc-700 text-white")}
+                    >
+                      Sign In
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false)
+                        openAuthModal()
+                      }}
+                      className="w-full block rounded-lg px-3 py-2.5 text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 text-center rounded-[6px] mt-1.5 border-0 cursor-pointer"
+                    >
+                      Get Started
+                    </button>
+                  </>
+                )}
               </>
             )}
           </nav>
