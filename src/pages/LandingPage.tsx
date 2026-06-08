@@ -277,12 +277,15 @@ export default function LandingPage() {
 
   useEffect(() => {
     try {
+      const meta = document.querySelector('meta[name="theme-color"]')
       if (isLight) {
         document.documentElement.classList.add('light')
         localStorage.setItem('dhanrakshak_theme', 'light')
+        if (meta) meta.setAttribute('content', '#ffffff')
       } else {
         document.documentElement.classList.remove('light')
         localStorage.setItem('dhanrakshak_theme', 'dark')
+        if (meta) meta.setAttribute('content', '#09090b')
       }
     } catch (e) {}
   }, [isLight])
@@ -375,7 +378,7 @@ export default function LandingPage() {
               { label: 'Daily Life', href: '#daily-utility' },
               { label: 'Features', href: '#features' },
               { label: 'Pricing', href: '/pricing', isLink: true },
-              { label: 'Download', href: '#download' },
+              { label: 'Install App', href: '#install-guide' },
               { label: 'FAQ', href: '#faq' },
               { label: 'Support', href: '/support', isLink: true },
             ].map((item) =>
@@ -476,8 +479,8 @@ export default function LandingPage() {
                 <Link to={user ? ROUTES.DASHBOARD : ROUTES.SIGNUP} className="sb-btn-primary rounded-[6px]" style={{ padding: '12px 24px', fontWeight: 500 }}>
                   {user ? 'Go to Dashboard' : 'Start free — no card needed'}
                 </Link>
-                <a href="#download" className="sb-btn-secondary rounded-[6px]" style={{ padding: '12px 24px', fontWeight: 500 }}>
-                  Download App
+                <a href="#install-guide" className="sb-btn-secondary rounded-[6px]" style={{ padding: '12px 24px', fontWeight: 500 }}>
+                  Install Web App
                 </a>
               </div>
 
@@ -550,7 +553,7 @@ export default function LandingPage() {
                 {[
                   { emoji: '🚀', title: 'Easy Automatic Tracking', body: 'We automatically read expense alerts from your inbox. You never have to manually enter a single tea, grocery, or dining bill again.' },
                   { emoji: '🛡️', title: 'Complete Safety', body: 'We never ask for your bank login IDs, passwords, PINs, or credit card numbers. Your emails are parsed directly on your device.' },
-                  { emoji: '📱', title: 'Install on Any Phone', body: 'Download the lightweight app for your Android phone or add it directly to your iPhone home screen in seconds.' },
+                  { emoji: '📱', title: 'Install Web App', body: 'Add Dhanrakshak directly to your phone or tablet home screen in seconds as a lightweight progressive web app.' },
                 ].map((f) => (
                   <div key={f.title} className="flex gap-4">
                     <div className="h-10 w-10 rounded-[6px] flex items-center justify-center text-lg shrink-0 bg-sb-canvas-soft border border-sb-hairline">{f.emoji}</div>
@@ -633,19 +636,19 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── BAND 4: DOWNLOAD (canvas-soft) ───────────────────── */}
-        <section id="download" className="py-24 bg-sb-canvas-soft border-b border-sb-hairline-cool">
+        {/* ── BAND 4: INSTALL WEB APP (canvas-soft) ───────────────────── */}
+        <section id="install-guide" className="py-24 bg-sb-canvas-soft border-b border-sb-hairline-cool">
           <div className="mx-auto max-w-[1280px] px-6 grid lg:grid-cols-2 gap-16 items-center">
             <div className="space-y-6">
-              <div className="sb-pill-tag-soft">Get the app</div>
-              <h2 className="sb-display-lg" style={{ color: 'var(--sb-ink)' }}>Easy setup on mobile</h2>
+              <div className="sb-pill-tag-soft">Install App</div>
+              <h2 className="sb-display-lg" style={{ color: 'var(--sb-ink)' }}>Add to Home Screen</h2>
               <p className="sb-body-lg" style={{ color: 'var(--sb-ink-muted)' }}>
-                Dhanrakshak is lightweight and fast. Download the app directly for your Android phone or link it as a web app on your iPhone.
+                Dhanrakshak is a Progressive Web App (PWA). You can install it directly onto your Android device or iPhone home screen in seconds for quick, secure access.
               </p>
               <div className="space-y-3">
                 {[
-                  { icon: '⚡', text: 'Very small size (~3.2 MB)' },
-                  { icon: '🔒', text: '100% safe to install & use' },
+                  { icon: '⚡', text: 'No App Store downloads or APK files required' },
+                  { icon: '🔒', text: '100% safe, fast, and light on storage' },
                 ].map((item) => (
                   <div key={item.text} className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm bg-sb-canvas border border-sb-hairline shadow-[0_1px_3px_rgba(0,0,0,0.06)]">{item.icon}</div>
@@ -669,37 +672,31 @@ export default function LandingPage() {
                       fontWeight: downloadTab === tab ? 600 : 400,
                     }}
                   >
-                    {tab === 'android' ? '🤖 Android App' : '🍎 iPhone / iOS'}
+                    {tab === 'android' ? '🤖 Android (Chrome)' : '🍎 iPhone / iOS (Safari)'}
                   </button>
                 ))}
               </div>
 
               <div className="p-8 bg-sb-canvas">
                 {downloadTab === 'android' ? (
-                  <div className="space-y-4 text-center py-6">
-                    <span className="text-4xl" role="img" aria-label="Android">🤖</span>
-                    <h3 className="text-base font-bold" style={{ color: 'var(--sb-ink)' }}>Dhanrakshak for Android</h3>
-                    <p className="sb-caption max-w-sm mx-auto" style={{ color: 'var(--sb-ink-secondary)' }}>
-                      We are currently polishing the mobile application. The native Android app will be available for download here soon!
-                    </p>
-                    <div className="pt-2">
-                      <span className="inline-block bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-                        Coming Soon
-                      </span>
-                    </div>
+                  <div className="space-y-4 py-4">
+                    <h3 className="text-base font-bold text-center mb-2" style={{ color: 'var(--sb-ink)' }}>How to install on Android</h3>
+                    <ol className="list-decimal pl-5 space-y-3 text-xs" style={{ color: 'var(--sb-ink-secondary)' }}>
+                      <li>Open **Google Chrome** and navigate to this website.</li>
+                      <li>Tap the three vertical dots (menu icon) in the top-right corner.</li>
+                      <li>Select **"Add to Home screen"** or **"Install App"** from the list.</li>
+                      <li>Confirm the installation in the prompt.</li>
+                    </ol>
                   </div>
                 ) : (
-                  <div className="space-y-4 text-center py-6">
-                    <span className="text-4xl" role="img" aria-label="iOS">🍎</span>
-                    <h3 className="text-base font-bold" style={{ color: 'var(--sb-ink)' }}>Dhanrakshak for iOS</h3>
-                    <p className="sb-caption max-w-sm mx-auto" style={{ color: 'var(--sb-ink-secondary)' }}>
-                      The iOS version is undergoing beta testing. You will be able to add it to your Home Screen or download it from the App Store soon!
-                    </p>
-                    <div className="pt-2">
-                      <span className="inline-block bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-                        Coming Soon
-                      </span>
-                    </div>
+                  <div className="space-y-4 py-4">
+                    <h3 className="text-base font-bold text-center mb-2" style={{ color: 'var(--sb-ink)' }}>How to install on iOS (iPhone/iPad)</h3>
+                    <ol className="list-decimal pl-5 space-y-3 text-xs" style={{ color: 'var(--sb-ink-secondary)' }}>
+                      <li>Open **Safari** and navigate to this website.</li>
+                      <li>Tap the **Share** button (the square icon with an arrow pointing up) at the bottom.</li>
+                      <li>Scroll down the share sheet options.</li>
+                      <li>Tap **"Add to Home Screen"** and click **Add** in the top right.</li>
+                    </ol>
                   </div>
                 )}
               </div>

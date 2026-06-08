@@ -73,12 +73,21 @@ export function purgeOldTokenKey(): void {
 }
 
 export async function validateGoogleToken(token: string): Promise<boolean> {
-  const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (res.status === 401) {
-    clearGoogleToken()
+  try {
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.status === 401 || res.status === 403) {
+      // Only clear if the invalid token is the one currently in localStorage
+      if (token === localStorage.getItem(TOKEN_KEY)) {
+        clearGoogleToken()
+      }
+      return false
+    }
+    return res.ok
+  } catch (e) {
+    console.warn('validateGoogleToken error:', e)
     return false
   }
-  return res.ok
 }
+

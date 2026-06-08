@@ -8,7 +8,7 @@ import { supabase } from './supabase'
 import type { Database } from '@/types/database'
 import { extractBankName } from '@/utils'
 import { applyMerchantRulesFromDB } from './learningEngine'
-import { saveGoogleToken, getGoogleToken, clearGoogleToken } from './googleAuth'
+import { getGoogleToken, clearGoogleToken } from './googleAuth'
 import { analyzeTransactionEmailWithAI } from './aiService'
 
 type EmailScanLog = Database['public']['Tables']['email_scan_logs']['Row']
@@ -428,9 +428,21 @@ type PaymentMode = 'upi' | 'credit_card' | 'debit_card' | 'neft' | 'rtgs' | 'imp
 
 function detectPaymentMode(text: string): PaymentMode {
   const t = text.toLowerCase()
-  if (/\bupi\b/.test(t) || /@[a-z]+/i.test(t)) return 'upi'
   if (/\bcredit\s*card\b|\bcc\b/.test(t)) return 'credit_card'
   if (/\bdebit\s*card\b/.test(t)) return 'debit_card'
+  
+  const hasUpiVpa = (() => {
+    const matches = t.match(/[\w.-]+@[\w.-]+/g)
+    if (!matches) return false
+    for (const m of matches) {
+      if (/\b(care|support|reply|noreply|alerts|help|info|service|contact|feedback|queries|security)@/.test(m)) continue
+      if (/\.(com|in|net|org|edu|gov|co|info|biz|co\.in|org\.in|net\.in)$/.test(m)) continue
+      return true
+    }
+    return false
+  })()
+  if (/\b(?:upi|vpa)\b/.test(t) || hasUpiVpa) return 'upi'
+  
   if (/\bneft\b/.test(t)) return 'neft'
   if (/\brtgs\b/.test(t)) return 'rtgs'
   if (/\bimps\b/.test(t)) return 'imps'
@@ -701,20 +713,14 @@ export async function scanRealGmailInbox() {
   const { data: { session } } = await supabase.auth.getSession()
   const user = session?.user
 
-  // If the session still has provider_token (right after OAuth redirect),
-  // save it with a fresh expiry so the 55-min clock resets.
-  if (session?.provider_token) {
-    saveGoogleToken(session.provider_token)
-  }
-
-  // Now read the authoritative token (may come from session or localStorage)
-  const providerToken = session?.provider_token || getGoogleToken()
+  // Now read the authoritative token (must come from localStorage, saved only during Gmail OAuth connection)
+  const providerToken = getGoogleToken()
 
   if (!user) return { data: null, error: new Error('User not authenticated') }
   if (!providerToken) {
     return {
       data: null,
-      error: new Error('Google account not connected. Please click "Connect Google Account" to authorise Gmail scanning.'),
+      error: new Error('Gmail Inbox not connected. Please click "Connect Gmail Inbox" on the Pending Alerts page to authorise Gmail scanning.'),
     }
   }
 
@@ -831,8 +837,8 @@ export async function scanRealGmailInbox() {
       const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=${encodeURIComponent(q)}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`
       const listRes = await fetch(url, { headers: { Authorization: `Bearer ${providerToken}` } })
 
-      if (listRes.status === 401) {
-        // Token is expired — clear from storage so UI updates to "disconnected"
+      if (listRes.status === 401 || listRes.status === 403) {
+        // Token is expired or lacks Gmail permissions — clear from storage so UI updates to "disconnected"
         clearGoogleToken()
         throw new Error('TOKEN_EXPIRED')
       }
@@ -1252,7 +1258,7 @@ export async function scanRealGmailInbox() {
 
     let errorMessage: string
     if (err.message === 'TOKEN_EXPIRED') {
-      errorMessage = 'Your Google session expired. Please click "Reconnect Google" to get a fresh token and try again.'
+      errorMessage = 'Your Gmail connection expired. Please click "Connect Gmail Inbox" on the Pending Alerts page to get a fresh token and try again.'
     } else if (err.message?.includes('Failed to fetch') || err.name === 'TypeError') {
       errorMessage = 'Could not reach Google APIs. Check your internet connection or disable any ad-blockers / Brave shields that may be blocking Google requests.'
     } else {

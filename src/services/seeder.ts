@@ -216,7 +216,7 @@ export async function seedSandboxData() {
       category: 'food',
       merchant: 'Zomato',
       description: 'Zomato Food Order',
-      notes: 'Dear Customer, your HDFC Bank A/c xx4321 was debited for Rs 450.00 on 29-May-2026 13:22:18 by UPI Ref 91028304 to ZOMATO.',
+      notes: 'Dear Customer, your Bank A/c xx4321 was debited for Rs 450.00 on 29-May-2026 13:22:18 by UPI Ref 91028304 to ZOMATO.',
       date: todayStr,
       source: 'email',
       approval_status: 'pending',

@@ -82,7 +82,8 @@ export default function AuthModal() {
 
   const handleGoogleAuth = async () => {
     const destination = authModalRedirect || '/dashboard'
-    const { error: oAuthErr } = await signInWithGoogle(destination)
+    // Request Gmail scope by default so Gmail is connected immediately upon signing in with Google!
+    const { error: oAuthErr } = await signInWithGoogle(destination, true)
     if (oAuthErr) {
       setError(oAuthErr)
     } else {
@@ -92,11 +93,11 @@ export default function AuthModal() {
 
   return (
     <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in"
       onClick={closeAuthModal}
     >
       <div 
-        className="relative w-full max-w-md bg-surface-1 border border-border-subtle rounded-3xl shadow-2xl p-6 sm:p-8 animate-scale-up text-zinc-100"
+        className="relative w-full max-w-md bg-surface-1 border border-border-subtle rounded-3xl shadow-2xl p-6 sm:p-8 my-auto animate-scale-up text-zinc-100"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -115,7 +116,7 @@ export default function AuthModal() {
           <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] border-0" aria-hidden="true">
             <span className="text-xl font-bold">{currencySymbol || '₹'}</span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-white mb-1 flex items-center justify-center gap-1 select-none">
+          <h1 className="text-2xl font-black tracking-tight text-white mb-1 flex items-center justify-center select-none">
             <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">Dhan</span>
             <span>rakshak</span>
           </h1>
@@ -239,9 +240,29 @@ export default function AuthModal() {
           Continue with Google
         </Button>
 
-        <p className="mt-5 text-center text-[10px] text-zinc-500 font-medium">
-          🔒 Secure read-only access · 100% Private local processing
-        </p>
+        {/* Security & Trust Note */}
+        <div className="mt-5 p-3.5 rounded-2xl bg-surface-2 border border-border-subtle/50 text-[10.5px] text-zinc-400 space-y-2 leading-relaxed">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-white mb-0.5">
+            <span className="text-emerald-400">🛡️</span> Security & Privacy Note
+          </div>
+          <p>
+            Hi, I'm <strong className="text-white">CA Piyush Khandelwal</strong>, a Chartered Accountant and creator of Dhanrakshak. We keep your data 100% secure:
+          </p>
+          <ul className="list-disc pl-3.5 space-y-1">
+            <li>
+              <strong className="text-zinc-300">Google Login & Sync</strong>: Logging in with Google automatically connects your Gmail inbox so Dhanrakshak can scan bank alerts. Email parsing is done entirely inside your browser; raw emails are never uploaded or stored on our servers.
+            </li>
+            <li>
+              <strong className="text-zinc-300">Email/Password Login</strong>: Signing up with email and password requests no external permissions. You can choose to link your Gmail account later if you wish.
+            </li>
+            <li>
+              <strong className="text-zinc-300">Google Warning & Approvals</strong>: Since this is currently a test app, Google may display an "unverified app" screen during setup. Google's formal approval is being obtained in due course. You can safely click <span className="text-white font-mono">Advanced &rarr; Go to Dhanrakshak</span> to proceed.
+            </li>
+            <li>
+              <strong className="text-zinc-300">Developer Project Key</strong>: On the Google login screen, you may see a developer project identifier key (a random alphanumeric string) instead of the name "Dhanrakshak". This is standard Google behavior for unverified test apps and is completely safe.
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
   )

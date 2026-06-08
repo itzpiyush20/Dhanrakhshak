@@ -12,15 +12,15 @@ const getEnvVar = (name) => {
 };
 
 const supabaseUrl = getEnvVar('VITE_SUPABASE_URL');
-const supabaseKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
+const supabaseKey = getEnvVar('SUPABASE_SERVICE_ROLE_KEY');
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function list() {
   console.log('Querying public.profiles...');
-  const { data, error } = await supabase.from('profiles').select('*');
+  const { data, error } = await supabase.from('profiles').select('id, email, subscription_status, subscription_plan_type, subscription_expires_at');
   if (error) {
-    console.error('Error fetching profiles:', error);
+    console.error('Error fetching profiles:', error.message);
   } else {
     console.log(`Found ${data.length} profiles:`);
     console.log(JSON.stringify(data, null, 2));

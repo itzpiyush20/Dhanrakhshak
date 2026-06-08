@@ -22,43 +22,51 @@
     <meta property="twitter:image" content="https://dhanrakshak-five.vercel.app/favicon.svg" />
 
     <title>Dhanrakshak — Personal Finance Dashboard</title>
+    <script>
+      (function() {
+        try {
+          var stored = localStorage.getItem('dhanrakshak_theme');
+          var themeColor = '#09090b';
+          if (stored !== 'dark') {
+            document.documentElement.classList.add('light');
+            themeColor = '#ffffff';
+          } else {
+            document.documentElement.classList.remove('light');
+          }
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) {
+            meta.setAttribute('content', themeColor);
+          }
+        } catch (e) {}
+      })();
+    </script>
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
 
-    <!-- Bulletproof legacy service worker and cache purge -->
+    <!-- Bulletproof legacy service worker and cache purge (Background only) -->
     <script>
       try {
         if (typeof window !== 'undefined') {
-          const urlParams = new URLSearchParams(window.location.search);
-          if (urlParams.get('purged') === 'true') {
-            console.log('webapp: Cache already purged.');
-          } else {
-            const PURGE_KEY = 'dhanrakshak_purge_v3';
-            if (!localStorage.getItem(PURGE_KEY)) {
-              if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                  for (let registration of registrations) {
-                    registration.unregister();
-                  }
-                });
-              }
-              if ('caches' in window) {
-                caches.keys().then(function(keys) {
-                  return Promise.all(keys.map(function(key) {
-                    return caches.delete(key);
-                  }));
-                });
-              }
-              try {
-                localStorage.setItem(PURGE_KEY, 'true');
-              } catch (se) {}
-              console.log('webapp: Caches and Service Workers successfully purged. Reloading page...');
-              setTimeout(function() {
-                const search = new URLSearchParams(window.location.search);
-                search.set('purged', 'true');
-                window.location.replace(window.location.pathname + '?' + search.toString() + (window.location.hash || ''));
-              }, 600);
+          var PURGE_KEY = 'dhanrakshak_purge_v4';
+          if (!localStorage.getItem(PURGE_KEY)) {
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for (var i = 0; i < registrations.length; i++) {
+                  registrations[i].unregister();
+                }
+              });
             }
+            if ('caches' in window) {
+              caches.keys().then(function(keys) {
+                return Promise.all(keys.map(function(key) {
+                  return caches.delete(key);
+                }));
+              });
+            }
+            try {
+              localStorage.setItem(PURGE_KEY, 'true');
+            } catch (se) {}
+            console.log('webapp: Caches and Service Workers successfully purged in background.');
           }
         }
       } catch (e) {

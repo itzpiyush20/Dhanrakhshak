@@ -106,6 +106,30 @@ export default function DashboardPage() {
     localStorage.setItem('dhanrakshak_dashboard_widgets', JSON.stringify(updated))
   }
 
+  // Category Details modal state
+  const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [selectedCategoryCode, setSelectedCategoryCode] = useState<string | null>(null)
+  const [categoryTransactions, setCategoryTransactions] = useState<TransactionRow[]>([])
+  const [loadingCategoryTxns, setLoadingCategoryTxns] = useState(false)
+
+  const handleCategoryClick = async (categoryCode: string) => {
+    setSelectedCategoryCode(categoryCode)
+    setShowCategoryModal(true)
+    setLoadingCategoryTxns(true)
+    try {
+      const { data } = await getTransactions({
+        month: selectedMonth,
+        category: categoryCode,
+        type: 'debit',
+        limit: 100,
+      })
+      setCategoryTransactions(data || [])
+    } catch (e) {
+      console.error('Error loading category transactions:', e)
+    } finally {
+      setLoadingCategoryTxns(false)
+    }
+  }
 
   const fetchDashboardData = useCallback(async (month: string, silent = false) => {
     if (!silent) {
@@ -589,7 +613,12 @@ export default function DashboardPage() {
                         const cat =
                           CATEGORIES[item.category as keyof typeof CATEGORIES] || CATEGORIES.other
                         return (
-                          <div key={item.category} className="space-y-1.5 animate-slide-up" style={{ animationDelay: `${idx * 0.05}s` }}>
+                          <button
+                            key={item.category}
+                            onClick={() => handleCategoryClick(item.category)}
+                            className="w-full text-left block space-y-1.5 p-2 -mx-2 rounded-xl transition-all duration-200 cursor-pointer hover:bg-surface-2/45 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700/60 animate-slide-up"
+                            style={{ animationDelay: `${idx * 0.05}s` }}
+                          >
                             <div className="flex items-center justify-between">
                               {/* Label & Icon */}
                               <div className="flex items-center gap-2">
@@ -623,7 +652,7 @@ export default function DashboardPage() {
                                 }}
                               />
                             </div>
-                          </div>
+                          </button>
                         )
                       })}
                     </div>
@@ -892,6 +921,108 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* 📊 Category Breakdown Details Modal */}
+        {showCategoryModal && selectedCategoryCode && (() => {
+          const cat = CATEGORIES[selectedCategoryCode as keyof typeof CATEGORIES] || CATEGORIES.other
+          const matchedSummaryItem = summary?.category_breakdown.find(item => item.category === selectedCategoryCode)
+          const totalAmount = matchedSummaryItem?.amount || 0
+          const totalCount = matchedSummaryItem?.count || 0
+          
+          // Parse month label (e.g. "June 2026")
+          const [yearStr, monStr] = selectedMonth.split('-')
+          const monthDate = new Date(parseInt(yearStr, 10), parseInt(monStr, 10) - 1, 1)
+          const monthLabel = monthDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+          
+          return (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in" role="dialog" aria-modal="true" aria-label={`${cat.label} Transactions list`}>
+              <div className="w-full max-w-xl bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col max-h-[85vh] animate-scale-up text-zinc-100">
+                
+                {/* Header */}
+                <div className="flex items-start justify-between border-b border-border-subtle/30 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-2xl border flex items-center justify-center text-xl" style={{ backgroundColor: `${cat.color}15`, borderColor: `${cat.color}40`, borderStyle: 'solid', borderWidth: '1px' }}>
+                      {cat.emoji}
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white">{cat.label} Spending</h3>
+                      <p className="text-xs text-zinc-400 mt-0.5">{monthLabel} · {formatCurrency(totalAmount)} total over {totalCount} transaction{totalCount > 1 ? 's' : ''}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowCategoryModal(false)
+                      setSelectedCategoryCode(null)
+                      setCategoryTransactions([])
+                    }}
+                    className="h-8 w-8 rounded-full border border-border-subtle/50 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-surface-2 transition-colors cursor-pointer"
+                    aria-label="Close dialog"
+                  >
+                    <span aria-hidden="true">✕</span>
+                  </button>
+                </div>
+
+                {/* Content list */}
+                <div className="flex-1 overflow-y-auto py-4 space-y-2 pr-1">
+                  {loadingCategoryTxns ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-surface-2 animate-pulse">
+                          <div className="space-y-2 w-1/3">
+                            <div className="h-4 bg-zinc-700 rounded" />
+                            <div className="h-3 bg-zinc-800 rounded w-2/3" />
+                          </div>
+                          <div className="h-4 w-12 bg-zinc-700 rounded" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : categoryTransactions.length === 0 ? (
+                    <p className="text-xs text-zinc-500 text-center py-8">No transactions found for this category.</p>
+                  ) : (
+                    <div className="divide-y divide-border-subtle/40">
+                      {categoryTransactions.map((txn) => {
+                        return (
+                          <div key={txn.id} className="flex items-center justify-between py-3">
+                            <div className="flex flex-col min-w-0 pr-3">
+                              <p className="text-xs font-bold text-zinc-200 truncate">
+                                {txn.merchant || txn.description || 'Transaction'}
+                              </p>
+                              {txn.description && txn.description !== `${txn.merchant} Transaction` && (
+                                <p className="text-[10px] text-zinc-500 truncate mt-0.5">{txn.description}</p>
+                              )}
+                              <span className="text-[9px] text-zinc-500 mt-1">
+                                {new Date(txn.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </span>
+                            </div>
+                            <span className="text-xs font-bold shrink-0 text-[var(--status-danger-text)]">
+                              -{formatCurrency(Number(txn.amount))}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div className="border-t border-border-subtle/30 pt-4 flex justify-end">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setShowCategoryModal(false)
+                      setSelectedCategoryCode(null)
+                      setCategoryTransactions([])
+                    }}
+                    className="font-bold text-xs"
+                  >
+                    Close
+                  </Button>
+                </div>
+
+              </div>
+            </div>
+          )
+        })()}
 
       {/* Year-End Financial Transition & Reset Modal */}
       {showYearEndModal && (

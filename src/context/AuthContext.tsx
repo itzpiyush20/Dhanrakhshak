@@ -14,7 +14,7 @@ import {
 } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/services/supabase'
-import { saveGoogleToken, clearGoogleToken, isGoogleConnected, purgeOldTokenKey } from '@/services/googleAuth'
+import { saveGoogleToken, clearGoogleToken, isGoogleConnected, purgeOldTokenKey, validateGoogleToken } from '@/services/googleAuth'
 import { Button } from '@/components/ui'
 import { identifyUser, resetAnalytics, track, EVENTS } from '@/services/analytics'
 import { getGlobalCurrency, getGlobalCurrencySymbol, setGlobalCurrency } from '@/utils'
@@ -32,12 +32,12 @@ interface AuthContextValue extends AuthState {
   notifyGoogleTokenCleared: () => void
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signInWithGoogle: (redirectPath?: string, forceConsent?: boolean) => Promise<{ error: string | null }>
+  signInWithGoogle: (redirectPath?: string, requestGmailScope?: boolean, forceConsent?: boolean) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<{ error: string | null }>
   isSubscriptionActive: boolean
   daysLeft: number
-  updateSubscriptionStatus: (status: 'active' | 'trial', planType?: 'monthly' | 'annual' | 'lifetime') => Promise<boolean>
+  updateSubscriptionStatus: (status: 'active' | 'trial', planType?: 'monthly' | 'annual' | 'lifetime', promoCode?: string) => Promise<boolean>
   authModalOpen: boolean
   authModalRedirect: string | null
   authModalTab: 'login' | 'signup'
@@ -111,7 +111,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setGlobalCurrency(newCurrency)
     setCurrencyState(newCurrency)
     setCurrencySymbol(newCurrency === 'INR' ? '₹' : '$')
-  }, [])
+    if (state.user) {
+      supabase
+        .from('profiles')
+        .update({ currency: newCurrency })
+        .eq('id', state.user.id)
+        .then(({ error }) => {
+          if (error) {
+            console.warn('Failed to sync currency to Supabase profiles (non-critical):', error.message)
+          }
+        })
+    }
+  }, [state.user])
 
   const [activeYear, setActiveYearState] = useState<number>(2026)
 
@@ -132,6 +143,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       localStorage.setItem(`dhanrakshak_active_financial_year_${state.user.id}`, String(nextYear))
       setActiveYearState(nextYear)
+
+      supabase
+        .from('profiles')
+        .update({ active_financial_year: nextYear })
+        .eq('id', state.user.id)
+        .then(({ error }) => {
+          if (error) {
+            console.warn('Failed to sync active year to Supabase profiles (non-critical):', error.message)
+          }
+        })
     } catch (e) {
       console.error('Failed to save active year:', e)
     }
@@ -170,6 +191,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(null)
       return
     }
+
+    // 1. Immediately load cached settings and subscription from localStorage to prevent flashes
+    try {
+      const cachedStatus = localStorage.getItem(`dhanrakshak_sub_status_${state.user.id}`)
+      const cachedExpires = localStorage.getItem(`dhanrakshak_sub_expires_${state.user.id}`)
+      const cachedPlan = localStorage.getItem(`dhanrakshak_sub_plan_${state.user.id}`)
+
+      if (cachedStatus) {
+        setProfile({
+          id: state.user.id,
+          email: state.user.email,
+          subscription_status: cachedStatus,
+          subscription_expires_at: cachedExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          subscription_plan_type: cachedPlan || 'trial'
+        })
+      }
+
+      const cachedCurrency = localStorage.getItem('dhanrakshak_currency_preference') as 'INR' | 'USD' | null
+      if (cachedCurrency) {
+        setGlobalCurrency(cachedCurrency)
+        setCurrencyState(cachedCurrency)
+        setCurrencySymbol(cachedCurrency === 'INR' ? '₹' : '$')
+      }
+
+      const cachedYear = localStorage.getItem(`dhanrakshak_active_financial_year_${state.user.id}`)
+      if (cachedYear) {
+        setActiveYearState(parseInt(cachedYear, 10))
+      }
+    } catch (e) {
+      console.warn('Failed to load cached profile:', e)
+    }
+
+    // 2. Fetch fresh data from Supabase
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -204,12 +258,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
+        // Cache subscription details back to localStorage
+        localStorage.setItem(`dhanrakshak_sub_status_${state.user.id}`, subStatus)
+        if (subExpires) localStorage.setItem(`dhanrakshak_sub_expires_${state.user.id}`, subExpires)
+        localStorage.setItem(`dhanrakshak_sub_plan_${state.user.id}`, subPlan)
+
         setProfile({
           ...data,
           subscription_status: subStatus,
           subscription_expires_at: subExpires,
           subscription_plan_type: subPlan
         })
+
+        // Sync local active subscription to Supabase so other devices inherit it
+        if (localStatus === 'active' && data.subscription_status !== 'active') {
+          supabase
+            .from('profiles')
+            .update({
+              subscription_status: 'active',
+              subscription_expires_at: subExpires,
+              subscription_plan_type: subPlan
+            })
+            .eq('id', state.user.id)
+            .then(({ error: syncError }) => {
+              if (syncError) console.warn('Non-critical: Failed to sync local active subscription to DB:', syncError.message)
+            })
+        }
+
+        // Sync settings (currency and active_financial_year)
+        // Check database value first. If present, sync to local. If absent/null, sync local to DB.
+        
+        // Currency Sync
+        let currentCurrency: 'INR' | 'USD' = 'INR'
+        const localCurrencyPref = localStorage.getItem('dhanrakshak_currency_preference') as 'INR' | 'USD' | null
+        if (data.currency) {
+          currentCurrency = data.currency as 'INR' | 'USD'
+          setGlobalCurrency(currentCurrency)
+          setCurrencyState(currentCurrency)
+          setCurrencySymbol(currentCurrency === 'INR' ? '₹' : '$')
+        } else if (localCurrencyPref) {
+          currentCurrency = localCurrencyPref
+          // Sync local preference to Supabase since it's null in DB
+          supabase
+            .from('profiles')
+            .update({ currency: localCurrencyPref })
+            .eq('id', state.user.id)
+            .then(({ error: syncError }) => {
+              if (syncError) console.warn('Non-critical: Failed to sync local currency preference to DB:', syncError.message)
+            })
+        }
+
+        // Active Year Sync
+        let currentYear = 2026
+        const localYearPref = localStorage.getItem(`dhanrakshak_active_financial_year_${state.user.id}`)
+        if (data.active_financial_year) {
+          currentYear = data.active_financial_year
+          setActiveYearState(currentYear)
+          localStorage.setItem(`dhanrakshak_active_financial_year_${state.user.id}`, String(currentYear))
+        } else if (localYearPref) {
+          currentYear = parseInt(localYearPref, 10)
+          // Sync local preference to Supabase since it's null in DB
+          supabase
+            .from('profiles')
+            .update({ active_financial_year: currentYear })
+            .eq('id', state.user.id)
+            .then(({ error: syncError }) => {
+              if (syncError) console.warn('Non-critical: Failed to sync local active year preference to DB:', syncError.message)
+            })
+        }
       } else {
         let subPlan = 'trial'
         if (localStatus === 'active') {
@@ -272,21 +388,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null }
   }
 
-  const signInWithGoogle = async (redirectPath = '/dashboard', forceConsent = false) => {
+  const signInWithGoogle = async (redirectPath = '/dashboard', requestGmailScope = false, forceConsent = false) => {
     track(EVENTS.GOOGLE_OAUTH_STARTED)
+    
+    const oAuthOptions: any = {
+      redirectTo: `${window.location.origin}${redirectPath}`,
+    }
+
+    if (requestGmailScope) {
+      oAuthOptions.scopes = 'https://www.googleapis.com/auth/gmail.readonly'
+      oAuthOptions.queryParams = {
+        access_type: 'offline',
+        prompt: forceConsent ? 'consent' : 'select_account',
+      }
+      localStorage.setItem('dhanrakshak_requesting_gmail_scope', 'true')
+    } else {
+      oAuthOptions.queryParams = {
+        prompt: 'select_account',
+      }
+      localStorage.removeItem('dhanrakshak_requesting_gmail_scope')
+    }
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        scopes: 'https://www.googleapis.com/auth/gmail.readonly',
-        redirectTo: `${window.location.origin}${redirectPath}`,
-        queryParams: {
-          access_type: 'offline',
-          // Use 'consent' ONLY when explicitly reconnecting (token expired).
-          // For initial sign-in use 'select_account' so Google doesn't ask
-          // for permissions on every login after the first grant.
-          prompt: forceConsent ? 'consent' : 'select_account',
-        },
-      },
+      options: oAuthOptions,
     })
     return { error: error?.message ?? null }
   }
@@ -333,13 +458,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTimeout(() => resolve({ data: { session: null } }), 10000)
     )
 
-    Promise.race([sessionPromise, timeoutPromise]).then(({ data: { session } }) => {
+    Promise.race([sessionPromise, timeoutPromise]).then(async ({ data: { session } }) => {
       if (session?.provider_token) {
-        saveGoogleToken(session.provider_token)
-        setHasGoogleToken(true)
-      } else if (isGoogleConnected()) {
-        // Persisted token from a previous session is still valid (within 55min)
-        setHasGoogleToken(true)
+        const isGmailFlow = localStorage.getItem('dhanrakshak_requesting_gmail_scope') === 'true'
+        if (isGmailFlow) {
+          saveGoogleToken(session.provider_token)
+          setHasGoogleToken(true)
+          localStorage.removeItem('dhanrakshak_requesting_gmail_scope')
+        } else {
+          // If we got a provider_token but isGmailFlow is false (e.g. from standard login),
+          // let's verify if this token actually has Gmail scope before ignoring/clearing it.
+          // This supports seamless returning Google sign-in users.
+          const isValid = await validateGoogleToken(session.provider_token)
+          if (isValid) {
+            saveGoogleToken(session.provider_token)
+            setHasGoogleToken(true)
+          } else {
+            setHasGoogleToken(isGoogleConnected())
+          }
+        }
+      } else {
+        setHasGoogleToken(isGoogleConnected())
       }
       setState({
         user: session?.user ?? null,
@@ -354,13 +493,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (session?.provider_token) {
-          // Fresh token from OAuth callback — save with expiry and mark as connected
-          saveGoogleToken(session.provider_token)
-          setHasGoogleToken(true)
+          // Fresh token from OAuth callback — save ONLY if we explicitly initiated a Gmail scope flow
+          const isGmailFlow = localStorage.getItem('dhanrakshak_requesting_gmail_scope') === 'true'
+          if (isGmailFlow) {
+            saveGoogleToken(session.provider_token)
+            setHasGoogleToken(true)
+            localStorage.removeItem('dhanrakshak_requesting_gmail_scope')
+          } else {
+            // Check if this token is actually valid for Gmail (e.g. if Google returned a token with Gmail scope)
+            const isValid = await validateGoogleToken(session.provider_token)
+            if (isValid) {
+              saveGoogleToken(session.provider_token)
+              setHasGoogleToken(true)
+            } else {
+              setHasGoogleToken(isGoogleConnected())
+            }
+          }
         } else if (event === 'SIGNED_OUT') {
           // Sign-out event — clear everything
           clearGoogleToken()
           setHasGoogleToken(false)
+        } else {
+          setHasGoogleToken(isGoogleConnected())
         }
         // Note: TOKEN_REFRESHED event does NOT re-issue the Google provider_token
         // so we don't clear hasGoogleToken on that event — the localStorage token
@@ -587,7 +741,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isSubscriptionActive = (() => {
     if (!profile) return false
-    if (profile.subscription_status === 'active') return true
+    if (profile.subscription_status === 'active') {
+      if (!profile.subscription_expires_at) return true
+      const expiresAt = new Date(profile.subscription_expires_at).getTime()
+      return expiresAt > Date.now()
+    }
     if (profile.subscription_status === 'trial') {
       const expiresAt = new Date(profile.subscription_expires_at).getTime()
       return expiresAt > Date.now()
@@ -602,7 +760,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
   })()
 
-  const updateSubscriptionStatus = async (status: 'active' | 'trial', planType?: 'monthly' | 'annual' | 'lifetime') => {
+  const updateSubscriptionStatus = async (status: 'active' | 'trial', planType?: 'monthly' | 'annual' | 'lifetime', promoCode?: string) => {
     if (!state.user) return false
     try {
       const expiresAt = status === 'active'
@@ -617,12 +775,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .update({
           subscription_status: status,
           subscription_expires_at: expiresAt,
-          subscription_plan_type: subPlanType
+          subscription_plan_type: subPlanType,
+          promo_code: promoCode || null
         })
         .eq('id', state.user.id)
 
       if (error) {
-        console.warn('Supabase profile update with plan type failed, retrying without plan type column:', error.message)
+        console.warn('Supabase profile update with plan type/promo failed, retrying without these columns:', error.message)
         const { error: retryError } = await supabase
           .from('profiles')
           .update({
@@ -639,6 +798,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(`dhanrakshak_sub_status_${state.user.id}`, status)
       localStorage.setItem(`dhanrakshak_sub_expires_${state.user.id}`, expiresAt)
       localStorage.setItem(`dhanrakshak_sub_plan_${state.user.id}`, subPlanType)
+      if (promoCode) {
+        localStorage.setItem(`dhanrakshak_promo_code_${state.user.id}`, promoCode)
+      }
 
       await refreshProfile()
       return true

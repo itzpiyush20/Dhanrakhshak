@@ -145,7 +145,7 @@ export default function PricingPage() {
     setProcessing(true)
     setTimeout(async () => {
       try {
-        const success = await updateSubscriptionStatus('active', 'lifetime')
+        const success = await updateSubscriptionStatus('active', 'lifetime', enteredCode)
         if (success) { showToast('👑 Unlimited VIP lifetime access unlocked!', 'success'); navigate('/dashboard') }
         else showToast('Failed to apply coupon. Please try again.', 'error')
       } catch (err: any) { showToast('Coupon error: ' + err.message, 'error') }

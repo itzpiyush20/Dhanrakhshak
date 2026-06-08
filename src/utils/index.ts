@@ -245,7 +245,17 @@ function detectPaymentInstrument(text: string): 'credit_card' | 'debit_card' | '
 
   // UPI: explicit keywords
   if (/\bupi\b/i.test(text)) return 'upi'
-  if (/@[a-z]+/i.test(lower) && /(?:paid|txn|transfer)/i.test(text)) return 'upi'
+  const hasUpiVpa = (() => {
+    const matches = lower.match(/[\w.-]+@[\w.-]+/g)
+    if (!matches) return false
+    for (const m of matches) {
+      if (/\b(care|support|reply|noreply|alerts|help|info|service|contact|feedback|queries|security)@/.test(m)) continue
+      if (/\.(com|in|net|org|edu|gov|co|info|biz|co\.in|org\.in|net\.in)$/.test(m)) continue
+      return true
+    }
+    return false
+  })()
+  if (hasUpiVpa && /(?:paid|txn|transfer)/i.test(text)) return 'upi'
 
   // BANK ACCOUNT / TRANSFERS (NEFT/RTGS/IMPS/Net Banking): explicit keywords
   if (/\b(?:neft|imps|rtgs|ft|netbanking|internetbanking)\b/i.test(text)) return 'bank_account'
@@ -327,6 +337,69 @@ export function isCardPayment(notes: string | null | undefined): boolean {
   if (!notes) return false
   const instrument = detectPaymentInstrument(notes)
   return instrument === 'credit_card' || instrument === 'debit_card'
+}
+
+/**
+ * Format the payment source label using structured columns if available,
+ * falling back to raw notes parsing.
+ */
+export function formatPaymentSource(txn: {
+  payment_mode?: string | null
+  card_issuer?: string | null
+  card_last4?: string | null
+  notes?: string | null
+}): string {
+  const mode = txn.payment_mode
+  const issuer = txn.card_issuer
+  const last4 = txn.card_last4
+
+  if (!mode || mode === 'unknown') {
+    return parsePaymentSource(txn.notes)
+  }
+
+  let label = ''
+  switch (mode) {
+    case 'credit_card':
+      label = issuer ? `${issuer} Credit Card` : 'Credit Card'
+      break
+    case 'debit_card':
+      label = issuer ? `${issuer} Debit Card` : 'Debit Card'
+      break
+    case 'upi':
+      label = issuer ? `${issuer} UPI` : 'UPI'
+      break
+    case 'bank_account':
+      label = issuer ? `${issuer} Bank A/c` : 'Bank A/c'
+      break
+    case 'wallet':
+      label = issuer ? `${issuer} Wallet` : 'Digital Wallet'
+      break
+    case 'neft':
+      label = issuer ? `${issuer} NEFT` : 'NEFT'
+      break
+    case 'rtgs':
+      label = issuer ? `${issuer} RTGS` : 'RTGS'
+      break
+    case 'imps':
+      label = issuer ? `${issuer} IMPS` : 'IMPS'
+      break
+    case 'atm':
+      label = issuer ? `${issuer} ATM` : 'ATM Withdrawal'
+      break
+    case 'nach':
+      label = issuer ? `${issuer} Auto-Debit` : 'Auto-Debit'
+      break
+    case 'cheque':
+      label = 'Cheque'
+      break
+    default:
+      label = issuer ? `${issuer} Bank` : 'Bank'
+  }
+
+  if (last4) {
+    label += ` xx${last4}`
+  }
+  return label
 }
 
 export { encryptText, decryptText } from './crypto'

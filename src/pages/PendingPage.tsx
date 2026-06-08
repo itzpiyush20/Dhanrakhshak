@@ -20,7 +20,7 @@ import {
 } from '@/services'
 import { saveMerchantRuleToDb } from '@/services/learningEngine'
 import { useAuth } from '@/context/AuthContext'
-import { formatCurrency, formatDate, parsePaymentSource, isCardPayment, withTimeout } from '@/utils'
+import { formatCurrency, formatDate, parsePaymentSource, formatPaymentSource, isCardPayment, withTimeout } from '@/utils'
 import { CATEGORIES } from '@/constants'
 import type { Database } from '@/types/database'
 import { useToast } from '@/context'
@@ -358,7 +358,7 @@ export default function PendingPage() {
       // Gate: isGoogleConnected = hasGoogleToken from AuthContext (useState<boolean>)
       // It's already reactive — no need to re-check session or localStorage here.
       if (!isGoogleConnected) {
-        setError('Connect your Google account first. Click "Connect Google Account" below.')
+        setError('Gmail Inbox not connected. Please click "Connect Gmail Inbox" below to link your inbox.')
         setScanning(false)
         return
       }
@@ -374,7 +374,12 @@ export default function PendingPage() {
         // If the scanner detected an expired token (401), it already called
         // clearGoogleToken(). We call notifyGoogleTokenCleared() to update
         // hasGoogleToken state in AuthContext so the UI reacts immediately.
-        if (res.error.message?.includes('expired') || res.error.message?.includes('TOKEN_EXPIRED')) {
+        if (
+          res.error.message?.includes('expired') || 
+          res.error.message?.includes('TOKEN_EXPIRED') ||
+          res.error.message?.includes('List failed') ||
+          res.error.message?.includes('Forbidden')
+        ) {
           notifyGoogleTokenCleared()
         }
         throw res.error
@@ -385,9 +390,19 @@ export default function PendingPage() {
       const pendingCount = count - autoApproved
       const skipped = (res.data as any)?.skippedConfidence || 0
 
-      setScanSuccessMessage(
-        `✨ Sync complete! Found ${count} transaction(s). Auto-approved ${autoApproved}, added ${pendingCount} for review.${skipped > 0 ? ` (${skipped} emails skipped — low confidence)` : ''}`
-      )
+      const txns = res.data?.transactions || []
+      const approvedTxns = txns.filter((t: any) => t.approval_status === 'approved')
+      
+      let successMsg = `✨ Sync complete! Found ${count} transaction(s). Auto-approved ${autoApproved}, added ${pendingCount} for review.${skipped > 0 ? ` (${skipped} emails skipped — low confidence)` : ''}`
+      
+      if (approvedTxns.length > 0) {
+        successMsg += '\n\n✅ Auto-Approved Transactions:'
+        approvedTxns.forEach((t: any) => {
+          successMsg += `\n• ${t.merchant || 'Merchant'}: ${formatCurrency(Number(t.amount))} (${t.category})`
+        })
+      }
+
+      setScanSuccessMessage(successMsg)
 
       // Show auto-categorized review popup if any were auto-approved
       const autoList = res.data?.transactions?.filter((t: any) => t.approval_status === 'approved') || []
@@ -411,7 +426,7 @@ export default function PendingPage() {
       setError(null)
       // forceConsent=true — always request a fresh Google access token
       // This is the ONLY place in the app that uses forceConsent
-      const { error } = await signInWithGoogle('/pending', true)
+      const { error } = await signInWithGoogle('/pending', true, true)
       if (error) throw new Error(error)
     } catch (err: any) {
       setError(err.message || 'Failed to redirect to Google.')
@@ -452,16 +467,16 @@ export default function PendingPage() {
         {error && (
           <div role="alert" className="rounded-2xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-4 text-sm text-[var(--status-danger-text)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-md">
             <div>{error}</div>
-            {error.includes('expired') && (
+            {(error.includes('expired') || error.includes('not connected') || error.includes('TOKEN_EXPIRED') || error.includes('Forbidden')) && (
               <Button
                 size="sm"
                 variant="secondary"
-                className="shrink-0 text-[var(--status-danger-text)] border-[var(--status-danger-border)] bg-[var(--status-danger-subtle)] hover:bg-[var(--status-danger-border)] hover:border-[var(--status-danger-text)]/40 transition-all text-xs justify-center"
+                className="shrink-0 text-[var(--status-danger-text)] border-[var(--status-danger-border)] bg-[var(--status-danger-subtle)] hover:bg-[var(--status-danger-border)] hover:border-[var(--status-danger-text)]/40 transition-all text-xs justify-center font-bold"
                 onClick={handleReconnectGoogle}
                 loading={scanning}
                 disabled={scanning}
               >
-                🔑 Reconnect Google
+                🔑 Connect Gmail Inbox
               </Button>
             )}
           </div>
@@ -493,7 +508,7 @@ export default function PendingPage() {
 
         {scanSuccessMessage && (
           <div role="status" className="rounded-2xl bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] p-4 text-sm text-[var(--status-positive-text)] flex items-center justify-between animate-fade-in">
-            <span>{scanSuccessMessage}</span>
+            <span className="whitespace-pre-line">{scanSuccessMessage}</span>
             <button
               onClick={() => setScanSuccessMessage(null)}
               className="text-[var(--status-positive-text)] hover:opacity-85 font-bold ml-2 text-xs transition-colors"
@@ -523,16 +538,16 @@ export default function PendingPage() {
           </div>
         )}
 
-        {!isGoogleConnected && !error && (
+        {!isGoogleConnected && (
           <div role="status" className="rounded-2xl bg-brand-500/10 border border-brand-500/20 p-4 text-sm text-brand-500 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 animate-fade-in shadow-md">
             <div className="flex items-start gap-2.5">
               <span className="text-lg shrink-0 mt-0.5" aria-hidden="true">🔗</span>
               <div>
                 <p className="font-bold text-white">
-                  Connect Google to Enable Live Scanning
+                  Connect Gmail to Enable Live Scanning
                 </p>
                 <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
-                  Sign in with Google to allow Dhanrakshak to read your bank alert emails and auto-detect transactions. {profile?.subscription_status === 'trial' ? '(Trial account active)' : (profile?.subscription_plan_type === 'monthly' ? '(Basic account active)' : '(Pro account active)')}
+                  Link your Gmail inbox to allow Dhanrakshak to read your bank alert emails and auto-detect transactions. {profile?.subscription_status === 'trial' ? '(Trial account active)' : (profile?.subscription_plan_type === 'monthly' ? '(Basic account active)' : '(Pro account active)')}
                 </p>
               </div>
             </div>
@@ -545,7 +560,7 @@ export default function PendingPage() {
                 loading={scanning}
                 disabled={scanning}
               >
-                🔑 Connect Google Account
+                🔑 Connect Gmail Inbox
               </Button>
               {(profile?.subscription_status === 'trial' || (profile?.subscription_status === 'active' && profile?.subscription_plan_type === 'monthly')) && (
                 <Link to="/pricing" className="shrink-0">
@@ -570,7 +585,7 @@ export default function PendingPage() {
                 <h3 className="font-bold text-white text-base">Your Data Stays on Your Device</h3>
               </div>
               <p className="text-xs text-zinc-400 leading-relaxed font-medium">
-                Dhanrakshak uses <strong>Private Local Processing</strong>. When you connect your Google account, our app fetches your bank alert emails and reads them <em>directly inside your browser</em>.
+                Dhanrakshak uses <strong>Private Local Processing</strong>. When you connect your Gmail inbox, our app fetches your bank alert emails and reads them <em>directly inside your browser</em>.
               </p>
               <div className="rounded-xl bg-surface-2 p-3 text-[11px] text-zinc-500 font-medium">
                 💡 <strong>Think of it like an offline desk calculator:</strong> We never upload your raw emails, passwords, or transaction details to our servers. Your banking information is processed and stored locally on this device.
@@ -696,9 +711,11 @@ export default function PendingPage() {
                       <span aria-hidden="true">🕒</span> <strong>{parseTransactionTime(txn.notes || '', txn.created_at)}</strong>
                     </span>
                     <span className="flex items-center gap-1 bg-surface-2/60 border border-border-subtle/20 rounded-lg px-2 py-1 text-zinc-300 shrink-0">
-                      <span aria-hidden="true">{isCardPayment(txn.notes) ? '💳' : '🏦'}</span>{' '}
+                      <span aria-hidden="true">
+                        {txn.payment_mode === 'credit_card' || txn.payment_mode === 'debit_card' || isCardPayment(txn.notes) ? '💳' : '🏦'}
+                      </span>{' '}
                       <strong>
-                        {parsePaymentSource(txn.notes)}
+                        {formatPaymentSource(txn)}
                       </strong>
                     </span>
                     <span className="flex items-center gap-1 bg-surface-2/60 border border-border-subtle/20 rounded-lg px-2 py-1 text-brand-300 min-w-0 max-w-full">

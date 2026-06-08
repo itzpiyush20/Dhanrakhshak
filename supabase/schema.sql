@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   budget_alerts_enabled BOOLEAN DEFAULT true,
   weekly_report_enabled BOOLEAN DEFAULT true,
   subscription_reminders_enabled BOOLEAN DEFAULT true,
+  currency TEXT DEFAULT 'INR' CHECK (currency IN ('INR', 'USD')),
+  active_financial_year INTEGER DEFAULT 2026,
+  promo_code TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
