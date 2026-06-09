@@ -10,14 +10,10 @@ import { useAuth, useToast } from '@/context'
 
 // ── Feature list shared by all tiers ──────────────────────────
 const FEATURES = [
-  'Automated Gmail inbox transaction parsing',
-  'Real-time expense categorisation engine',
-  'Multi-card limit and threshold tracking',
-  'Visual budget charts & spending history',
-  'Subscription renewal calendar',
-  'Encrypted CSV & JSON data export',
-  'Priority support — response within 24 h',
-  'Early access to upcoming features',
+  'Automated Gmail inbox scanning',
+  'Real-time category learning engine',
+  'Visual budget charts & limit alerts',
+  'Subscription renewal tracking & calendar',
 ]
 
 export default function PricingPage() {
