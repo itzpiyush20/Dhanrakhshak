@@ -8,12 +8,19 @@ import { Link, useNavigate } from 'react-router-dom'
 import AppLayout from '@/layouts/AppLayout'
 import { useAuth, useToast } from '@/context'
 
-// ── Feature list shared by all tiers ──────────────────────────
-const FEATURES = [
+// ── Feature lists for different subscription tiers ───────────
+const MONTHLY_FEATURES = [
   'Automated Gmail inbox scanning',
   'Real-time category learning engine',
   'Visual budget charts & limit alerts',
+  'Standard email support',
+]
+
+const YEARLY_FEATURES = [
+  'All Monthly features included',
   'Subscription renewal tracking & calendar',
+  'Encrypted CSV & JSON data export',
+  'Priority support (response within 24h)',
 ]
 
 export default function PricingPage() {
@@ -30,7 +37,7 @@ export default function PricingPage() {
   const isTrial   = profile?.subscription_status === 'trial'
   const isPro     = isActive && profile?.subscription_plan_type !== 'monthly'
 
-  const planName  = selectedPlan === 'annual' ? 'Pro' : 'Basic'
+  const planName  = selectedPlan === 'annual' ? 'Yearly' : 'Monthly'
   const planPrice = selectedPlan === 'annual' ? '365' : '31'
   const planSub   = selectedPlan === 'annual' ? 'Billed once per year' : 'Billed every month'
 
@@ -189,7 +196,7 @@ export default function PricingPage() {
                 <span className="text-2xl">⏳</span>
                 <div>
                   <p className="text-sm font-bold text-white">Trial Active — {daysLeft} day{daysLeft !== 1 ? 's' : ''} remaining</p>
-                  <p className="text-xs text-zinc-400 font-medium mt-0.5">Full access to Pro features active. Upgrade to prevent any interruption to your automatic email tracking.</p>
+                  <p className="text-xs text-zinc-400 font-medium mt-0.5">Full access to premium features active. Upgrade to prevent any interruption to your automatic email tracking.</p>
                 </div>
               </div>
               <span className="text-[10px] px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold uppercase tracking-wider">Trial Access</span>
@@ -212,7 +219,7 @@ export default function PricingPage() {
           {isActive && (
             <div className="rounded-3xl p-5 flex items-center gap-3 bg-surface-1 border border-border-subtle shadow-md">
               <span className="text-2xl">✅</span>
-              <p className="text-sm font-bold text-emerald-400">You are on the {profile?.subscription_plan_type === 'monthly' ? 'Basic' : 'Pro'} Plan — all automation and sync systems are fully active.</p>
+              <p className="text-sm font-bold text-emerald-400">You are on the {profile?.subscription_plan_type === 'monthly' ? 'Monthly' : 'Yearly'} Plan — all automation and sync systems are fully active.</p>
             </div>
           )}
         </div>
@@ -228,7 +235,7 @@ export default function PricingPage() {
               onClick={() => setSelectedPlan('monthly')}
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-white">Basic</h2>
+                <h2 className="text-lg font-bold text-white">Monthly</h2>
                 <input type="radio" readOnly checked={selectedPlan === 'monthly'} className="h-4 w-4 cursor-pointer accent-[#3ecf8e]" />
               </div>
 
@@ -241,7 +248,7 @@ export default function PricingPage() {
               </div>
 
               <ul className="space-y-3.5 flex-1 border-t border-border-subtle pt-5">
-                {FEATURES.map((f) => (
+                {MONTHLY_FEATURES.map((f) => (
                   <li key={f} className="flex items-start gap-3">
                     <span className="text-emerald-400 shrink-0 text-sm font-bold">✓</span>
                     <span className="text-xs text-zinc-400 font-medium">{f}</span>
@@ -267,7 +274,7 @@ export default function PricingPage() {
                         : 'border-zinc-700 bg-surface-2 hover:bg-zinc-800 text-zinc-300 transition-all active:scale-98 shadow-sm cursor-pointer'
                     }`}
                   >
-                    Choose Basic
+                    Choose Monthly
                   </button>
                 )}
               </div>
@@ -285,7 +292,7 @@ export default function PricingPage() {
               </div>
 
               <div className="flex items-center justify-between mb-6 mt-2">
-                <h2 className="text-lg font-bold text-white">Pro</h2>
+                <h2 className="text-lg font-bold text-white">Yearly</h2>
                 <input type="radio" readOnly checked={selectedPlan === 'annual'} className="h-4 w-4 cursor-pointer accent-[#3ecf8e]" />
               </div>
 
@@ -301,7 +308,7 @@ export default function PricingPage() {
               </div>
 
               <ul className="space-y-3.5 flex-1 border-t border-border-subtle pt-5">
-                {FEATURES.map((f) => (
+                {YEARLY_FEATURES.map((f) => (
                   <li key={f} className="flex items-start gap-3">
                     <span className="text-emerald-400 shrink-0 text-sm font-bold">✓</span>
                     <span className="text-xs text-zinc-300 font-medium">{f}</span>
@@ -327,7 +334,7 @@ export default function PricingPage() {
                     onClick={() => handleSelectPlan('annual')}
                     className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer transition-all active:scale-98 border border-emerald-400/20"
                   >
-                    {isActive && profile?.subscription_plan_type === 'monthly' ? 'Upgrade to Pro' : 'Get Pro'}
+                    {isActive && profile?.subscription_plan_type === 'monthly' ? 'Upgrade to Yearly' : 'Get Yearly'}
                   </button>
                 )}
                 <p className="text-[10px] text-center text-zinc-500 font-medium">Secured via Razorpay · 256-bit SSL</p>
@@ -352,7 +359,7 @@ export default function PricingPage() {
               </div>
 
               <ul className="space-y-3.5 flex-1 border-t border-border-subtle pt-5">
-                {['All Pro features unlocked', 'Lifetime access status', 'No payment card required', 'Instant dashboard activation'].map((f) => (
+                {['All Yearly features unlocked', 'Lifetime access status', 'No payment card required', 'Instant dashboard activation'].map((f) => (
                   <li key={f} className="flex items-start gap-3">
                     <span className="text-emerald-400 shrink-0 text-sm font-bold">✓</span>
                     <span className="text-xs text-zinc-400 font-medium">{f}</span>

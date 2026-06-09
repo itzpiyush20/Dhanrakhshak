@@ -573,13 +573,13 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                   profile?.subscription_plan_type === 'monthly' ? (
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider text-zinc-300 bg-surface-2 border border-border-subtle shrink-0 select-none">
-                        Basic Plan 👑
+                        Monthly Plan 👑
                       </span>
                       <Link
                         to="/pricing"
                         className="inline-flex items-center justify-center px-3 py-1.5 rounded-[6px] text-[11px] font-bold uppercase tracking-wider text-[var(--sb-on-primary)] bg-[var(--sb-primary)] hover:bg-[var(--sb-primary-deep)] active:scale-97 transition-all cursor-pointer shrink-0 whitespace-nowrap shadow-sm"
                       >
-                        Upgrade to Pro
+                        Upgrade to Yearly
                       </Link>
                     </div>
                   ) : (
@@ -587,13 +587,13 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                       <button
                         onClick={() => {
                           if (profile?.subscription_expires_at) {
-                            showToast(`Your Pro Plan is active until ${new Date(profile.subscription_expires_at).toLocaleDateString('en-IN')}`, 'info')
+                            showToast(`Your Yearly Plan is active until ${new Date(profile.subscription_expires_at).toLocaleDateString('en-IN')}`, 'info')
                           }
                         }}
                         className="px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] shrink-0 cursor-pointer hover:bg-[var(--status-positive-border)]/20 transition-all select-none"
                         title="Click to view validity"
                       >
-                        Pro Plan 👑
+                        Yearly Plan 👑
                       </button>
                     </div>
                   )

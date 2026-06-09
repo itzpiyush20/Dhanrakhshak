@@ -547,7 +547,7 @@ export default function PendingPage() {
                   Connect Gmail to Enable Live Scanning
                 </p>
                 <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
-                  Link your Gmail inbox to allow Dhanrakshak to read your bank alert emails and auto-detect transactions. {profile?.subscription_status === 'trial' ? '(Trial account active)' : (profile?.subscription_plan_type === 'monthly' ? '(Basic account active)' : '(Pro account active)')}
+                  Link your Gmail inbox to allow Dhanrakshak to read your bank alert emails and auto-detect transactions. {profile?.subscription_status === 'trial' ? '(Trial account active)' : (profile?.subscription_plan_type === 'monthly' ? '(Monthly account active)' : '(Yearly account active)')}
                 </p>
               </div>
             </div>
@@ -569,7 +569,7 @@ export default function PendingPage() {
                     variant="secondary"
                     className="text-brand-300 border-brand-500/20 bg-brand-500/5 hover:bg-brand-500/10 hover:border-brand-500/35 transition-all text-xs justify-center font-bold"
                   >
-                    👑 Upgrade to Pro
+                    👑 Upgrade to Yearly
                   </Button>
                 </Link>
               )}

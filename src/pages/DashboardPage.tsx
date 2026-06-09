@@ -469,7 +469,7 @@ export default function DashboardPage() {
                       variant="secondary"
                       className="text-brand-300 border-brand-500/20 bg-brand-500/5 hover:bg-brand-500/10 hover:border-brand-500/35 transition-all text-xs justify-center font-bold"
                     >
-                      👑 Upgrade to Pro
+                      👑 Upgrade to Yearly
                     </Button>
                   </Link>
                 )}
