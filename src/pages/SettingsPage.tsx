@@ -74,6 +74,13 @@ export default function SettingsPage() {
   const [restoreError, setRestoreError] = useState('')
   const [exportLoading, setExportLoading] = useState(false)
 
+  // Change Password States
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [changePasswordLoading, setChangePasswordLoading] = useState(false)
+  const [changePasswordSuccess, setChangePasswordSuccess] = useState(false)
+  const [changePasswordError, setChangePasswordError] = useState('')
+
   const handlePlainExport = async (format: 'csv' | 'json') => {
     setExportLoading(true)
     try {
@@ -251,6 +258,43 @@ export default function SettingsPage() {
       setRestoreError(err.message || 'Decryption failed. Please verify the file and password.')
     } finally {
       setRestoreLoading(false)
+    }
+  }
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setChangePasswordError('')
+    setChangePasswordSuccess(false)
+
+    if (newPassword.length < 6) {
+      setChangePasswordError('Password must be at least 6 characters long.')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      setChangePasswordError('Passwords do not match.')
+      return
+    }
+
+    setChangePasswordLoading(true)
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      })
+
+      if (error) {
+        setChangePasswordError(error.message)
+      } else {
+        setChangePasswordSuccess(true)
+        setNewPassword('')
+        setConfirmPassword('')
+        showToast('🔑 Password changed successfully!', 'success')
+      }
+    } catch (err: any) {
+      setChangePasswordError(err.message || 'Failed to change password.')
+    } finally {
+      setChangePasswordLoading(false)
     }
   }
 
@@ -463,6 +507,47 @@ export default function SettingsPage() {
                   ⚙️ Export JSON
                 </Button>
               </div>
+            </Card>
+
+            {/* Change Password Card */}
+            <Card className="border-border-subtle bg-surface-1 shadow-md">
+              <h2 className="text-base font-bold text-zinc-200 mb-2">🔑 Change Account Password</h2>
+              <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
+                Update your account password. Passwords must be at least 6 characters.
+              </p>
+              <form onSubmit={handleChangePassword} className="space-y-3">
+                {changePasswordError && (
+                  <div role="alert" className="rounded-xl bg-red-500/10 border border-red-500/20 p-2.5 text-[11px] text-red-400 leading-relaxed">
+                    ❌ {changePasswordError}
+                  </div>
+                )}
+                {changePasswordSuccess && (
+                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-[11px] text-emerald-400 leading-relaxed">
+                    ✅ Password updated successfully!
+                  </div>
+                )}
+                <Input
+                  label="New Password"
+                  type="password"
+                  placeholder="Enter new password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  disabled={changePasswordLoading}
+                />
+                <Input
+                  label="Confirm New Password"
+                  type="password"
+                  placeholder="Confirm new password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  disabled={changePasswordLoading}
+                />
+                <Button type="submit" block loading={changePasswordLoading} disabled={changePasswordLoading}>
+                  Update Password
+                </Button>
+              </form>
             </Card>
 
             {/* General Preferences Card */}

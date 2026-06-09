@@ -261,11 +261,35 @@ export default function SupportPage() {
 
                     <section className="space-y-2">
                       <h3 className="text-base font-bold text-white">
-                        3. Row-Level Data Security (RLS)
+                        3. Google API Services Compliance (Limited Use)
+                      </h3>
+                      <p>
+                        Dhanrakshak's use and transfer of information received from Google APIs to any other app will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">Google API Services User Data Policy</a>, including the Limited Use requirements. We do not store raw emails on our servers, nor do we sell or use your Google data for advertisements or AI model training.
+                      </p>
+                    </section>
+
+                    <section className="space-y-2">
+                      <h3 className="text-base font-bold text-white">
+                        4. Row-Level Data Security (RLS)
                       </h3>
                       <p>
                         All categorized transactions saved to our cloud servers are protected by Supabase Row-Level Security (RLS) tables. This physical partitioning prevents cross-tenant access. No user can view, edit, or leak your transactions, even in case of system-wide anomalies.
                       </p>
+                    </section>
+
+                    <section className="space-y-2">
+                      <h3 className="text-base font-bold text-white">
+                        5. DPDPA 2023 Consent & Grievance Redressal
+                      </h3>
+                      <p>
+                        In compliance with the Digital Personal Data Protection Act 2023, you can withdraw consent or request complete erasure of your data at any time under Settings. For queries, grievances, or details regarding data processing, contact our designated Grievance & Data Protection Officer:
+                      </p>
+                      <div className="mt-2 text-xs text-zinc-400 bg-surface-2/30 border border-border-subtle/30 p-3 rounded-xl space-y-1">
+                        <p>• <strong className="text-white">Officer:</strong> Piyush Khandelwal</p>
+                        <p>• <strong className="text-white">Email:</strong> itzpiyush20@gmail.com</p>
+                        <p>• <strong className="text-white">Designation:</strong> DPO & Grievance Officer</p>
+                        <p>• <strong className="text-white">Address:</strong> Jaipur, Rajasthan, India</p>
+                      </div>
                     </section>
 
                     <div className="p-4 rounded-2xl bg-surface-2/40 border border-border-subtle/50">

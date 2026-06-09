@@ -143,6 +143,7 @@ export default function AboutPage() {
         <div className="flex justify-center gap-6 mt-3">
           <Link to={ROUTES.PRIVACY} className="no-underline hover:underline" style={{ color: 'var(--sb-ink-muted)' }}>Privacy Policy</Link>
           <Link to={ROUTES.TERMS} className="no-underline hover:underline" style={{ color: 'var(--sb-ink-muted)' }}>Terms of Service</Link>
+          <Link to={ROUTES.REFUND} className="no-underline hover:underline" style={{ color: 'var(--sb-ink-muted)' }}>Refund Policy</Link>
           <Link to={ROUTES.ABOUT} className="no-underline hover:underline" style={{ color: 'var(--sb-ink-muted)' }}>About</Link>
           <Link to="/support" className="no-underline hover:underline" style={{ color: 'var(--sb-ink-muted)' }}>Support</Link>
         </div>

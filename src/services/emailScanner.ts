@@ -1051,21 +1051,37 @@ export async function scanRealGmailInbox() {
         const windowContent = emailContentForParsing.substring(winStart, winEnd).toLowerCase()
         const lowerContent = emailContentForParsing.toLowerCase()
 
-        const debitWords = ['debited', 'debited for', 'spent', 'paid', 'paid to', 'withdrawn', 'charged', 'payment to', 'sent to', 'transfer to', 'purchased at', 'debit']
+        const debitWords = [
+          'debited', 'debited for', 'spent', 'paid', 'paid to', 'withdrawn', 'charged',
+          'payment to', 'sent to', 'transfer to', 'purchased at', 'debit',
+          'order placed', 'checkout', 'billed', 'invoice'
+        ]
         const creditWords = ['credited', 'credited to', 'received', 'received from', 'added', 'refund', 'refunded', 'cashback', 'deposited', 'salary', 'credit', 'reversed']
 
         let debitScore = 0, creditScore = 0
         debitWords.forEach(w => { if (windowContent.includes(w)) debitScore += 10 })
-        creditWords.forEach(w => { if (windowContent.includes(w)) creditScore += 10 })
+        creditWords.forEach(w => {
+          if (w === 'received') {
+            const hasFalseCreditReceived = /received\s+(?:your\s+)?order|order\s+received|payment\s+received|received\s+payment|received\s+at/i.test(windowContent)
+            if (hasFalseCreditReceived) return
+          }
+          if (windowContent.includes(w)) creditScore += 10
+        })
 
         if (debitScore === 0 && creditScore === 0) {
           debitWords.forEach(w => { if (lowerContent.includes(w)) debitScore += 5 })
-          creditWords.forEach(w => { if (lowerContent.includes(w)) creditScore += 5 })
+          creditWords.forEach(w => {
+            if (w === 'received') {
+              const hasFalseCreditReceived = /received\s+(?:your\s+)?order|order\s+received|payment\s+received|received\s+payment|received\s+at/i.test(lowerContent)
+              if (hasFalseCreditReceived) return
+            }
+            if (lowerContent.includes(w)) creditScore += 5
+          })
         }
 
         if (debitScore === 0 && creditScore === 0) continue
 
-        const txType: 'debit' | 'credit' = creditScore > debitScore ? 'credit' : 'debit'
+        let txType: 'debit' | 'credit' = creditScore > debitScore ? 'credit' : 'debit'
         const debitCreditClear = Math.abs(debitScore - creditScore) >= 10
 
         // MINIMUM AMOUNT GATE
@@ -1097,6 +1113,15 @@ export async function scanRealGmailInbox() {
           merchant = dynamicMerchant
         } else if (subjectMerchant) {
           merchant = subjectMerchant
+        }
+
+        // Safety Override: Consumer spending known merchants (except Salary Credit) should default to debit
+        // unless explicit credit indicators are found in the email content.
+        if (txType === 'credit' && knownMerchant && knownMerchant.name !== 'Salary Credit') {
+          const hasRefundOrReversal = /refund|reversed|cashback|refunded|returned|chargeback/i.test(emailContentForParsing)
+          if (!hasRefundOrReversal) {
+            txType = 'debit'
+          }
         }
 
         if (!merchant) {

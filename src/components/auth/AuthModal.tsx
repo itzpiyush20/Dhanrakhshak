@@ -30,6 +30,7 @@ export default function AuthModal() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [agreeToTerms, setAgreeToTerms] = useState(false)
 
   // Keep switcher tab in sync when the modal is opened
   useEffect(() => {
@@ -53,6 +54,11 @@ export default function AuthModal() {
     setLoading(true)
 
     if (isSignUp) {
+      if (!agreeToTerms) {
+        setError('You must agree to the Terms of Service & Privacy Policy to create an account.')
+        setLoading(false)
+        return
+      }
       if (password.length < 6) {
         setError('Password must be at least 6 characters')
         setLoading(false)
@@ -129,7 +135,7 @@ export default function AuthModal() {
         <div className="flex bg-surface-2 rounded-xl p-1 mb-5 border border-border-subtle/50">
           <button
             type="button"
-            onClick={() => { setIsSignUp(false); setError('') }}
+            onClick={() => { setIsSignUp(false); setError(''); setAgreeToTerms(false) }}
             className={`flex-1 py-2 text-xs font-semibold rounded-lg border-0 cursor-pointer transition-all ${
               !isSignUp 
                 ? 'bg-surface-1 text-white shadow-md border border-border-subtle/30' 
@@ -140,7 +146,7 @@ export default function AuthModal() {
           </button>
           <button
             type="button"
-            onClick={() => { setIsSignUp(true); setError('') }}
+            onClick={() => { setIsSignUp(true); setError(''); setAgreeToTerms(false) }}
             className={`flex-1 py-2 text-xs font-semibold rounded-lg border-0 cursor-pointer transition-all ${
               isSignUp 
                 ? 'bg-surface-1 text-white shadow-md border border-border-subtle/30' 
@@ -186,6 +192,21 @@ export default function AuthModal() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+
+          {isSignUp && (
+            <div className="flex items-start gap-2.5 my-3">
+              <input
+                type="checkbox"
+                id="agree_terms"
+                checked={agreeToTerms}
+                onChange={(e) => setAgreeToTerms(e.target.checked)}
+                className="mt-0.5 h-3.5 w-3.5 rounded border-zinc-700 bg-surface-2 accent-emerald-500 cursor-pointer"
+              />
+              <label htmlFor="agree_terms" className="text-[11px] text-zinc-400 leading-normal select-none cursor-pointer">
+                I agree to the <Link to="/terms" onClick={closeAuthModal} className="text-brand-400 hover:text-brand-300 font-medium transition-colors">Terms of Service</Link>, <Link to="/privacy" onClick={closeAuthModal} className="text-brand-400 hover:text-brand-300 font-medium transition-colors">Privacy Policy</Link>, and <Link to="/refund-policy" onClick={closeAuthModal} className="text-brand-400 hover:text-brand-300 font-medium transition-colors">Refund Policy</Link>, and consent to the client-side parsing of my transactional bank alerts.
+              </label>
+            </div>
+          )}
 
           {!isSignUp && (
             <div className="flex justify-end !mt-1">

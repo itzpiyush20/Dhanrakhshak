@@ -44,6 +44,8 @@ export const ROUTES = {
   PRIVACY: '/privacy',
   ABOUT: '/about',
   TERMS: '/terms',
+  REFUND: '/refund-policy',
+  RESET_PASSWORD: '/reset-password',
 } as const
 
 /** App-level config */

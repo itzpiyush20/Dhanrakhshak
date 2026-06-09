@@ -783,6 +783,7 @@ export default function LandingPage() {
               { label: 'Pricing', to: '/pricing' },
               { label: 'Privacy Policy', to: ROUTES.PRIVACY },
               { label: 'Terms of Service', to: ROUTES.TERMS },
+              { label: 'Refund Policy', to: ROUTES.REFUND },
               { label: 'About', to: ROUTES.ABOUT },
               { label: 'Support', to: '/support' },
             ].map((l) => (

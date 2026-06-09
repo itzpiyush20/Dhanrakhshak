@@ -872,6 +872,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           <div className={cn("flex flex-wrap justify-center gap-6 font-medium md:pr-44", isStaticLight ? "text-sb-ink-muted" : "")}>
             <Link to="/privacy" className="hover:text-brand-400 transition-colors">Privacy Policy</Link>
             <Link to="/terms" className="hover:text-brand-400 transition-colors">Terms of Service</Link>
+            <Link to="/refund-policy" className="hover:text-brand-400 transition-colors">Refund Policy</Link>
             <Link to="/support?tab=faq" className="hover:text-brand-400 transition-colors">FAQs</Link>
             <Link to="/support?tab=contact" className="hover:text-brand-400 transition-colors">Help & Contact</Link>
           </div>

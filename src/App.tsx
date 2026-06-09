@@ -21,12 +21,12 @@ import SupportPage from '@/pages/SupportPage'
 // Helper redirects for in-context authentication modal triggers
 function LoginRedirect() {
   const location = useLocation()
-  return <Navigate to={`/?auth=login${location.search ? '&' + location.search.substring(1) : ''}`} replace />
+  return <Navigate to={`/?auth=login${location.search ? '&' + location.search.substring(1) : ''}${location.hash}`} replace />
 }
 
 function SignupRedirect() {
   const location = useLocation()
-  return <Navigate to={`/?auth=signup${location.search ? '&' + location.search.substring(1) : ''}`} replace />
+  return <Navigate to={`/?auth=signup${location.search ? '&' + location.search.substring(1) : ''}${location.hash}`} replace />
 }
 
 function ScrollToTop() {
@@ -59,6 +59,8 @@ const PrivacyPage      = lazy(() => import('@/pages/PrivacyPage'))
 const AboutPage        = lazy(() => import('@/pages/AboutPage'))
 const TermsPage        = lazy(() => import('@/pages/TermsPage'))
 const PricingPage      = lazy(() => import('@/pages/PricingPage'))
+const RefundPage       = lazy(() => import('@/pages/RefundPage'))
+const ResetPasswordPage = lazy(() => import('@/pages/ResetPasswordPage'))
 
 const PaymentSuccessPage = lazy(() => import('@/pages/PaymentSuccessPage'))
 
@@ -112,6 +114,8 @@ function App() {
               <Route path="/about"           element={<AboutPage />} />
               <Route path="/terms"           element={<TermsPage />} />
               <Route path="/pricing"         element={<PricingPage />} />
+              <Route path="/refund-policy"   element={<RefundPage />} />
+              <Route path="/reset-password"  element={<ResetPasswordPage />} />
 
               {/* Protected routes */}
               <Route element={<ProtectedRoute />}>

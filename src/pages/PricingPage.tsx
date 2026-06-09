@@ -93,6 +93,10 @@ export default function PricingPage() {
         modal: { ondismiss: () => setProcessing(false) },
       }
       const rzp = new (window as any).Razorpay(options)
+      rzp.on('payment.failed', (response: any) => {
+        showToast(`Payment Failed: ${response.error.description || 'Unknown error'}`, 'error')
+        setProcessing(false)
+      })
       rzp.open()
     } catch (err: any) { showToast(`Checkout error: ${err.message}`, 'error'); setProcessing(false) }
   }

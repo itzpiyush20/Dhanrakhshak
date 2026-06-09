@@ -72,12 +72,12 @@ export default function PrivacyPage() {
             { title: "Gmail OAuth", body: "We use OAuth 2.0 with read-only scopes. Your Gmail password is never seen or stored by us." },
           ])}
 
-          {section("5. Your Rights", null, [
-            { title: "Access", body: "You can export all your transaction data anytime from Settings → Export Data." },
-            { title: "Deletion", body: "You can permanently delete your account from Settings → Account → Delete Account. This removes all your data from our systems within 24 hours, including any backups." },
-            { title: "Correction", body: "You can edit any transaction, merchant rule, or profile detail at any time." },
-            { title: "Portability", body: "Export your data as CSV or JSON at any time from the Dashboard." },
-            { title: "Revoke Gmail Access", body: "You can revoke Gmail access at any time from your Google Account → Security → Third-party apps, or from Settings → Disconnect Gmail in the app." },
+          {section("5. Your Rights & Consent Control", null, [
+            { title: "Access & Portability", body: "You can export all your transaction data anytime as a CSV or JSON file from the Settings page or the dashboard." },
+            { title: "Deletion & Erasure", body: "You can permanently delete your account from Settings → Account → Delete Account. This removes all your personal data, transaction history, and configs from our servers within 24 hours." },
+            { title: "Correction", body: "You can edit, categorize, or delete any transaction, rule, or profile parameter at any time." },
+            { title: "Revoke Gmail Access", body: "You can revoke Gmail inbox access at any time from your Google Account → Security → Third-party apps, or from Settings → Disconnect Gmail in the app." },
+            { title: "Withdraw Consent (DPDPA 2023)", body: "Under the Digital Personal Data Protection Act 2023, you have the right to withdraw your consent to data processing at any time by deleting your account, which completely halts data processing and erases all records." },
           ])}
 
           {section("6. Third-Party Services", null, [
@@ -102,8 +102,25 @@ export default function PrivacyPage() {
             We will notify you of material changes to this policy via in-app notification or email. The "Last updated" date at the top of this page always reflects the most recent revision.
           `)}
 
-          {section("10. Contact Us", `
-            If you have privacy questions or wish to exercise your data rights, please use the in-app Support page or reach out via the feedback form. We aim to respond within 3 business days.
+          {section("10. Google API Services Disclosure", `
+            Dhanrakshak's use and transfer of information received from Google APIs to any other app will adhere to Google API Services User Data Policy, including the Limited Use requirements.
+
+            Specifically:
+            • We access your Gmail inbox only to read transaction alert emails from banking institutions.
+            • We do not store your raw email contents on our servers; they are parsed client-side in your browser.
+            • We do not share, transfer, or sell your Google user data to third-party databases, marketing platforms, or ad networks.
+            • We do not use your Google user data to train machine learning or artificial intelligence models.
+          `)}
+
+          {section("11. Contact Us & Grievance Officer", `
+            If you have privacy questions, wish to exercise your data rights, or have complaints, please contact our designated Grievance Officer:
+
+            • Name: Piyush Khandelwal
+            • Designation: Grievance Officer & Data Protection Officer (DPO)
+            • Contact Email: itzpiyush20@gmail.com
+            • Address: Jaipur, Rajasthan, India
+
+            We will address and resolve any complaints or data queries within 30 days of receipt.
           `)}
         </div>
       </main>
@@ -113,6 +130,7 @@ export default function PrivacyPage() {
         <div className="flex justify-center gap-6 mt-3">
           <Link to={ROUTES.PRIVACY} className="no-underline hover:underline" style={{ color: 'var(--sb-ink-muted)' }}>Privacy Policy</Link>
           <Link to={ROUTES.TERMS} className="no-underline hover:underline" style={{ color: 'var(--sb-ink-muted)' }}>Terms of Service</Link>
+          <Link to={ROUTES.REFUND} className="no-underline hover:underline" style={{ color: 'var(--sb-ink-muted)' }}>Refund Policy</Link>
           <Link to={ROUTES.ABOUT} className="no-underline hover:underline" style={{ color: 'var(--sb-ink-muted)' }}>About</Link>
           <Link to="/support" className="no-underline hover:underline" style={{ color: 'var(--sb-ink-muted)' }}>Support</Link>
         </div>

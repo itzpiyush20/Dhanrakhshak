@@ -25,6 +25,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // Enforce that only real payments are processed in production environments
+  const isProduction = process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production'
+  const keyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || ''
+  if (isProduction && keyId.startsWith('rzp_test_')) {
+    console.error('Security alert: Order creation blocked using test keys in production.')
+    return res.status(400).json({ error: 'Test payments are not allowed in the production environment.' })
+  }
+
   const { planType, userId } = req.body
 
   if (!planType || !userId) {
@@ -39,6 +47,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     amount = 365 * 100
   } else {
     return res.status(400).json({ error: 'Invalid planType. Must be monthly or annual.' })
+  }
+
+  if (amount < 100) {
+    return res.status(400).json({ error: 'Amount must be at least 100 paise' })
   }
 
   try {
@@ -61,6 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
   } catch (error: any) {
     console.error('Error creating Razorpay order:', error)
-    return res.status(500).json({ error: error.message || 'Failed to create Razorpay order' })
+    const isAuthError = error.statusCode === 401 || /auth|key/i.test(error.message || '')
+    return res.status(isAuthError ? 401 : 500).json({ error: error.message || 'Failed to create Razorpay order' })
   }
 }

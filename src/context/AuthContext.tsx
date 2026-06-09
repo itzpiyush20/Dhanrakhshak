@@ -239,24 +239,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const createdAtTime = data.created_at ? new Date(data.created_at).getTime() : Date.now()
         const safeCreatedAtTime = isNaN(createdAtTime) ? Date.now() : createdAtTime
         
-        // Prioritize 'active' subscription if either database or local storage indicates active
-        const isSubscribed = data.subscription_status === 'active' || localStatus === 'active'
-        const subStatus = isSubscribed ? 'active' : 'trial'
-        const subExpires = isSubscribed
-          ? (data.subscription_status === 'active' ? data.subscription_expires_at : localExpires)
-          : (data.subscription_expires_at || localExpires || new Date(safeCreatedAtTime + 14 * 24 * 60 * 60 * 1000).toISOString())
-
-        // Infer plan type if missing
-        let subPlan = 'trial'
-        if (isSubscribed) {
-          subPlan = data.subscription_plan_type || localPlan || ''
-          if (!subPlan) {
-            // Infer from expiration length
-            const expiresTime = new Date(subExpires).getTime()
-            const diffDays = Math.ceil((expiresTime - Date.now()) / (1000 * 60 * 60 * 24))
-            subPlan = diffDays > 35 ? 'annual' : 'monthly'
-          }
-        }
+        // Prioritize database subscription status as the single source of truth
+        const isSubscribed = data.subscription_status === 'active'
+        const subStatus = data.subscription_status || 'trial'
+        const subExpires = data.subscription_expires_at || new Date(safeCreatedAtTime + 14 * 24 * 60 * 60 * 1000).toISOString()
+        const subPlan = data.subscription_plan_type || (isSubscribed ? 'monthly' : 'trial')
 
         // Cache subscription details back to localStorage
         localStorage.setItem(`dhanrakshak_sub_status_${state.user.id}`, subStatus)
@@ -269,21 +256,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           subscription_expires_at: subExpires,
           subscription_plan_type: subPlan
         })
-
-        // Sync local active subscription to Supabase so other devices inherit it
-        if (localStatus === 'active' && data.subscription_status !== 'active') {
-          supabase
-            .from('profiles')
-            .update({
-              subscription_status: 'active',
-              subscription_expires_at: subExpires,
-              subscription_plan_type: subPlan
-            })
-            .eq('id', state.user.id)
-            .then(({ error: syncError }) => {
-              if (syncError) console.warn('Non-critical: Failed to sync local active subscription to DB:', syncError.message)
-            })
-        }
 
         // Sync settings (currency and active_financial_year)
         // Check database value first. If present, sync to local. If absent/null, sync local to DB.
@@ -438,7 +410,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetPassword = async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login`,
+      redirectTo: `${window.location.origin}/reset-password`,
     })
     return { error: error?.message ?? null }
   }
@@ -492,6 +464,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          if (window.location.pathname !== '/reset-password') {
+            window.location.href = '/reset-password'
+            return
+          }
+        }
+
         if (session?.provider_token) {
           // Fresh token from OAuth callback — save ONLY if we explicitly initiated a Gmail scope flow
           const isGmailFlow = localStorage.getItem('dhanrakshak_requesting_gmail_scope') === 'true'
