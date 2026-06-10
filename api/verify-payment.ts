@@ -2,21 +2,36 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 
-// Initialize Supabase admin client with service role key to bypass RLS policies
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 )
 
+// Simple in-memory rate limiter: max 5 requests per IP per minute
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now()
+  const entry = rateLimitMap.get(ip)
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 })
+    return false
+  }
+  if (entry.count >= 5) return true
+  entry.count++
+  return false
+}
+
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://dhanrakshak.vercel.app'
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Enable CORS
+  const origin = req.headers.origin || ''
+  if (origin === ALLOWED_ORIGIN) {
+    res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
+  }
   res.setHeader('Access-Control-Allow-Credentials', 'true')
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT')
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  )
+  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end()
@@ -26,7 +41,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Enforce that only real payments are processed in hosted (Vercel) environments
+  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || 'unknown'
+  if (isRateLimited(ip)) {
+    return res.status(429).json({ error: 'Too many requests. Please try again later.' })
+  }
+
   const isHosted = process.env.VERCEL === '1'
   const keyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || ''
   if (isHosted && keyId.startsWith('rzp_test_')) {
@@ -40,13 +59,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     razorpay_signature,
     userId,
     planType,
-  } = req.body
+  } = req.body ?? {}
 
-  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !userId || !planType) {
-    return res.status(400).json({ error: 'Missing required payment parameters' })
+  if (
+    typeof razorpay_order_id !== 'string' || !razorpay_order_id ||
+    typeof razorpay_payment_id !== 'string' || !razorpay_payment_id ||
+    typeof razorpay_signature !== 'string' || !razorpay_signature ||
+    typeof userId !== 'string' || !userId ||
+    !['monthly', 'annual', 'lifetime'].includes(planType)
+  ) {
+    return res.status(400).json({ error: 'Missing or invalid payment parameters' })
   }
 
-  // 1. Verify Razorpay cryptographic signature
   const keySecret = process.env.RAZORPAY_KEY_SECRET || ''
   const generatedSignature = crypto
     .createHmac('sha256', keySecret)
@@ -54,22 +78,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .digest('hex')
 
   if (generatedSignature !== razorpay_signature) {
-    console.error('Razorpay signature verification failed')
+    console.error('Razorpay signature verification failed for order:', razorpay_order_id)
     return res.status(400).json({ error: 'Signature verification failed. The transaction may be spoofed.' })
   }
 
-  // 2. Calculate subscription expiration date
   let durationDays = 30
-  if (planType === 'annual') {
-    durationDays = 365
-  } else if (planType === 'lifetime') {
-    durationDays = 36500 // 100 years
-  }
+  if (planType === 'annual') durationDays = 365
+  else if (planType === 'lifetime') durationDays = 36500
 
   const subscription_expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
 
   try {
-    // 3. Update public.profiles via Supabase Admin Client
     const { error } = await supabaseAdmin
       .from('profiles')
       .update({
@@ -80,9 +99,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
       .eq('id', userId)
 
-    if (error) {
-      throw error
-    }
+    if (error) throw error
 
     return res.status(200).json({
       success: true,

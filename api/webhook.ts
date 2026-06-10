@@ -2,14 +2,12 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 
-// Disable Vercel's default body parser so we can read the raw body for signature verification
 export const config = {
   api: {
     bodyParser: false,
   },
 }
 
-// Helper to buffer raw request body stream
 async function getRawBody(readable: any): Promise<string> {
   const chunks = []
   for await (const chunk of readable) {
@@ -18,7 +16,6 @@ async function getRawBody(readable: any): Promise<string> {
   return Buffer.concat(chunks).toString('utf8')
 }
 
-// Initialize Supabase admin client
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -29,7 +26,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Enforce that only real payments are processed in hosted (Vercel) environments
   const isHosted = process.env.VERCEL === '1'
   const keyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || ''
   if (isHosted && keyId.startsWith('rzp_test_')) {
@@ -45,8 +41,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing webhook signature' })
     }
 
-    // Verify webhook signature
-    // The secret is set up by the user in the Razorpay Webhooks Dashboard
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET || ''
     const generatedSignature = crypto
       .createHmac('sha256', secret)
@@ -58,13 +52,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Invalid webhook signature' })
     }
 
-    // Parse the verified payload
     const event = JSON.parse(rawBody)
-    console.log(`Received Razorpay webhook event: ${event.event}`)
 
-    // Only process order.paid (or payment.captured) events
     if (event.event === 'order.paid') {
       const orderEntity = event.payload.order.entity
+
+      // Idempotency: skip if already processed
+      const orderId = orderEntity.id as string
+      const { data: existing } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .eq('razorpay_order_id', orderId)
+        .maybeSingle()
+
+      if (existing) {
+        console.log(`Webhook order.paid already processed for order ${orderId}, skipping`)
+        return res.status(200).json({ status: 'already_processed' })
+      }
+
       const { userId, planType } = orderEntity.notes || {}
 
       if (!userId || !planType) {
@@ -72,17 +77,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ status: 'ignored_missing_notes' })
       }
 
-      // Calculate expiry date
       let durationDays = 30
-      if (planType === 'annual') {
-        durationDays = 365
-      } else if (planType === 'lifetime') {
-        durationDays = 36500
-      }
+      if (planType === 'annual') durationDays = 365
+      else if (planType === 'lifetime') durationDays = 36500
 
       const subscription_expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
 
-      // Update the user's subscription status
       const { error } = await supabaseAdmin
         .from('profiles')
         .update({
@@ -93,11 +93,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         })
         .eq('id', userId)
 
-      if (error) {
-        throw error
-      }
+      if (error) throw error
 
-      console.log(`Successfully updated subscription to active for user ${userId} via webhook`)
+      console.log(`Successfully updated subscription for user ${userId} via webhook`)
     }
 
     return res.status(200).json({ status: 'ok' })

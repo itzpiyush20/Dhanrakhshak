@@ -17,8 +17,12 @@ type TransactionInsert = Database['public']['Tables']['transactions']['Insert']
 // ============================================================
 // OWNER EMAILS — get unlimited scans. All other users are
 // capped to 1 scan per 24 hours.
+// Set VITE_OWNER_EMAILS as a comma-separated list in your .env file.
 // ============================================================
-const OWNER_EMAILS = ['itzpiyushkhandelwal@gmail.com', 'itzpiyush20@gmail.com']
+const OWNER_EMAILS = (import.meta.env.VITE_OWNER_EMAILS || '')
+  .split(',')
+  .map((e: string) => e.trim().toLowerCase())
+  .filter(Boolean)
 
 // ============================================================
 // LAYER 1 — TRUSTED SENDER DOMAIN WHITELIST
@@ -430,7 +434,7 @@ function detectPaymentMode(text: string): PaymentMode {
   const t = text.toLowerCase()
   if (/\bcredit\s*card\b|\bcc\b/.test(t)) return 'credit_card'
   if (/\bdebit\s*card\b/.test(t)) return 'debit_card'
-  
+
   const hasUpiVpa = (() => {
     const matches = t.match(/[\w.-]+@[\w.-]+/g)
     if (!matches) return false
@@ -442,7 +446,7 @@ function detectPaymentMode(text: string): PaymentMode {
     return false
   })()
   if (/\b(?:upi|vpa)\b/.test(t) || hasUpiVpa) return 'upi'
-  
+
   if (/\bneft\b/.test(t)) return 'neft'
   if (/\brtgs\b/.test(t)) return 'rtgs'
   if (/\bimps\b/.test(t)) return 'imps'
@@ -451,8 +455,6 @@ function detectPaymentMode(text: string): PaymentMode {
   if (/\b(net\s*banking|internet\s*banking|netbanking)\b/.test(t)) return 'net_banking'
   if (/\b(wallet|paytm\s*wallet|phonepe\s*wallet|freecharge|mobikwik)\b/.test(t)) return 'wallet'
   if (/\bcheque\b|\bcheque\s*no\b/.test(t)) return 'cheque'
-  // NOTE: Bare "card" (e.g. "Dear Card Holder", "card linked") must NOT default to credit_card.
-  // Only explicit "credit card" or "debit card" keywords trigger card classification above.
   return 'unknown'
 }
 
@@ -470,40 +472,31 @@ function getLastMatchIndex(preText: string, regex: RegExp): number {
 }
 
 function extractCardLast4(text: string): string | null {
-  // Find all occurrences of 4-digit sequences in the text
   const candidateRegex = /(?:^|\D)(?:[xX*]+-?)*\s*(\d{4})\b/g
   let match
   const candidates: { digits: string; index: number }[] = []
-  
+
   while ((match = candidateRegex.exec(text)) !== null) {
     const digits = match[1]
     const idx = match.index + match[0].indexOf(digits)
-    candidates.push({
-      digits,
-      index: idx
-    })
+    candidates.push({ digits, index: idx })
   }
 
   for (const candidate of candidates) {
     const digits = candidate.digits
     const idx = candidate.index
 
-    // Sanity check 1: Reject obvious non-card numbers (years)
     const val = parseInt(digits, 10)
     if (val >= 2020 && val <= 2035) continue
 
-    // Extract local context around the candidate
     const preText = text.substring(Math.max(0, idx - 60), idx)
 
-    // Check if it is masked (e.g. xx1234, *1234, -1234)
     const isMasked = /[xX*]+-?\s*$/.test(preText)
 
-    // Look for keywords in the preceding context
     const cardRegex = /\b(card|cc|credit|debit|visa|mastercard|mc|rupay|amex|diners|sbicard|sbi-card)\b/i
     const accountRegex = /\b(a\/c|account|acct|acc|savings|current|deposit|loan|wallet)\b/i
     const refRegex = /\b(ref\s*(?:no\.?|num(?:ber)?)?|reference\s*(?:no\.?|num(?:ber)?)?|txn\s*id|transaction\s*id|utr|otp|code|pin)\b/i
 
-    // We calculate distance from the candidate to the last occurrence of each keyword.
     const cardLastIdx = getLastMatchIndex(preText, cardRegex)
     const accountLastIdx = getLastMatchIndex(preText, accountRegex)
     const refLastIdx = getLastMatchIndex(preText, refRegex)
@@ -512,29 +505,17 @@ function extractCardLast4(text: string): string | null {
     const accountDist = accountLastIdx !== -1 ? preText.length - accountLastIdx : Infinity
     const refDist = refLastIdx !== -1 ? preText.length - refLastIdx : Infinity
 
-    // Strict validation rules:
-    // 1. If an account keyword is closer to the candidate than any card keyword, reject as it is a bank account number.
     if (accountDist < cardDist) continue
-
-    // 2. If a reference/transaction ID/OTP/code keyword is closer to the candidate than any card keyword, reject.
     if (refDist < cardDist) continue
 
-    // 3. To prevent random 4-digit numbers (like amounts, times, or PIN codes) from matching,
-    // we require either:
-    //    a) The number is masked (e.g. xx1234 or *1234)
-    //    b) There is an explicit card keyword (e.g. "card", "visa", etc.) or "ending in"/"ends" within the close preceding context (distance <= 40).
     const endsMatch = preText.match(/\b(ending|ends)\s*(?:in\s*)?$/i)
     const hasEnds = !!endsMatch
 
-    if (!isMasked && cardDist > 40 && !hasEnds) {
-      continue
-    }
+    if (!isMasked && cardDist > 40 && !hasEnds) continue
 
-    // 4. Double check that it's not preceded by A/c or account words even if further away, if there is no card keyword.
     if (cardDist === Infinity && accountDist !== Infinity) continue
     if (cardDist === Infinity && refDist !== Infinity) continue
 
-    // If we passed all checks, this is our card!
     return digits
   }
 
@@ -618,23 +599,23 @@ interface ConfidenceSignals {
   hasMerchant: boolean
   hasPaymentMode: boolean
   hasReferenceId: boolean
-  isLargeAmount: boolean   // > 1L — slight sanity penalty
-  debitCreditClear: boolean // debit/credit score gap is >= 15
+  isLargeAmount: boolean
+  debitCreditClear: boolean
 }
 
 function computeConfidence(signals: ConfidenceSignals): number {
   let score = 0
   if (signals.trustedSender) score += 35
-  if (signals.hardAcceptSubject) score += 20 // increased from 15
+  if (signals.hardAcceptSubject) score += 20
   if (signals.hasTransactionKeyword) score += 20
   if (signals.hasAmount) score += 15
-  if (signals.hasMerchant) score += 10 // increased from 5
+  if (signals.hasMerchant) score += 10
   if (signals.hasPaymentMode) score += 5
   if (signals.hasReferenceId) score += 5
   if (signals.debitCreditClear) score += 5
-  
+
   if (!signals.trustedSender) {
-    score -= 15 // reduced penalty from -30 to -15
+    score -= 15
   }
   if (signals.isLargeAmount) score -= 5
   return Math.max(0, Math.min(100, score))
@@ -707,13 +688,9 @@ export async function getScanLogs() {
 // MAIN ENGINE — Scan Real Gmail Inbox (V2)
 // ============================================================
 export async function scanRealGmailInbox() {
-  // ── TOKEN RESOLUTION ──
-  // Use the googleAuth service as single source of truth.
-  // getGoogleToken() checks expiry client-side before returning.
   const { data: { session } } = await supabase.auth.getSession()
   const user = session?.user
 
-  // Now read the authoritative token (must come from localStorage, saved only during Gmail OAuth connection)
   const providerToken = getGoogleToken()
 
   if (!user) return { data: null, error: new Error('User not authenticated') }
@@ -725,11 +702,8 @@ export async function scanRealGmailInbox() {
   }
 
   try {
-    // ── RATE LIMIT CHECK ──
-    // Owner email gets unlimited scans.
-    // All other users are limited to 1 successful scan per 24 hours.
     const cleanEmail = user.email?.toLowerCase().trim() || ''
-    const isOwner = OWNER_EMAILS.some(e => e.toLowerCase().trim() === cleanEmail)
+    const isOwner = OWNER_EMAILS.length > 0 && OWNER_EMAILS.includes(cleanEmail)
     if (!isOwner) {
       const { data: recentScanLogs } = await supabase
         .from('email_scan_logs')
@@ -752,9 +726,6 @@ export async function scanRealGmailInbox() {
       }
     }
 
-
-
-    // Fetch user's registered cards/accounts and past approved transactions to map last4 digits to issuers dynamically
     const [{ data: registeredCards }, { data: pastCards }] = await Promise.all([
       supabase.from('cards').select('last4, issuer').eq('user_id', user.id),
       supabase.from('transactions').select('card_last4, card_issuer').eq('user_id', user.id).eq('approval_status', 'approved').not('card_last4', 'is', null).not('card_issuer', 'is', null)
@@ -772,8 +743,6 @@ export async function scanRealGmailInbox() {
       })
     }
 
-
-    // Fetch active financial year (default to 2026)
     let activeYear = 2026
     try {
       const storedYear = localStorage.getItem(`dhanrakshak_active_financial_year_${user.id}`)
@@ -793,7 +762,6 @@ export async function scanRealGmailInbox() {
       }
     }
 
-    // Check if this is the user's first successful email scan
     let isFirstScan = true
     try {
       const { data: logs } = await supabase
@@ -812,33 +780,27 @@ export async function scanRealGmailInbox() {
     let startLimitTime = 0
     let q = ''
     if (isFirstScan) {
-      // First scan: last 7 days lookback window
       startLimitTime = Date.now() - 7 * 24 * 60 * 60 * 1000
       const startLimitDate = new Date(startLimitTime)
       const yyyy = startLimitDate.getFullYear()
       const mm = String(startLimitDate.getMonth() + 1).padStart(2, '0')
       const dd = String(startLimitDate.getDate()).padStart(2, '0')
-      
+
       q = `after:${yyyy}/${mm}/${dd} (debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
     } else {
-      // Subsequent scans: full calendar year (Jan 1 to Dec 31 of active year)
       startLimitTime = new Date(`${activeYear}-01-01T00:00:00Z`).getTime()
-      // Gmail before is exclusive, so before:YYYY-01-01 matches up to Dec 31
       q = `after:${activeYear}/01/01 before:${activeYear + 1}/01/01 (debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
     }
 
-    // --- Fetch message list ---
     let messages: { id: string; threadId: string }[] = []
     let nextPageToken = ''
 
     do {
-      // Owner gets up to 200 messages for full coverage; others get 100
       const maxResults = isOwner ? 200 : 100
       const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=${encodeURIComponent(q)}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`
       const listRes = await fetch(url, { headers: { Authorization: `Bearer ${providerToken}` } })
 
       if (listRes.status === 401 || listRes.status === 403) {
-        // Token is expired or lacks Gmail permissions — clear from storage so UI updates to "disconnected"
         clearGoogleToken()
         throw new Error('TOKEN_EXPIRED')
       }
@@ -859,7 +821,6 @@ export async function scanRealGmailInbox() {
       return { data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0 }, error: null }
     }
 
-    // --- Fetch full message details in parallel batches ---
     const batchSize = 15
     const validDetails: any[] = []
     for (let i = 0; i < messages.length; i += batchSize) {
@@ -879,7 +840,6 @@ export async function scanRealGmailInbox() {
       validDetails.push(...batchResults.filter(Boolean))
     }
 
-    // --- Fetch existing message IDs + reference IDs for dedup ---
     const { data: existingTxns } = await supabase
       .from('transactions')
       .select('email_message_id, reference_id')
@@ -888,17 +848,14 @@ export async function scanRealGmailInbox() {
     const existingMessageIds = new Set<string>(existingTxns?.map((t) => t.email_message_id).filter((id): id is string => !!id))
     const existingRefIds = new Set<string>(existingTxns?.map((t) => t.reference_id).filter((r): r is string => !!r))
 
-    // --- Parse Engine ---
     const transactionsToInsert: TransactionInsert[] = []
     let skippedConfidence = 0
 
     for (const mail of validDetails) {
       const mailMessageId: string = mail.id || ''
 
-      // Primary dedup: skip if we've already processed this Gmail message
       if (mailMessageId && existingMessageIds.has(mailMessageId)) continue
 
-      // Date check early
       const mailTime = mail.internalDate ? Number(mail.internalDate) : Date.now()
       if (mailTime < startLimitTime) continue
       const mailDate = new Date(mailTime).toISOString().split('T')[0]
@@ -916,19 +873,16 @@ export async function scanRealGmailInbox() {
 
       let parsedTxn: TransactionInsert | null = null
 
-      // Try AI verification first if API key is present
       const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY || ''
       if (geminiApiKey) {
         try {
           const aiResult = await analyzeTransactionEmailWithAI(subject, bodyText, mailDate)
           if (aiResult) {
             if (aiResult.is_transaction && aiResult.amount && aiResult.amount > 0) {
-              // Deduplicate by reference ID if AI extracted one
               if (aiResult.reference_id && existingRefIds.has(aiResult.reference_id)) {
                 continue
               }
 
-              // Determine category & approval status from db learning engine
               const resolvedMerchant = aiResult.merchant || 'Other'
               let ruleResult
               try {
@@ -937,7 +891,6 @@ export async function scanRealGmailInbox() {
                 ruleResult = { category: aiResult.category || 'other', approval_status: 'pending', confidence: aiResult.confidence_score }
               }
 
-              // Apply auto-approval logic if the merchant matches past approvals (70% confidence)
               let approval_status = ruleResult.approval_status
               if (ruleResult.confidence >= 70 && ruleResult.matchReason?.startsWith('DB rule:')) {
                 approval_status = 'approved'
@@ -963,7 +916,6 @@ export async function scanRealGmailInbox() {
                 email_message_id: mailMessageId || null,
               }
             } else {
-              // AI confirmed this is NOT a completed transaction — skip
               continue
             }
           }
@@ -973,23 +925,19 @@ export async function scanRealGmailInbox() {
       }
 
       if (!parsedTxn) {
-        // ── LAYER 1: SENDER DOMAIN CHECK ──
         const senderDomainMatch = fromValue.match(/@([\w.-]+)>?/i)
         const senderDomain = senderDomainMatch ? senderDomainMatch[1].toLowerCase() : ''
         const isTrustedSender = TRUSTED_SENDER_DOMAINS.has(senderDomain) ||
           [...TRUSTED_SENDER_DOMAINS].some(d => senderDomain.endsWith('.' + d))
 
-        // ── LAYER 2: SUBJECT LINE FILTER ──
         const isHardRejected = HARD_REJECT_SUBJECT_PATTERNS.some(p => p.test(subject))
         if (isHardRejected) continue
 
         const isHardAccepted = HARD_ACCEPT_SUBJECT_PATTERNS.some(p => p.test(subject))
 
-        // ── GLOBAL PROMOTION / SPAM FILTER ──
         const isPromotionalSpam = /\b(?:promo(?:tion)?|coupon|unsubscribe|shop\s+now|buy\s+now|special\s+offer|limited\s+period|earn\s+cashback|get\s+cashback|cashback\s+on\s+your\s+next|exclusive\s+deal)\b/i.test(emailContentForParsing)
         if (isPromotionalSpam) continue
 
-        // ── CONTENT FILTERS (only skip if NOT hard-accepted) ──
         if (!isHardAccepted) {
           if (/\b(?:declined|failed|unsuccessful|initiated|requested|rejected|cancelled|void|voided)\b/i.test(emailContentForParsing)) continue
           if (/\b(?:otp|one\s*time\s*pass(?:word|code)|verification\s*code|verification\s*pin|passcode|security\s*pin|security\s*code|m-?pin|t-?pin|2fa|two\s*factor|auth\s*code|do\s*not\s*share)\b/i.test(emailContentForParsing)) continue
@@ -998,7 +946,6 @@ export async function scanRealGmailInbox() {
           if (/\b(?:policy\s+update|security\s+policy|terms\s+of\s+service|agreement\s+update|privacy\s+update|will\s+not\s+be\s+charged|no\s+charges\s+apply)\b/i.test(emailContentForParsing)) continue
         }
 
-        // ── LAYER 3: AMOUNT DETECTION ──
         const amountMatches: { value: number; index: number; text: string }[] = []
         const prefixRegex = /(?:Rs\.?\s*|INR\s*|₹\s*|Rupees?\s*)([0-9,]+(?:\.[0-9]{1,2})?)/gi
         const suffixRegex = /\b([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:Rs\.?|INR|₹|Rupees?)/gi
@@ -1014,7 +961,6 @@ export async function scanRealGmailInbox() {
 
         if (amountMatches.length === 0) continue
 
-        // Filter balance/limit amounts
         const filteredAmounts = amountMatches.filter(m => {
           const preStart = Math.max(0, m.index - 30)
           const precedingText = emailContentForParsing.substring(preStart, m.index).toLowerCase()
@@ -1026,7 +972,6 @@ export async function scanRealGmailInbox() {
 
         if (filteredAmounts.length === 0) continue
 
-        // Pick amount closest to transaction keyword
         const txKeywordsRe = /debited|spent|paid|withdrawn|txn|charged|payment|credited|received|added|refund|transfer|neft|imps|rtgs/i
         let amount = filteredAmounts[0].value
         let resolvedMatch = filteredAmounts[0]
@@ -1045,7 +990,6 @@ export async function scanRealGmailInbox() {
 
         if (isNaN(amount) || amount <= 0) continue
 
-        // ── DEBIT / CREDIT CLASSIFICATION ──
         const winStart = Math.max(0, resolvedMatch.index - 120)
         const winEnd = Math.min(emailContentForParsing.length, resolvedMatch.index + resolvedMatch.text.length + 120)
         const windowContent = emailContentForParsing.substring(winStart, winEnd).toLowerCase()
@@ -1084,13 +1028,11 @@ export async function scanRealGmailInbox() {
         let txType: 'debit' | 'credit' = creditScore > debitScore ? 'credit' : 'debit'
         const debitCreditClear = Math.abs(debitScore - creditScore) >= 10
 
-        // MINIMUM AMOUNT GATE
         if (amount < 10 && txType === 'credit') {
           if (!/salary|refund|reversed/i.test(emailContentForParsing)) continue
         }
         if (amount < 1) continue
 
-        // ── PAYMENT MODE & CARD METADATA ──
         const paymentMode = detectPaymentMode(emailContentForParsing)
         const cardLast4 = extractCardLast4(emailContentForParsing)
         let cardIssuer = extractBankName(emailContentForParsing) || null
@@ -1098,7 +1040,6 @@ export async function scanRealGmailInbox() {
           cardIssuer = cardMap[cardLast4]
         }
 
-        // ── MERCHANT EXTRACTION ──
         const knownMerchant = extractMerchantFromSnippet(fullText)
         const dynamicMerchant = extractDynamicMerchant(emailContentForParsing)
         const subjectMerchant = subject ? extractDynamicMerchant(subject) : ''
@@ -1115,8 +1056,6 @@ export async function scanRealGmailInbox() {
           merchant = subjectMerchant
         }
 
-        // Safety Override: Consumer spending known merchants (except Salary Credit) should default to debit
-        // unless explicit credit indicators are found in the email content.
         if (txType === 'credit' && knownMerchant && knownMerchant.name !== 'Salary Credit') {
           const hasRefundOrReversal = /refund|reversed|cashback|refunded|returned|chargeback/i.test(emailContentForParsing)
           if (!hasRefundOrReversal) {
@@ -1153,7 +1092,6 @@ export async function scanRealGmailInbox() {
         }
         if (!description) description = generateDescription(merchant, emailContentForParsing, txType)
 
-        // ── REFERENCE ID ──
         const refMatch = emailContentForParsing.match(
           /(?:UPI\s*(?:Ref(?:\.?\s*No\.?)?|Txn\s*ID|Transaction\s*ID)[:\s]*([0-9]{10,20}))|(?:(?:Ref(?:\.?\s*No\.?)?|RefNo|Transaction\s*(?:ID|Ref))[:\s]*([0-9]{6,20}))/i
         )
@@ -1161,7 +1099,6 @@ export async function scanRealGmailInbox() {
 
         if (reference_id && existingRefIds.has(reference_id)) continue
 
-        // ── LAYER 4: EVENT TYPE ──
         let ruleResult: RuleMatchResult
         try {
           ruleResult = await applyMerchantRulesFromDB(user.id, merchant, emailContentForParsing, category)
@@ -1178,7 +1115,6 @@ export async function scanRealGmailInbox() {
         const approval_status = finalApprovalStatus
         const eventType = classifyEventType(emailContentForParsing, txType, finalCategory)
 
-        // ── LAYER 5: CONFIDENCE SCORING ──
         const confidence = computeConfidence({
           trustedSender: isTrustedSender,
           hardAcceptSubject: isHardAccepted,
@@ -1191,7 +1127,6 @@ export async function scanRealGmailInbox() {
           debitCreditClear,
         })
 
-        // CONFIDENCE GATE: only insert if confidence >= 55
         if (confidence < 55) {
           skippedConfidence++
           continue
@@ -1237,7 +1172,6 @@ export async function scanRealGmailInbox() {
       return { data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0 }, error: null }
     }
 
-    // ── INSERT TRANSACTIONS ──
     const { data: insertedTxns, error: txnError } = await supabase
       .from('transactions')
       .insert(transactionsToInsert)
@@ -1245,15 +1179,12 @@ export async function scanRealGmailInbox() {
 
     if (txnError) throw txnError
 
-    // ── UPSERT CONFIRMED CARDS to cards table ──
-    // Disabled: Cards feature is removed per user request.
     try {
       // Cards sync disabled
     } catch (cardErr) {
       console.warn('Card upsert failed (disabled):', cardErr)
     }
 
-    // ── LOG SCAN ──
     const { data: scanLog, error: logError } = await supabase
       .from('email_scan_logs')
       .insert({
