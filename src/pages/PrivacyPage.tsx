@@ -4,7 +4,7 @@
 
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ROUTES } from '@/constants'
+import { ROUTES, APP_CONFIG } from '@/constants'
 
 export default function PrivacyPage() {
   useEffect(() => {
@@ -115,10 +115,10 @@ export default function PrivacyPage() {
           {section("11. Contact Us & Grievance Officer", `
             If you have privacy questions, wish to exercise your data rights, or have complaints, please contact our designated Grievance Officer:
 
-            • Name: Piyush Khandelwal
-            • Designation: Grievance Officer & Data Protection Officer (DPO)
-            • Contact Email: itzpiyush20@gmail.com
-            • Address: Jaipur, Rajasthan, India
+            • Name: ${APP_CONFIG.SUPPORT_NAME}
+            • Designation: ${APP_CONFIG.SUPPORT_DESIGNATION}
+            • Contact Email: ${APP_CONFIG.SUPPORT_EMAIL}
+            • Address: ${APP_CONFIG.SUPPORT_ADDRESS}
 
             We will address and resolve any complaints or data queries within 30 days of receipt.
           `)}

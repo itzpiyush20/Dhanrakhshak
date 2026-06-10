@@ -20,6 +20,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   active_financial_year INTEGER DEFAULT 2026,
   promo_code TEXT DEFAULT NULL,
   daily_scan_time TEXT DEFAULT '06:00',
+  subscription_status TEXT DEFAULT 'free' CHECK (subscription_status IN ('free', 'trial', 'active', 'expired', 'cancelled')),
+  subscription_plan_type TEXT CHECK (subscription_plan_type IN ('monthly', 'annual', 'lifetime')),
+  subscription_expires_at TIMESTAMPTZ,
+  razorpay_subscription_id TEXT,
+  razorpay_order_id TEXT,
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
@@ -62,6 +67,13 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   approval_status TEXT NOT NULL DEFAULT 'approved' CHECK (approval_status IN ('pending', 'approved', 'rejected')),
   reference_id TEXT,
   merchant TEXT,
+  payment_mode TEXT CHECK (payment_mode IN ('upi','credit_card','debit_card','net_banking','neft','rtgs','imps','wallet','atm','nach','cheque','unknown')),
+  card_issuer TEXT,
+  card_brand TEXT CHECK (card_brand IN ('Visa','Mastercard','RuPay','American Express','Diners')),
+  transaction_time TEXT,
+  confidence_score INTEGER,
+  email_message_id TEXT,
+  event_type TEXT,
   tags TEXT[] DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
@@ -95,6 +107,9 @@ CREATE TABLE IF NOT EXISTS public.email_scan_logs (
   transactions_found INTEGER DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'success' CHECK (status IN ('success', 'failed', 'partial')),
   error_message TEXT,
+  gmail_history_id TEXT,
+  next_scan_time TIMESTAMPTZ,
+  scan_mode TEXT CHECK (scan_mode IN ('manual', 'scheduled')),
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 
@@ -225,7 +240,35 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ==========================================
--- 9. TESTER FEEDBACK TABLE
+-- 9. MERCHANT RULES TABLE
+-- Stores per-user learned merchant categorisation rules
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.merchant_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  merchant_key TEXT NOT NULL,
+  canonical_name TEXT NOT NULL,
+  preferred_category TEXT NOT NULL DEFAULT 'other',
+  card_brand TEXT CHECK (card_brand IN ('Visa','Mastercard','RuPay','American Express','Diners')),
+  auto_approve BOOLEAN DEFAULT true,
+  confidence INTEGER DEFAULT 100,
+  times_confirmed INTEGER DEFAULT 1,
+  last_updated TIMESTAMPTZ DEFAULT now() NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+  UNIQUE(user_id, merchant_key)
+);
+
+ALTER TABLE public.merchant_rules ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own merchant rules"
+  ON public.merchant_rules FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_merchant_rules_user_key ON public.merchant_rules(user_id, merchant_key);
+
+-- ==========================================
+-- 10. TESTER FEEDBACK TABLE
 -- Collects feedback, bug reports, and ratings from app testers
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.feedback (

@@ -1,73 +1,172 @@
-# React + TypeScript + Vite
+# Dhanrakshak — Personal Finance Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> Automated, privacy-first personal wealth guardian. Scans bank email alerts to track daily expenses with zero manual entry and 100% data ownership.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## What It Does
 
-## React Compiler
+Dhanrakshak connects to a user's Gmail inbox (read-only) and automatically extracts debit/credit transactions from bank alert emails. All parsing happens client-side in the browser — no email content is stored on the server. Users can review, approve, or reject detected transactions before they hit the ledger.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Key features:**
+- Automatic bank email scanning (HDFC, ICICI, SBI, Axis, Kotak, and 30+ banks)
+- Manual transaction entry with category and budget tracking
+- Monthly budget vs. spend analysis with visual charts
+- Razorpay-powered subscription (₹31/mo · ₹365/yr · ₹1000 lifetime)
+- Premium gate enforced at service layer — not bypassable via UI
+- 24-hour scan cooldown with live countdown timer
+- Merchant learning engine — remembers your category preferences
+- Dark-mode first, responsive design
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Tech Stack
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19 + TypeScript + Vite 8 |
+| Styling | Tailwind CSS 4 |
+| Backend / Auth / DB | Supabase (PostgreSQL + RLS + Auth) |
+| Serverless API | Vercel Functions (3 endpoints) |
+| Payments | Razorpay (orders + webhook) |
+| AI Parsing | Google Gemini 2.0 Flash |
+| Email Access | Gmail API (readonly scope) |
+| Mobile | Capacitor 8 (Android / iOS) |
+| Analytics | PostHog |
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Project Structure
+
+```
+src/
+  pages/          19 route pages (Dashboard, Expenses, Budgets, Pricing, …)
+  services/       12 service modules (emailScanner, aiService, learningEngine, …)
+  components/     Shared UI components
+  contexts/       AuthContext, ToastContext
+  types/          Full TypeScript type definitions
+  constants/      APP_CONFIG, CATEGORIES, ROUTES
+api/
+  create-order.ts    Razorpay order creation
+  verify-payment.ts  Payment verification + profile upgrade
+  webhook.ts         Razorpay webhook handler (idempotent)
+supabase/
+  schema.sql         Full database schema (run on fresh Supabase project)
+  migrations/        Incremental migration files
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Local Setup
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Prerequisites
+- Node.js 20+
+- A Supabase project
+- A Google Cloud project with Gmail API + OAuth 2.0 enabled
+- A Razorpay account (test or live)
+- A Google Gemini API key
+
+### Steps
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/YOUR_USERNAME/Dhanrakhshak.git
+cd Dhanrakhshak
+
+# 2. Install dependencies
+npm install
+
+# 3. Configure environment
+cp .env.example .env
+# Fill in all values in .env
+
+# 4. Set up the database
+# Open Supabase SQL Editor and run:
+#   supabase/schema.sql           (full schema)
+#   supabase/migrations/002_scanner_overhaul.sql
+
+# 5. Start dev server
+npm run dev
 ```
+
+### Vercel Deployment
+
+1. Connect this repo to Vercel
+2. Add all `.env` variables as Vercel Environment Variables
+3. Set `ALLOWED_ORIGIN` to your production domain
+4. Deploy — Vercel auto-detects Vite and the `api/` serverless functions
+
+---
+
+## Database Schema
+
+Run `supabase/schema.sql` on a fresh Supabase project. It creates:
+
+| Table | Purpose |
+|-------|---------|
+| `profiles` | Extended user profile + subscription status |
+| `transactions` | All debit/credit transactions (manual + email) |
+| `budgets` | Monthly per-category budget limits |
+| `email_scan_logs` | Scan history + Gmail historyId checkpoint |
+| `merchant_rules` | Per-user learned merchant category rules |
+| `feedback` | In-app bug/feature feedback |
+| `signin_logs` | Sign-in audit log |
+
+RLS is enabled on all tables. Users can only access their own rows.
+
+---
+
+## Subscription Plans
+
+| Plan | Price | Duration |
+|------|-------|----------|
+| Monthly | ₹31 | 30 days |
+| Annual | ₹365 | 365 days |
+| Lifetime | ₹1,000 | Forever |
+
+Payments processed via Razorpay. Webhook endpoint at `/api/webhook` handles fulfillment idempotently.
+
+---
+
+## Security Highlights
+
+- CORS restricted to `ALLOWED_ORIGIN` env var
+- Rate limiting on all payment API endpoints
+- HMAC-SHA256 webhook signature verification
+- Google OAuth token stored in `sessionStorage` (cleared on tab close)
+- No email bodies stored — only vendor, amount, date, time, card issuer/brand
+- RLS enforced at the database layer on all tables
+- CSP, HSTS, XSS headers set by Vercel
+
+---
+
+## Mobile Build (Android / iOS)
+
+See [MOBILE_SETUP.md](MOBILE_SETUP.md) for the full Capacitor build guide.
+
+```bash
+npm run build
+npx cap sync android
+npx cap open android   # opens Android Studio
+```
+
+---
+
+## Admin / Owner Access
+
+Set `VITE_OWNER_EMAILS` to a comma-separated list of admin emails. Owner accounts:
+- Bypass the premium gate
+- Bypass the 24-hour scan cooldown
+- Can view all feedback and signin logs via the `%@dhanrakshak.in` RLS backdoor (update domain as needed)
+
+---
+
+## Transfer / Handover
+
+See [TRANSFER_GUIDE.md](TRANSFER_GUIDE.md) for the full service handover checklist.
+
+---
+
+## License
+
+Proprietary — All rights reserved.

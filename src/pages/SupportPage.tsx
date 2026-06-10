@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
+import { APP_CONFIG } from '@/constants'
 
 // Custom interface for tickets stored in localStorage
 interface Ticket {
@@ -285,10 +286,10 @@ export default function SupportPage() {
                         In compliance with the Digital Personal Data Protection Act 2023, you can withdraw consent or request complete erasure of your data at any time under Settings. For queries, grievances, or details regarding data processing, contact our designated Grievance & Data Protection Officer:
                       </p>
                       <div className="mt-2 text-xs text-zinc-400 bg-surface-2/30 border border-border-subtle/30 p-3 rounded-xl space-y-1">
-                        <p>• <strong className="text-white">Officer:</strong> Piyush Khandelwal</p>
-                        <p>• <strong className="text-white">Email:</strong> itzpiyush20@gmail.com</p>
-                        <p>• <strong className="text-white">Designation:</strong> DPO & Grievance Officer</p>
-                        <p>• <strong className="text-white">Address:</strong> Jaipur, Rajasthan, India</p>
+                        <p>• <strong className="text-white">Officer:</strong> {APP_CONFIG.SUPPORT_NAME}</p>
+                        <p>• <strong className="text-white">Email:</strong> {APP_CONFIG.SUPPORT_EMAIL}</p>
+                        <p>• <strong className="text-white">Designation:</strong> {APP_CONFIG.SUPPORT_DESIGNATION}</p>
+                        <p>• <strong className="text-white">Address:</strong> {APP_CONFIG.SUPPORT_ADDRESS}</p>
                       </div>
                     </section>
 

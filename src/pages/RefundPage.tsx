@@ -5,7 +5,7 @@
 
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ROUTES } from '@/constants'
+import { ROUTES, APP_CONFIG } from '@/constants'
 
 export default function RefundPage() {
   useEffect(() => {
@@ -57,7 +57,7 @@ export default function RefundPage() {
           {section("2. Cancellation Policy", `
             You have the right to cancel your Dhanrakshak subscription at any time.
             
-            - To cancel, navigate to your Settings → Subscriptions panel inside the dashboard and click the "Cancel Subscription" button, or contact us at itzpiyush20@gmail.com.
+            - To cancel, navigate to your Settings → Subscriptions panel inside the dashboard and click the "Cancel Subscription" button, or contact us at ${APP_CONFIG.SUPPORT_EMAIL}.
             - Upon cancellation, your subscription will remain active, and you will continue to have full access to premium features, until the end of your current billing cycle.
             - We do not charge any cancellation fees.
           `)}
@@ -84,7 +84,7 @@ export default function RefundPage() {
           {section("5. Contact Us for Billing Disputes", `
             For any queries, accidental transaction reports, billing disputes, or cancellation requests, please contact our support team immediately.
             
-            - Email: itzpiyush20@gmail.com
+            - Email: ${APP_CONFIG.SUPPORT_EMAIL}
             - Expected response time: We review and respond to all billing inquiries within 24 to 48 hours.
           `)}
         </div>

@@ -56,4 +56,8 @@ export const APP_CONFIG = {
   LOCALE: 'en-IN',
   DEFAULT_PAGE_SIZE: 20,
   EMAIL_SCAN_BATCH_SIZE: 50,
+  SUPPORT_EMAIL: 'support@dhanrakshak.in',
+  SUPPORT_NAME: 'Dhanrakshak Support',
+  SUPPORT_DESIGNATION: 'Data Protection Officer & Grievance Officer',
+  SUPPORT_ADDRESS: 'Jaipur, Rajasthan, India',
 } as const

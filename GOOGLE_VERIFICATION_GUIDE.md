@@ -20,7 +20,7 @@ Before Google audits the app, you must verify ownership of the domain where the 
 In the [Google Cloud Console](https://console.cloud.google.com/), go to **APIs & Services → OAuth consent screen**:
 
 * **App Name**: Must be set exactly to `Dhanrakshak`. This must match the name in your landing page and dashboard headers.
-* **User Support Email**: Set to `itzpiyush20@gmail.com`.
+* **User Support Email**: Set to your support email address.
 * **App Logo**: Upload a high-resolution logo (optional, but highly recommended for trust).
 * **Application Home Page Link**: `https://dhanrakshak-five.vercel.app` (or your custom domain).
 * **Application Privacy Policy Link**: `https://dhanrakshak-five.vercel.app/privacy` (Must match the routes).
@@ -55,5 +55,5 @@ Your video must show the following steps clearly:
 * [x] **Privacy Policy URL** is published and fully public.
 * [x] **Terms of Service URL** is published and fully public.
 * [x] **Refund & Cancellation Policy** is published and fully public.
-* [x] **Contact details** include Grievance contact (`itzpiyush20@gmail.com`) and your registered business address.
+* [x] **Contact details** include Grievance contact (your support email) and your registered business address.
 * [x] **Client ID match**: Ensure that the client ID used in your production build matches the client ID registered on the Google Cloud Console project submitted for verification.
