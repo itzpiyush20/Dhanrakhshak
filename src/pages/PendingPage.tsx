@@ -106,7 +106,7 @@ function parseShortDescription(description: string, notes: string, merchant: str
 }
 
 export default function PendingPage() {
-  const { user, signInWithGoogle, hasGoogleToken, notifyGoogleTokenCleared, profile } = useAuth()
+  const { user, signInWithGoogle, hasGoogleToken, notifyGoogleTokenCleared, profile, dailyScanTime } = useAuth()
   const [pendingTxns, setPendingTxns] = useState<TransactionRow[]>([])
   const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
@@ -206,8 +206,8 @@ export default function PendingPage() {
         setShowInactivityBanner(true)
       }
 
-      // Auto-sync if last scan was before the last scheduled 6:00 AM refresh
-      const lastScheduledTime = getLastScheduledRefreshTime()
+      // Auto-sync if last scan was before the last scheduled refresh
+      const lastScheduledTime = getLastScheduledRefreshTime(dailyScanTime)
       if (!lastScan || lastScan.getTime() < lastScheduledTime.getTime()) {
         setSyncingBackground(true)
         // hasGoogleToken from context already covers both session and localStorage
@@ -459,7 +459,7 @@ export default function PendingPage() {
               </Button>
             </div>
             <span className="text-[10px] font-semibold text-brand-300 font-mono bg-surface-2 border border-border-subtle/50 px-2 py-0.5 rounded-md">
-              📅 Next Refresh: {getNextRefreshTime().toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at 6:00 AM
+              📅 Next Refresh: {getNextRefreshTime(dailyScanTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
             </span>
           </div>
         </div>

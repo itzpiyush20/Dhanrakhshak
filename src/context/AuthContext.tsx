@@ -49,6 +49,8 @@ interface AuthContextValue extends AuthState {
   currencySymbol: string
   activeYear: number
   startNewFinancialYear: (year?: number) => void
+  dailyScanTime: string
+  updateDailyScanTime: (time: string) => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -139,6 +141,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [state.user])
 
+  const [dailyScanTime, setDailyScanTimeState] = useState<string>('06:00')
+
+  useEffect(() => {
+    if (state.user) {
+      try {
+        const stored = localStorage.getItem(`dhanrakshak_daily_scan_time_${state.user.id}`)
+        setDailyScanTimeState(stored || '06:00')
+      } catch {
+        setDailyScanTimeState('06:00')
+      }
+    }
+  }, [state.user])
+
   const startNewFinancialYear = useCallback((targetYear?: number) => {
     if (!state.user) return
     const nextYear = targetYear || (activeYear + 1)
@@ -159,6 +174,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Failed to save active year:', e)
     }
   }, [state.user, activeYear])
+
+  const updateDailyScanTime = useCallback(async (time: string) => {
+    if (!state.user) return false
+    try {
+      setDailyScanTimeState(time)
+      localStorage.setItem(`dhanrakshak_daily_scan_time_${state.user.id}`, time)
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ daily_scan_time: time })
+        .eq('id', state.user.id)
+
+      if (error) {
+        console.warn('Failed to sync daily scan time to Supabase profiles (non-critical):', error.message)
+      }
+      return true
+    } catch (e) {
+      console.error('Failed to save daily scan time:', e)
+      return false
+    }
+  }, [state.user])
 
   // hasGoogleToken is a proper useState — not a computed value from localStorage.
   // It is SET explicitly when a token arrives (onAuthStateChange) or is cleared
@@ -199,6 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const cachedStatus = localStorage.getItem(`dhanrakshak_sub_status_${state.user.id}`)
       const cachedExpires = localStorage.getItem(`dhanrakshak_sub_expires_${state.user.id}`)
       const cachedPlan = localStorage.getItem(`dhanrakshak_sub_plan_${state.user.id}`)
+      const cachedScanTime = localStorage.getItem(`dhanrakshak_daily_scan_time_${state.user.id}`) || '06:00'
 
       if (cachedStatus) {
         setProfile({
@@ -206,8 +243,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: state.user.email,
           subscription_status: cachedStatus,
           subscription_expires_at: cachedExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-          subscription_plan_type: cachedPlan || 'trial'
+          subscription_plan_type: cachedPlan || 'trial',
+          daily_scan_time: cachedScanTime
         })
+      }
+
+      if (cachedScanTime) {
+        setDailyScanTimeState(cachedScanTime)
       }
 
       const cachedCurrency = localStorage.getItem('dhanrakshak_currency_preference') as 'INR' | 'USD' | null
@@ -300,6 +342,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               if (syncError) console.warn('Non-critical: Failed to sync local active year preference to DB:', syncError.message)
             })
         }
+
+        // Daily Scan Time Sync
+        let currentScanTime = '06:00'
+        const localScanTimePref = localStorage.getItem(`dhanrakshak_daily_scan_time_${state.user.id}`)
+        if (data.daily_scan_time) {
+          currentScanTime = data.daily_scan_time
+          setDailyScanTimeState(currentScanTime)
+          localStorage.setItem(`dhanrakshak_daily_scan_time_${state.user.id}`, currentScanTime)
+        } else if (localScanTimePref) {
+          currentScanTime = localScanTimePref
+          setDailyScanTimeState(currentScanTime)
+          // Sync local preference to Supabase since it's null in DB
+          supabase
+            .from('profiles')
+            .update({ daily_scan_time: localScanTimePref })
+            .eq('id', state.user.id)
+            .then(({ error: syncError }) => {
+              if (syncError) console.warn('Non-critical: Failed to sync local scan time preference to DB:', syncError.message)
+            })
+        }
       } else {
         let subPlan = 'trial'
         if (localStatus === 'active') {
@@ -315,7 +377,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: state.user.email,
           subscription_status: localStatus || 'trial',
           subscription_expires_at: localExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-          subscription_plan_type: subPlan
+          subscription_plan_type: subPlan,
+          daily_scan_time: localStorage.getItem(`dhanrakshak_daily_scan_time_${state.user.id}`) || '06:00'
         })
       }
     } catch (e) {
@@ -338,7 +401,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: state.user.email,
         subscription_status: localStatus || 'trial',
         subscription_expires_at: localExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        subscription_plan_type: subPlan
+        subscription_plan_type: subPlan,
+        daily_scan_time: localStorage.getItem(`dhanrakshak_daily_scan_time_${state.user.id}`) || '06:00'
       })
     }
   }
@@ -823,7 +887,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCurrency,
         currencySymbol,
         activeYear,
-        startNewFinancialYear
+        startNewFinancialYear,
+        dailyScanTime,
+        updateDailyScanTime
       }}
     >
       {children}

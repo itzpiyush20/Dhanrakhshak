@@ -23,7 +23,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
 
 export default function SettingsPage() {
-  const { user, currency, setCurrency, activeYear, startNewFinancialYear } = useAuth()
+  const { user, currency, setCurrency, activeYear, startNewFinancialYear, dailyScanTime, updateDailyScanTime } = useAuth()
   const { showToast } = useToast()
 
   const [isLight, setIsLight] = useState(() => {
@@ -661,6 +661,27 @@ export default function SettingsPage() {
                       )}
                     />
                   </button>
+                </div>
+
+                <div className="flex items-center justify-between border-b border-border-subtle/30 pb-3 pt-1">
+                  <div className="flex flex-col">
+                    <span className="text-zinc-400 font-medium">Daily Scan Schedule</span>
+                    <span className="text-[10px] text-zinc-500">Time to automatically scan for transactions daily</span>
+                  </div>
+                  <input
+                    type="time"
+                    value={dailyScanTime}
+                    onChange={async (e) => {
+                      const success = await updateDailyScanTime(e.target.value)
+                      if (success) {
+                        showToast(`Daily scan time scheduled for ${e.target.value}`, 'success')
+                      } else {
+                        showToast('Failed to update daily scan time.', 'error')
+                      }
+                    }}
+                    aria-label="Daily Scan Schedule Time"
+                    className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold font-mono"
+                  />
                 </div>
 
                 <div className="flex items-center justify-between pt-1">

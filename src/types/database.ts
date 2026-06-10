@@ -16,6 +16,13 @@ export interface Database {
           budget_alerts_enabled: boolean
           weekly_report_enabled: boolean
           subscription_reminders_enabled: boolean
+          currency: 'INR' | 'USD' | null
+          active_financial_year: number | null
+          promo_code: string | null
+          subscription_status: string | null
+          subscription_expires_at: string | null
+          subscription_plan_type: string | null
+          daily_scan_time: string | null
           created_at: string
           updated_at: string
         }
@@ -28,6 +35,13 @@ export interface Database {
           budget_alerts_enabled?: boolean
           weekly_report_enabled?: boolean
           subscription_reminders_enabled?: boolean
+          currency?: 'INR' | 'USD' | null
+          active_financial_year?: number | null
+          promo_code?: string | null
+          subscription_status?: string | null
+          subscription_expires_at?: string | null
+          subscription_plan_type?: string | null
+          daily_scan_time?: string | null
         }
         Update: {
           full_name?: string | null
@@ -36,6 +50,13 @@ export interface Database {
           budget_alerts_enabled?: boolean
           weekly_report_enabled?: boolean
           subscription_reminders_enabled?: boolean
+          currency?: 'INR' | 'USD' | null
+          active_financial_year?: number | null
+          promo_code?: string | null
+          subscription_status?: string | null
+          subscription_expires_at?: string | null
+          subscription_plan_type?: string | null
+          daily_scan_time?: string | null
         }
       }
       transactions: {

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   currency TEXT DEFAULT 'INR' CHECK (currency IN ('INR', 'USD')),
   active_financial_year INTEGER DEFAULT 2026,
   promo_code TEXT DEFAULT NULL,
+  daily_scan_time TEXT DEFAULT '06:00',
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
