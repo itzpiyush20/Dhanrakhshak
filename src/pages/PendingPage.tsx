@@ -27,10 +27,13 @@ import { useToast } from '@/context'
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row']
 
-// isCardPayment is now imported from @/utils
+function parseTransactionTime(txn: TransactionRow): string {
+  // Prefer the dedicated transaction_time column (added in Phase 2)
+  const txTime = (txn as any).transaction_time
+  if (txTime) return txTime
 
-function parseTransactionTime(notes: string, createdAt: string): string {
-  // Search for time format: HH:MM:SS or HH:MM or HH:MM AM/PM
+  // Fallback: parse from notes (legacy records)
+  const notes = (txn as any).notes || ''
   const timeMatch = notes.match(/([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?\s*(am|pm)?/i)
   if (timeMatch) {
     const hh = timeMatch[1]
@@ -38,19 +41,18 @@ function parseTransactionTime(notes: string, createdAt: string): string {
     const ampm = timeMatch[4] ? ` ${timeMatch[4].toUpperCase()}` : ''
     return `${hh}:${mm}${ampm}`
   }
-  
+
   try {
-    const date = new Date(createdAt)
+    const date = new Date(txn.created_at)
     if (!isNaN(date.getTime())) {
       return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
     }
-  } catch (e) {}
-  
-  return '12:00 PM'
+  } catch {}
+
+  return '—'
 }
 
 function parseShortDescription(description: string, notes: string, merchant: string): string {
-  // Use the description if it's clean, non-generic, and short enough
   if (
     description &&
     !description.includes('Auto-Parsed') &&
@@ -60,9 +62,9 @@ function parseShortDescription(description: string, notes: string, merchant: str
   ) {
     return description
   }
-  
+
   const text = notes.toLowerCase()
-  
+
   if (text.includes('swiggy')) return 'Swiggy meal delivery'
   if (text.includes('zomato')) return 'Zomato food order'
   if (text.includes('uber eats')) return 'Uber Eats order'
@@ -85,24 +87,35 @@ function parseShortDescription(description: string, notes: string, merchant: str
   if (text.includes('emi')) return 'EMI debit'
   if (text.includes('insurance')) return 'Insurance premium'
   if (text.includes('mutual fund') || text.includes('sip')) return 'Investment SIP debit'
-  
-  // Use merchant if it's valid
+
   if (merchant && merchant.length > 1) {
-    const cleanMerchant = merchant
-      .replace(/(?:outflow|ride|sub|rides|alert|payment|fashion)/i, '')
-      .trim()
-    if (cleanMerchant.length > 1) {
-      return `${cleanMerchant} payment`
-    }
+    const cleanMerchant = merchant.replace(/(?:outflow|ride|sub|rides|alert|payment|fashion)/i, '').trim()
+    if (cleanMerchant.length > 1) return `${cleanMerchant} payment`
   }
-  
-  // Use payment source as context
+
   const paymentSrc = parsePaymentSource(notes)
-  if (paymentSrc !== 'Bank' && paymentSrc !== 'Main Wallet') {
-    return `${paymentSrc} transaction`
-  }
-  
+  if (paymentSrc !== 'Bank' && paymentSrc !== 'Main Wallet') return `${paymentSrc} transaction`
+
   return 'Bank transaction'
+}
+
+/** Format card issuer + brand line for display e.g. "HDFC · Visa" */
+function formatCardDetails(txn: TransactionRow): string | null {
+  const issuer = (txn as any).card_issuer as string | null
+  const brand = (txn as any).card_brand as string | null
+  if (issuer && brand) return `${issuer} · ${brand}`
+  if (issuer) return issuer
+  if (brand) return brand
+  return null
+}
+
+/** Format countdown from ms remaining */
+function msToCountdown(ms: number): string {
+  if (ms <= 0) return '00:00:00'
+  const h = Math.floor(ms / 3600000)
+  const m = Math.floor((ms % 3600000) / 60000)
+  const s = Math.floor((ms % 60000) / 1000)
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
 export default function PendingPage() {
@@ -113,33 +126,69 @@ export default function PendingPage() {
   const [scanSuccessMessage, setScanSuccessMessage] = useState<string | null>(null)
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // isGoogleConnected is a direct alias for hasGoogleToken from AuthContext.
-  // It's a useState<boolean> (not a computed value), so React re-renders whenever
-  // the token arrives (after OAuth) or is cleared (after expiry / sign-out).
   const isGoogleConnected = hasGoogleToken
   const [totalPendingCount, setTotalPendingCount] = useState(0)
   const [totalPendingValue, setTotalPendingValue] = useState(0)
 
-  // Scheduling and Inactivity Warning states
   const [showInactivityBanner, setShowInactivityBanner] = useState(false)
   const [syncingBackground, setSyncingBackground] = useState(false)
 
-  // Local state for inline edits
   const [editingFields, setEditingFields] = useState<
     Record<string, { category: string; description: string }>
   >({})
 
-  // Confirmation Modal State
   const [confirmApproveId, setConfirmApproveId] = useState<string | null>(null)
   const { showToast } = useToast()
 
-  // States for Auto-Categorized Review Popup
   const [autoCategorizedTxns, setAutoCategorizedTxns] = useState<any[]>([])
   const [showAutoReviewModal, setShowAutoReviewModal] = useState(false)
   const [autoCategoryUpdatingId, setAutoCategoryUpdatingId] = useState<string | null>(null)
 
-  // Scan rate-limit state (for non-owner users)
+  // Scan rate-limit / cooldown state
   const [scanCooldownMessage, setScanCooldownMessage] = useState<string | null>(null)
+
+  // Premium gate state
+  const [isPremiumRequired, setIsPremiumRequired] = useState(false)
+
+  // Scan dashboard state
+  const [lastScanLog, setLastScanLog] = useState<any>(null)
+  const [nextScanCountdown, setNextScanCountdown] = useState<string | null>(null)
+
+  // ── Fetch last scan log ──────────────────────────────────
+  const fetchLastScanLog = useCallback(async () => {
+    if (!user) return
+    try {
+      const { data } = await supabase
+        .from('email_scan_logs')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('scanned_at', { ascending: false })
+        .limit(1)
+      if (data && data.length > 0) setLastScanLog(data[0])
+    } catch {}
+  }, [user])
+
+  // ── Live countdown timer ─────────────────────────────────
+  useEffect(() => {
+    if (!lastScanLog) return
+
+    const lastScanMs = new Date(lastScanLog.scanned_at).getTime()
+    const nextScanMs = lastScanMs + 24 * 60 * 60 * 1000
+
+    const tick = () => {
+      const remaining = nextScanMs - Date.now()
+      if (remaining <= 0) {
+        setNextScanCountdown(null)
+        setScanCooldownMessage(null)
+        return
+      }
+      setNextScanCountdown(msToCountdown(remaining))
+    }
+
+    tick()
+    const interval = setInterval(tick, 1000)
+    return () => clearInterval(interval)
+  }, [lastScanLog])
 
   const fetchPendingData = useCallback(async () => {
     setLoading(true)
@@ -153,27 +202,23 @@ export default function PendingPage() {
 
       if (txnsRes.error) throw txnsRes.error
 
-      // isGoogleConnected is now derived from hasGoogleToken (AuthContext) — no need to set it here
-
       const txns = txnsRes.data || []
       setPendingTxns(txns)
       setTotalPendingCount(txnsRes.count || 0)
 
-      // Fetch the sum of all pending transaction amounts
       const { data: allPending } = await supabase
         .from('transactions')
         .select('amount')
         .eq('approval_status', 'pending')
-      
+
       const sum = allPending?.reduce((acc, t) => acc + Number(t.amount), 0) || 0
       setTotalPendingValue(sum)
 
-      // Prepopulate editing form states
       const fieldsMap: Record<string, { category: string; description: string }> = {}
       txns.forEach((t) => {
         fieldsMap[t.id] = {
           category: t.category,
-          description: parseShortDescription(t.description || '', t.notes || '', t.merchant || ''),
+          description: parseShortDescription(t.description || '', (t as any).notes || '', t.merchant || ''),
         }
       })
       setEditingFields(fieldsMap)
@@ -199,41 +244,41 @@ export default function PendingPage() {
         .limit(1)
 
       const lastScan = scanLogs && scanLogs.length > 0 ? new Date(scanLogs[0].scanned_at) : null
+      if (lastScan) setLastScanLog(scanLogs![0])
+
       const now = new Date()
 
-      // Show banner if last scan > 24 hours ago
       if (!lastScan || (now.getTime() - lastScan.getTime() > 24 * 60 * 60 * 1000)) {
         setShowInactivityBanner(true)
       }
 
-      // Auto-sync if last scan was before the last scheduled refresh
       const lastScheduledTime = getLastScheduledRefreshTime(dailyScanTime)
       if (!lastScan || lastScan.getTime() < lastScheduledTime.getTime()) {
         setSyncingBackground(true)
-        // hasGoogleToken from context already covers both session and localStorage
         if (hasGoogleToken) {
           try {
             const res = await scanRealGmailInbox()
             if (res && !res.error) {
               setShowInactivityBanner(false)
               fetchPendingData()
+              fetchLastScanLog()
             }
           } catch (e) {
             console.warn('Auto-sync failed:', e)
           }
         }
-        // Non-Google users: no auto-scan
         setSyncingBackground(false)
       }
     } catch (err) {
       console.error('Pending page auto-sync check error:', err)
     }
-  }, [fetchPendingData])
+  }, [fetchPendingData, fetchLastScanLog])
 
   useEffect(() => {
     document.title = 'Pending Alerts | Dhanrakshak'
     fetchPendingData()
-  }, [fetchPendingData])
+    fetchLastScanLog()
+  }, [fetchPendingData, fetchLastScanLog])
 
   useEffect(() => {
     checkInactivityAndAutoSync()
@@ -242,10 +287,7 @@ export default function PendingPage() {
   const handleFieldChange = (id: string, key: 'category' | 'description', value: string) => {
     setEditingFields((prev) => ({
       ...prev,
-      [id]: {
-        ...prev[id],
-        [key]: value,
-      },
+      [id]: { ...prev[id], [key]: value },
     }))
   }
 
@@ -253,7 +295,6 @@ export default function PendingPage() {
     const fields = editingFields[id]
     if (!fields) return
 
-    // Learn merchant mapping rule — save to BOTH localStorage (fast) AND Supabase DB (persistent)
     const originalTxn = pendingTxns.find((t) => t.id === id)
     if (originalTxn) {
       const merchantToLearn = originalTxn.merchant || ''
@@ -262,9 +303,7 @@ export default function PendingPage() {
         merchantToLearn.length > 2 &&
         !['Retail Transaction', 'Incoming Credit', 'Bank Transaction'].includes(merchantToLearn)
       ) {
-        // localStorage (immediate)
         saveMerchantRule(merchantToLearn, fields.category, true)
-        // Supabase DB (persistent, cross-device)
         if (user?.id) {
           saveMerchantRuleToDb(user.id, merchantToLearn, fields.category, true).catch(console.warn)
         }
@@ -274,17 +313,12 @@ export default function PendingPage() {
     setActionLoadingId(id)
     setError(null)
     try {
-      // Automatically bulk-categorize every other transaction from the same merchant/vendor
       if (originalTxn && originalTxn.merchant) {
-        const { error: bulkErr } = await supabase
+        await supabase
           .from('transactions')
           .update({ category: fields.category })
           .eq('user_id', originalTxn.user_id)
           .eq('merchant', originalTxn.merchant)
-        
-        if (bulkErr) {
-          console.error('Failed to bulk-categorize matching transactions:', bulkErr)
-        }
       }
 
       const { error } = await updateTransaction(id, {
@@ -323,12 +357,8 @@ export default function PendingPage() {
   const handleAutoCategoryChange = async (txnId: string, merchant: string, newCategory: string) => {
     setAutoCategoryUpdatingId(txnId)
     try {
-      // 1. Update rule weights in the self-learning engine
-      if (merchant) {
-        saveMerchantRule(merchant, newCategory, true)
-      }
+      if (merchant) saveMerchantRule(merchant, newCategory, true)
 
-      // 2. Update database row
       const { error: updateErr } = await supabase
         .from('transactions')
         .update({ category: newCategory })
@@ -336,7 +366,6 @@ export default function PendingPage() {
 
       if (updateErr) throw updateErr
 
-      // 3. Update local state to reflect change instantly in the list
       setAutoCategorizedTxns((prev) =>
         prev.map((t) => (t.id === txnId ? { ...t, category: newCategory } : t))
       )
@@ -353,10 +382,9 @@ export default function PendingPage() {
     setScanSuccessMessage(null)
     setScanCooldownMessage(null)
     setError(null)
+    setIsPremiumRequired(false)
 
     try {
-      // Gate: isGoogleConnected = hasGoogleToken from AuthContext (useState<boolean>)
-      // It's already reactive — no need to re-check session or localStorage here.
       if (!isGoogleConnected) {
         setError('Gmail Inbox not connected. Please click "Connect Gmail Inbox" below to link your inbox.')
         setScanning(false)
@@ -366,22 +394,31 @@ export default function PendingPage() {
       const res = await scanRealGmailInbox()
 
       if (res.error) {
-        // Rate-limit message from the scanner engine (non-owner users)
-        if (res.error.message?.includes('Scan limit reached')) {
-          setScanCooldownMessage(res.error.message)
+        const msg = res.error.message || ''
+
+        // Premium gate — show upgrade prompt
+        if (msg.includes('Premium feature') || msg.includes('Upgrade to')) {
+          setIsPremiumRequired(true)
           return
         }
-        // If the scanner detected an expired token (401), it already called
-        // clearGoogleToken(). We call notifyGoogleTokenCleared() to update
-        // hasGoogleToken state in AuthContext so the UI reacts immediately.
+
+        // Cooldown — show countdown timer
+        if (msg.includes('Next scan available') || msg.includes('hour') || msg.includes('cooldown')) {
+          setScanCooldownMessage(msg)
+          await fetchLastScanLog()
+          return
+        }
+
+        // Token expired
         if (
-          res.error.message?.includes('expired') || 
-          res.error.message?.includes('TOKEN_EXPIRED') ||
-          res.error.message?.includes('List failed') ||
-          res.error.message?.includes('Forbidden')
+          msg.includes('expired') ||
+          msg.includes('TOKEN_EXPIRED') ||
+          msg.includes('List failed') ||
+          msg.includes('Forbidden')
         ) {
           notifyGoogleTokenCleared()
         }
+
         throw res.error
       }
 
@@ -392,9 +429,9 @@ export default function PendingPage() {
 
       const txns = res.data?.transactions || []
       const approvedTxns = txns.filter((t: any) => t.approval_status === 'approved')
-      
+
       let successMsg = `✨ Sync complete! Found ${count} transaction(s). Auto-approved ${autoApproved}, added ${pendingCount} for review.${skipped > 0 ? ` (${skipped} emails skipped — low confidence)` : ''}`
-      
+
       if (approvedTxns.length > 0) {
         successMsg += '\n\n✅ Auto-Approved Transactions:'
         approvedTxns.forEach((t: any) => {
@@ -404,7 +441,6 @@ export default function PendingPage() {
 
       setScanSuccessMessage(successMsg)
 
-      // Show auto-categorized review popup if any were auto-approved
       const autoList = res.data?.transactions?.filter((t: any) => t.approval_status === 'approved') || []
       if (autoList.length > 0) {
         setAutoCategorizedTxns(autoList)
@@ -412,6 +448,7 @@ export default function PendingPage() {
       }
 
       await fetchPendingData()
+      await fetchLastScanLog()
     } catch (err: any) {
       console.error('Scan error:', err)
       setError(err.message || 'Scan failed. Please try again.')
@@ -424,8 +461,6 @@ export default function PendingPage() {
     try {
       setScanning(true)
       setError(null)
-      // forceConsent=true — always request a fresh Google access token
-      // This is the ONLY place in the app that uses forceConsent
       const { error } = await signInWithGoogle('/pending', true, true)
       if (error) throw new Error(error)
     } catch (err: any) {
@@ -434,9 +469,64 @@ export default function PendingPage() {
     }
   }
 
+  // ── Helper: is user on a premium plan ────────────────────
+  const isSubscriptionActive = (() => {
+    if (!profile) return false
+    if (profile.subscription_status === 'active') {
+      if (!profile.subscription_expires_at) return true
+      return new Date(profile.subscription_expires_at).getTime() > Date.now()
+    }
+    if (profile.subscription_status === 'trial') {
+      return new Date(profile.subscription_expires_at).getTime() > Date.now()
+    }
+    return false
+  })()
+
   return (
     <AppLayout>
       <div className="space-y-8 animate-fade-in">
+
+        {/* ── Premium Gate ──────────────────────────────────── */}
+        {isPremiumRequired && (
+          <div className="rounded-3xl bg-gradient-to-br from-brand-500/15 to-brand-600/5 border border-brand-500/30 p-6 flex flex-col items-center text-center gap-4 shadow-lg animate-fade-in">
+            <div className="h-14 w-14 rounded-2xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-3xl">
+              👑
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">Email Scanning is a Premium Feature</h2>
+              <p className="text-sm text-zinc-400 mt-1.5 max-w-md">
+                Automatically capture transactions from your Gmail inbox. Upgrade to Premium to scan your bank alerts and let Dhanrakshak do the work.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-2">
+              <Link to="/pricing">
+                <Button className="font-bold px-6">
+                  👑 Upgrade to Premium
+                </Button>
+              </Link>
+              <Button
+                variant="secondary"
+                onClick={() => setIsPremiumRequired(false)}
+                className="text-xs"
+              >
+                Maybe later
+              </Button>
+            </div>
+            <div className="grid grid-cols-3 gap-3 w-full max-w-sm mt-2">
+              {[
+                { icon: '⚡', label: 'Auto-scan inbox' },
+                { icon: '🧠', label: 'AI categorization' },
+                { icon: '📊', label: 'Full insights' },
+              ].map((f) => (
+                <div key={f.label} className="rounded-xl bg-surface-2 border border-border-subtle p-2.5 text-center">
+                  <span className="text-lg block">{f.icon}</span>
+                  <span className="text-[10px] text-zinc-400 font-semibold mt-1 block">{f.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -464,6 +554,49 @@ export default function PendingPage() {
           </div>
         </div>
 
+        {/* ── Scan Dashboard ───────────────────────────────── */}
+        {lastScanLog && (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Card className="bg-surface-1 border-border-subtle p-4 space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Last Scan</p>
+              <p className="text-sm font-bold text-white">
+                {new Date(lastScanLog.scanned_at).toLocaleDateString('en-IN', {
+                  day: '2-digit', month: 'short', year: 'numeric',
+                })}
+              </p>
+              <p className="text-[10px] text-zinc-500">
+                {new Date(lastScanLog.scanned_at).toLocaleTimeString('en-IN', {
+                  hour: '2-digit', minute: '2-digit', hour12: true,
+                })}
+              </p>
+            </Card>
+
+            <Card className="bg-surface-1 border-border-subtle p-4 space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Last Scan Stats</p>
+              <p className="text-sm font-bold text-white">{lastScanLog.transactions_found} transactions</p>
+              <p className="text-[10px] text-zinc-500">{lastScanLog.emails_processed} emails processed</p>
+            </Card>
+
+            <Card className="bg-surface-1 border-border-subtle p-4 space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                {nextScanCountdown ? 'Next Scan In' : 'Scan Status'}
+              </p>
+              {nextScanCountdown ? (
+                <>
+                  <p className="text-sm font-bold text-brand-400 font-mono tracking-wider">{nextScanCountdown}</p>
+                  <p className="text-[10px] text-zinc-500">Cooldown active — HH:MM:SS</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-bold text-[var(--status-positive-text)]">Ready to scan</p>
+                  <p className="text-[10px] text-zinc-500">Click "Scan Bank Alerts" above</p>
+                </>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {/* Error banner */}
         {error && (
           <div role="alert" className="rounded-2xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-4 text-sm text-[var(--status-danger-text)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-md">
             <div>{error}</div>
@@ -482,6 +615,7 @@ export default function PendingPage() {
           </div>
         )}
 
+        {/* Inactivity banner */}
         {showInactivityBanner && (
           <div role="alert" className="rounded-2xl bg-[var(--status-warning-subtle)] border border-[var(--status-warning-border)] p-4 text-sm text-[var(--status-warning-text)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 animate-fade-in shadow-md">
             <div className="flex items-start gap-2.5">
@@ -489,7 +623,7 @@ export default function PendingPage() {
               <div>
                 <p className="font-bold text-white">Refresh Alert — Action Required</p>
                 <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
-                  Your transaction tracker has not refreshed in the last 24 hours. Please refresh the tracker again to refresh your transactions to cover the days if you have not covered.
+                  Your transaction tracker has not refreshed in the last 24 hours. Please refresh the tracker again to cover any transactions you may have missed.
                 </p>
               </div>
             </div>
@@ -506,6 +640,7 @@ export default function PendingPage() {
           </div>
         )}
 
+        {/* Success message */}
         {scanSuccessMessage && (
           <div role="status" className="rounded-2xl bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] p-4 text-sm text-[var(--status-positive-text)] flex items-center justify-between animate-fade-in">
             <span className="whitespace-pre-line">{scanSuccessMessage}</span>
@@ -519,17 +654,23 @@ export default function PendingPage() {
           </div>
         )}
 
+        {/* Cooldown banner with live countdown */}
         {scanCooldownMessage && (
           <div role="status" className="rounded-2xl bg-brand-500/10 border border-brand-500/20 p-4 text-sm text-brand-500 flex items-center justify-between animate-fade-in">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3">
               <span className="text-lg shrink-0" aria-hidden="true">⏳</span>
               <div>
                 <p className="font-bold text-white text-sm">Daily Scan Limit Reached</p>
                 <p className="text-xs text-zinc-400 mt-0.5">{scanCooldownMessage}</p>
+                {nextScanCountdown && (
+                  <p className="text-brand-400 font-mono font-bold text-base mt-1.5 tracking-wider">
+                    {nextScanCountdown}
+                  </p>
+                )}
               </div>
             </div>
             <button
-              onClick={() => setScanCooldownMessage(null)}
+              onClick={() => { setScanCooldownMessage(null) }}
               className="text-brand-500 hover:text-brand-600 font-bold ml-2 text-xs transition-colors shrink-0"
               aria-label="Dismiss scan limit message"
             >
@@ -538,16 +679,20 @@ export default function PendingPage() {
           </div>
         )}
 
+        {/* Gmail connect prompt */}
         {!isGoogleConnected && (
           <div role="status" className="rounded-2xl bg-brand-500/10 border border-brand-500/20 p-4 text-sm text-brand-500 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 animate-fade-in shadow-md">
             <div className="flex items-start gap-2.5">
               <span className="text-lg shrink-0 mt-0.5" aria-hidden="true">🔗</span>
               <div>
-                <p className="font-bold text-white">
-                  Connect Gmail to Enable Live Scanning
-                </p>
+                <p className="font-bold text-white">Connect Gmail to Enable Live Scanning</p>
                 <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
-                  Link your Gmail inbox to allow Dhanrakshak to read your bank alert emails and auto-detect transactions. {profile?.subscription_status === 'trial' ? '(Trial account active)' : (profile?.subscription_plan_type === 'monthly' ? '(Monthly account active)' : '(Yearly account active)')}
+                  Link your Gmail inbox to allow Dhanrakshak to read your bank alert emails and auto-detect transactions.{' '}
+                  {profile?.subscription_status === 'trial'
+                    ? '(Trial account active)'
+                    : profile?.subscription_plan_type === 'monthly'
+                    ? '(Monthly account active)'
+                    : '(Yearly account active)'}
                 </p>
               </div>
             </div>
@@ -562,7 +707,9 @@ export default function PendingPage() {
               >
                 🔑 Connect Gmail Inbox
               </Button>
-              {(profile?.subscription_status === 'trial' || (profile?.subscription_status === 'active' && profile?.subscription_plan_type === 'monthly')) && (
+              {(profile?.subscription_status === 'trial' ||
+                (profile?.subscription_status === 'active' &&
+                  profile?.subscription_plan_type === 'monthly')) && (
                 <Link to="/pricing" className="shrink-0">
                   <Button
                     size="sm"
@@ -598,7 +745,7 @@ export default function PendingPage() {
                 <h3 className="font-bold text-white text-base">Explore with Demo Data</h3>
               </div>
               <p className="text-xs text-zinc-400 leading-relaxed font-medium">
-                Not ready to connect your Gmail yet? You can try out every feature (budgets, charts, and transaction alerts) using pre-generated sample transactions.
+                Not ready to connect your Gmail yet? You can try out every feature using pre-generated sample transactions.
               </p>
               <div className="flex items-center justify-between pt-2">
                 <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wide">No credentials required</span>
@@ -615,26 +762,18 @@ export default function PendingPage() {
         {/* Quick summary stats */}
         <div className="grid gap-4 sm:grid-cols-2">
           <Card className="border-l-4 border-l-[var(--status-warning-text)]/80 hover:border-l-[var(--status-warning-text)] transition-all shadow-md">
-            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-              Pending Alerts
-            </p>
-            <p className="mt-1.5 text-2xl font-bold text-white">
-              {totalPendingCount}
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Pending Alerts</p>
+            <p className="mt-1.5 text-2xl font-bold text-white">{totalPendingCount}</p>
             <p className="text-[10px] text-zinc-500 mt-1">Awaiting your approval</p>
           </Card>
           <Card className="border-l-4 border-l-brand-500/80 hover:border-l-brand-500 transition-all shadow-md">
-            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-              Cumulative Value
-            </p>
-            <p className="mt-1.5 text-2xl font-bold text-brand-400">
-              {formatCurrency(totalPendingValue)}
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Cumulative Value</p>
+            <p className="mt-1.5 text-2xl font-bold text-brand-400">{formatCurrency(totalPendingValue)}</p>
             <p className="text-[10px] text-zinc-500 mt-1">Total pending cashflow impact</p>
           </Card>
         </div>
 
-        {/* Main layout reviews */}
+        {/* Transaction review list */}
         <div className="w-full space-y-5">
           <div>
             <h2 className="text-lg font-bold text-white">Review Required</h2>
@@ -642,7 +781,6 @@ export default function PendingPage() {
           </div>
 
           {loading ? (
-            // Skeletons
             [1, 2].map((i) => (
               <Card key={i} className="h-60 relative overflow-hidden">
                 <div className="skeleton absolute inset-0 opacity-70" />
@@ -663,33 +801,38 @@ export default function PendingPage() {
                 description: txn.description || '',
               }
               const isDebit = txn.type === 'debit'
+              const cardDetails = formatCardDetails(txn)
 
               const suggestion = applyMerchantRules(
                 txn.merchant || '',
-                txn.notes || '',
+                (txn as any).notes || '',
                 txn.category
               )
 
-              const confidenceColor = 
-                suggestion.confidence >= 80 ? 'bg-[var(--status-positive-subtle)] text-[var(--status-positive-text)] border-[var(--status-positive-border)]' :
-                suggestion.confidence >= 50 ? 'bg-[var(--status-warning-subtle)] text-[var(--status-warning-text)] border-[var(--status-warning-border)]' :
-                'bg-[var(--status-danger-subtle)] text-[var(--status-danger-text)] border-[var(--status-danger-border)]'
+              const confidenceColor =
+                suggestion.confidence >= 80
+                  ? 'bg-[var(--status-positive-subtle)] text-[var(--status-positive-text)] border-[var(--status-positive-border)]'
+                  : suggestion.confidence >= 50
+                  ? 'bg-[var(--status-warning-subtle)] text-[var(--status-warning-text)] border-[var(--status-warning-border)]'
+                  : 'bg-[var(--status-danger-subtle)] text-[var(--status-danger-text)] border-[var(--status-danger-border)]'
 
               return (
                 <Card
                   key={txn.id}
                   className={`border-dashed border-zinc-700/60 bg-surface-1/90 group hover:border-zinc-500/80 transition-all flex flex-col gap-4 animate-slide-up border-l-4 ${
-                    isDebit ? 'border-l-[var(--status-danger-text)]/80' : 'border-l-[var(--status-positive-text)]/80'
+                    isDebit
+                      ? 'border-l-[var(--status-danger-text)]/80'
+                      : 'border-l-[var(--status-positive-text)]/80'
                   }`}
                   style={{ animationDelay: `${idx * 0.05}s` }}
                 >
-                  {/* Header line */}
+                  {/* Header */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex flex-col gap-1 min-w-0">
                       <div className="flex items-center gap-2 overflow-hidden flex-nowrap">
                         <Badge variant="info" className="shrink-0 whitespace-nowrap">Detected Alert</Badge>
                         <Badge variant="warning" className="truncate max-w-[150px] whitespace-nowrap font-bold" title={txn.merchant || ''}>
-                          🏪 {txn.merchant || parseShortDescription(txn.description || '', txn.notes || '', '')}
+                          🏪 {txn.merchant || parseShortDescription(txn.description || '', '', '')}
                         </Badge>
                       </div>
                       <span className="text-[10px] text-zinc-500 font-semibold">{formatDate(txn.date)}</span>
@@ -705,21 +848,32 @@ export default function PendingPage() {
                     </span>
                   </div>
 
-                  {/* Parsed transaction details in one clean responsive container */}
+                  {/* Transaction detail chips */}
                   <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400 bg-surface-0/40 border border-border-subtle/20 rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-inner">
                     <span className="flex items-center gap-1 bg-surface-2/60 border border-border-subtle/20 rounded-lg px-2 py-1 text-zinc-300 shrink-0">
-                      <span aria-hidden="true">🕒</span> <strong>{parseTransactionTime(txn.notes || '', txn.created_at)}</strong>
+                      <span aria-hidden="true">🕒</span>
+                      <strong>{parseTransactionTime(txn)}</strong>
                     </span>
                     <span className="flex items-center gap-1 bg-surface-2/60 border border-border-subtle/20 rounded-lg px-2 py-1 text-zinc-300 shrink-0">
                       <span aria-hidden="true">
-                        {txn.payment_mode === 'credit_card' || txn.payment_mode === 'debit_card' || isCardPayment(txn.notes) ? '💳' : '🏦'}
-                      </span>{' '}
+                        {(txn as any).payment_mode === 'credit_card' ||
+                        (txn as any).payment_mode === 'debit_card' ||
+                        isCardPayment((txn as any).notes)
+                          ? '💳'
+                          : '🏦'}
+                      </span>
                       <strong>
-                        {formatPaymentSource(txn)}
+                        {cardDetails
+                          ? cardDetails
+                          : formatPaymentSource(txn)}
                       </strong>
                     </span>
                     <span className="flex items-center gap-1 bg-surface-2/60 border border-border-subtle/20 rounded-lg px-2 py-1 text-brand-300 min-w-0 max-w-full">
-                      <span aria-hidden="true" className="shrink-0">📝</span> <strong className="truncate">{localFields.description || parseShortDescription(txn.description, txn.notes || '', txn.merchant || '')}</strong>
+                      <span aria-hidden="true" className="shrink-0">📝</span>
+                      <strong className="truncate">
+                        {localFields.description ||
+                          parseShortDescription(txn.description || '', (txn as any).notes || '', txn.merchant || '')}
+                      </strong>
                     </span>
                   </div>
 
@@ -749,7 +903,8 @@ export default function PendingPage() {
                           {suggestion.confidence > 0 ? `${suggestion.confidence}% Confidence` : 'Low Confidence'}
                         </span>
                         <span className="text-[10px] text-zinc-300 font-semibold flex items-center gap-1">
-                          <span>🧠</span> <span className="text-zinc-400">{suggestion.matchReason}</span>
+                          <span>🧠</span>
+                          <span className="text-zinc-400">{suggestion.matchReason}</span>
                         </span>
                       </div>
                     </div>
@@ -764,9 +919,7 @@ export default function PendingPage() {
                       <Input
                         id={`desc-input-${txn.id}`}
                         value={localFields.description}
-                        onChange={(e) =>
-                          handleFieldChange(txn.id, 'description', e.target.value)
-                        }
+                        onChange={(e) => handleFieldChange(txn.id, 'description', e.target.value)}
                         placeholder="e.g. Swiggy Lunch"
                         disabled={actionLoadingId === txn.id}
                       />
@@ -801,12 +954,15 @@ export default function PendingPage() {
         </div>
       </div>
 
-      {/* 🤖 Auto-Categorization Review Modal */}
+      {/* Auto-Categorization Review Modal */}
       {showAutoReviewModal && autoCategorizedTxns.length > 0 && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/70 backdrop-blur-md animate-fade-in" role="dialog" aria-modal="true" aria-label="Auto-Categorized Expenses Review">
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/70 backdrop-blur-md animate-fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Auto-Categorized Expenses Review"
+        >
           <div className="w-full max-w-xl bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col max-h-[85vh] animate-scale-up">
-            
-            {/* Header */}
             <div className="flex items-start justify-between border-b border-border-subtle/30 pb-4">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-2xl bg-brand-500/10 border border-brand-500/30 flex items-center justify-center text-xl animate-pulse">
@@ -818,10 +974,7 @@ export default function PendingPage() {
                 </div>
               </div>
               <button
-                onClick={() => {
-                  setShowAutoReviewModal(false)
-                  setAutoCategorizedTxns([])
-                }}
+                onClick={() => { setShowAutoReviewModal(false); setAutoCategorizedTxns([]) }}
                 className="h-8 w-8 rounded-full border border-border-subtle/50 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-surface-2 transition-colors cursor-pointer"
                 aria-label="Close auto-review dialog"
               >
@@ -829,28 +982,33 @@ export default function PendingPage() {
               </button>
             </div>
 
-            {/* Subtext info panel */}
             <div className="bg-brand-500/5 border border-brand-500/10 rounded-xl p-3.5 mt-4 text-xs text-brand-300 leading-relaxed">
               <strong>💡 Self-Learning Engine Active:</strong> The following transactions were auto-approved. You can change their categories below to automatically update future classification rules.
             </div>
 
-            {/* List area */}
             <div className="flex-1 overflow-y-auto py-4 space-y-3 pr-1">
               {autoCategorizedTxns.map((txn) => (
-                <div key={txn.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-2xl bg-surface-2 border border-border-subtle hover:border-zinc-700/50 transition-all gap-3 animate-fade-in">
+                <div
+                  key={txn.id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-2xl bg-surface-2 border border-border-subtle hover:border-zinc-700/50 transition-all gap-3 animate-fade-in"
+                >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-semibold text-white">{txn.merchant || 'Unknown Vendor'}</span>
-                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700/30">{formatDate(txn.date)}</span>
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700/30">
+                        {formatDate(txn.date)}
+                      </span>
                     </div>
-                    <p className="text-[11px] text-zinc-500 italic max-w-[280px] truncate">{txn.description || txn.notes || 'No description'}</p>
+                    <p className="text-[11px] text-zinc-500 italic max-w-[280px] truncate">
+                      {txn.description || 'No description'}
+                    </p>
                   </div>
 
                   <div className="flex items-center gap-3 shrink-0 justify-between sm:justify-end">
                     <span className="text-sm font-bold text-[var(--status-positive-text)] font-mono pr-1">
                       {formatCurrency(Number(txn.amount))}
                     </span>
-                    
+
                     <div className="flex items-center gap-1.5 relative">
                       <select
                         value={txn.category}
@@ -861,7 +1019,7 @@ export default function PendingPage() {
                       >
                         {Object.entries(CATEGORIES).map(([key, cat]) => (
                           <option key={key} value={key}>
-                            {cat.emoji} {cat.label}
+                            {(cat as any).emoji} {(cat as any).label}
                           </option>
                         ))}
                       </select>
@@ -874,17 +1032,13 @@ export default function PendingPage() {
               ))}
             </div>
 
-            {/* Footer */}
             <div className="border-t border-border-subtle/30 pt-4 flex items-center justify-between">
               <span className="text-[10px] text-zinc-500 font-medium">
                 Showing {autoCategorizedTxns.length} auto-approved entries
               </span>
               <Button
                 variant="primary"
-                onClick={() => {
-                  setShowAutoReviewModal(false)
-                  setAutoCategorizedTxns([])
-                }}
+                onClick={() => { setShowAutoReviewModal(false); setAutoCategorizedTxns([]) }}
                 className="font-bold text-xs"
               >
                 Close & Save Rules
@@ -894,9 +1048,14 @@ export default function PendingPage() {
         </div>
       )}
 
-      {/* 📋 Approval Confirmation Modal */}
+      {/* Approval Confirmation Modal */}
       {confirmApproveId && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in" role="dialog" aria-modal="true" aria-label="Confirm Transaction Approval">
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm Transaction Approval"
+        >
           <div className="w-full max-w-md bg-surface-1/90 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col animate-scale-up">
             <div className="flex items-center gap-3 border-b border-border-subtle/30 pb-4 mb-4">
               <span className="text-2xl text-brand-400 select-none" aria-hidden="true">❓</span>

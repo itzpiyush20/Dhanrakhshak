@@ -35,7 +35,6 @@ export async function generateAIInsights(ctx: FinancialContext): Promise<{
   alerts: string[]
   source: 'gemini' | 'rule-based'
 }> {
-  // If no API key, fall back to rule-based immediately
   if (!GEMINI_API_KEY) {
     return { ...generateRuleBasedInsights(ctx), source: 'rule-based' }
   }
@@ -66,13 +65,11 @@ export async function generateAIInsights(ctx: FinancialContext): Promise<{
 
     const data = await response.json()
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-
     const parsed = parseGeminiResponse(text)
     if (parsed.insights.length > 0) {
       return { ...parsed, source: 'gemini' }
     }
 
-    // If parsing failed, fall back
     return { ...generateRuleBasedInsights(ctx), source: 'rule-based' }
   } catch (err) {
     console.warn('[AI] Gemini request failed, using rule-based fallback:', err)
@@ -80,7 +77,6 @@ export async function generateAIInsights(ctx: FinancialContext): Promise<{
   }
 }
 
-/** Build a structured prompt for Gemini */
 function buildPrompt(ctx: FinancialContext): string {
   const fmt = (n: number) => formatCurrency(Math.round(n))
   const catList = ctx.categoryBreakdown
@@ -122,10 +118,8 @@ Respond in this EXACT JSON format (no markdown, pure JSON):
 }`
 }
 
-/** Parse Gemini JSON response */
 function parseGeminiResponse(text: string): { insights: string[]; alerts: string[] } {
   try {
-    // Extract JSON block — Gemini sometimes wraps in markdown
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) throw new Error('No JSON found')
     const parsed = JSON.parse(jsonMatch[0])
@@ -138,7 +132,6 @@ function parseGeminiResponse(text: string): { insights: string[]; alerts: string
   }
 }
 
-/** Rule-based fallback insights (always works, no API needed) */
 export function generateRuleBasedInsights(ctx: FinancialContext): {
   insights: string[]
   alerts: string[]
@@ -147,7 +140,6 @@ export function generateRuleBasedInsights(ctx: FinancialContext): {
   const insights: string[] = []
   const alerts: string[] = []
 
-  // Insight 1: Savings rate
   if (ctx.savingsRate >= 20) {
     insights.push(
       `Excellent wealth accumulation velocity. Your ${ctx.savingsRate.toFixed(0)}% savings rate (${fmt(ctx.savings)}) this period significantly exceeds the 20% golden benchmark. Redirect this surplus into SIP top-ups or FD laddering to maximise compounding.`
@@ -162,7 +154,6 @@ export function generateRuleBasedInsights(ctx: FinancialContext): {
     )
   }
 
-  // Insight 2: Top category
   if (ctx.topCategoryAmount > 0) {
     const potential = fmt(ctx.topCategoryAmount * 0.15)
     insights.push(
@@ -170,7 +161,6 @@ export function generateRuleBasedInsights(ctx: FinancialContext): {
     )
   }
 
-  // Insight 3: Emergency fund / subscriptions / MoM
   if (ctx.emergencyMonths < 3) {
     insights.push(
       `Your emergency reserve covers only ${ctx.emergencyMonths} month(s) of expenses — dangerously low. The standard recommendation is 6 months (${fmt(ctx.totalExpenses * 6)}). Prioritise this before increasing discretionary spending.`
@@ -191,34 +181,44 @@ export function generateRuleBasedInsights(ctx: FinancialContext): {
     )
   }
 
-  // Alerts
   if (ctx.needsPct > 60) {
-    alerts.push(`Critical: Essential obligations consuming ${ctx.needsPct}% of income (target: <50%). Review fixed costs — negotiate rent, switch utility plans, or restructure EMIs.`)
+    alerts.push(
+      `Critical: Essential obligations consuming ${ctx.needsPct}% of income (target: <50%). Review fixed costs — negotiate rent, switch utility plans, or restructure EMIs.`
+    )
   } else if (ctx.needsPct > 55) {
-    alerts.push(`Essential expenses at ${ctx.needsPct}% of income — above the 50% safe threshold. This limits your savings headroom significantly.`)
+    alerts.push(
+      `Essential expenses at ${ctx.needsPct}% of income — above the 50% safe threshold. This limits your savings headroom significantly.`
+    )
   }
 
   if (ctx.wantsPct > 40) {
-    alerts.push(`Discretionary spending at ${ctx.wantsPct}% of income (target: ≤30%). Your lifestyle inflation is eroding your compounding potential.`)
+    alerts.push(
+      `Discretionary spending at ${ctx.wantsPct}% of income (target: ≤30%). Your lifestyle inflation is eroding your compounding potential.`
+    )
   }
 
   if (ctx.savingsPct < 5 && ctx.totalIncome > 0) {
-    alerts.push(`Savings rate critically low at ${ctx.savingsPct}%. Without intervention, wealth accumulation will stall entirely.`)
+    alerts.push(
+      `Savings rate critically low at ${ctx.savingsPct}%. Without intervention, wealth accumulation will stall entirely.`
+    )
   }
 
   return { insights, alerts }
 }
 
-/** Detect spending anomalies (spikes vs personal baseline) */
 export function detectAnomalies(
   transactions: Array<{ amount: number; category: string; date: string; merchant: string; type: string }>
 ): Array<{ category: string; thisMonth: number; baseline: number; spike: number; merchant?: string }> {
-  const anomalies: Array<{ category: string; thisMonth: number; baseline: number; spike: number; merchant?: string }> = []
+  const anomalies: Array<{
+    category: string
+    thisMonth: number
+    baseline: number
+    spike: number
+    merchant?: string
+  }> = []
 
-  // Get current month and last 3 months
   const now = new Date()
   const currentMonth = now.toISOString().substring(0, 7)
-
   const monthlySpend: Record<string, Record<string, number>> = {}
 
   transactions
@@ -230,8 +230,6 @@ export function detectAnomalies(
     })
 
   const currentSpend = monthlySpend[currentMonth] || {}
-
-  // Get baseline from previous 3 months
   const prevMonths = Object.keys(monthlySpend)
     .filter((m) => m < currentMonth)
     .sort()
@@ -239,16 +237,11 @@ export function detectAnomalies(
 
   if (prevMonths.length === 0) return anomalies
 
-  // Check each category
   for (const [category, amount] of Object.entries(currentSpend)) {
     const prevAmounts = prevMonths.map((m) => monthlySpend[m]?.[category] || 0)
     const baseline = prevAmounts.reduce((a, b) => a + b, 0) / prevMonths.length
-
     if (baseline === 0) continue
-
     const spike = ((amount - baseline) / baseline) * 100
-
-    // Flag if >80% above baseline and > ₹1000 absolute difference
     if (spike > 80 && amount - baseline > 1000) {
       anomalies.push({ category, thisMonth: amount, baseline, spike })
     }
@@ -257,14 +250,19 @@ export function detectAnomalies(
   return anomalies.sort((a, b) => b.spike - a.spike).slice(0, 3)
 }
 
-/** Generate 3-month cash flow forecast */
 export function generateForecast(
   transactions: Array<{ amount: number; type: string; date: string; category: string }>
-): Array<{ month: string; label: string; forecastIncome: number; forecastExpenses: number; forecastSavings: number; confidence: number }> {
+): Array<{
+  month: string
+  label: string
+  forecastIncome: number
+  forecastExpenses: number
+  forecastSavings: number
+  confidence: number
+}> {
   const now = new Date()
-
-  // Build monthly history for past 6 months
   const monthlyData: Record<string, { income: number; expenses: number }> = {}
+
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -281,35 +279,33 @@ export function generateForecast(
   const months = Object.entries(monthlyData).filter(([, d]) => d.income > 0 || d.expenses > 0)
   if (months.length < 2) return []
 
-  // Compute weighted moving average (more weight to recent months)
   const weights = [1, 1.5, 2, 2.5, 3, 3.5].slice(-months.length)
   const totalWeight = weights.reduce((a, b) => a + b, 0)
-
   const avgIncome = months.reduce((sum, [, d], i) => sum + d.income * weights[i], 0) / totalWeight
-  const avgExpenses = months.reduce((sum, [, d], i) => sum + d.expenses * weights[i], 0) / totalWeight
+  const avgExpenses =
+    months.reduce((sum, [, d], i) => sum + d.expenses * weights[i], 0) / totalWeight
 
-  // Month-over-month trend (last 3 months)
   const recentMonths = months.slice(-3)
-  const incomeTrend = recentMonths.length >= 2
-    ? (recentMonths[recentMonths.length - 1][1].income - recentMonths[0][1].income) / recentMonths.length
-    : 0
-  const expenseTrend = recentMonths.length >= 2
-    ? (recentMonths[recentMonths.length - 1][1].expenses - recentMonths[0][1].expenses) / recentMonths.length
-    : 0
+  const incomeTrend =
+    recentMonths.length >= 2
+      ? (recentMonths[recentMonths.length - 1][1].income - recentMonths[0][1].income) /
+        recentMonths.length
+      : 0
+  const expenseTrend =
+    recentMonths.length >= 2
+      ? (recentMonths[recentMonths.length - 1][1].expenses - recentMonths[0][1].expenses) /
+        recentMonths.length
+      : 0
 
-  // Generate 3-month forecast
   const forecast = []
   for (let i = 1; i <= 3; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
     const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     const label = d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
-
-    // Apply trend dampening — further months have less confidence
     const dampening = 1 - i * 0.1
     const forecastIncome = Math.max(0, avgIncome + incomeTrend * i * dampening)
     const forecastExpenses = Math.max(0, avgExpenses + expenseTrend * i * dampening)
-    const confidence = Math.max(40, 85 - i * 15) // 85%, 70%, 55%
-
+    const confidence = Math.max(40, 85 - i * 15)
     forecast.push({
       month,
       label,
@@ -323,6 +319,8 @@ export function generateForecast(
   return forecast
 }
 
+export type CardBrand = 'Visa' | 'Mastercard' | 'RuPay' | 'American Express' | 'Diners'
+
 export interface AITransactionResult {
   is_transaction: boolean
   transaction_type: 'debit' | 'credit' | null
@@ -330,17 +328,31 @@ export interface AITransactionResult {
   merchant: string | null
   category: string | null
   description: string | null
-  payment_mode: 'upi' | 'credit_card' | 'debit_card' | 'net_banking' | 'wallet' | 'neft' | 'imps' | 'rtgs' | 'atm' | 'nach' | 'cheque' | 'unknown' | null
-  card_issuer: string | null
-  card_last4: string | null
+  payment_mode:
+    | 'upi'
+    | 'credit_card'
+    | 'debit_card'
+    | 'net_banking'
+    | 'wallet'
+    | 'neft'
+    | 'imps'
+    | 'rtgs'
+    | 'atm'
+    | 'nach'
+    | 'cheque'
+    | 'unknown'
+    | null
+  card_issuer: string | null    // Bank name, e.g. "HDFC", "SBI" — displayed to user
+  card_brand: CardBrand | null  // Card network, e.g. "Visa", "Mastercard" — displayed to user
+  transaction_time: string | null // HH:MM format
   reference_id: string | null
   date: string | null
   confidence_score: number
 }
 
 /**
- * Use Gemini AI to verify if an email represents a completed transaction,
- * and if so, extract structured transaction metadata.
+ * Use Gemini AI to verify if an email represents a completed transaction
+ * and extract structured metadata.
  */
 export async function analyzeTransactionEmailWithAI(
   subject: string,
@@ -351,7 +363,7 @@ export async function analyzeTransactionEmailWithAI(
 
   try {
     const prompt = `
-Analyze the following email subject and content to determine if it describes a COMPLETED financial transaction in India (either a debit/spend or a credit/receipt of money).
+Analyze the following bank/payment email to determine if it describes a COMPLETED financial transaction.
 
 Subject: "${subject}"
 Date: "${emailDate}"
@@ -360,43 +372,52 @@ Body:
 ${body.substring(0, 1500)}
 """
 
-Rules:
-1. ONLY identify COMPLETED transactions. A transaction is completed if money actually moved (debited, credited, spent, paid, charged, received, deposited, salary, refund).
-2. EXCLUDE non-transactional or incomplete alerts. Set is_transaction to false for:
-   - One-Time Passwords (OTP), login alerts, verification codes.
-   - Payment reminders, bill generation alerts, due statements, upcoming scheduled payments, auto-debit registration confirmations (unless money was actually debited now).
-   - Declined, failed, or unsuccessful transactions.
-   - Promotional emails, discount coupons, or newsletter updates.
-3. Extract the following details:
-   - transaction_type: 'debit' if money went out, 'credit' if money came in.
-   - amount: number representing the transaction amount in INR. Do not include balance or limit amounts. Strip formatting and return as a raw number (e.g. 1500.50).
-   - merchant: name of the merchant/vendor or peer recipient (e.g. 'Swiggy', 'Zomato', 'Amazon', 'Airtel', or personal names). If generic or bank transfer, use the bank name or 'Bank Transfer'. Clean up terms like 'Ltd', 'Pvt', 'Successful'.
-   - category: classify into one of: 'food', 'groceries', 'transport', 'utilities', 'shopping', 'entertainment', 'subscriptions', 'salary', 'travel', 'medical', 'other'.
-   - description: a short, clear description (e.g., 'Swiggy food order', 'Salary credit').
-   - payment_mode: classify into one of: 'upi', 'credit_card', 'debit_card', 'net_banking', 'wallet', 'neft', 'imps', 'rtgs', 'atm', 'nach', 'cheque', 'unknown'.
-   - card_issuer: bank brand name or card brand name (e.g., 'HDFC', 'SBI', 'ICICI', 'Axis', 'Kotak', 'Amex', 'RBL', 'Federal', 'IndusInd'). Pay special attention to extracting this brand name with high precision. This is critical.
-   - card_last4: 4-digit card or account number if mentioned (e.g. '4321'). Return exactly 4 digits as a string, or null if not found. (Note: this is optional/secondary).
-   - reference_id: transaction ref number (UPI transaction ID, NEFT reference, UTR, etc.) if found.
-   - date: date of transaction in YYYY-MM-DD format. If email specifies a date, parse it. Otherwise, use the email date "${emailDate}".
-   - confidence_score: integer from 0 to 100 representing your confidence.
-4. Pay special attention to identifying the correct card brand name or card bank name (e.g. HDFC, SBI, ICICI, Amex, Axis, Kotak, BOB, PNB, RBL, Federal, IndusInd, IDFC, Yes Bank, Paytm, StanChart, Citi, Canara, etc.). Review the email details meticulously to extract the correct card/bank brand name for card_issuer. Be completely sure of this.
+STRICT RULES — set is_transaction to FALSE for ALL of:
+- OTPs, login alerts, verification codes, security alerts
+- Payment reminders, bill generation, due dates, upcoming scheduled debits
+- Declined, failed, cancelled, or reversed transactions
+- Promotional emails, cashback OFFERS (not credits), discount codes, coupons
+- Reward point NOTIFICATIONS (not actual money)
+- Festival/sale announcements, limited-period offers
+- Credit limit increase offers, pre-approved loan offers
+- Balance update alerts, account balance notifications
+- Auto-debit SCHEDULED notices (money not yet moved)
+- Any email where money movement is in FUTURE tense ("will be debited", "scheduled for")
 
-Respond in this EXACT JSON format (no markdown, pure JSON):
+ONLY set is_transaction to TRUE when money has ALREADY moved (past tense):
+- Debited, credited, paid, transferred, withdrawn, charged, received, deposited, settled
+
+If TRUE, extract:
+- transaction_type: 'debit' (money out) or 'credit' (money in)
+- amount: exact transaction amount in INR as a number. Do NOT use balance or limit amounts.
+- merchant: clean merchant/vendor name (e.g. 'Swiggy', 'Amazon', 'Airtel'). Strip suffixes like 'Ltd', 'Pvt', 'Private Limited'.
+- category: one of 'food', 'groceries', 'transport', 'utilities', 'shopping', 'entertainment', 'subscriptions', 'salary', 'travel', 'health', 'investments', 'other'
+- description: short clear description (e.g. 'Swiggy food order', 'Airtel bill payment')
+- payment_mode: one of 'upi', 'credit_card', 'debit_card', 'net_banking', 'wallet', 'neft', 'imps', 'rtgs', 'atm', 'nach', 'cheque', 'unknown'
+- card_issuer: bank/issuer name (e.g. 'HDFC', 'SBI', 'ICICI', 'Axis', 'Kotak', 'Amex', 'IndusInd', 'Federal', 'RBL', 'Yes Bank', 'IDFC'). null if not found.
+- card_brand: card network if identifiable — one of 'Visa', 'Mastercard', 'RuPay', 'American Express', 'Diners'. null if not found.
+- transaction_time: time of transaction in HH:MM (24h) format if mentioned. null if not found.
+- reference_id: UPI transaction ID, NEFT UTR, or similar reference number. null if not found.
+- date: transaction date in YYYY-MM-DD. Use email date "${emailDate}" if not specified.
+- confidence_score: 0-100
+
+Return ONLY JSON, no markdown:
 {
   "is_transaction": true,
   "transaction_type": "debit",
-  "amount": 1500.00,
-  "merchant": "Merchant Name",
-  "category": "category_name",
-  "description": "Short description",
+  "amount": 450.00,
+  "merchant": "Swiggy",
+  "category": "food",
+  "description": "Swiggy food order",
   "payment_mode": "upi",
-  "card_issuer": "Bank Name",
-  "card_last4": "1234",
-  "reference_id": "1234567890",
+  "card_issuer": null,
+  "card_brand": null,
+  "transaction_time": "20:32",
+  "reference_id": "123456789012",
   "date": "YYYY-MM-DD",
   "confidence_score": 95
 }
-If it is NOT a completed transaction, return:
+If NOT a completed transaction:
 {
   "is_transaction": false,
   "transaction_type": null,
@@ -406,7 +427,8 @@ If it is NOT a completed transaction, return:
   "description": null,
   "payment_mode": null,
   "card_issuer": null,
-  "card_last4": null,
+  "card_brand": null,
+  "transaction_time": null,
   "reference_id": null,
   "date": null,
   "confidence_score": 0
@@ -431,12 +453,11 @@ If it is NOT a completed transaction, return:
 
     const data = await response.json()
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-    
-    // Parse json
+
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) return null
     const result: AITransactionResult = JSON.parse(jsonMatch[0])
-    
+
     if (result && typeof result.is_transaction === 'boolean') {
       return result
     }
@@ -446,4 +467,3 @@ If it is NOT a completed transaction, return:
     return null
   }
 }
-

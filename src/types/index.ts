@@ -2,13 +2,28 @@
 // Dhanrakshak — Core Type Definitions
 // ============================================
 
-/** Transaction type — debit (expense) or credit (income) */
 export type TransactionType = 'debit' | 'credit'
 
-/** Status of an auto-extracted transaction */
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected'
 
-/** Expense categories — extensible list for Indian users */
+/** Payment source / mode */
+export type SourceType =
+  | 'upi'
+  | 'credit_card'
+  | 'debit_card'
+  | 'net_banking'
+  | 'neft'
+  | 'rtgs'
+  | 'imps'
+  | 'wallet'
+  | 'atm'
+  | 'nach'
+  | 'cheque'
+  | 'unknown'
+
+/** Credit card network brand */
+export type CardBrand = 'Visa' | 'Mastercard' | 'RuPay' | 'American Express' | 'Diners'
+
 export type ExpenseCategory =
   | 'food'
   | 'groceries'
@@ -37,28 +52,32 @@ export interface Transaction {
   type: TransactionType
   category: ExpenseCategory
   description: string
-  notes?: string
-  date: string               // ISO date string
-  source: 'manual' | 'email' // how the transaction was created
+  date: string                      // ISO date string YYYY-MM-DD
+  transaction_time?: string         // HH:MM format, extracted from email
+  source: 'manual' | 'email'
   approval_status: ApprovalStatus
-  reference_id?: string      // UPI ref / bank txn ID
+  reference_id?: string             // UPI ref / bank txn ID (dedup only)
   merchant?: string
+  payment_mode?: SourceType
+  card_issuer?: string              // Bank name e.g. "HDFC", "SBI"
+  card_brand?: CardBrand            // Card network e.g. "Visa", "Mastercard"
+  confidence_score?: number
+  email_message_id?: string         // Gmail message ID (dedup only, not displayed)
+  event_type?: string
   created_at: string
   updated_at: string
 }
 
-/** Monthly budget for a category */
 export interface Budget {
   id: string
   user_id: string
   category: ExpenseCategory
   amount: number
-  month: string              // YYYY-MM format
+  month: string
   created_at: string
   updated_at: string
 }
 
-/** Log entry for email scan jobs */
 export interface EmailScanLog {
   id: string
   user_id: string
@@ -67,9 +86,11 @@ export interface EmailScanLog {
   transactions_found: number
   status: 'success' | 'failed' | 'partial'
   error_message?: string
+  gmail_history_id?: string
+  next_scan_time?: string
+  scan_mode?: 'manual' | 'scheduled'
 }
 
-/** User profile (extends Supabase auth user) */
 export interface UserProfile {
   id: string
   email: string
@@ -78,7 +99,6 @@ export interface UserProfile {
   created_at: string
 }
 
-/** Dashboard summary data */
 export interface MonthlySummary {
   total_income: number
   total_expenses: number
