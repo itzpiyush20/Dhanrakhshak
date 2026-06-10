@@ -12,6 +12,7 @@ import {
   useCallback,
   type ReactNode,
 } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/services/supabase'
 import { saveGoogleToken, clearGoogleToken, isGoogleConnected, purgeOldTokenKey, validateGoogleToken } from '@/services/googleAuth'
@@ -92,6 +93,7 @@ function getDeviceName(): string {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate()
   const [state, setState] = useState<AuthState>({
     user: null,
     session: null,
@@ -465,9 +467,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'PASSWORD_RECOVERY') {
+          setAuthModalOpen(false)
           if (window.location.pathname !== '/reset-password') {
-            window.location.href = '/reset-password'
-            return
+            navigate('/reset-password')
           }
         }
 
@@ -748,28 +750,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const subPlanType = planType || (status === 'active' ? 'monthly' : 'trial')
 
-      // Attempt to save to Supabase profiles table
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          subscription_status: status,
-          subscription_expires_at: expiresAt,
-          subscription_plan_type: subPlanType,
-          promo_code: promoCode || null
-        })
-        .eq('id', state.user.id)
-
-      if (error) {
-        console.warn('Supabase profile update with plan type/promo failed, retrying without these columns:', error.message)
-        const { error: retryError } = await supabase
+      // Only write to Supabase profiles from client if we are in local development mode
+      // In hosted environments, the serverless payment verification endpoint performs the DB write.
+      const isDev = import.meta.env.DEV
+      if (isDev) {
+        const { error } = await supabase
           .from('profiles')
           .update({
             subscription_status: status,
-            subscription_expires_at: expiresAt
+            subscription_expires_at: expiresAt,
+            subscription_plan_type: subPlanType,
+            promo_code: promoCode || null
           })
           .eq('id', state.user.id)
-        if (retryError) {
-          console.warn('Supabase profile retry update failed:', retryError.message)
+
+        if (error) {
+          console.warn('Supabase profile update with plan type/promo failed, retrying without these columns:', error.message)
+          const { error: retryError } = await supabase
+            .from('profiles')
+            .update({
+              subscription_status: status,
+              subscription_expires_at: expiresAt
+            })
+            .eq('id', state.user.id)
+          if (retryError) {
+            console.warn('Supabase profile retry update failed:', retryError.message)
+          }
         }
       }
 

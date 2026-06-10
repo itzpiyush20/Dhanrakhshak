@@ -12,7 +12,10 @@ import {
   saveMerchantRule,
   saveMerchantSetting,
   getTransactions,
-  supabase
+  supabase,
+  getMerchantRulesFromDB,
+  saveMerchantRuleToDb,
+  migrateLocalStorageRulesToDB
 } from '@/services'
 import { encryptText, decryptText, cn } from '@/utils'
 import { CATEGORIES } from '@/constants'
@@ -123,37 +126,99 @@ export default function SettingsPage() {
     }
   }
 
+  const loadRules = async () => {
+    if (user) {
+      try {
+        const data = await getMerchantRulesFromDB(user.id)
+        if (data && data.length > 0) {
+          const dbRules: Record<string, { category: string; autoApprove: boolean }> = {}
+          data.forEach(r => {
+            dbRules[r.merchant_key] = { category: r.preferred_category, autoApprove: r.auto_approve }
+          })
+          setMerchantRules(dbRules)
+          return
+        }
+      } catch (err) {
+        console.warn('Failed to load rules from DB:', err)
+      }
+    }
+    // Fallback to localStorage
+    setMerchantRules(getMerchantRules())
+  }
+
   useEffect(() => {
     document.title = 'Settings | Dhanrakshak'
-    // Load learned merchant rules
-    setMerchantRules(getMerchantRules())
-  }, [])
+    if (user) {
+      // Migrate and then load
+      migrateLocalStorageRulesToDB(user.id).finally(() => {
+        loadRules()
+      })
+    } else {
+      loadRules()
+    }
+  }, [user])
 
-  const handleDeleteRule = (key: string) => {
+  const handleDeleteRule = async (key: string) => {
     deleteMerchantRule(key)
-    setMerchantRules(getMerchantRules())
+    if (user) {
+      try {
+        await supabase.from('merchant_rules').delete().eq('user_id', user.id).eq('merchant_key', key)
+      } catch (err) {
+        console.error('Failed to delete rule from DB:', err)
+      }
+    }
+    loadRules()
   }
 
-  const handleToggleAutoApprove = (key: string, currentAutoApprove: boolean) => {
+  const handleToggleAutoApprove = async (key: string, currentAutoApprove: boolean) => {
     saveMerchantSetting(key, { autoApprove: !currentAutoApprove })
-    setMerchantRules(getMerchantRules())
+    if (user) {
+      try {
+        await supabase.from('merchant_rules').update({
+          auto_approve: !currentAutoApprove,
+          last_updated: new Date().toISOString()
+        }).eq('user_id', user.id).eq('merchant_key', key)
+      } catch (err) {
+        console.error('Failed to update rule in DB:', err)
+      }
+    }
+    loadRules()
   }
 
-  const handleUpdateRuleCategory = (key: string, category: string) => {
+  const handleUpdateRuleCategory = async (key: string, category: string) => {
     const currentRule = merchantRules[key]
     const autoApprove = currentRule ? currentRule.autoApprove : true
     saveMerchantRule(key, category, autoApprove)
-    setMerchantRules(getMerchantRules())
+    if (user) {
+      try {
+        await supabase.from('merchant_rules').update({
+          preferred_category: category,
+          last_updated: new Date().toISOString()
+        }).eq('user_id', user.id).eq('merchant_key', key)
+      } catch (err) {
+        console.error('Failed to update rule category in DB:', err)
+      }
+    }
+    loadRules()
   }
 
-  const handleAddCustomRule = (e: React.FormEvent) => {
+  const handleAddCustomRule = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newKeyword.trim()) return
+
     saveMerchantRule(newKeyword, newCategory, newAutoApprove)
+    if (user) {
+      try {
+        await saveMerchantRuleToDb(user.id, newKeyword, newCategory, newAutoApprove)
+      } catch (err) {
+        console.error('Failed to save rule to DB:', err)
+      }
+    }
+
     setNewKeyword('')
     setNewCategory('other')
     setNewAutoApprove(true)
-    setMerchantRules(getMerchantRules())
+    loadRules()
   }
 
   const handleBackup = async (e: React.FormEvent) => {

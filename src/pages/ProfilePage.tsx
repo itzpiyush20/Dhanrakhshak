@@ -217,7 +217,7 @@ export default function ProfilePage() {
                     Email Address
                   </label>
                   <Input value={user?.email || ''} disabled />
-                  <p className="text-[10px] text-zinc-600 mt-1">Unique login email identifier (disabled)</p>
+                  <p className="text-[10px] text-zinc-400 mt-1">Unique login email identifier (disabled)</p>
                 </div>
 
                 <div>

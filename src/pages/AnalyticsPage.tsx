@@ -848,7 +848,7 @@ export default function AnalyticsPage() {
                     </div>
                   ))}
                 </div>
-                <p className="text-[10px] text-zinc-600 mt-4 text-center">
+                <p className="text-[10px] text-zinc-400 mt-4 text-center">
                   Forecast uses weighted moving average of your last 6 months. Confidence decreases for months further ahead.
                 </p>
               </Card>

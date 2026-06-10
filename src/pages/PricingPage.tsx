@@ -138,6 +138,13 @@ export default function PricingPage() {
       openAuthModal('/pricing')
       return
     }
+
+    const isDev = import.meta.env.DEV
+    if (!isDev) {
+      showToast('❌ Promo codes are only available in development environments.', 'error')
+      return
+    }
+
     const enteredCode = promoCode.trim()
     const validCodes = ['DHANVIP', 'UNLIMITED_VIP', 'FREE_LIFETIME', 'ITZPIYUSH', 'INVESTOR_UNLIMITED']
     
@@ -270,7 +277,7 @@ export default function PricingPage() {
                     disabled={isPro}
                     className={`w-full justify-center rounded-xl py-3 font-semibold text-xs border ${
                       isPro
-                        ? 'border-zinc-800 bg-zinc-900/50 text-zinc-600 cursor-not-allowed'
+                        ? 'border-zinc-800 bg-zinc-900/50 text-zinc-500 cursor-not-allowed'
                         : 'border-zinc-700 bg-surface-2 hover:bg-zinc-800 text-zinc-300 transition-all active:scale-98 shadow-sm cursor-pointer'
                     }`}
                   >

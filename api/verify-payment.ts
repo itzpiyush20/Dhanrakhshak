@@ -26,12 +26,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Enforce that only real payments are processed in production environments
-  const isProduction = process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production'
+  // Enforce that only real payments are processed in hosted (Vercel) environments
+  const isHosted = process.env.VERCEL === '1'
   const keyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || ''
-  if (isProduction && keyId.startsWith('rzp_test_')) {
-    console.error('Security alert: Test payment keys are blocked in production environment.')
-    return res.status(400).json({ error: 'Test payments are not allowed in the production environment.' })
+  if (isHosted && keyId.startsWith('rzp_test_')) {
+    console.error('Security alert: Test payment keys are blocked in hosted environments.')
+    return res.status(400).json({ error: 'Test payments are not allowed in hosted environments.' })
   }
 
   const {
