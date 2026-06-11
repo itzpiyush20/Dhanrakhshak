@@ -139,12 +139,6 @@ export default function PricingPage() {
       return
     }
 
-    const isDev = import.meta.env.DEV
-    if (!isDev) {
-      showToast('❌ Promo codes are only available in development environments.', 'error')
-      return
-    }
-
     const enteredCode = promoCode.trim()
     const validCodes = (import.meta.env.VITE_PROMO_CODES || '')
       .split(',')
