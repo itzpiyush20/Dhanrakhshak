@@ -387,7 +387,7 @@ export default function SupportPage() {
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           className="w-full bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all"
-                          placeholder="e.g. Piyush Khandelwal"
+                          placeholder="e.g. Rahul Sharma"
                         />
                         {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name}</p>}
                       </div>

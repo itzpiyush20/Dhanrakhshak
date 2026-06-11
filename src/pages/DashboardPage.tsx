@@ -43,9 +43,6 @@ export default function DashboardPage() {
   // Helper to extract first name of the user, ignoring standard titles
   const getFirstName = (fullName?: string) => {
     const nameToParse = profile?.full_name || fullName || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'Account'
-    if (nameToParse.toLowerCase().includes('piyush')) {
-      return 'Piyush'
-    }
     const parts = nameToParse.trim().split(/\s+/)
     let result = parts[0]
     const cleanWord = (word: string) => word.replace(/[^a-zA-Z]/g, '').toLowerCase()
