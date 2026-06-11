@@ -45,13 +45,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' })
   }
 
-  const isHosted = process.env.VERCEL === '1'
-  const keyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || ''
-  if (isHosted && keyId.startsWith('rzp_test_')) {
-    console.error('Security alert: Order creation blocked using test keys in hosted environments.')
-    return res.status(400).json({ error: 'Test payments are not allowed in hosted environments.' })
-  }
-
   const { planType, userId } = req.body ?? {}
 
   if (typeof planType !== 'string' || typeof userId !== 'string' || !userId) {

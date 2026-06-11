@@ -146,13 +146,12 @@ export default function PricingPage() {
     }
 
     const enteredCode = promoCode.trim()
-    const validCodes = ['DHANVIP', 'UNLIMITED_VIP', 'FREE_LIFETIME', 'ITZPIYUSH', 'INVESTOR_UNLIMITED']
-    
-    // DHANI2007 is case-sensitive as requested
-    const isSpecialCode = enteredCode === 'DHANI2007'
-    const isStandardCode = validCodes.includes(enteredCode.toUpperCase())
-    
-    if (!isSpecialCode && !isStandardCode) {
+    const validCodes = (import.meta.env.VITE_PROMO_CODES || '')
+      .split(',')
+      .map((c: string) => c.trim().toUpperCase())
+      .filter(Boolean)
+
+    if (!validCodes.includes(enteredCode.toUpperCase())) {
       showToast('❌ Invalid or expired coupon code.', 'error')
       return
     }
