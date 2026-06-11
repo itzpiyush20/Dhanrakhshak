@@ -27,8 +27,8 @@ const categoryOptions = Object.entries(CATEGORIES).map(([value, cat]) => ({
 }))
 
 const typeOptions = [
-  { value: 'debit', label: '💸 Expense (Debit)' },
-  { value: 'credit', label: '💰 Income (Credit)' },
+  { value: 'debit', label: '🔴 Expense (Debit)' },
+  { value: 'credit', label: '🟢 Income (Credit)' },
 ]
 
 export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: ExpenseFormProps) {
@@ -39,7 +39,6 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
   const [amount, setAmount] = useState(editingTransaction?.amount?.toString() || '')
   const [category, setCategory] = useState(editingTransaction?.category || 'other')
   const [description, setDescription] = useState(editingTransaction?.description || '')
-  const [notes, setNotes] = useState(editingTransaction?.notes || '')
   const [tagsInput, setTagsInput] = useState(
     editingTransaction?.tags?.join(', ') || ''
   )
@@ -60,11 +59,6 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
       return
     }
 
-    if (date < '2026-01-01') {
-      setError('Date must be starting January 2026 (2026-01-01 or later)')
-      return
-    }
-
     setLoading(true)
 
     const tags = tagsInput
@@ -78,7 +72,6 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
         amount: parsedAmount,
         category,
         description,
-        notes: notes || null,
         date,
         tags,
       })
@@ -108,7 +101,6 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
         amount: parsedAmount,
         category,
         description,
-        notes: notes || null,
         date,
         source: 'manual',
         approval_status: 'approved',
@@ -126,7 +118,6 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
     if (!isEditing) {
       setAmount('')
       setDescription('')
-      setNotes('')
       setTagsInput('')
       setCategory('other')
       setDate(new Date().toISOString().split('T')[0])
@@ -195,7 +186,6 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            min="2026-01-01"
             required
           />
         </div>
@@ -206,13 +196,6 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           required
-        />
-
-        <Input
-          label="Notes (optional)"
-          placeholder="Any additional details..."
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
         />
 
         <div className="space-y-1.5">
