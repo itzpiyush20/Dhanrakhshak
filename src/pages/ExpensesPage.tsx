@@ -204,8 +204,16 @@ export default function ExpensesPage() {
 
         {/* Form Modal Popup */}
         {showForm && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in" role="dialog" aria-modal="true" aria-label={editingTransaction ? 'Edit Transaction' : 'Add Transaction'}>
-            <div className="w-full max-w-lg animate-scale-up">
+          <div
+            className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center sm:p-4 bg-zinc-950/70 backdrop-blur-md animate-fade-in overflow-y-auto"
+            role="dialog" aria-modal="true"
+            aria-label={editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
+            onClick={handleCancel}
+          >
+            <div
+              className="w-full sm:max-w-lg max-h-[92vh] sm:max-h-[90vh] overflow-y-auto animate-scale-up rounded-t-3xl sm:rounded-3xl"
+              onClick={(e) => e.stopPropagation()}
+            >
               <ExpenseForm
                 editingTransaction={editingTransaction}
                 onSaved={handleSaved}

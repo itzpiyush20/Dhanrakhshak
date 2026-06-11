@@ -945,12 +945,12 @@ export default function PendingPage() {
       {/* Auto-Categorization Review Modal */}
       {showAutoReviewModal && autoCategorizedTxns.length > 0 && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/70 backdrop-blur-md animate-fade-in"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/70 backdrop-blur-md animate-fade-in overflow-y-auto"
           role="dialog"
           aria-modal="true"
           aria-label="Auto-Categorized Expenses Review"
         >
-          <div className="w-full max-w-xl bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col max-h-[85vh] animate-scale-up">
+          <div className="w-full max-w-xl bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col max-h-[90vh] overflow-y-auto animate-scale-up">
             <div className="flex items-start justify-between border-b border-border-subtle/30 pb-4">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-2xl bg-brand-500/10 border border-brand-500/30 flex items-center justify-center text-xl animate-pulse">
@@ -1039,12 +1039,12 @@ export default function PendingPage() {
       {/* Approval Confirmation Modal */}
       {confirmApproveId && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in overflow-y-auto"
           role="dialog"
           aria-modal="true"
           aria-label="Confirm Transaction Approval"
         >
-          <div className="w-full max-w-md bg-surface-1/90 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col animate-scale-up">
+          <div className="w-full max-w-md bg-surface-1/90 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col animate-scale-up max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-3 border-b border-border-subtle/30 pb-4 mb-4">
               <span className="text-2xl text-brand-400 select-none" aria-hidden="true">❓</span>
               <h3 className="text-base font-bold text-white">Approve Transaction</h3>

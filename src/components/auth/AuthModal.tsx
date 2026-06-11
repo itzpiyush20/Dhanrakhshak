@@ -104,7 +104,7 @@ export default function AuthModal() {
       onClick={closeAuthModal}
     >
       <div 
-        className="relative w-full max-w-md bg-surface-1 border border-border-subtle rounded-3xl shadow-2xl p-6 sm:p-8 my-auto animate-scale-up text-zinc-100"
+        className="relative w-full max-w-md bg-surface-1 border border-border-subtle rounded-3xl shadow-2xl p-6 sm:p-8 my-auto animate-scale-up text-zinc-100 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

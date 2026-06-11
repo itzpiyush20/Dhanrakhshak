@@ -849,8 +849,8 @@ export default function DashboardPage() {
         {/* 📋 Recent Activity View All Modal */}
         {showAllRecentModal && (
 
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in" role="dialog" aria-modal="true" aria-label="Recent Transactions List">
-            <div className="w-full max-w-xl bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col max-h-[85vh] animate-scale-up">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in overflow-y-auto" role="dialog" aria-modal="true" aria-label="Recent Transactions List">
+            <div className="w-full max-w-xl bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col max-h-[90vh] overflow-y-auto animate-scale-up">
               
               {/* Header */}
               <div className="flex items-start justify-between border-b border-border-subtle/30 pb-4">
@@ -932,8 +932,8 @@ export default function DashboardPage() {
           const monthLabel = monthDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
           
           return (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in" role="dialog" aria-modal="true" aria-label={`${cat.label} Transactions list`}>
-              <div className="w-full max-w-xl bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col max-h-[85vh] animate-scale-up text-zinc-100">
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in overflow-y-auto" role="dialog" aria-modal="true" aria-label={`${cat.label} Transactions list`}>
+              <div className="w-full max-w-xl bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col max-h-[90vh] overflow-y-auto animate-scale-up text-zinc-100">
                 
                 {/* Header */}
                 <div className="flex items-start justify-between border-b border-border-subtle/30 pb-4">
@@ -1089,8 +1089,8 @@ export default function DashboardPage() {
       )}
       {/* Widget Customization Modal */}
       {showConfigModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in" role="dialog" aria-modal="true" aria-label="Configure Dashboard Widgets">
-          <div className="w-full max-w-md bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl animate-scale-up text-left">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in overflow-y-auto" role="dialog" aria-modal="true" aria-label="Configure Dashboard Widgets">
+          <div className="w-full max-w-md bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl animate-scale-up text-left max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border-subtle/30 pb-4 mb-5">
               <div className="flex items-center gap-2.5">
                 <span className="text-xl">⚙️</span>
