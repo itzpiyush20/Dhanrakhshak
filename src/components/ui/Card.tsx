@@ -1,6 +1,5 @@
 // ============================================
-// Card — Premium glass-style container
-// The primary surface element across the app
+// Card — Futuristic glass-style container
 // ============================================
 
 import { cn } from '@/utils'
@@ -8,25 +7,39 @@ import type { ReactNode, HTMLAttributes } from 'react'
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode
-  /** Remove default padding */
   noPadding?: boolean
-  /** Hover glow effect */
   hoverable?: boolean
+  /** Gradient border glow on hover */
+  glow?: boolean
 }
 
 export default function Card({
   children,
   noPadding = false,
   hoverable = false,
+  glow = false,
   className,
   ...props
 }: CardProps) {
   return (
     <div
       className={cn(
-        'rounded-2xl border border-border-subtle bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-md transition-all duration-300',
+        // Base — glass surface with depth
+        'rounded-2xl border border-border-subtle bg-surface-1',
+        'shadow-[0_4px_24px_rgba(0,0,0,0.18),0_1px_4px_rgba(0,0,0,0.12)]',
+        'backdrop-blur-sm',
+        'transition-all duration-300 ease-out',
         !noPadding && 'p-5 md:p-6',
-        hoverable && 'hover:border-brand-400/30 hover:bg-surface-2 hover:shadow-[0_12px_40px_rgba(0,230,118,0.08)] cursor-pointer transform hover:-translate-y-0.5',
+        // Hoverable — lift + brand glow
+        hoverable && [
+          'cursor-pointer',
+          'hover:-translate-y-1',
+          'hover:border-brand-400/25',
+          'hover:bg-surface-2',
+          'hover:shadow-[0_16px_48px_rgba(0,0,0,0.22),0_0_0_1px_rgba(62,207,142,0.12),0_8px_24px_rgba(62,207,142,0.06)]',
+        ],
+        // Glow — gradient border on hover via CSS utility
+        glow && 'gradient-border-card',
         className
       )}
       {...props}

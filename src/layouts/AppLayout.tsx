@@ -327,7 +327,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
   }
 
   return (
-    <div className={cn("min-h-screen flex flex-col", isStaticLight ? "bg-sb-canvas text-sb-ink" : "bg-surface-0 text-zinc-100")}>
+    <div className={cn("min-h-screen flex flex-col", isStaticLight ? "bg-sb-canvas text-sb-ink" : "aurora-bg bg-surface-0 text-zinc-100")}>
       <a href="#main-content" className="skip-to-content">
         Skip to main content
       </a>
@@ -405,7 +405,12 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
         </div>
       )}
 
-      <header className={cn("sticky top-0 z-50 w-full border-b select-none transition-colors", isStaticLight ? "border-sb-hairline bg-sb-canvas text-sb-ink" : "border-border-subtle bg-surface-1/80 backdrop-blur-md text-zinc-100")}>
+      <header className={cn(
+        "sticky top-0 z-50 w-full border-b select-none transition-all duration-300",
+        isStaticLight
+          ? "border-sb-hairline bg-sb-canvas/90 text-sb-ink backdrop-blur-xl"
+          : "border-border-subtle/50 bg-surface-1/60 glass-premium text-zinc-100 shadow-[0_1px_0_rgba(62,207,142,0.08),0_4px_32px_rgba(0,0,0,0.30)]"
+      )}>
         <div className="mx-auto max-w-[1280px] h-[64px] flex items-center justify-between px-6 gap-4">
           <Link to="/" className="flex items-center gap-3 shrink-0 group">
             <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-static-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] border-0 group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300" aria-hidden="true">{currencySymbol}</span>
@@ -445,10 +450,14 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                         key={item.path}
                         to={item.path}
                         className={cn(
-                          "transition-colors py-1.5 px-3 rounded-lg text-xs font-semibold shrink-0",
-                          isActive 
-                            ? (isStaticLight ? "bg-sb-canvas-soft text-sb-ink font-bold border border-sb-hairline" : "bg-white/10 text-white font-bold") 
-                            : (isStaticLight ? "text-sb-ink-muted hover:text-sb-ink" : "text-zinc-400 hover:text-white")
+                          "relative py-1.5 px-3 rounded-lg text-xs font-semibold shrink-0 transition-all duration-200",
+                          isActive
+                            ? isStaticLight
+                              ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200/60 shadow-sm"
+                              : "text-white font-bold nav-active-indicator"
+                            : isStaticLight
+                              ? "text-sb-ink-muted hover:text-sb-ink hover:bg-sb-canvas-soft"
+                              : "text-zinc-500 hover:text-zinc-200 hover:bg-white/5"
                         )}
                       >
                         {item.label}

@@ -12,21 +12,43 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode
   variant?: ButtonVariant
   size?: ButtonSize
-  /** Full width */
   block?: boolean
-  /** Show loading spinner */
   loading?: boolean
 }
 
 const variantStyles: Record<ButtonVariant, string> = {
-  primary:
-    'bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-lg shadow-brand-500/20 hover:from-brand-400 hover:to-brand-500 active:from-brand-600 active:to-brand-700',
-  secondary:
-    'bg-surface-2 border border-border-default text-zinc-200 hover:bg-surface-3 hover:border-border-hover active:bg-zinc-700',
-  ghost:
-    'text-zinc-400 hover:text-white hover:bg-surface-2 active:bg-surface-3',
-  danger:
-    'bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] text-[var(--status-danger-text)] hover:bg-[var(--status-danger-border)] hover:border-[var(--status-danger-text)]/40 active:opacity-80',
+  primary: [
+    'btn-shimmer',
+    'bg-gradient-to-r from-brand-500 to-brand-600',
+    'text-[#0d0d12] font-semibold',
+    'shadow-[0_4px_18px_rgba(62,207,142,0.30),0_1px_4px_rgba(62,207,142,0.15)]',
+    'hover:from-brand-400 hover:to-brand-500',
+    'hover:shadow-[0_6px_28px_rgba(62,207,142,0.42),0_2px_8px_rgba(62,207,142,0.20)]',
+    'active:from-brand-600 active:to-brand-700 active:scale-[0.97]',
+    'transition-all duration-200',
+  ].join(' '),
+  secondary: [
+    'bg-surface-2 border border-border-default',
+    'text-zinc-200',
+    'shadow-[0_2px_8px_rgba(0,0,0,0.12)]',
+    'hover:bg-surface-3 hover:border-border-hover hover:shadow-[0_4px_14px_rgba(0,0,0,0.18)]',
+    'active:bg-zinc-800 active:scale-[0.98]',
+    'transition-all duration-200',
+  ].join(' '),
+  ghost: [
+    'text-zinc-400',
+    'hover:text-white hover:bg-surface-2',
+    'active:bg-surface-3 active:scale-[0.98]',
+    'transition-all duration-200',
+  ].join(' '),
+  danger: [
+    'bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)]',
+    'text-[var(--status-danger-text)]',
+    'hover:bg-[var(--status-danger-border)] hover:border-[var(--status-danger-text)]/40',
+    'hover:shadow-[0_4px_14px_rgba(248,113,113,0.20)]',
+    'active:opacity-80 active:scale-[0.98]',
+    'transition-all duration-200',
+  ].join(' '),
 }
 
 const sizeStyles: Record<ButtonSize, string> = {
@@ -48,10 +70,9 @@ export default function Button({
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center font-medium',
-        'transition-all duration-200 ease-out',
+        'inline-flex items-center justify-center font-medium select-none',
         'focus-visible:outline-2 focus-visible:outline-brand-400 focus-visible:outline-offset-2',
-        'disabled:opacity-50 disabled:pointer-events-none',
+        'disabled:opacity-45 disabled:pointer-events-none disabled:saturate-50',
         variantStyles[variant],
         sizeStyles[size],
         block && 'w-full',
@@ -63,22 +84,13 @@ export default function Button({
     >
       {loading && (
         <svg
-          className="h-4 w-4 animate-spin"
+          className="h-4 w-4 animate-spin shrink-0"
           viewBox="0 0 24 24"
           fill="none"
           aria-hidden="true"
         >
-          <circle
-            className="opacity-25"
-            cx="12" cy="12" r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-          />
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
         </svg>
       )}
       {children}
