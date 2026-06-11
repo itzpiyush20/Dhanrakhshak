@@ -6,6 +6,7 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { APP_CONFIG } from '@/constants'
 import { useToast } from '@/context'
 import { Button, Input } from '@/components/ui'
 
@@ -267,7 +268,7 @@ export default function AuthModal() {
             <span className="text-emerald-400">🛡️</span> Security & Privacy Note
           </div>
           <p>
-            Hi, I'm <strong className="text-white">CA Piyush Khandelwal</strong>, a Chartered Accountant and creator of Dhanrakshak. We keep your data 100% secure:
+            Hi, I'm the creator of <strong className="text-white">{APP_CONFIG.APP_NAME}</strong>. We keep your data 100% secure:
           </p>
           <ul className="list-disc pl-3.5 space-y-1">
             <li>
