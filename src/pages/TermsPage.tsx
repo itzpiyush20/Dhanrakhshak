@@ -13,13 +13,13 @@ export default function TermsPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-[#07070f] text-zinc-300" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
+    <div className="min-h-screen bg-sb-canvas text-sb-ink-secondary" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
       {/* Header */}
-      <header className="border-b border-zinc-800 bg-[#07070f]/90 backdrop-blur-md sticky top-0 z-10">
+      <header className="border-b border-sb-hairline bg-sb-canvas/80 backdrop-blur-md sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 no-underline font-bold text-lg">
             <span className="text-lg font-bold text-emerald-400">₹</span>
-            <span className="text-white font-medium">Dhanrakshak</span>
+            <span className="text-sb-ink font-medium">Dhanrakshak</span>
           </Link>
           <Link to={ROUTES.DASHBOARD} className="text-xs font-medium no-underline text-emerald-400">
             ← Back to App
@@ -29,14 +29,14 @@ export default function TermsPage() {
 
       <main className="max-w-4xl mx-auto px-6 py-12">
         <div className="mb-10">
-          <h1 className="text-3xl font-extrabold tracking-tight aurora-gradient-text">Terms of Service</h1>
-          <p className="text-xs mt-1 text-zinc-400">Last updated: June 2, 2026 · Effective immediately</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-sb-ink">Terms of Service</h1>
+          <p className="text-xs mt-1 text-sb-ink-muted">Last updated: June 2, 2026 · Effective immediately</p>
         </div>
 
         <div className="prose max-w-none space-y-10">
-          
+
           <section>
-            <div className="glass-card rounded-xl p-5 mb-8 leading-relaxed text-zinc-300">
+            <div className="sb-card-light p-5 mb-8 leading-relaxed text-sb-ink-secondary">
               Please read these Terms of Service ("Terms") carefully before using Dhanrakshak (the "Service" or "App").
               By signing up for or using Dhanrakshak, you agree to be bound by these Terms and our Privacy Policy.
             </div>
@@ -96,14 +96,14 @@ export default function TermsPage() {
         </div>
       </main>
 
-      <footer className="border-t border-zinc-800 mt-16 py-8 text-center text-xs text-zinc-500">
+      <footer className="border-t border-sb-hairline bg-sb-canvas-soft mt-16 py-8 text-center text-xs text-sb-ink-muted">
         <p>© 2026 Dhanrakshak. All rights reserved.</p>
         <div className="flex justify-center gap-6 mt-3">
-          <Link to={ROUTES.PRIVACY} className="no-underline hover:underline text-zinc-500">Privacy Policy</Link>
-          <Link to={ROUTES.TERMS} className="no-underline hover:underline text-zinc-500">Terms of Service</Link>
-          <Link to={ROUTES.REFUND} className="no-underline hover:underline text-zinc-500">Refund Policy</Link>
-          <Link to={ROUTES.ABOUT} className="no-underline hover:underline text-zinc-500">About</Link>
-          <Link to="/support" className="no-underline hover:underline text-zinc-500">Support</Link>
+          <Link to={ROUTES.PRIVACY} className="no-underline hover:underline text-sb-ink-muted">Privacy Policy</Link>
+          <Link to={ROUTES.TERMS} className="no-underline hover:underline text-sb-ink-muted">Terms of Service</Link>
+          <Link to={ROUTES.REFUND} className="no-underline hover:underline text-sb-ink-muted">Refund Policy</Link>
+          <Link to={ROUTES.ABOUT} className="no-underline hover:underline text-sb-ink-muted">About</Link>
+          <Link to="/support" className="no-underline hover:underline text-sb-ink-muted">Support</Link>
         </div>
       </footer>
     </div>
@@ -113,8 +113,8 @@ export default function TermsPage() {
 function section(title: string, body: string) {
   return (
     <section key={title} className="space-y-3">
-      <h2 className="text-lg font-bold text-white">{title}</h2>
-      <div className="text-sm leading-relaxed whitespace-pre-line text-zinc-300">
+      <h2 className="text-lg font-bold text-sb-ink">{title}</h2>
+      <div className="text-sm leading-relaxed whitespace-pre-line text-sb-ink-secondary">
         {body.trim()}
       </div>
     </section>

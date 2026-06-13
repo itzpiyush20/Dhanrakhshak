@@ -13,12 +13,12 @@ interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-  default: 'bg-zinc-800 text-zinc-300 border-zinc-700/50',
+  default: 'bg-surface-2 text-zinc-300 border-border-default',
   success: 'bg-[var(--status-positive-subtle)] text-[var(--status-positive-text)] border-[var(--status-positive-border)]',
   warning: 'bg-[var(--status-warning-subtle)] text-[var(--status-warning-text)] border-[var(--status-warning-border)]',
   danger:  'bg-[var(--status-danger-subtle)] text-[var(--status-danger-text)] border-[var(--status-danger-border)]',
   info:    'bg-[var(--status-info-subtle)] text-[var(--status-info-text)] border-[var(--status-info-border)]',
-  aurora:  'bg-gradient-to-r from-[rgba(62,207,142,0.15)] to-[rgba(99,102,241,0.15)] border-[rgba(62,207,142,0.25)] text-brand-300',
+  aurora:  'bg-[var(--status-positive-subtle)] text-[var(--status-positive-text)] border-[var(--status-positive-border)]',
 }
 
 export default function Badge({ children, variant = 'default', className, ...props }: BadgeProps) {

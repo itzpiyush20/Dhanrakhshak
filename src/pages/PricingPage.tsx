@@ -77,7 +77,7 @@ export default function PricingPage() {
         name: 'Dhanrakshak', description: `Upgrade to ${planName} Plan`,
         order_id: orderData.id,
         prefill: { name: profile?.full_name || '', email: user.email || '' },
-        theme: { color: '#3ecf8e' },
+        theme: { color: '#0e7a5d' },
         handler: async (paymentResponse: any) => {
           setProcessing(true)
           try {
@@ -165,17 +165,8 @@ export default function PricingPage() {
     <AppLayout>
       <div className="space-y-6 animate-fade-in" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
 
-        {/* ── AURORA BACKGROUND BLOBS ──────────────────────── */}
-        <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10">
-          <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-[rgba(62,207,142,0.06)] blur-[120px] animate-aurora-drift" />
-          <div className="absolute top-[30%] right-[-10%] w-[500px] h-[500px] rounded-full bg-[rgba(99,102,241,0.07)] blur-[100px] animate-aurora-drift" style={{animationDelay: '4s'}} />
-        </div>
-
-        {/* ── HEADER CARD WITH GRADIENT GLOWS ──────────────── */}
-        <div className="relative rounded-3xl overflow-hidden border border-border-subtle bg-surface-1 p-8 sm:p-10 shadow-md">
-          {/* Gradient glow */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full bg-emerald-500/10 blur-[80px] pointer-events-none" />
-          
+        {/* ── HEADER CARD ──────────────────────────────────── */}
+        <div className="relative rounded-3xl overflow-hidden sb-card-light p-8 sm:p-10">
           <div className="relative z-10 flex flex-col items-center text-center space-y-4 max-w-2xl mx-auto">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold tracking-wide">
               <span className="relative flex h-2 w-2">
@@ -185,10 +176,10 @@ export default function PricingPage() {
               Verify Dhanrakshak Financial Security Plans
             </div>
             
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight aurora-gradient-text select-none">
-              Simple, <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">honest pricing</span>
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-sb-ink select-none">
+              Simple, <span className="text-sb-primary">honest pricing</span>
             </h1>
-            <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
+            <p className="text-xs sm:text-sm text-sb-ink-secondary leading-relaxed">
               Unlock automated transaction logs, AI budget mapping, and offline security. No hidden charges, cancel with one click.
             </p>
           </div>
@@ -201,7 +192,7 @@ export default function PricingPage() {
               <div className="flex items-center gap-3">
                 <span className="text-2xl">⏳</span>
                 <div>
-                  <p className="text-sm font-bold text-white">Trial Active — {daysLeft} day{daysLeft !== 1 ? 's' : ''} remaining</p>
+                  <p className="text-sm font-bold text-sb-ink">Trial Active — {daysLeft} day{daysLeft !== 1 ? 's' : ''} remaining</p>
                   <p className="text-xs text-zinc-400 font-medium mt-0.5">Full access to premium features active. Upgrade to prevent any interruption to your automatic email tracking.</p>
                 </div>
               </div>
@@ -214,7 +205,7 @@ export default function PricingPage() {
               <div className="flex items-center gap-3">
                 <span className="text-2xl">🔒</span>
                 <div>
-                  <p className="text-sm font-bold text-white">Trial Expired — Dashboard Access Restricted</p>
+                  <p className="text-sm font-bold text-sb-ink">Trial Expired — Dashboard Access Restricted</p>
                   <p className="text-xs text-zinc-400 font-medium mt-0.5">Upgrade to restore local email parsing, budgets, and priority tracking modules.</p>
                 </div>
               </div>
@@ -236,18 +227,18 @@ export default function PricingPage() {
 
             {/* ── Standard: Monthly ─────────────────────────────── */}
             <div
-              className="rounded-3xl p-8 shadow-md flex flex-col cursor-pointer transition-all duration-300 hover:shadow-lg glass-card gradient-border-card relative group hover:-translate-y-1"
+              className="rounded-3xl p-8 flex flex-col cursor-pointer transition-all duration-300 sb-card-light relative group hover:-translate-y-1"
               style={{ borderColor: selectedPlan === 'monthly' ? 'var(--sb-primary)' : 'var(--border-subtle)', borderWidth: selectedPlan === 'monthly' ? 2 : 1 }}
               onClick={() => setSelectedPlan('monthly')}
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-white">Monthly</h2>
+                <h2 className="text-lg font-bold text-sb-ink">Monthly</h2>
                 <input type="radio" readOnly checked={selectedPlan === 'monthly'} className="h-4 w-4 cursor-pointer accent-[#3ecf8e]" />
               </div>
 
               <div className="mb-6">
                 <div className="flex items-baseline gap-1">
-                  <span className="font-extrabold text-4xl text-white tracking-tight">₹31</span>
+                  <span className="font-extrabold text-4xl text-sb-ink tracking-tight">₹31</span>
                   <span className="text-xs text-zinc-400">/month</span>
                 </div>
                 <p className="text-xs text-zinc-400 mt-1 font-medium">Billed every month · cancel anytime</p>
@@ -288,23 +279,23 @@ export default function PricingPage() {
 
             {/* ── Featured: Annual ── */}
             <div
-              className="rounded-3xl p-8 shadow-xl flex flex-col cursor-pointer relative overflow-hidden transition-all duration-300 hover:shadow-2xl glass-card gradient-border-card aurora-glow-ring relative group hover:-translate-y-1"
-              style={{ borderColor: selectedPlan === 'annual' ? 'var(--sb-primary)' : 'var(--border-subtle)', borderWidth: selectedPlan === 'annual' ? 2 : 1 }}
+              className="rounded-3xl p-8 flex flex-col cursor-pointer relative overflow-hidden transition-all duration-300 sb-card-light border-brand-500 shadow-[var(--shadow-md)] group hover:-translate-y-1"
+              style={{ borderColor: 'var(--sb-primary)', borderWidth: 2 }}
               onClick={() => setSelectedPlan('annual')}
             >
               {/* Best value badge */}
-              <div className="absolute top-0 right-0 text-[9px] font-extrabold uppercase tracking-widest px-4 py-2 rounded-bl-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md">
+              <div className="absolute top-0 right-0 sb-pill-tag-green text-[9px] font-extrabold uppercase tracking-widest px-4 py-2 rounded-bl-2xl rounded-tr-2xl">
                 Best Value · Save 15%
               </div>
 
               <div className="flex items-center justify-between mb-6 mt-2">
-                <h2 className="text-lg font-bold text-white">Yearly</h2>
+                <h2 className="text-lg font-bold text-sb-ink">Yearly</h2>
                 <input type="radio" readOnly checked={selectedPlan === 'annual'} className="h-4 w-4 cursor-pointer accent-[#3ecf8e]" />
               </div>
 
               <div className="mb-6">
                 <div className="flex items-baseline gap-1">
-                  <span className="font-extrabold text-4xl text-white tracking-tight">₹365</span>
+                  <span className="font-extrabold text-4xl text-sb-ink tracking-tight">₹365</span>
                   <span className="text-xs text-zinc-400">/year</span>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
@@ -338,7 +329,7 @@ export default function PricingPage() {
                 ) : (
                   <button
                     onClick={() => handleSelectPlan('annual')}
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer transition-all active:scale-98 border border-emerald-400/20"
+                    className="sb-btn-primary w-full cursor-pointer border-0"
                   >
                     {isActive && profile?.subscription_plan_type === 'monthly' ? 'Upgrade to Yearly' : 'Get Yearly'}
                   </button>
@@ -349,17 +340,17 @@ export default function PricingPage() {
 
             {/* ── Promo / Coupon ────────────────────────────────── */}
             <div
-              className="rounded-3xl p-8 shadow-md flex flex-col glass-card gradient-border-card relative group hover:-translate-y-1"
+              className="rounded-3xl p-8 flex flex-col sb-card-light relative group hover:-translate-y-1"
               style={{ borderColor: 'var(--border-subtle)', borderWidth: 1 }}
             >
               <div className="mb-6">
                 <span className="inline-flex items-center bg-surface-2 border border-border-subtle px-2.5 py-0.5 rounded-full text-[10px] font-semibold text-zinc-400">Special Access</span>
-                <h2 className="text-lg font-bold text-white mt-4">Coupon Code</h2>
+                <h2 className="text-lg font-bold text-sb-ink mt-4">Coupon Code</h2>
               </div>
 
               <div className="mb-6">
                 <div className="flex items-baseline gap-1">
-                  <span className="font-extrabold text-4xl text-white tracking-tight">Free</span>
+                  <span className="font-extrabold text-4xl text-sb-ink tracking-tight">Free</span>
                 </div>
                 <p className="text-xs text-zinc-400 mt-1 font-medium">Lifetime access with a valid coupon</p>
               </div>
@@ -395,7 +386,7 @@ export default function PricingPage() {
                   🔒
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-xl font-bold text-white">Sign in to complete checkout</h3>
+                  <h3 className="text-xl font-bold text-sb-ink">Sign in to complete checkout</h3>
                   <p className="text-xs text-zinc-400 leading-relaxed font-medium max-w-sm mx-auto">
                     To secure your billing and activate automated spends tracking, please log in or create an account first.
                   </p>
@@ -403,13 +394,13 @@ export default function PricingPage() {
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                   <button
                     onClick={() => openAuthModal('/pricing', 'login')}
-                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer border border-emerald-400/20 transition-all active:scale-98"
+                    className="sb-btn-primary w-full sm:w-auto cursor-pointer border-0"
                   >
                     Sign In
                   </button>
                   <button
                     onClick={() => openAuthModal('/pricing', 'signup')}
-                    className="w-full sm:w-auto px-6 py-3 rounded-xl border border-zinc-700 bg-surface-2 hover:bg-zinc-800 text-zinc-300 font-bold text-xs tracking-wide transition-all active:scale-98 shadow-sm cursor-pointer"
+                    className="sb-btn-secondary w-full sm:w-auto cursor-pointer"
                   >
                     Create Account
                   </button>
@@ -447,11 +438,11 @@ export default function PricingPage() {
                       <div className="rounded-2xl p-5 flex justify-between items-start bg-surface-2/40 border border-border-subtle/50">
                         <div>
                           <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Order Summary</p>
-                          <p className="text-lg mt-2 font-extrabold text-white">{planName} Plan</p>
+                          <p className="text-lg mt-2 font-extrabold text-sb-ink">{planName} Plan</p>
                           <p className="text-xs text-zinc-400 font-medium mt-0.5">{planSub}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-extrabold text-2xl text-white tracking-tight">₹{planPrice}</p>
+                          <p className="font-extrabold text-2xl text-sb-ink tracking-tight">₹{planPrice}</p>
                           <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">incl. GST</p>
                         </div>
                       </div>
@@ -483,7 +474,7 @@ export default function PricingPage() {
                       <button
                         onClick={handleRazorpayCheckout}
                         disabled={processing}
-                        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer transition-all active:scale-98 border border-emerald-400/20"
+                        className="sb-btn-primary w-full cursor-pointer border-0"
                         style={{ opacity: processing ? 0.6 : 1 }}
                       >
                         {processing ? 'Opening secure checkout…' : `Pay ₹${planPrice} & Activate ${planName}`}
@@ -500,7 +491,7 @@ export default function PricingPage() {
                     <div className="space-y-6 animate-fade-in">
                       <div className="rounded-2xl p-4 bg-emerald-500/5 border border-emerald-500/25">
                         <p className="text-xs text-zinc-400 leading-relaxed font-medium">
-                          🎟️ <strong className="text-white">Have a promo code?</strong> Enter your exclusive code below to unlock lifetime access to all tracking, backup, and dashboard automation tools instantly.
+                          🎟️ <strong className="text-sb-ink">Have a promo code?</strong> Enter your exclusive code below to unlock lifetime access to all tracking, backup, and dashboard automation tools instantly.
                         </p>
                       </div>
                       <div className="space-y-4">
@@ -518,7 +509,7 @@ export default function PricingPage() {
                         <button
                           onClick={handlePromoSimulator}
                           disabled={processing || !promoCode.trim()}
-                          className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs tracking-wide shadow-lg shadow-emerald-500/10 cursor-pointer transition-all active:scale-98 border border-emerald-400/20"
+                          className="sb-btn-primary w-full cursor-pointer border-0"
                           style={{ opacity: processing || !promoCode.trim() ? 0.5 : 1 }}
                         >
                           {processing ? 'Applying promo coupon…' : 'Redeem Code & Activate'}
@@ -544,7 +535,7 @@ export default function PricingPage() {
           <div className="mx-auto max-w-7xl">
             <div className="text-center max-w-xl mx-auto mb-12 space-y-4">
               <span className="inline-flex items-center bg-surface-1 border border-border-subtle px-3 py-1 rounded-full text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">The Dhanrakshak Standard</span>
-              <h2 className="text-3xl font-extrabold text-white tracking-tight">Built on Privacy & Local Isolation</h2>
+              <h2 className="text-3xl font-extrabold text-sb-ink tracking-tight">Built on Privacy & Local Isolation</h2>
               <p className="text-xs text-zinc-400 leading-relaxed font-medium">
                 We believe your banking transcripts are private. Dhanrakshak is designed from the ground up to prevent data brokerage.
               </p>
@@ -555,7 +546,7 @@ export default function PricingPage() {
                 <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-400 shadow-sm animate-pulse">
                   🔒
                 </div>
-                <h3 className="font-bold text-white text-base">Local parsing sandbox</h3>
+                <h3 className="font-bold text-sb-ink text-base">Local parsing sandbox</h3>
                 <p className="text-xs text-zinc-400 leading-relaxed font-medium">
                   Your inbox scans happen client-side directly in your browser. We never upload raw emails or transcripts to external clouds.
                 </p>
@@ -565,7 +556,7 @@ export default function PricingPage() {
                 <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-400 shadow-sm animate-pulse">
                   🛡️
                 </div>
-                <h3 className="font-bold text-white text-base">Read-only mail scans</h3>
+                <h3 className="font-bold text-sb-ink text-base">Read-only mail scans</h3>
                 <p className="text-xs text-zinc-400 leading-relaxed font-medium">
                   Our Google authentication API permissions are strictly read-only. We have no authority to initiate transfers or drafts.
                 </p>
@@ -575,7 +566,7 @@ export default function PricingPage() {
                 <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-400 shadow-sm animate-pulse">
                   🔑
                 </div>
-                <h3 className="font-bold text-white text-base">No passwords required</h3>
+                <h3 className="font-bold text-sb-ink text-base">No passwords required</h3>
                 <p className="text-xs text-zinc-400 leading-relaxed font-medium">
                   We never prompt for net-banking passwords, PIN numbers, OTPs, or card security details. Your bank credentials remain isolated.
                 </p>

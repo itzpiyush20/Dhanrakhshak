@@ -333,12 +333,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
       </a>
       {/* Dynamic Security Verification Splash Overlay */}
       {showSecuritySplash && (
-        <div className="fixed inset-0 z-[9999] bg-gradient-to-br from-[#07070f] via-[#0a0a18] to-[#050d12] backdrop-blur-xl flex flex-col items-center justify-center p-4 transition-all duration-500 ease-out animate-fade-in animate-none">
-          {/* Aurora blob decorations */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-[rgba(62,207,142,0.06)] blur-[120px] animate-aurora-drift" />
-            <div className="absolute bottom-[10%] right-[-10%] w-[400px] h-[400px] rounded-full bg-[rgba(99,102,241,0.06)] blur-[100px] animate-aurora-drift" style={{animationDelay: '4s'}} />
-          </div>
+        <div className="fixed inset-0 z-[9999] bg-surface-0 flex flex-col items-center justify-center p-4 transition-all duration-500 ease-out animate-fade-in animate-none">
           {/* Security Shield Icon */}
           <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-brand-500/10 border border-brand-500/30 shadow-2xl shadow-brand-500/20">
             <div className="absolute inset-0 rounded-3xl bg-brand-500/5 animate-pulse" />
@@ -346,47 +341,47 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           </div>
 
           {/* Secure Loading Text */}
-          <h3 className="text-lg font-bold tracking-tight text-static-white mb-2 text-center">
+          <h3 className="text-lg font-bold tracking-tight text-zinc-50 mb-2 text-center">
             Secure Local Data Acknowledgment
           </h3>
-          <p className="text-xs text-static-zinc-500 mb-6 font-semibold uppercase tracking-widest text-center">
+          <p className="text-xs text-zinc-400 mb-6 font-semibold uppercase tracking-widest text-center">
             Dhanrakshak Financial Security Protocol
           </p>
 
-          {/* Glowing brand-gradient progress bar */}
-          <div className="h-1.5 w-64 bg-static-zinc-800 rounded-full overflow-hidden mb-3 shadow-inner border border-static-zinc-700/30">
+          {/* Progress bar */}
+          <div className="h-1.5 w-64 bg-surface-3 rounded-full overflow-hidden mb-3 shadow-inner border border-border-subtle">
             <div
-              className="h-full aurora-progress-fill rounded-full transition-all duration-75 ease-out"
+              className="h-full bg-brand-500 rounded-full transition-all duration-75 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
 
           {/* Dynamic Loading Step Text */}
-          <p className="text-xs text-brand-400 font-medium mb-8 text-center animate-pulse h-4">
+          <p className="text-xs text-zinc-400 font-medium mb-8 text-center animate-pulse h-4">
             {splashStepText}
           </p>
 
           {/* Solid Reassurance Card with High Contrast */}
-          <div className="w-full max-w-md bg-static-zinc-900/60 border border-static-zinc-800 rounded-2xl p-5 backdrop-blur-md shadow-lg animate-fade-in space-y-4 mb-8">
-            <p className="text-xs font-bold text-[#4ade80] uppercase tracking-widest flex items-center justify-center gap-1.5">
+          <div className="w-full max-w-md bg-surface-1 border border-border-subtle rounded-2xl p-5 shadow-[var(--shadow-md)] animate-fade-in space-y-4 mb-8">
+            <p className="text-xs font-bold text-[var(--status-positive-text)] uppercase tracking-widest flex items-center justify-center gap-1.5">
               <span>🔒</span> Zero-Trust Data Integrity Architecture
             </p>
-            
-            <div className="space-y-3 text-xs text-static-zinc-200 leading-relaxed font-medium">
+
+            <div className="space-y-3 text-xs text-zinc-300 leading-relaxed font-medium">
               <p className="flex items-start gap-2">
-                <span className="text-[#4ade80] mt-0.5 select-none">✔</span>
+                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
                 <span><strong>100% Local Scans:</strong> Email scanning is processed directly in your browser. Raw messages are parsed and discarded instantly.</span>
               </p>
               <p className="flex items-start gap-2">
-                <span className="text-[#4ade80] mt-0.5 select-none">✔</span>
+                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
                 <span><strong>Read-Only Google Access:</strong> Our Google OAuth integration requests restricted read-only permissions, unable to send or modify any emails.</span>
               </p>
               <p className="flex items-start gap-2">
-                <span className="text-[#4ade80] mt-0.5 select-none">✔</span>
+                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
                 <span><strong>No Passwords Requested:</strong> We never prompt for credit card PINs, banking credentials, net-banking security passwords, or OTPs.</span>
               </p>
               <p className="flex items-start gap-2">
-                <span className="text-[#4ade80] mt-0.5 select-none">✔</span>
+                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
                 <span><strong>Supabase Isolation:</strong> Extracted data is saved inside your private database instance, fully isolated via Row-Level Security (RLS).</span>
               </p>
             </div>
@@ -397,12 +392,12 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
             {progress === 100 ? (
               <button
                 onClick={handleAcknowledgeSplash}
-                className="px-8 py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 text-static-white font-bold text-sm tracking-wide shadow-xl shadow-brand-500/25 border border-brand-400/30 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer animate-scale-up"
+                className="px-8 py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-sm tracking-wide shadow-[var(--shadow-md)] hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer animate-scale-up"
               >
                 Verify & Enter Dashboard
               </button>
             ) : (
-              <p className="text-static-zinc-500 text-xs font-semibold uppercase tracking-widest animate-pulse">
+              <p className="text-zinc-400 text-xs font-semibold uppercase tracking-widest animate-pulse">
                 Auditing System Security Policies...
               </p>
             )}
@@ -414,11 +409,11 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
         "sticky top-0 z-50 w-full border-b select-none transition-all duration-300",
         isStaticLight
           ? "border-sb-hairline bg-sb-canvas/90 text-sb-ink backdrop-blur-xl"
-          : "border-border-subtle/50 bg-surface-1/60 glass-premium text-zinc-100 shadow-[0_1px_0_rgba(99,102,241,0.10),0_4px_32px_rgba(0,0,0,0.30)]"
+          : "border-border-subtle bg-surface-1/95 backdrop-blur-md text-zinc-100 shadow-[var(--shadow-sm)]"
       )}>
         <div className="mx-auto max-w-[1280px] h-[64px] flex items-center justify-between px-6 gap-4">
           <Link to="/" className="flex items-center gap-3 shrink-0 group">
-            <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-static-white shadow-[0_0_16px_rgba(62,207,142,0.5),0_0_32px_rgba(99,102,241,0.25)] border-0 group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300" aria-hidden="true">{currencySymbol}</span>
+            <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-brand-500 text-white shadow-[var(--shadow-sm)] border-0 group-hover:scale-115 group-hover:rotate-12 transition-all duration-300" aria-hidden="true">{currencySymbol}</span>
             <div className="flex items-center gap-2.5">
               <div className="text-base tracking-tight leading-none">
                 <span className={cn(
@@ -894,7 +889,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
       {/* Floating Action Button (FAB) for Tester Feedback */}
       <button
         onClick={() => setFeedbackOpen(true)}
-        className="fixed bottom-6 right-6 z-[40] flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-brand-500 via-[#6366f1] to-[#38bdf8] hover:from-brand-400 hover:to-brand-500 text-static-white font-bold text-[11px] tracking-wider uppercase shadow-[0_4px_20px_rgba(62,207,142,0.30),0_0_40px_rgba(99,102,241,0.15)] border border-brand-400/30 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
+        className="fixed bottom-6 right-6 z-[40] flex items-center gap-2 px-4 py-3 rounded-full bg-brand-500 hover:bg-brand-600 text-white font-bold text-[11px] tracking-wider uppercase shadow-[var(--shadow-md)] hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
         title="Send Tester Feedback"
         aria-label="Open tester feedback form"
       >
@@ -995,7 +990,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                             className={cn(
                               'text-2xl transition-all duration-200 hover:scale-125 select-none',
                               feedbackRating === rt.val
-                                ? 'scale-115 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)] opacity-100'
+                                ? 'scale-115 opacity-100'
                                 : 'opacity-40 hover:opacity-100'
                             )}
                           >
@@ -1135,7 +1130,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
       {/* =========================================================== */}
       {user && (
         <nav
-          className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[rgba(10,10,20,0.85)] backdrop-blur-2xl border-t border-border-subtle/60 safe-area-inset-bottom"
+          className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-surface-1/95 backdrop-blur-md border-t border-border-subtle safe-area-inset-bottom"
           aria-label="Mobile navigation"
         >
           <div className="flex items-center justify-around h-16 px-1">
@@ -1150,7 +1145,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               )}
               aria-label="Dashboard"
             >
-              <span className={cn("text-xl leading-none", location.pathname === ROUTES.DASHBOARD && "drop-shadow-[0_0_8px_rgba(62,207,142,0.6)]")}>🏠</span>
+              <span className={cn("text-xl leading-none", location.pathname === ROUTES.DASHBOARD && "text-brand-400")}>🏠</span>
               <span className="text-[9px] font-semibold tracking-wide">Home</span>
             </Link>
 
@@ -1165,7 +1160,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               )}
               aria-label="Expenses"
             >
-              <span className={cn("text-xl leading-none", location.pathname === ROUTES.EXPENSES && "drop-shadow-[0_0_8px_rgba(62,207,142,0.6)]")}>💳</span>
+              <span className={cn("text-xl leading-none", location.pathname === ROUTES.EXPENSES && "text-brand-400")}>💳</span>
               <span className="text-[9px] font-semibold tracking-wide">Expenses</span>
             </Link>
 
@@ -1174,10 +1169,10 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               <Link
                 to={ROUTES.EXPENSES}
                 state={{ openForm: true }}
-                className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 shadow-lg shadow-brand-500/30 border border-brand-400/30 hover:scale-110 active:scale-95 transition-all duration-200"
+                className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500 hover:bg-brand-600 shadow-[var(--shadow-md)] hover:scale-110 active:scale-95 transition-all duration-200"
                 aria-label="Quick add transaction"
               >
-                <span className="text-xl font-bold text-static-white leading-none">+</span>
+                <span className="text-xl font-bold text-white leading-none">+</span>
               </Link>
             </div>
 
@@ -1192,7 +1187,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               )}
               aria-label="Pending approvals"
             >
-              <span className={cn("text-xl leading-none relative", location.pathname === ROUTES.PENDING && "drop-shadow-[0_0_8px_rgba(62,207,142,0.6)]")}>
+              <span className={cn("text-xl leading-none relative", location.pathname === ROUTES.PENDING && "text-brand-400")}>
                 🔔
                 {notifications.length > 0 && (
                   <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-red-500 text-[7px] font-bold text-white">
@@ -1214,7 +1209,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               )}
               aria-label="Insights"
             >
-              <span className={cn("text-xl leading-none", location.pathname === ROUTES.INSIGHTS && "drop-shadow-[0_0_8px_rgba(62,207,142,0.6)]")}>✦</span>
+              <span className={cn("text-xl leading-none", location.pathname === ROUTES.INSIGHTS && "text-brand-400")}>✦</span>
               <span className="text-[9px] font-semibold tracking-wide">Insights</span>
             </Link>
           </div>

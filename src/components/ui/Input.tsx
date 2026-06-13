@@ -33,7 +33,7 @@ export default function Input({
       )}
       <div className="relative">
         {icon && (
-          <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">
+          <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400">
             {icon}
           </div>
         )}
@@ -42,13 +42,13 @@ export default function Input({
           aria-invalid={!!error}
           aria-describedby={error ? `${inputId}-error` : undefined}
           className={cn(
-            'h-11 w-full rounded-xl border bg-surface-2 bg-white/5 backdrop-blur-sm px-4 text-sm text-white',
-            'placeholder:text-zinc-500',
-            'transition-all duration-200',
-            'focus:outline-none focus:ring-2 focus:ring-[rgba(99,102,241,0.35)] focus:border-[rgba(99,102,241,0.60)]',
+            'h-11 w-full rounded-lg border bg-surface-1 px-4 text-sm text-zinc-50',
+            'placeholder:text-zinc-400',
+            'transition-[border-color,box-shadow] duration-150',
+            'focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500',
             error
-              ? 'border-red-500/50 focus:ring-red-400/40 focus:border-red-400'
-              : 'border-white/10 hover:border-border-hover',
+              ? 'border-[var(--status-danger-border)] focus:ring-[var(--status-danger-subtle)] focus:border-[var(--status-danger-text)]'
+              : 'border-border-default hover:border-border-hover',
             icon ? 'pl-10' : '',
             className
           )}
@@ -56,7 +56,7 @@ export default function Input({
         />
       </div>
       {error && (
-        <p id={`${inputId}-error`} role="alert" aria-live="assertive" className="text-xs text-red-400">{error}</p>
+        <p id={`${inputId}-error`} role="alert" aria-live="assertive" className="text-xs text-[var(--status-danger-text)]">{error}</p>
       )}
     </div>
   )

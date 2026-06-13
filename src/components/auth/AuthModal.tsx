@@ -99,12 +99,12 @@ export default function AuthModal() {
   }
 
   return (
-    <div 
-      className="fixed inset-0 z-[100] flex items-start justify-center bg-[rgba(7,7,15,0.85)] backdrop-blur-2xl p-4 overflow-y-auto animate-fade-in"
+    <div
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in"
       onClick={closeAuthModal}
     >
-      <div 
-        className="relative w-full max-w-md glass-card aurora-glow-ring rounded-3xl shadow-2xl p-6 sm:p-8 my-auto animate-scale-up text-zinc-100 max-h-[90vh] overflow-y-auto"
+      <div
+        className="relative w-full max-w-md bg-surface-1 border border-border-default rounded-2xl shadow-[var(--shadow-lg)] p-6 sm:p-8 my-auto animate-scale-up text-zinc-100 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -112,7 +112,7 @@ export default function AuthModal() {
         {/* Close Button */}
         <button
           onClick={closeAuthModal}
-          className="absolute top-4 right-4 text-zinc-500 hover:text-white p-1.5 rounded-xl hover:bg-surface-2 border-0 bg-transparent transition-colors cursor-pointer text-lg leading-none"
+          className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-50 p-1.5 rounded-xl hover:bg-surface-2 border-0 bg-transparent transition-colors cursor-pointer text-lg leading-none"
           aria-label="Close authentication modal"
         >
           ✕
@@ -120,11 +120,11 @@ export default function AuthModal() {
 
         {/* Brand Header */}
         <div className="mb-6 flex flex-col items-center">
-          <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-[0_0_20px_rgba(62,207,142,0.5),0_0_40px_rgba(99,102,241,0.25)] border-0" aria-hidden="true">
+          <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500 text-white shadow-[var(--shadow-sm)] border-0" aria-hidden="true">
             <span className="text-xl font-bold">{currencySymbol || '₹'}</span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-white mb-1 flex items-center justify-center select-none">
-            <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">Dhan</span>
+          <h1 className="text-2xl font-black tracking-tight text-zinc-50 mb-1 flex items-center justify-center select-none">
+            <span className="text-brand-400">Dhan</span>
             <span>rakshak</span>
           </h1>
           <p className="text-[10px] font-bold tracking-wider text-emerald-400 uppercase text-center">
@@ -138,9 +138,9 @@ export default function AuthModal() {
             type="button"
             onClick={() => { setIsSignUp(false); setError(''); setAgreeToTerms(false) }}
             className={`flex-1 py-2 text-xs font-semibold rounded-lg border-0 cursor-pointer transition-all ${
-              !isSignUp 
-                ? 'bg-surface-1 text-white shadow-md border border-border-subtle/30' 
-                : 'bg-transparent text-zinc-400 hover:text-white'
+              !isSignUp
+                ? 'bg-surface-1 text-zinc-50 shadow-md border border-border-subtle/30'
+                : 'bg-transparent text-zinc-400 hover:text-zinc-50'
             }`}
           >
             Sign In
@@ -149,9 +149,9 @@ export default function AuthModal() {
             type="button"
             onClick={() => { setIsSignUp(true); setError(''); setAgreeToTerms(false) }}
             className={`flex-1 py-2 text-xs font-semibold rounded-lg border-0 cursor-pointer transition-all ${
-              isSignUp 
-                ? 'bg-surface-1 text-white shadow-md border border-border-subtle/30' 
-                : 'bg-transparent text-zinc-400 hover:text-white'
+              isSignUp
+                ? 'bg-surface-1 text-zinc-50 shadow-md border border-border-subtle/30'
+                : 'bg-transparent text-zinc-400 hover:text-zinc-50'
             }`}
           >
             Create Account
@@ -221,7 +221,7 @@ export default function AuthModal() {
             </div>
           )}
 
-          <Button type="submit" block loading={loading} className="w-full py-2.5 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white transition-all">
+          <Button type="submit" block loading={loading} className="w-full py-2.5 text-xs font-bold">
             {isSignUp ? 'Create Account' : 'Sign In'}
           </Button>
         </form>
@@ -264,11 +264,11 @@ export default function AuthModal() {
 
         {/* Security & Trust Note */}
         <div className="mt-5 p-3.5 rounded-2xl bg-surface-2 border border-border-subtle/50 text-[10.5px] text-zinc-400 space-y-2 leading-relaxed">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-white mb-0.5">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-50 mb-0.5">
             <span className="text-emerald-400">🛡️</span> Security & Privacy Note
           </div>
           <p>
-            Hi, I'm the creator of <strong className="text-white">{APP_CONFIG.APP_NAME}</strong>. We keep your data 100% secure:
+            Hi, I'm the creator of <strong className="text-zinc-50">{APP_CONFIG.APP_NAME}</strong>. We keep your data 100% secure:
           </p>
           <ul className="list-disc pl-3.5 space-y-1">
             <li>
@@ -278,7 +278,7 @@ export default function AuthModal() {
               <strong className="text-zinc-300">Email/Password Login</strong>: Signing up with email and password requests no external permissions. You can choose to link your Gmail account later if you wish.
             </li>
             <li>
-              <strong className="text-zinc-300">Google Warning & Approvals</strong>: Since this is currently a test app, Google may display an "unverified app" screen during setup. Google's formal approval is being obtained in due course. You can safely click <span className="text-white font-mono">Advanced &rarr; Go to Dhanrakshak</span> to proceed.
+              <strong className="text-zinc-300">Google Warning & Approvals</strong>: Since this is currently a test app, Google may display an "unverified app" screen during setup. Google's formal approval is being obtained in due course. You can safely click <span className="text-zinc-50 font-mono">Advanced &rarr; Go to Dhanrakshak</span> to proceed.
             </li>
             <li>
               <strong className="text-zinc-300">Developer Project Key</strong>: On the Google login screen, you may see a developer project identifier key (a random alphanumeric string) instead of the name "Dhanrakshak". This is standard Google behavior for unverified test apps and is completely safe.

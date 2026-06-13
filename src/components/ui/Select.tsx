@@ -40,30 +40,30 @@ export default function Select({
         aria-invalid={!!error}
         aria-describedby={error ? `${selectId}-error` : undefined}
         className={cn(
-          'h-11 w-full rounded-xl border bg-surface-2 bg-white/5 backdrop-blur-sm px-3 text-sm text-white',
-          'transition-all duration-200 appearance-none cursor-pointer',
-          'focus:outline-none focus:ring-2 focus:ring-[rgba(99,102,241,0.35)] focus:border-[rgba(99,102,241,0.60)]',
-          'bg-[url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2371717a%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E")] bg-no-repeat bg-[right_12px_center]',
+          'h-11 w-full rounded-lg border bg-surface-1 px-3 pr-9 text-sm text-zinc-50',
+          'transition-[border-color,box-shadow] duration-150 appearance-none cursor-pointer',
+          'focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500',
+          'bg-[url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23949bab%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E")] bg-no-repeat bg-[right_12px_center]',
           error
-            ? 'border-red-500/50'
-            : 'border-white/10 hover:border-border-hover',
+            ? 'border-[var(--status-danger-border)]'
+            : 'border-border-default hover:border-border-hover',
           className
         )}
         {...props}
       >
         {placeholder && (
-          <option value="" className="bg-surface-2 text-zinc-500">
+          <option value="" className="bg-surface-1 text-zinc-400">
             {placeholder}
           </option>
         )}
         {options && options.map((opt) => (
-          <option key={opt.value} value={opt.value} className="bg-surface-2">
+          <option key={opt.value} value={opt.value} className="bg-surface-1 text-zinc-50">
             {opt.label}
           </option>
         ))}
         {children}
       </select>
-      {error && <p id={`${selectId}-error`} role="alert" aria-live="assertive" className="text-xs text-red-400">{error}</p>}
+      {error && <p id={`${selectId}-error`} role="alert" aria-live="assertive" className="text-xs text-[var(--status-danger-text)]">{error}</p>}
     </div>
   )
 }

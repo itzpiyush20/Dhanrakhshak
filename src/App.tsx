@@ -80,7 +80,10 @@ function App() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem('dhanrakshak_theme')
-      if (stored === 'light') {
+      // System-aware default: honor an explicit choice, otherwise follow the OS.
+      const prefersLight = window.matchMedia?.('(prefers-color-scheme: light)').matches
+      const useLight = stored === 'light' || (!stored && prefersLight)
+      if (useLight) {
         document.documentElement.classList.add('light')
       } else {
         document.documentElement.classList.remove('light')

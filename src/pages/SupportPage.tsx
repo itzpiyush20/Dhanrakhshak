@@ -166,8 +166,8 @@ export default function SupportPage() {
         
         {/* Header */}
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight aurora-gradient-text md:text-3xl">Support Center</h1>
-          <p className="text-sm text-zinc-400">
+          <h1 className="text-2xl font-bold tracking-tight text-sb-ink md:text-3xl">Support Center</h1>
+          <p className="text-sm text-sb-ink-secondary">
             Review security compliance documents, browse FAQs, contact support, and explore technical details.
           </p>
         </div>
@@ -188,7 +188,7 @@ export default function SupportPage() {
                     className={`flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl text-left transition-all cursor-pointer border border-transparent bg-transparent ${
                       isActive
                         ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                        : 'text-zinc-400 hover:text-white hover:bg-surface-2'
+                        : 'text-zinc-400 hover:text-sb-ink hover:bg-surface-2'
                     }`}
                     aria-selected={isActive}
                     role="tab"
@@ -230,11 +230,11 @@ export default function SupportPage() {
             {/* Tab 1: Privacy Policy */}
             {activeTab === 'privacy' && (
               <div className="space-y-6 animate-scale-up" role="tabpanel" aria-label="Privacy Policy">
-                <div className="rounded-3xl glass-card p-8 shadow-md space-y-6">
+                <div className="rounded-3xl sb-card-light p-8 shadow-md space-y-6">
                   <div className="flex items-center gap-3 border-b border-border-subtle pb-4">
                     <span className="text-3xl" aria-hidden="true">🛡️</span>
                     <div>
-                      <h2 className="text-lg font-bold text-white">Privacy Policy & Security Standards</h2>
+                      <h2 className="text-lg font-bold text-sb-ink">Privacy Policy & Security Standards</h2>
                       <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mt-1">
                         Zero-Trust Client Matching Model
                       </p>
@@ -243,7 +243,7 @@ export default function SupportPage() {
 
                   <div className="space-y-5 text-sm text-zinc-300 leading-relaxed">
                     <section className="space-y-2">
-                      <h3 className="text-base font-bold text-white">
+                      <h3 className="text-base font-bold text-sb-ink">
                         1. Client-Side Processing Architecture
                       </h3>
                       <p>
@@ -252,7 +252,7 @@ export default function SupportPage() {
                     </section>
 
                     <section className="space-y-2">
-                      <h3 className="text-base font-bold text-white">
+                      <h3 className="text-base font-bold text-sb-ink">
                         2. Restricted OAuth 2.0 Scopes
                       </h3>
                       <p>
@@ -261,7 +261,7 @@ export default function SupportPage() {
                     </section>
 
                     <section className="space-y-2">
-                      <h3 className="text-base font-bold text-white">
+                      <h3 className="text-base font-bold text-sb-ink">
                         3. Google API Services Compliance (Limited Use)
                       </h3>
                       <p>
@@ -270,7 +270,7 @@ export default function SupportPage() {
                     </section>
 
                     <section className="space-y-2">
-                      <h3 className="text-base font-bold text-white">
+                      <h3 className="text-base font-bold text-sb-ink">
                         4. Row-Level Data Security (RLS)
                       </h3>
                       <p>
@@ -279,22 +279,22 @@ export default function SupportPage() {
                     </section>
 
                     <section className="space-y-2">
-                      <h3 className="text-base font-bold text-white">
+                      <h3 className="text-base font-bold text-sb-ink">
                         5. DPDPA 2023 Consent & Grievance Redressal
                       </h3>
                       <p>
                         In compliance with the Digital Personal Data Protection Act 2023, you can withdraw consent or request complete erasure of your data at any time under Settings. For queries, grievances, or details regarding data processing, contact our designated Grievance & Data Protection Officer:
                       </p>
                       <div className="mt-2 text-xs text-zinc-400 bg-surface-2/30 border border-border-subtle/30 p-3 rounded-xl space-y-1">
-                        <p>• <strong className="text-white">Officer:</strong> {APP_CONFIG.SUPPORT_NAME}</p>
-                        <p>• <strong className="text-white">Email:</strong> {APP_CONFIG.SUPPORT_EMAIL}</p>
-                        <p>• <strong className="text-white">Designation:</strong> {APP_CONFIG.SUPPORT_DESIGNATION}</p>
-                        <p>• <strong className="text-white">Address:</strong> {APP_CONFIG.SUPPORT_ADDRESS}</p>
+                        <p>• <strong className="text-sb-ink">Officer:</strong> {APP_CONFIG.SUPPORT_NAME}</p>
+                        <p>• <strong className="text-sb-ink">Email:</strong> {APP_CONFIG.SUPPORT_EMAIL}</p>
+                        <p>• <strong className="text-sb-ink">Designation:</strong> {APP_CONFIG.SUPPORT_DESIGNATION}</p>
+                        <p>• <strong className="text-sb-ink">Address:</strong> {APP_CONFIG.SUPPORT_ADDRESS}</p>
                       </div>
                     </section>
 
                     <div className="p-4 rounded-2xl bg-surface-2/40 border border-border-subtle/50">
-                      <p className="font-bold text-white">🔒 Summary Security Commitment:</p>
+                      <p className="font-bold text-sb-ink">🔒 Summary Security Commitment:</p>
                       <p className="mt-1 text-zinc-400">
                         No selling data · No marketing profiling · No banking passwords requested · Fully auditable open-source code base.
                       </p>
@@ -307,11 +307,11 @@ export default function SupportPage() {
             {/* Tab 2: FAQs */}
             {activeTab === 'faq' && (
               <div className="space-y-4 animate-scale-up" role="tabpanel" aria-label="Frequently Asked Questions">
-                <div className="rounded-3xl glass-card p-8 shadow-md space-y-4">
+                <div className="rounded-3xl sb-card-light p-8 shadow-md space-y-4">
                   <div className="flex items-center gap-3 border-b border-border-subtle pb-4">
                     <span className="text-3xl" aria-hidden="true">❓</span>
                     <div>
-                      <h2 className="text-lg font-bold text-white">Frequently Asked Questions</h2>
+                      <h2 className="text-lg font-bold text-sb-ink">Frequently Asked Questions</h2>
                       <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mt-1">
                         Common Security & Product Queries
                       </p>
@@ -327,7 +327,7 @@ export default function SupportPage() {
                             onClick={() => toggleFaq(idx)}
                             className="w-full text-left px-4 py-4 flex items-center justify-between font-semibold transition-colors bg-surface-2 hover:bg-surface-2/85 border-none cursor-pointer"
                           >
-                            <span className="text-sm font-semibold text-white">{faq.q}</span>
+                            <span className="text-sm font-semibold text-sb-ink">{faq.q}</span>
                             <span className="text-lg text-emerald-400">
                               {isExpanded ? '−' : '＋'}
                             </span>
@@ -348,12 +348,12 @@ export default function SupportPage() {
             {/* Tab 3: Help & Contact Form */}
             {activeTab === 'contact' && (
               <div className="space-y-6 animate-scale-up" role="tabpanel" aria-label="Help and Contact">
-                <div className="rounded-3xl glass-card p-8 shadow-md space-y-6">
+                <div className="rounded-3xl sb-card-light p-8 shadow-md space-y-6">
                   <div className="flex items-center justify-between border-b border-border-subtle pb-4">
                     <div className="flex items-center gap-3">
                       <span className="text-3xl" aria-hidden="true">✉️</span>
                       <div>
-                        <h2 className="text-lg font-bold text-white">Submit Support Ticket</h2>
+                        <h2 className="text-lg font-bold text-sb-ink">Submit Support Ticket</h2>
                         <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mt-1">
                           Local Ticket Log Simulator
                         </p>
@@ -431,7 +431,7 @@ export default function SupportPage() {
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="w-full justify-center py-2.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs tracking-wide transition-all active:scale-98 shadow-md cursor-pointer border-0"
+                      className="w-full justify-center py-2.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 text-sb-ink font-bold text-xs tracking-wide transition-all active:scale-98 shadow-md cursor-pointer border-0"
                     >
                       {submitting ? 'Logging ticket…' : 'Submit Ticket'}
                     </button>
@@ -440,12 +440,12 @@ export default function SupportPage() {
                   {/* Local Ticket Log */}
                   {tickets.length > 0 && (
                     <div className="pt-6 border-t border-border-subtle space-y-4">
-                      <h3 className="text-base font-bold text-white">Your Ticket Log (Device Local)</h3>
+                      <h3 className="text-base font-bold text-sb-ink">Your Ticket Log (Device Local)</h3>
                       <div className="space-y-3">
                         {tickets.map((t) => (
                           <div key={t.id} className="rounded-2xl p-4 bg-surface-2/40 border border-border-subtle/50 text-xs space-y-2">
                             <div className="flex justify-between items-center">
-                              <span className="font-bold text-white">{t.id} · {t.subject}</span>
+                              <span className="font-bold text-sb-ink">{t.id} · {t.subject}</span>
                               <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wide">
                                 {t.status}
                               </span>
