@@ -80,13 +80,10 @@ function App() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem('dhanrakshak_theme')
-      if (stored === 'dark') {
-        document.documentElement.classList.remove('light')
-      } else {
+      if (stored === 'light') {
         document.documentElement.classList.add('light')
-        if (stored === null) {
-          localStorage.setItem('dhanrakshak_theme', 'light')
-        }
+      } else {
+        document.documentElement.classList.remove('light')
       }
     } catch (e) {}
   }, [])
@@ -100,7 +97,9 @@ function App() {
         <ToastProvider>
           <ErrorBoundary>
             <Suspense fallback={<PageLoader />}>
-              <URLAuthTrigger />
+              <ErrorBoundary fallback={null}>
+                <URLAuthTrigger />
+              </ErrorBoundary>
               <AuthModal />
               
               <Routes>
