@@ -5,7 +5,7 @@
 import { cn } from '@/utils'
 import type { ReactNode, HTMLAttributes } from 'react'
 
-type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info'
+type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info' | 'aurora'
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   children: ReactNode
@@ -18,6 +18,7 @@ const variantStyles: Record<BadgeVariant, string> = {
   warning: 'bg-[var(--status-warning-subtle)] text-[var(--status-warning-text)] border-[var(--status-warning-border)]',
   danger:  'bg-[var(--status-danger-subtle)] text-[var(--status-danger-text)] border-[var(--status-danger-border)]',
   info:    'bg-[var(--status-info-subtle)] text-[var(--status-info-text)] border-[var(--status-info-border)]',
+  aurora:  'bg-gradient-to-r from-[rgba(62,207,142,0.15)] to-[rgba(99,102,241,0.15)] border-[rgba(62,207,142,0.25)] text-brand-300',
 }
 
 export default function Badge({ children, variant = 'default', className, ...props }: BadgeProps) {

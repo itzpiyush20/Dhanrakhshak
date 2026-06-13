@@ -100,11 +100,11 @@ export default function AuthModal() {
 
   return (
     <div 
-      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-[rgba(7,7,15,0.85)] backdrop-blur-2xl p-4 overflow-y-auto animate-fade-in"
       onClick={closeAuthModal}
     >
       <div 
-        className="relative w-full max-w-md bg-surface-1 border border-border-subtle rounded-3xl shadow-2xl p-6 sm:p-8 my-auto animate-scale-up text-zinc-100 max-h-[90vh] overflow-y-auto"
+        className="relative w-full max-w-md glass-card aurora-glow-ring rounded-3xl shadow-2xl p-6 sm:p-8 my-auto animate-scale-up text-zinc-100 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -120,7 +120,7 @@ export default function AuthModal() {
 
         {/* Brand Header */}
         <div className="mb-6 flex flex-col items-center">
-          <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] border-0" aria-hidden="true">
+          <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-[0_0_20px_rgba(62,207,142,0.5),0_0_40px_rgba(99,102,241,0.25)] border-0" aria-hidden="true">
             <span className="text-xl font-bold">{currencySymbol || '₹'}</span>
           </div>
           <h1 className="text-2xl font-black tracking-tight text-white mb-1 flex items-center justify-center select-none">

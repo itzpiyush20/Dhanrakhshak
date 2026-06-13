@@ -165,6 +165,12 @@ export default function PricingPage() {
     <AppLayout>
       <div className="space-y-6 animate-fade-in" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
 
+        {/* ── AURORA BACKGROUND BLOBS ──────────────────────── */}
+        <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10">
+          <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-[rgba(62,207,142,0.06)] blur-[120px] animate-aurora-drift" />
+          <div className="absolute top-[30%] right-[-10%] w-[500px] h-[500px] rounded-full bg-[rgba(99,102,241,0.07)] blur-[100px] animate-aurora-drift" style={{animationDelay: '4s'}} />
+        </div>
+
         {/* ── HEADER CARD WITH GRADIENT GLOWS ──────────────── */}
         <div className="relative rounded-3xl overflow-hidden border border-border-subtle bg-surface-1 p-8 sm:p-10 shadow-md">
           {/* Gradient glow */}
@@ -179,7 +185,7 @@ export default function PricingPage() {
               Verify Dhanrakshak Financial Security Plans
             </div>
             
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white select-none">
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight aurora-gradient-text select-none">
               Simple, <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">honest pricing</span>
             </h1>
             <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
@@ -230,7 +236,7 @@ export default function PricingPage() {
 
             {/* ── Standard: Monthly ─────────────────────────────── */}
             <div
-              className="rounded-3xl p-8 shadow-md flex flex-col cursor-pointer transition-all duration-300 hover:shadow-lg bg-surface-1 border relative group hover:-translate-y-1"
+              className="rounded-3xl p-8 shadow-md flex flex-col cursor-pointer transition-all duration-300 hover:shadow-lg glass-card gradient-border-card relative group hover:-translate-y-1"
               style={{ borderColor: selectedPlan === 'monthly' ? 'var(--sb-primary)' : 'var(--border-subtle)', borderWidth: selectedPlan === 'monthly' ? 2 : 1 }}
               onClick={() => setSelectedPlan('monthly')}
             >
@@ -282,7 +288,7 @@ export default function PricingPage() {
 
             {/* ── Featured: Annual ── */}
             <div
-              className="rounded-3xl p-8 shadow-xl flex flex-col cursor-pointer relative overflow-hidden transition-all duration-300 hover:shadow-2xl bg-surface-1 border relative group hover:-translate-y-1"
+              className="rounded-3xl p-8 shadow-xl flex flex-col cursor-pointer relative overflow-hidden transition-all duration-300 hover:shadow-2xl glass-card gradient-border-card aurora-glow-ring relative group hover:-translate-y-1"
               style={{ borderColor: selectedPlan === 'annual' ? 'var(--sb-primary)' : 'var(--border-subtle)', borderWidth: selectedPlan === 'annual' ? 2 : 1 }}
               onClick={() => setSelectedPlan('annual')}
             >
@@ -343,7 +349,7 @@ export default function PricingPage() {
 
             {/* ── Promo / Coupon ────────────────────────────────── */}
             <div
-              className="rounded-3xl p-8 shadow-md flex flex-col bg-surface-1 border relative group hover:-translate-y-1"
+              className="rounded-3xl p-8 shadow-md flex flex-col glass-card gradient-border-card relative group hover:-translate-y-1"
               style={{ borderColor: 'var(--border-subtle)', borderWidth: 1 }}
             >
               <div className="mb-6">

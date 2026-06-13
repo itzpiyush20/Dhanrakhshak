@@ -377,10 +377,10 @@ export default function BudgetsPage() {
                         <div className="relative">
                           <div className="h-2 w-full bg-surface-3 rounded-full overflow-hidden">
                             <div
-                              className="h-full rounded-full transition-all duration-500 ease-out"
+                              className={`h-full rounded-full transition-all duration-500 ease-out ${pct < 70 ? 'aurora-progress-fill' : ''}`}
                               style={{
                                 width: `${Math.min(100, pct)}%`,
-                                backgroundColor: progressColor,
+                                ...(pct >= 70 ? { backgroundColor: progressColor } : {}),
                               }}
                             />
                           </div>

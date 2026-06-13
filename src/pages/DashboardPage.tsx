@@ -399,7 +399,7 @@ export default function DashboardPage() {
               ⚙️ Customize
             </Button>
 
-            <div className="flex items-center gap-2 bg-surface-1 border border-border-subtle rounded-xl p-1 shrink-0 max-w-fit shadow-inner">
+            <div className="flex items-center gap-2 bg-surface-1 border border-border-subtle rounded-xl p-1 shrink-0 max-w-fit shadow-inner glass-card">
               <Button
                 variant="ghost"
                 size="sm"
@@ -560,7 +560,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="h-1.5 w-full bg-surface-3 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-500 ease-out ${(summary?.savings || 0) >= 0 ? 'bg-[var(--status-positive-text)]' : 'bg-[var(--status-danger-text)]'}`}
+                        className={`h-full rounded-full transition-all duration-500 ease-out ${(summary?.savings || 0) >= 0 ? 'aurora-progress-fill' : 'bg-[var(--status-danger-text)]'}`}
                         style={{ width: `${Math.min(100, savingsRate)}%` }}
                       />
                     </div>

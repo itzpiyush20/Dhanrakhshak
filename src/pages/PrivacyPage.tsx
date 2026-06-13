@@ -13,15 +13,15 @@ export default function PrivacyPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-sb-canvas-soft text-sb-ink-secondary" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
+    <div className="min-h-screen bg-[#07070f] text-zinc-300" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
       {/* Header */}
-      <header className="border-b border-sb-hairline bg-sb-canvas sticky top-0 z-10">
+      <header className="border-b border-zinc-800 bg-[#07070f]/90 backdrop-blur-md sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 no-underline font-bold text-lg">
-            <span className="text-lg font-bold" style={{ color: 'var(--sb-primary)' }}>₹</span>
-            <span style={{ color: 'var(--sb-ink)', fontWeight: 500 }}>Dhanrakshak</span>
+            <span className="text-lg font-bold text-emerald-400">₹</span>
+            <span className="text-white font-medium">Dhanrakshak</span>
           </Link>
-          <Link to={ROUTES.DASHBOARD} className="sb-caption font-medium no-underline" style={{ color: 'var(--sb-primary)' }}>
+          <Link to={ROUTES.DASHBOARD} className="text-xs font-medium no-underline text-emerald-400">
             ← Back to App
           </Link>
         </div>
@@ -29,8 +29,8 @@ export default function PrivacyPage() {
 
       <main className="max-w-4xl mx-auto px-6 py-12">
         <div className="mb-10">
-          <h1 className="sb-display-md" style={{ color: 'var(--sb-ink)' }}>Privacy Policy</h1>
-          <p className="sb-micro mt-1" style={{ color: 'var(--sb-ink-muted)' }}>Last updated: June 2, 2026 · Effective immediately</p>
+          <h1 className="text-3xl font-extrabold tracking-tight aurora-gradient-text">Privacy Policy</h1>
+          <p className="text-xs mt-1 text-zinc-400">Last updated: June 2, 2026 · Effective immediately</p>
         </div>
 
         <div className="prose max-w-none space-y-10">
@@ -38,8 +38,8 @@ export default function PrivacyPage() {
           {/* Intro */}
           <section>
             <div className="rounded-[12px] bg-[rgba(62,207,142,0.08)] border border-[rgba(62,207,142,0.2)] p-5 mb-8 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-              <p className="sb-caption leading-relaxed" style={{ color: 'var(--sb-ink-secondary)' }}>
-                <strong style={{ color: 'var(--sb-ink)' }}>Our commitment:</strong> Dhanrakshak is built on a foundation of trust. We never sell your financial data, never store your banking passwords, and never share your personal information with advertisers. Your financial data belongs to you — always.
+              <p className="text-sm leading-relaxed text-zinc-300">
+                <strong className="text-white">Our commitment:</strong> Dhanrakshak is built on a foundation of trust. We never sell your financial data, never store your banking passwords, and never share your personal information with advertisers. Your financial data belongs to you — always.
               </p>
             </div>
           </section>
@@ -125,14 +125,14 @@ export default function PrivacyPage() {
         </div>
       </main>
 
-      <footer className="border-t border-sb-hairline mt-16 py-8 text-center sb-micro" style={{ color: 'var(--sb-ink-muted)' }}>
+      <footer className="border-t border-zinc-800 mt-16 py-8 text-center text-xs text-zinc-500">
         <p>© 2026 Dhanrakshak. Built with privacy by design.</p>
         <div className="flex justify-center gap-6 mt-3">
-          <Link to={ROUTES.PRIVACY} className="no-underline hover:underline" style={{ color: 'var(--sb-ink-muted)' }}>Privacy Policy</Link>
-          <Link to={ROUTES.TERMS} className="no-underline hover:underline" style={{ color: 'var(--sb-ink-muted)' }}>Terms of Service</Link>
-          <Link to={ROUTES.REFUND} className="no-underline hover:underline" style={{ color: 'var(--sb-ink-muted)' }}>Refund Policy</Link>
-          <Link to={ROUTES.ABOUT} className="no-underline hover:underline" style={{ color: 'var(--sb-ink-muted)' }}>About</Link>
-          <Link to="/support" className="no-underline hover:underline" style={{ color: 'var(--sb-ink-muted)' }}>Support</Link>
+          <Link to={ROUTES.PRIVACY} className="no-underline hover:underline text-zinc-500">Privacy Policy</Link>
+          <Link to={ROUTES.TERMS} className="no-underline hover:underline text-zinc-500">Terms of Service</Link>
+          <Link to={ROUTES.REFUND} className="no-underline hover:underline text-zinc-500">Refund Policy</Link>
+          <Link to={ROUTES.ABOUT} className="no-underline hover:underline text-zinc-500">About</Link>
+          <Link to="/support" className="no-underline hover:underline text-zinc-500">Support</Link>
         </div>
       </footer>
     </div>
@@ -142,18 +142,18 @@ export default function PrivacyPage() {
 function section(title: string, body: string | null, items?: { title: string; body: string }[]) {
   return (
     <section key={title} className="space-y-3">
-      <h2 className="sb-heading-md" style={{ color: 'var(--sb-ink)' }}>{title}</h2>
+      <h2 className="text-lg font-bold text-white">{title}</h2>
       {body && (
-        <div className="sb-caption leading-relaxed whitespace-pre-line" style={{ color: 'var(--sb-ink-secondary)' }}>
+        <div className="text-sm leading-relaxed whitespace-pre-line text-zinc-300">
           {body.trim()}
         </div>
       )}
       {items && (
         <div className="space-y-3">
           {items.map((item) => (
-            <div key={item.title} className="bg-sb-canvas border border-sb-hairline p-4 rounded-[6px] shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-              <p className="sb-caption font-semibold" style={{ color: 'var(--sb-ink)' }}>{item.title}</p>
-              <p className="sb-caption leading-relaxed mt-1" style={{ color: 'var(--sb-ink-muted)' }}>{item.body}</p>
+            <div key={item.title} className="glass-card p-4 rounded-xl">
+              <p className="text-sm font-semibold text-white">{item.title}</p>
+              <p className="text-sm leading-relaxed mt-1 text-zinc-400">{item.body}</p>
             </div>
           ))}
         </div>

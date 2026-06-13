@@ -333,7 +333,12 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
       </a>
       {/* Dynamic Security Verification Splash Overlay */}
       {showSecuritySplash && (
-        <div className="fixed inset-0 z-[9999] bg-[#09090b]/98 backdrop-blur-xl flex flex-col items-center justify-center p-4 transition-all duration-500 ease-out animate-fade-in animate-none">
+        <div className="fixed inset-0 z-[9999] bg-gradient-to-br from-[#07070f] via-[#0a0a18] to-[#050d12] backdrop-blur-xl flex flex-col items-center justify-center p-4 transition-all duration-500 ease-out animate-fade-in animate-none">
+          {/* Aurora blob decorations */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-[rgba(62,207,142,0.06)] blur-[120px] animate-aurora-drift" />
+            <div className="absolute bottom-[10%] right-[-10%] w-[400px] h-[400px] rounded-full bg-[rgba(99,102,241,0.06)] blur-[100px] animate-aurora-drift" style={{animationDelay: '4s'}} />
+          </div>
           {/* Security Shield Icon */}
           <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-brand-500/10 border border-brand-500/30 shadow-2xl shadow-brand-500/20">
             <div className="absolute inset-0 rounded-3xl bg-brand-500/5 animate-pulse" />
@@ -351,7 +356,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           {/* Glowing brand-gradient progress bar */}
           <div className="h-1.5 w-64 bg-static-zinc-800 rounded-full overflow-hidden mb-3 shadow-inner border border-static-zinc-700/30">
             <div
-              className="h-full bg-gradient-to-r from-brand-400 to-brand-600 rounded-full transition-all duration-75 ease-out"
+              className="h-full aurora-progress-fill rounded-full transition-all duration-75 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -409,11 +414,11 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
         "sticky top-0 z-50 w-full border-b select-none transition-all duration-300",
         isStaticLight
           ? "border-sb-hairline bg-sb-canvas/90 text-sb-ink backdrop-blur-xl"
-          : "border-border-subtle/50 bg-surface-1/60 glass-premium text-zinc-100 shadow-[0_1px_0_rgba(62,207,142,0.08),0_4px_32px_rgba(0,0,0,0.30)]"
+          : "border-border-subtle/50 bg-surface-1/60 glass-premium text-zinc-100 shadow-[0_1px_0_rgba(99,102,241,0.10),0_4px_32px_rgba(0,0,0,0.30)]"
       )}>
         <div className="mx-auto max-w-[1280px] h-[64px] flex items-center justify-between px-6 gap-4">
           <Link to="/" className="flex items-center gap-3 shrink-0 group">
-            <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-static-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] border-0 group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300" aria-hidden="true">{currencySymbol}</span>
+            <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-static-white shadow-[0_0_16px_rgba(62,207,142,0.5),0_0_32px_rgba(99,102,241,0.25)] border-0 group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300" aria-hidden="true">{currencySymbol}</span>
             <div className="flex items-center gap-2.5">
               <div className="text-base tracking-tight leading-none">
                 <span className={cn(
@@ -889,7 +894,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
       {/* Floating Action Button (FAB) for Tester Feedback */}
       <button
         onClick={() => setFeedbackOpen(true)}
-        className="fixed bottom-6 right-6 z-[40] flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 text-static-white font-bold text-[11px] tracking-wider uppercase shadow-xl shadow-brand-500/20 border border-brand-400/30 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
+        className="fixed bottom-6 right-6 z-[40] flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-brand-500 via-[#6366f1] to-[#38bdf8] hover:from-brand-400 hover:to-brand-500 text-static-white font-bold text-[11px] tracking-wider uppercase shadow-[0_4px_20px_rgba(62,207,142,0.30),0_0_40px_rgba(99,102,241,0.15)] border border-brand-400/30 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
         title="Send Tester Feedback"
         aria-label="Open tester feedback form"
       >
@@ -1130,7 +1135,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
       {/* =========================================================== */}
       {user && (
         <nav
-          className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-surface-0/95 backdrop-blur-xl border-t border-border-subtle/60 safe-area-inset-bottom"
+          className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[rgba(10,10,20,0.85)] backdrop-blur-2xl border-t border-border-subtle/60 safe-area-inset-bottom"
           aria-label="Mobile navigation"
         >
           <div className="flex items-center justify-around h-16 px-1">
@@ -1145,7 +1150,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               )}
               aria-label="Dashboard"
             >
-              <span className="text-xl leading-none">🏠</span>
+              <span className={cn("text-xl leading-none", location.pathname === ROUTES.DASHBOARD && "drop-shadow-[0_0_8px_rgba(62,207,142,0.6)]")}>🏠</span>
               <span className="text-[9px] font-semibold tracking-wide">Home</span>
             </Link>
 
@@ -1160,7 +1165,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               )}
               aria-label="Expenses"
             >
-              <span className="text-xl leading-none">💳</span>
+              <span className={cn("text-xl leading-none", location.pathname === ROUTES.EXPENSES && "drop-shadow-[0_0_8px_rgba(62,207,142,0.6)]")}>💳</span>
               <span className="text-[9px] font-semibold tracking-wide">Expenses</span>
             </Link>
 
@@ -1187,7 +1192,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               )}
               aria-label="Pending approvals"
             >
-              <span className="text-xl leading-none relative">
+              <span className={cn("text-xl leading-none relative", location.pathname === ROUTES.PENDING && "drop-shadow-[0_0_8px_rgba(62,207,142,0.6)]")}>
                 🔔
                 {notifications.length > 0 && (
                   <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-red-500 text-[7px] font-bold text-white">
@@ -1209,7 +1214,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               )}
               aria-label="Insights"
             >
-              <span className="text-xl leading-none">✦</span>
+              <span className={cn("text-xl leading-none", location.pathname === ROUTES.INSIGHTS && "drop-shadow-[0_0_8px_rgba(62,207,142,0.6)]")}>✦</span>
               <span className="text-[9px] font-semibold tracking-wide">Insights</span>
             </Link>
           </div>

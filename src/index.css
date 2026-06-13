@@ -43,6 +43,13 @@
   --brand-600: #24b47e;
   --brand-700: #10b981;
 
+  /* Aurora accent colors */
+  --aurora-indigo: #6366f1;
+  --aurora-cyan: #38bdf8;
+  --aurora-purple: #a78bfa;
+  --aurora-indigo-subtle: rgba(99, 102, 241, 0.12);
+  --aurora-cyan-subtle: rgba(56, 189, 248, 0.10);
+
   /* ── WCAG 2.1 AA Semantic Status Colors (Dark Mode) ── */
   --status-positive-text:   #4ade80;
   --status-positive-subtle: rgba(74, 222, 128, 0.12);
@@ -162,6 +169,11 @@
   --color-zinc-800: var(--zinc-800);
   --color-zinc-900: var(--zinc-900);
   --color-zinc-950: var(--zinc-950);
+
+  /* Aurora colors */
+  --color-aurora-indigo: var(--aurora-indigo);
+  --color-aurora-cyan: var(--aurora-cyan);
+  --color-aurora-purple: var(--aurora-purple);
 
   /* Semantic status utility colors */
   --color-status-positive: var(--status-positive-text);
@@ -405,11 +417,10 @@ html {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(
-    135deg,
-    rgba(62, 207, 142, 0.45) 0%,
-    transparent 45%,
-    rgba(62, 207, 142, 0.18) 100%
+  background: linear-gradient(135deg,
+    rgba(62, 207, 142, 0.40) 0%,
+    rgba(99, 102, 241, 0.25) 50%,
+    rgba(56, 189, 248, 0.20) 100%
   );
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
@@ -440,9 +451,9 @@ html {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 70% 50% at 15% 25%,  rgba(62, 207, 142, 0.045) 0%, transparent 100%),
-    radial-gradient(ellipse 50% 40% at 85% 70%,  rgba(56, 189, 248, 0.030) 0%, transparent 100%),
-    radial-gradient(ellipse 40% 35% at 50% 100%, rgba(167, 139, 250, 0.025) 0%, transparent 100%);
+    radial-gradient(ellipse 70% 50% at 15% 25%,  rgba(62, 207, 142, 0.05) 0%, transparent 100%),
+    radial-gradient(ellipse 50% 40% at 85% 70%,  rgba(99, 102, 241, 0.06) 0%, transparent 100%),
+    radial-gradient(ellipse 40% 35% at 50% 100%, rgba(56, 189, 248, 0.04) 0%, transparent 100%);
   pointer-events: none;
   z-index: 0;
   will-change: auto;
@@ -490,8 +501,8 @@ html {
   width: 60%;
   height: 2px;
   border-radius: 99px;
-  background: linear-gradient(90deg, transparent, var(--brand-400), transparent);
-  box-shadow: 0 0 8px rgba(62, 207, 142, 0.6);
+  background: linear-gradient(90deg, #3ecf8e, #818cf8, #38bdf8);
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.4), 0 0 16px rgba(62, 207, 142, 0.3);
 }
 
 /* Loading skeleton shimmer */
@@ -589,8 +600,8 @@ html {
   --sb-primary:           rgb(62, 207, 142);
   --sb-primary-deep:      rgb(36, 180, 126);
   --sb-primary-soft:      rgb(74, 222, 128);
-  --sb-canvas:            rgb(13, 13, 18);
-  --sb-canvas-soft:       rgb(20, 20, 27);
+  --sb-canvas:            #0a0a14;
+  --sb-canvas-soft:       #0e0e1c;
   --sb-canvas-night:      rgb(13, 13, 18);
   --sb-canvas-night-soft: rgb(20, 20, 27);
   --sb-hairline:          rgba(255, 255, 255, 0.08);
@@ -760,3 +771,55 @@ html {
   box-shadow: 0 0 0 3px rgba(62, 207, 142, 0.12);
 }
 .sb-text-input::placeholder { color: var(--sb-ink-faint); }
+
+/* ── Aurora Gradient Text ────────────────────────── */
+.aurora-gradient-text {
+  background: linear-gradient(135deg, #3ecf8e 0%, #818cf8 50%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.light .aurora-gradient-text {
+  background: linear-gradient(135deg, #059669 0%, #4f46e5 50%, #0284c7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Glass Card ──────────────────────────────────── */
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+}
+.light .glass-card {
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* ── Aurora Glow Ring ────────────────────────────── */
+.aurora-glow-ring {
+  box-shadow:
+    0 0 0 1px rgba(62, 207, 142, 0.30),
+    0 0 20px rgba(62, 207, 142, 0.12),
+    0 0 40px rgba(99, 102, 241, 0.08);
+}
+
+/* ── Aurora Progress Fill ────────────────────────── */
+.aurora-progress-fill {
+  background: linear-gradient(90deg, #3ecf8e 0%, #6366f1 60%, #38bdf8 100%);
+  border-radius: 99px;
+  transition: width 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Aurora Drift Animation ──────────────────────── */
+@keyframes aurora-drift {
+  0%, 100% { transform: translateX(0) translateY(0) scale(1); }
+  33%       { transform: translateX(2%) translateY(-1%) scale(1.01); }
+  66%       { transform: translateX(-1%) translateY(2%) scale(0.99); }
+}
+.animate-aurora-drift {
+  animation: aurora-drift 12s ease-in-out infinite;
+}

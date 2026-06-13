@@ -42,13 +42,13 @@ export default function Input({
           aria-invalid={!!error}
           aria-describedby={error ? `${inputId}-error` : undefined}
           className={cn(
-            'h-11 w-full rounded-xl border bg-surface-2 px-4 text-sm text-white',
+            'h-11 w-full rounded-xl border bg-surface-2 bg-white/5 backdrop-blur-sm px-4 text-sm text-white',
             'placeholder:text-zinc-500',
             'transition-all duration-200',
-            'focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400',
+            'focus:outline-none focus:ring-2 focus:ring-[rgba(99,102,241,0.35)] focus:border-[rgba(99,102,241,0.60)]',
             error
               ? 'border-red-500/50 focus:ring-red-400/40 focus:border-red-400'
-              : 'border-border-subtle hover:border-border-hover',
+              : 'border-white/10 hover:border-border-hover',
             icon ? 'pl-10' : '',
             className
           )}

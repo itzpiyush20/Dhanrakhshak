@@ -66,7 +66,7 @@ function InteractionSimulation({}: InteractionSimulationProps) {
   const budgetPercent = (budgetAmount / totalBudget) * 100
 
   return (
-    <div className="relative w-full max-w-[480px] bg-sb-canvas border border-sb-hairline rounded-[6px] p-6 shadow-[0_12px_30px_rgba(0,0,0,0.04)] flex flex-col gap-5 overflow-hidden select-none font-sans">
+    <div className="relative w-full max-w-[480px] glass-card border border-white/10 rounded-[6px] p-6 shadow-[0_12px_30px_rgba(0,0,0,0.3)] flex flex-col gap-5 overflow-hidden select-none font-sans">
       <style>{`
         @keyframes laser-sweep {
           0% { top: 0%; opacity: 0; }
@@ -104,31 +104,31 @@ function InteractionSimulation({}: InteractionSimulationProps) {
       `}</style>
 
       {/* Title block */}
-      <div className="flex items-center justify-between border-b border-sb-hairline-cool pb-3">
+      <div className="flex items-center justify-between border-b border-white/10 pb-3">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-[#3ecf8e] animate-pulse" />
-          <span className="text-[11px] font-medium tracking-tight uppercase text-sb-ink" style={{ letterSpacing: '-0.2px' }}>
+          <span className="text-[11px] font-medium tracking-tight uppercase text-zinc-100" style={{ letterSpacing: '-0.2px' }}>
             Live Parser Engine
           </span>
         </div>
-        <span className="text-[10px] font-mono text-sb-ink-muted bg-sb-canvas-soft px-1.5 py-0.5 rounded-[4px] border border-sb-hairline">
+        <span className="text-[10px] font-mono text-zinc-400 bg-white/5 px-1.5 py-0.5 rounded-[4px] border border-white/10">
           STATUS: {step === 0 ? 'READY' : step === 1 ? 'ALERT_INCOMING' : step === 2 ? 'PARSING_LOCAL' : step === 3 ? 'DB_COMMIT' : 'BUDGET_SYNCED'}
         </span>
       </div>
 
       {/* Phase 1 & 2: Alert Notification SMS / Email Card */}
       <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-medium tracking-tight text-sb-ink-muted-2 uppercase">
+        <span className="text-[10px] font-medium tracking-tight text-zinc-400 uppercase">
           1. Incoming Bank Alert
         </span>
-        <div className="relative min-h-[76px] bg-sb-canvas-soft rounded-[6px] border border-sb-hairline p-3 overflow-hidden transition-all duration-500 flex flex-col justify-center">
+        <div className="relative min-h-[76px] bg-white/5 rounded-[6px] border border-white/10 p-3 overflow-hidden transition-all duration-500 flex flex-col justify-center">
           {/* Laser line overlay during parsing */}
           {step === 2 && (
             <div className="laser-glow laser-glow-active" />
           )}
 
           {step === 0 ? (
-            <div className="text-center text-xs text-sb-ink-muted font-mono italic">
+            <div className="text-center text-xs text-zinc-400 font-mono italic">
               Waiting for incoming transaction...
             </div>
           ) : (
@@ -148,10 +148,10 @@ function InteractionSimulation({}: InteractionSimulationProps) {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-semibold text-sb-ink">SMS Notification (ICICI Bank)</span>
-                  <span className="text-[10px] text-sb-ink-muted">Just now</span>
+                  <span className="text-xs font-semibold text-white">SMS Notification (ICICI Bank)</span>
+                  <span className="text-[10px] text-zinc-400">Just now</span>
                 </div>
-                <p className="text-xs text-sb-ink-secondary leading-normal font-mono">
+                <p className="text-xs text-zinc-300 leading-normal font-mono">
                   UPI debit of INR 250.00 at Starbucks Coffee successful. Ref: 290812.
                 </p>
               </div>
@@ -172,46 +172,46 @@ function InteractionSimulation({}: InteractionSimulationProps) {
 
       {/* Phase 3: Transaction Logs Table */}
       <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-medium tracking-tight text-sb-ink-muted-2 uppercase">
+        <span className="text-[10px] font-medium tracking-tight text-zinc-400 uppercase">
           2. Dhanrakshak Client Log Database (device-only)
         </span>
-        <div className="border border-sb-hairline rounded-[6px] overflow-hidden bg-sb-canvas">
-          <div className="grid grid-cols-4 bg-sb-canvas-soft border-b border-sb-hairline px-3 py-2 text-[10px] font-medium text-sb-ink-muted tracking-tight">
+        <div className="border border-white/10 rounded-[6px] overflow-hidden bg-white/3">
+          <div className="grid grid-cols-4 bg-white/5 border-b border-white/10 px-3 py-2 text-[10px] font-medium text-zinc-400 tracking-tight">
             <div>DATE</div>
             <div className="col-span-2">MERCHANT & CATEGORY</div>
             <div className="text-right">AMOUNT</div>
           </div>
-          <div className="divide-y divide-sb-hairline-cool min-h-[110px]">
+          <div className="divide-y divide-white/8 min-h-[110px]">
             {/* Row 1: The animated row */}
             {step >= 3 ? (
-              <div className="grid grid-cols-4 px-3 py-2 text-xs items-center transition-all duration-500 ease-out overflow-hidden bg-[rgba(62,207,142,0.1)] border-b border-sb-hairline animate-insert">
-                <div className="text-sb-ink-muted-2 font-mono">Today</div>
+              <div className="grid grid-cols-4 px-3 py-2 text-xs items-center transition-all duration-500 ease-out overflow-hidden bg-[rgba(62,207,142,0.1)] border-b border-white/10 animate-insert">
+                <div className="text-zinc-400 font-mono">Today</div>
                 <div className="col-span-2 min-w-0">
-                  <div className="font-semibold text-sb-ink truncate">Starbucks Coffee</div>
+                  <div className="font-semibold text-white truncate">Starbucks Coffee</div>
                   <div className="text-[10px] text-sb-primary font-medium tracking-tight">Food & Dining 🍔</div>
                 </div>
-                <div className="text-right font-bold text-sb-ink font-mono">-₹250.00</div>
+                <div className="text-right font-bold text-white font-mono">-₹250.00</div>
               </div>
             ) : null}
 
             {/* Static Row A */}
-            <div className="grid grid-cols-4 px-3 py-2 text-xs bg-sb-canvas items-center">
-              <div className="text-sb-ink-muted font-mono">Yesterday</div>
+            <div className="grid grid-cols-4 px-3 py-2 text-xs bg-transparent items-center">
+              <div className="text-zinc-400 font-mono">Yesterday</div>
               <div className="col-span-2 min-w-0">
-                <div className="font-medium text-sb-ink truncate">Netflix India</div>
-                <div className="text-[10px] text-sb-ink-muted-2 tracking-tight">Subscriptions 🔄</div>
+                <div className="font-medium text-white truncate">Netflix India</div>
+                <div className="text-[10px] text-zinc-400 tracking-tight">Subscriptions 🔄</div>
               </div>
-              <div className="text-right font-semibold text-sb-ink font-mono">-₹649.00</div>
+              <div className="text-right font-semibold text-white font-mono">-₹649.00</div>
             </div>
 
             {/* Static Row B */}
-            <div className="grid grid-cols-4 px-3 py-2 text-xs bg-sb-canvas items-center">
-              <div className="text-sb-ink-muted font-mono">Jun 04</div>
+            <div className="grid grid-cols-4 px-3 py-2 text-xs bg-transparent items-center">
+              <div className="text-zinc-400 font-mono">Jun 04</div>
               <div className="col-span-2 min-w-0">
-                <div className="font-medium text-sb-ink truncate">Zomato Delivery</div>
-                <div className="text-[10px] text-sb-ink-muted-2 tracking-tight">Food & Dining 🍔</div>
+                <div className="font-medium text-white truncate">Zomato Delivery</div>
+                <div className="text-[10px] text-zinc-400 tracking-tight">Food & Dining 🍔</div>
               </div>
-              <div className="text-right font-semibold text-sb-ink font-mono">-₹649.00</div>
+              <div className="text-right font-semibold text-white font-mono">-₹649.00</div>
             </div>
           </div>
         </div>
@@ -219,31 +219,31 @@ function InteractionSimulation({}: InteractionSimulationProps) {
 
       {/* Phase 4: Budget Progress */}
       <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-medium tracking-tight text-sb-ink-muted-2 uppercase">
+        <span className="text-[10px] font-medium tracking-tight text-zinc-400 uppercase">
           3. Monthly Budgets Update
         </span>
-        <div className="border border-sb-hairline rounded-[6px] p-3.5 bg-sb-canvas-soft flex flex-col gap-2">
+        <div className="border border-white/10 rounded-[6px] p-3.5 bg-white/5 flex flex-col gap-2">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-1.5">
               <span className="text-sm">🍔</span>
-              <span className="text-xs font-semibold text-sb-ink">Food & Dining</span>
+              <span className="text-xs font-semibold text-white">Food & Dining</span>
             </div>
             <div className="text-right">
-              <span className="text-xs font-semibold text-sb-ink font-mono">
+              <span className="text-xs font-semibold text-white font-mono">
                 ₹{budgetAmount.toLocaleString('en-IN')}
               </span>
-              <span className="text-[10px] text-sb-ink-muted font-mono"> / ₹{totalBudget.toLocaleString('en-IN')}</span>
+              <span className="text-[10px] text-zinc-400 font-mono"> / ₹{totalBudget.toLocaleString('en-IN')}</span>
             </div>
           </div>
 
           {/* Progress bar wrapper */}
-          <div className="h-2 w-full bg-[var(--sb-hairline)] rounded-[6px] overflow-hidden">
+          <div className="h-2 w-full bg-white/10 rounded-[6px] overflow-hidden">
             <div 
               className="h-full rounded-[6px] bg-[#3ecf8e] transition-all duration-1000 ease-out"
               style={{ width: `${budgetPercent}%` }}
             />
           </div>
-          <div className="flex justify-between items-center text-[10px] text-sb-ink-muted font-medium">
+          <div className="flex justify-between items-center text-[10px] text-zinc-400 font-medium">
             <span>{budgetPercent.toFixed(0)}% Used</span>
             {step === 4 ? (
               <span className="text-sb-primary animate-pulse font-mono">+₹250 added just now</span>
@@ -341,14 +341,21 @@ export default function LandingPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-sb-canvas flex flex-col" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
+    <div className="min-h-screen bg-[#07070f] flex flex-col" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
 
-      {/* ── NAV (Supabaze style, white canvas bar) ───────────────── */}
-      <header className="sticky top-0 z-50 bg-sb-canvas border-b border-sb-hairline">
+      {/* Aurora background blobs */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10">
+        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-[rgba(62,207,142,0.06)] blur-[120px] animate-aurora-drift" />
+        <div className="absolute top-[30%] right-[-10%] w-[500px] h-[500px] rounded-full bg-[rgba(99,102,241,0.07)] blur-[100px] animate-aurora-drift" style={{animationDelay: '4s'}} />
+        <div className="absolute bottom-[-10%] left-[30%] w-[400px] h-[400px] rounded-full bg-[rgba(56,189,248,0.05)] blur-[90px] animate-aurora-drift" style={{animationDelay: '8s'}} />
+      </div>
+
+      {/* ── NAV (Aurora glassmorphic bar) ───────────────── */}
+      <header className="sticky top-0 z-50 bg-[rgba(7,7,15,0.80)] backdrop-blur-2xl border-b border-white/8">
         <nav className="mx-auto max-w-[1280px] px-6 h-[64px] flex items-center justify-between" aria-label="Primary">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3 shrink-0 group no-underline">
-            <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-static-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] border-0 group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300" aria-hidden="true">₹</span>
+            <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-static-white shadow-[0_3px_12px_-3px_rgba(16,185,129,0.45)] border-0 group-hover:scale-115 group-hover:rotate-12 group-hover:shadow-[0_5px_15px_-2px_rgba(16,185,129,0.55)] transition-all duration-300 shadow-[0_0_16px_rgba(62,207,142,0.5)]" aria-hidden="true">₹</span>
             <div className="flex items-center gap-2.5">
               <div className="text-base tracking-tight leading-none font-sans">
                 <span className={cn(
@@ -357,7 +364,7 @@ export default function LandingPage() {
                     ? "from-emerald-600 to-teal-500"
                     : "from-brand-300 to-emerald-400"
                 )}>Dhan</span><span className={cn(
-                  "font-bold transition-colors duration-300 text-sb-ink"
+                  "font-bold transition-colors duration-300 text-white"
                 )}>rakshak</span>
               </div>
               <span className={cn(
@@ -386,7 +393,7 @@ export default function LandingPage() {
                 <Link
                   key={item.label}
                   to={item.href!}
-                  className="sb-caption font-semibold transition-colors text-sb-ink-muted hover:text-sb-primary whitespace-nowrap no-underline"
+                  className="sb-caption font-semibold transition-colors text-zinc-400 hover:text-white whitespace-nowrap no-underline"
                 >
                   {item.label}
                 </Link>
@@ -394,7 +401,7 @@ export default function LandingPage() {
                 <a
                   key={item.label}
                   href={item.href}
-                  className="sb-caption font-semibold transition-colors text-sb-ink-muted hover:text-sb-primary whitespace-nowrap no-underline"
+                  className="sb-caption font-semibold transition-colors text-zinc-400 hover:text-white whitespace-nowrap no-underline"
                 >
                   {item.label}
                 </a>
@@ -413,13 +420,13 @@ export default function LandingPage() {
                 <button
                   onClick={() => openAuthModal()}
                   className="sb-caption font-medium border-0 bg-transparent cursor-pointer"
-                  style={{ color: 'var(--sb-ink-muted)', textDecoration: 'none' }}
+                  style={{ color: 'rgba(161,161,170,1)', textDecoration: 'none' }}
                 >
                   Sign in
                 </button>
                 <button
                   onClick={() => openAuthModal()}
-                  className="sb-btn-primary rounded-[6px] border-0 cursor-pointer text-xs"
+                  className="sb-btn-primary rounded-[6px] border-0 cursor-pointer text-xs aurora-glow-ring"
                 >
                   Get started
                 </button>
@@ -432,68 +439,68 @@ export default function LandingPage() {
 
       <main id="main-content">
 
-        {/* ── BAND 1: HERO (pure white canvas with product UI stacked panes) ─── */}
-        <section className="py-24 bg-sb-canvas border-b border-sb-hairline-cool overflow-hidden">
+        {/* ── BAND 1: HERO (dark aurora canvas) ─── */}
+        <section className="py-24 bg-transparent border-b border-white/8 overflow-hidden">
           <div className="mx-auto max-w-[1280px] px-6 grid lg:grid-cols-2 gap-16 items-center">
             {/* Left: copy */}
             <div className="space-y-6">
-              <div className="inline-flex items-center gap-1.5 bg-[#e6fbf3] text-[#16a34a] border border-[#a7f3d0] px-3 py-1 rounded-[6px] text-xs font-semibold tracking-tight">
+              <div className="inline-flex items-center gap-1.5 glass-card px-4 py-1.5 rounded-[6px] text-xs font-semibold tracking-tight text-brand-400 border border-white/10">
                 <span>🔒</span> 100% Local Scanning · Zero Bank Passwords Required
               </div>
 
-              <h1 className="sb-display-xl tracking-tight text-sb-ink" style={{ letterSpacing: '-1.5px', lineHeight: '1.15' }}>
+              <h1 className="sb-display-xl tracking-tight aurora-gradient-text" style={{ letterSpacing: '-1.5px', lineHeight: '1.15' }}>
                 Auto-track your spends.<br />
-                <span className="text-[#24b47e]">Zero manual typing.</span>
+                <span className="text-[#3ecf8e]">Zero manual typing.</span>
               </h1>
 
-              <p className="sb-body-md max-w-[500px]" style={{ color: 'var(--sb-ink-muted)', lineHeight: '1.6' }}>
-                Dhanrakshak reads secure, read-only transaction alert SMS and emails and compiles your expenses automatically. Designed for developers and privacy-focused spenders, the entire parsing engine runs <strong className="font-medium" style={{ color: 'var(--sb-ink)' }}>locally on your device</strong>. Your private financial data never hits our servers.
+              <p className="sb-body-md max-w-[500px] text-zinc-400" style={{ lineHeight: '1.6' }}>
+                Dhanrakshak reads secure, read-only transaction alert SMS and emails and compiles your expenses automatically. Designed for developers and privacy-focused spenders, the entire parsing engine runs <strong className="font-medium text-zinc-100">locally on your device</strong>. Your private financial data never hits our servers.
               </p>
 
               {/* Quick How It Works Steps for 5-Second Comprehension */}
-              <div className="space-y-3 pt-2 border-t border-sb-hairline-cool">
-                <p className="text-xs font-bold uppercase tracking-wider text-sb-ink-muted-2">How it works in 5 seconds:</p>
+              <div className="space-y-3 pt-2 border-t border-white/8">
+                <p className="text-xs font-bold uppercase tracking-wider text-zinc-500">How it works in 5 seconds:</p>
                 <div className="grid grid-cols-1 gap-3">
                   <div className="flex gap-3 items-start">
                     <div className="h-5 w-5 rounded-[6px] bg-[rgba(62,207,142,0.1)] text-[#24b47e] font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">1</div>
-                    <p className="sb-caption leading-normal" style={{ color: 'var(--sb-ink-muted)' }}>
-                      <strong className="font-medium" style={{ color: 'var(--sb-ink)' }}>Make a transaction:</strong> Spend via any UPI app, credit card, or bank card as usual.
+                    <p className="sb-caption leading-normal" className="text-zinc-400">
+                      <strong className="font-medium text-zinc-100">Make a transaction:</strong> Spend via any UPI app, credit card, or bank card as usual.
                     </p>
                   </div>
                   <div className="flex gap-3 items-start">
                     <div className="h-5 w-5 rounded-[6px] bg-[rgba(62,207,142,0.1)] text-[#24b47e] font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">2</div>
-                    <p className="sb-caption leading-normal" style={{ color: 'var(--sb-ink-muted)' }}>
-                      <strong className="font-medium" style={{ color: 'var(--sb-ink)' }}>Local detection:</strong> Our client-side parser scans the bank notification alert instantly.
+                    <p className="sb-caption leading-normal" className="text-zinc-400">
+                      <strong className="font-medium text-zinc-100">Local detection:</strong> Our client-side parser scans the bank notification alert instantly.
                     </p>
                   </div>
                   <div className="flex gap-3 items-start">
                     <div className="h-5 w-5 rounded-[6px] bg-[rgba(62,207,142,0.1)] text-[#24b47e] font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">3</div>
-                    <p className="sb-caption leading-normal" style={{ color: 'var(--sb-ink-muted)' }}>
-                      <strong className="font-medium" style={{ color: 'var(--sb-ink)' }}>Live budget update:</strong> Dhanrakshak logs the spend and updates category budgets automatically.
+                    <p className="sb-caption leading-normal" className="text-zinc-400">
+                      <strong className="font-medium text-zinc-100">Live budget update:</strong> Dhanrakshak logs the spend and updates category budgets automatically.
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-sb-hairline-cool">
-                <Link to={user ? ROUTES.DASHBOARD : ROUTES.SIGNUP} className="sb-btn-primary rounded-[6px]" style={{ padding: '12px 24px', fontWeight: 500 }}>
+              <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-white/8">
+                <Link to={user ? ROUTES.DASHBOARD : ROUTES.SIGNUP} className="sb-btn-primary rounded-[6px] aurora-glow-ring" style={{ padding: '12px 24px', fontWeight: 500 }}>
                   {user ? 'Go to Dashboard' : 'Start free — no card needed'}
                 </Link>
-                <a href="#install-guide" className="sb-btn-secondary rounded-[6px]" style={{ padding: '12px 24px', fontWeight: 500 }}>
+                <a href="#install-guide" className="sb-btn-secondary rounded-[6px] backdrop-blur-sm bg-white/5 border border-white/10" style={{ padding: '12px 24px', fontWeight: 500 }}>
                   Install Web App
                 </a>
               </div>
 
               {/* Mini metrics */}
-              <div className="flex gap-8 pt-4 border-t border-sb-hairline-cool">
+              <div className="flex gap-8 pt-4 border-t border-white/8">
                 {[
                   { val: 'Zero', label: 'Manual entries' },
                   { val: '100%', label: 'Local-only parsing', accent: true },
                   { val: 'All', label: 'Indian Banks & UPI' },
                 ].map((m) => (
                   <div key={m.label}>
-                    <p className="sb-caption font-bold text-base" style={{ color: m.accent ? 'var(--sb-primary)' : 'var(--sb-ink)' }}>{m.val}</p>
-                    <p className="sb-micro" style={{ color: 'var(--sb-ink-muted-2)', marginTop: 2 }}>{m.label}</p>
+                    <p className="sb-caption font-bold text-base" style={{ color: m.accent ? 'var(--sb-primary)' : '#fff' }}>{m.val}</p>
+                    <p className="sb-micro text-zinc-500" style={{ marginTop: 2 }}>{m.label}</p>
                   </div>
                 ))}
               </div>
@@ -506,13 +513,13 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── BAND 2: DAILY LIFE (canvas-soft warm paper floor) ─────────────────── */}
-        <section id="daily-utility" className="py-24 bg-sb-canvas-soft">
+        {/* ── BAND 2: DAILY LIFE (dark aurora) ─────────────────── */}
+        <section id="daily-utility" className="py-24 bg-[rgba(7,7,15,0.6)]">
           <div className="mx-auto max-w-[1280px] px-6">
             <div className="text-center mb-16">
               <div className="sb-pill-tag-soft mb-4">Rhythm of tracking</div>
-              <h2 className="sb-display-lg" style={{ color: 'var(--sb-ink)' }}>A day in your spend routine</h2>
-              <p className="sb-body-lg mt-4 mx-auto" style={{ color: 'var(--sb-ink-muted)', maxWidth: 520 }}>
+              <h2 className="sb-display-lg aurora-gradient-text">A day in your spend routine</h2>
+              <p className="sb-body-lg mt-4 mx-auto text-zinc-400" style={{ maxWidth: 520 }}>
                 See how Dhanrakshak helps you keep track of your money automatically as you go about your day.
               </p>
             </div>
@@ -523,28 +530,28 @@ export default function LandingPage() {
                 { time: '01:15 PM', emoji: '🍔', title: 'Smart Budget Guard', body: 'You treat yourself to lunch. Dhanrakshak updates your monthly lunch budget immediately. If you are close to your spending limit, the app gently flags it to keep you on track.' },
                 { time: '10:00 PM', emoji: '📊', title: 'Simple Daily Summary', body: 'Open the app before bed to view a beautiful, easy-to-understand breakdown of what you spent today and how much you saved. Complete clarity without the stress of manual accounts.' },
               ].map((card) => (
-                <div key={card.title} className="sb-card-light shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all duration-200 bg-sb-canvas">
+                <div key={card.title} className="glass-card gradient-border-card shadow-[0_1px_3px_rgba(0,0,0,0.3)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.4)] transition-all duration-200">
                   <div className="flex items-center justify-between mb-6">
-                    <span className="sb-micro px-2 py-1 rounded-full bg-[rgba(62,207,142,0.1)] text-[#24b47e] font-semibold">{card.time}</span>
+                    <span className="sb-micro px-2 py-1 rounded-full bg-[rgba(62,207,142,0.1)] text-[#3ecf8e] font-semibold">{card.time}</span>
                     <span className="text-2xl">{card.emoji}</span>
                   </div>
-                  <h3 className="sb-heading-md" style={{ color: 'var(--sb-ink)' }}>{card.title}</h3>
-                  <p className="sb-caption mt-3 leading-relaxed" style={{ color: 'var(--sb-ink-muted)' }}>{card.body}</p>
+                  <h3 className="sb-heading-md text-white">{card.title}</h3>
+                  <p className="sb-caption mt-3 leading-relaxed text-zinc-400">{card.body}</p>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* ── BAND 3: FEATURES (white canvas) ─── */}
-        <section id="features" className="py-24 bg-sb-canvas border-b border-sb-hairline-cool">
+        {/* ── BAND 3: FEATURES (dark aurora) ─── */}
+        <section id="features" className="py-24 bg-transparent border-b border-white/8">
           <div className="mx-auto max-w-[1280px] px-6 grid lg:grid-cols-2 gap-16 items-center">
             {/* Left */}
             <div className="space-y-8">
               <div>
                 <div className="sb-pill-tag-soft mb-4">Product design</div>
-                <h2 className="sb-display-lg" style={{ color: 'var(--sb-ink)' }}>Smart, simple, and 100% private.</h2>
-                <p className="sb-body-lg mt-4" style={{ color: 'var(--sb-ink-muted)' }}>
+                <h2 className="sb-display-lg aurora-gradient-text">Smart, simple, and 100% private.</h2>
+                <p className="sb-body-lg mt-4 text-zinc-400">
                   Keeping track of your hard-earned money should not feel like a chore. Dhanrakshak does the heavy lifting while keeping your information strictly confidential.
                 </p>
               </div>
@@ -556,10 +563,10 @@ export default function LandingPage() {
                   { emoji: '📱', title: 'Install Web App', body: 'Add Dhanrakshak directly to your phone or tablet home screen in seconds as a lightweight progressive web app.' },
                 ].map((f) => (
                   <div key={f.title} className="flex gap-4">
-                    <div className="h-10 w-10 rounded-[6px] flex items-center justify-center text-lg shrink-0 bg-sb-canvas-soft border border-sb-hairline">{f.emoji}</div>
+                    <div className="h-10 w-10 rounded-[6px] flex items-center justify-center text-lg shrink-0 bg-white/5 border border-white/10">{f.emoji}</div>
                     <div>
-                      <h3 className="sb-caption font-semibold" style={{ color: 'var(--sb-ink)' }}>{f.title}</h3>
-                      <p className="sb-caption mt-1" style={{ color: 'var(--sb-ink-muted)' }}>{f.body}</p>
+                      <h3 className="sb-caption font-semibold text-white">{f.title}</h3>
+                      <p className="sb-caption mt-1 text-zinc-400">{f.body}</p>
                     </div>
                   </div>
                 ))}
@@ -567,11 +574,11 @@ export default function LandingPage() {
             </div>
 
             {/* Right: Try the parser */}
-            <div className="sb-card-light shadow-[0_4px_12px_rgba(0,0,0,0.05)] border border-sb-hairline bg-sb-canvas">
-              <h3 className="sb-heading-md flex items-center gap-2" style={{ color: 'var(--sb-ink)' }}>
+            <div className="glass-card gradient-border-card shadow-[0_4px_12px_rgba(0,0,0,0.3)]">
+              <h3 className="sb-heading-md flex items-center gap-2 text-white">
                 <span>⚡</span> Try the Auto-Detector
               </h3>
-              <p className="sb-caption mt-2" style={{ color: 'var(--sb-ink-muted)' }}>
+              <p className="sb-caption mt-2 text-zinc-400">
                 Paste any transaction message below and see how our engine parses details in real-time:
               </p>
 
@@ -610,13 +617,13 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── BAND 3b: SUPABAZE TRUST / LOCAL SECURITY CARD ──────────────────────────── */}
-        <section className="py-20 bg-sb-canvas-soft border-b border-sb-hairline-cool">
+        {/* ── BAND 3b: TRUST / LOCAL SECURITY CARD ──────────────────────────── */}
+        <section className="py-20 bg-[rgba(7,7,15,0.6)] border-b border-white/8">
           <div className="mx-auto max-w-[1280px] px-6">
-            <div className="sb-card-light bg-sb-canvas rounded-[12px] p-8 shadow-[0_4px_12px_rgba(0,0,0,0.05)] border-t-4 border-t border-sb-primary flex flex-col md:flex-row items-center justify-between gap-10">
+            <div className="aurora-glow-ring glass-card rounded-[12px] p-8 border-t-4 border-t-[#3ecf8e] flex flex-col md:flex-row items-center justify-between gap-10">
               <div className="max-w-lg">
-                <h2 className="sb-heading-lg" style={{ color: 'var(--sb-ink)' }}>Your money, your data. Always local. Always yours.</h2>
-                <p className="sb-caption mt-4 leading-relaxed" style={{ color: 'var(--sb-ink-muted)' }}>
+                <h2 className="sb-heading-lg text-white">Your money, your data. Always local. Always yours.</h2>
+                <p className="sb-caption mt-4 leading-relaxed text-zinc-400">
                   Dhanrakshak never uploads your emails to any servers. The transaction scanner parses your local bank alerts directly on your device, ensuring total privacy.
                 </p>
               </div>
@@ -626,9 +633,9 @@ export default function LandingPage() {
                   { val: '256-bit', label: 'Request security', sub: 'SSL bank-grade safety' },
                 ].map((s) => (
                   <div key={s.label} className="text-center">
-                    <p className="sb-code font-bold text-4xl" style={{ color: 'var(--sb-ink)' }}>{s.val}</p>
-                    <p className="sb-caption font-semibold mt-2" style={{ color: 'var(--sb-ink)' }}>{s.label}</p>
-                    <p className="sb-micro text-static-zinc-500" style={{ marginTop: 2 }}>{s.sub}</p>
+                    <p className="sb-code font-bold text-4xl text-white">{s.val}</p>
+                    <p className="sb-caption font-semibold mt-2 text-white">{s.label}</p>
+                    <p className="sb-micro text-zinc-400" style={{ marginTop: 2 }}>{s.sub}</p>
                   </div>
                 ))}
               </div>
@@ -636,13 +643,13 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── BAND 4: INSTALL WEB APP (canvas-soft) ───────────────────── */}
-        <section id="install-guide" className="py-24 bg-sb-canvas-soft border-b border-sb-hairline-cool">
+        {/* ── BAND 4: INSTALL WEB APP (dark aurora) ───────────────────── */}
+        <section id="install-guide" className="py-24 bg-transparent border-b border-white/8">
           <div className="mx-auto max-w-[1280px] px-6 grid lg:grid-cols-2 gap-16 items-center">
             <div className="space-y-6">
               <div className="sb-pill-tag-soft">Install App</div>
-              <h2 className="sb-display-lg" style={{ color: 'var(--sb-ink)' }}>Add to Home Screen</h2>
-              <p className="sb-body-lg" style={{ color: 'var(--sb-ink-muted)' }}>
+              <h2 className="sb-display-lg text-white">Add to Home Screen</h2>
+              <p className="sb-body-lg text-zinc-400">
                 Dhanrakshak is a Progressive Web App (PWA). You can install it directly onto your Android device or iPhone home screen in seconds for quick, secure access.
               </p>
               <div className="space-y-3">
@@ -651,23 +658,23 @@ export default function LandingPage() {
                   { icon: '🔒', text: '100% safe, fast, and light on storage' },
                 ].map((item) => (
                   <div key={item.text} className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm bg-sb-canvas border border-sb-hairline shadow-[0_1px_3px_rgba(0,0,0,0.06)]">{item.icon}</div>
-                    <p className="sb-caption font-semibold" style={{ color: 'var(--sb-ink-secondary)' }}>{item.text}</p>
+                    <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm bg-white/5 border border-white/10 shadow-[0_1px_3px_rgba(0,0,0,0.3)]">{item.icon}</div>
+                    <p className="sb-caption font-semibold text-zinc-300">{item.text}</p>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="sb-card-light shadow-[0_8px_24px_rgba(0,0,0,0.08)] bg-sb-canvas" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="glass-card gradient-border-card shadow-[0_8px_24px_rgba(0,0,0,0.3)]" style={{ padding: 0, overflow: 'hidden' }}>
               {/* Tab bar */}
-              <div className="flex bg-sb-canvas-soft border-b border-sb-hairline">
+              <div className="flex bg-white/5 border-b border-white/10">
                 {(['android', 'ios'] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setDownloadTab(tab)}
                     className="flex-1 py-4 sb-caption cursor-pointer transition-colors border-none bg-transparent"
                     style={{
-                      color: downloadTab === tab ? 'var(--sb-primary)' : 'var(--sb-ink-muted)',
+                      color: downloadTab === tab ? 'var(--sb-primary)' : 'rgba(161,161,170,1)',
                       borderBottom: downloadTab === tab ? '2px solid var(--sb-primary)' : '2px solid transparent',
                       fontWeight: downloadTab === tab ? 600 : 400,
                     }}
@@ -677,11 +684,11 @@ export default function LandingPage() {
                 ))}
               </div>
 
-              <div className="p-8 bg-sb-canvas">
+              <div className="p-8 bg-transparent">
                 {downloadTab === 'android' ? (
                   <div className="space-y-4 py-4">
-                    <h3 className="text-base font-bold text-center mb-2" style={{ color: 'var(--sb-ink)' }}>How to install on Android</h3>
-                    <ol className="list-decimal pl-5 space-y-3 text-xs" style={{ color: 'var(--sb-ink-secondary)' }}>
+                    <h3 className="text-base font-bold text-center mb-2 text-white">How to install on Android</h3>
+                    <ol className="list-decimal pl-5 space-y-3 text-xs text-zinc-300">
                       <li>Open **Google Chrome** and navigate to this website.</li>
                       <li>Tap the three vertical dots (menu icon) in the top-right corner.</li>
                       <li>Select **"Add to Home screen"** or **"Install App"** from the list.</li>
@@ -690,8 +697,8 @@ export default function LandingPage() {
                   </div>
                 ) : (
                   <div className="space-y-4 py-4">
-                    <h3 className="text-base font-bold text-center mb-2" style={{ color: 'var(--sb-ink)' }}>How to install on iOS (iPhone/iPad)</h3>
-                    <ol className="list-decimal pl-5 space-y-3 text-xs" style={{ color: 'var(--sb-ink-secondary)' }}>
+                    <h3 className="text-base font-bold text-center mb-2 text-white">How to install on iOS (iPhone/iPad)</h3>
+                    <ol className="list-decimal pl-5 space-y-3 text-xs text-zinc-300">
                       <li>Open **Safari** and navigate to this website.</li>
                       <li>Tap the **Share** button (the square icon with an arrow pointing up) at the bottom.</li>
                       <li>Scroll down the share sheet options.</li>
@@ -704,28 +711,28 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── BAND 5: FAQ (white canvas) ───────────────────────────────── */}
-        <section id="faq" className="py-24 bg-sb-canvas border-b border-sb-hairline-cool">
+        {/* ── BAND 5: FAQ (dark aurora) ───────────────────────────────── */}
+        <section id="faq" className="py-24 bg-[rgba(7,7,15,0.6)] border-b border-white/8">
           <div className="mx-auto max-w-[800px] px-6">
             <div className="text-center mb-14">
               <div className="sb-pill-tag-soft mb-4">Questions</div>
-              <h2 className="sb-display-lg" style={{ color: 'var(--sb-ink)' }}>Frequently asked questions</h2>
+              <h2 className="sb-display-lg text-white">Frequently asked questions</h2>
             </div>
             <div className="space-y-3">
               {faqItems.map((item, idx) => {
                 const isOpen = expandedFaq === idx
                 return (
-                  <div key={idx} className="sb-card-light shadow-[0_1px_3px_rgba(0,0,0,0.06)] bg-sb-canvas" style={{ padding: 0, overflow: 'hidden' }}>
+                  <div key={idx} className="glass-card gradient-border-card" style={{ padding: 0, overflow: 'hidden' }}>
                     <button
                       onClick={() => setExpandedFaq(isOpen ? null : idx)}
                       className="w-full text-left px-6 py-5 flex items-center justify-between cursor-pointer border-none bg-transparent"
                     >
-                      <span className="sb-heading-md font-semibold" style={{ color: 'var(--sb-ink)' }}>{item.q}</span>
+                      <span className="sb-heading-md font-semibold text-white">{item.q}</span>
                       <span style={{ color: 'var(--sb-primary)', fontSize: 20, transition: 'transform 0.2s', transform: isOpen ? 'rotate(45deg)' : 'none', flexShrink: 0, marginLeft: 16 }}>＋</span>
                     </button>
                     {isOpen && (
-                      <div className="px-6 pb-5 animate-fade-in border-t border-sb-hairline pt-4">
-                        <p className="sb-body-md leading-relaxed" style={{ color: 'var(--sb-ink-muted)' }}>{item.a}</p>
+                      <div className="px-6 pb-5 animate-fade-in border-t border-white/10 pt-4">
+                        <p className="sb-body-md leading-relaxed text-zinc-400">{item.a}</p>
                       </div>
                     )}
                   </div>
@@ -735,10 +742,10 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── BAND 6: CTA (deep dark canvas-night) ───────────────── */}
-        <section className="py-24 text-center bg-sb-canvas-night border-b border-[#2e2e2e]">
+        {/* ── BAND 6: CTA (aurora bg) ───────────────── */}
+        <section className="py-24 text-center aurora-bg border-b border-white/8">
           <div className="mx-auto max-w-[600px] px-6 space-y-6">
-            <h2 className="sb-display-lg" style={{ color: 'var(--sb-on-dark)' }}>Ready to automate your savings?</h2>
+            <h2 className="sb-display-lg aurora-gradient-text">Ready to automate your savings?</h2>
             <p className="sb-body-lg" style={{ color: 'rgba(255,255,255,0.7)' }}>
               Create a free account in less than 60 seconds. You can delete or export your records anytime.
             </p>
@@ -765,18 +772,18 @@ export default function LandingPage() {
 
       </main>
 
-      {/* ── FOOTER (Supabaze style, white footer) ─────────── */}
-      <footer style={{ background: 'var(--sb-canvas-soft)', borderTop: '1px solid var(--sb-hairline)' }} className="py-16">
+      {/* ── FOOTER (dark aurora footer) ─────────── */}
+      <footer style={{ background: '#050510', borderTop: '1px solid rgba(255,255,255,0.08)' }} className="py-16">
         <div className="mx-auto max-w-[1280px] px-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex flex-col items-center md:items-start gap-1">
             <div className="flex items-center gap-2.5">
               <span className="text-xs font-black flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-static-white shadow-sm" aria-hidden="true">₹</span>
               <div className="flex items-center gap-1 text-sm tracking-tight leading-none">
                 <span className="font-extrabold bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">Dhan</span>
-                <span className="font-bold text-sb-ink">rakshak</span>
+                <span className="font-bold text-white">rakshak</span>
               </div>
             </div>
-            <p className="sb-caption" style={{ color: 'var(--sb-ink-muted)' }}>© 2026 Dhanrakshak. Built with privacy by design.</p>
+            <p className="sb-caption text-zinc-400">© 2026 Dhanrakshak. Built with privacy by design.</p>
           </div>
           <div className="flex flex-wrap justify-center gap-6">
             {[
@@ -787,7 +794,7 @@ export default function LandingPage() {
               { label: 'About', to: ROUTES.ABOUT },
               { label: 'Support', to: '/support' },
             ].map((l) => (
-              <Link key={l.label} to={l.to} className="sb-caption font-medium" style={{ color: 'var(--sb-ink-muted)', textDecoration: 'none' }}>{l.label}</Link>
+              <Link key={l.label} to={l.to} className="sb-caption font-medium text-brand-400 hover:text-brand-300" style={{ textDecoration: 'none' }}>{l.label}</Link>
             ))}
           </div>
         </div>

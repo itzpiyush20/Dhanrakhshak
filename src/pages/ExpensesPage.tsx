@@ -184,7 +184,7 @@ export default function ExpensesPage() {
         <div className="grid gap-4 sm:grid-cols-3">
           <Card className="border-l-4 border-l-[var(--status-positive-text)]/80 hover:border-l-[var(--status-positive-text)] transition-all shadow-md">
             <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Income</p>
-            <p className="mt-1 text-xl font-semibold text-[var(--status-positive-text)]">{formatCurrency(totalIncome)}</p>
+            <p className="mt-1 text-xl font-semibold text-[var(--status-positive-text)] aurora-gradient-text">{formatCurrency(totalIncome)}</p>
           </Card>
           <Card className="border-l-4 border-l-[var(--status-danger-text)]/80 hover:border-l-[var(--status-danger-text)] transition-all shadow-md">
             <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Expenses</p>
@@ -196,7 +196,7 @@ export default function ExpensesPage() {
               : 'border-l-[var(--status-danger-text)]/80 hover:border-l-[var(--status-danger-text)]'
           }`}>
             <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Net</p>
-            <p className={`mt-1 text-xl font-semibold ${totalIncome - totalExpenses >= 0 ? 'text-[var(--status-positive-text)]' : 'text-[var(--status-danger-text)]'}`}>
+            <p className={`mt-1 text-xl font-semibold ${totalIncome - totalExpenses >= 0 ? 'text-[var(--status-positive-text)] aurora-gradient-text' : 'text-[var(--status-danger-text)]'}`}>
               {formatCurrency(totalIncome - totalExpenses)}
             </p>
           </Card>

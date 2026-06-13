@@ -950,7 +950,7 @@ export default function PendingPage() {
           aria-modal="true"
           aria-label="Auto-Categorized Expenses Review"
         >
-          <div className="w-full max-w-xl bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col max-h-[90vh] overflow-y-auto animate-scale-up">
+          <div className="w-full max-w-xl bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col max-h-[90vh] overflow-y-auto animate-scale-up aurora-glow-ring">
             <div className="flex items-start justify-between border-b border-border-subtle/30 pb-4">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-2xl bg-brand-500/10 border border-brand-500/30 flex items-center justify-center text-xl animate-pulse">

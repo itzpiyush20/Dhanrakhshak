@@ -15,7 +15,7 @@ export default function EmptyState({ icon = '📭', title, description, action }
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       {icon && (
-        <div className="bg-brand-500/10 border border-brand-500/25 text-brand-400 h-16 w-16 flex items-center justify-center rounded-2xl mx-auto mb-4 text-3xl select-none shadow-sm shadow-brand-500/5">
+        <div className="bg-gradient-to-br from-[rgba(62,207,142,0.15)] to-[rgba(99,102,241,0.15)] border border-[rgba(62,207,142,0.20)] text-brand-400 h-16 w-16 flex items-center justify-center rounded-2xl mx-auto mb-4 text-3xl select-none shadow-[0_0_20px_rgba(62,207,142,0.10),0_0_40px_rgba(99,102,241,0.06)]">
           {icon}
         </div>
       )}
