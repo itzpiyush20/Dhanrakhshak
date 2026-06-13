@@ -147,9 +147,12 @@ export function getCurrentMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 }
 
-/** Merge classnames, filtering falsy values */
-export function cn(...classes: (string | false | null | undefined)[]): string {
-  return classes.filter(Boolean).join(' ')
+type ClassPrimitive = string | false | null | undefined
+type ClassValue = ClassPrimitive | ClassPrimitive[]
+
+/** Merge classnames, filtering falsy values. Accepts nested arrays. */
+export function cn(...classes: ClassValue[]): string {
+  return classes.flat().filter(Boolean).join(' ')
 }
 
 // ============================================
