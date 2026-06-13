@@ -10,22 +10,22 @@
 //   2. Have one consistent token source for both UI and scanner
 //   3. React to token expiry by clearing state and re-showing connect UI
 //
-// Storage: sessionStorage (tab-scoped, cleared on tab/browser close).
-// This is safer than localStorage — token doesn't persist across sessions.
+// Storage: localStorage (persists across tabs and browser restarts).
+// The 58-minute TTL limits exposure while covering the full Google token lifetime.
 // ============================================================
 
 const TOKEN_KEY = 'dhanrakshak_google_token'
 const EXPIRY_KEY = 'dhanrakshak_google_token_expiry'
 
-const TOKEN_TTL_MS = 55 * 60 * 1000 // 55 minutes
+const TOKEN_TTL_MS = 58 * 60 * 1000 // 58 minutes (Google tokens last 60 min)
 
 /**
  * Save a fresh Google provider token with an expiry timestamp.
  * Call this whenever onAuthStateChange gives us a session.provider_token.
  */
 export function saveGoogleToken(token: string): void {
-  sessionStorage.setItem(TOKEN_KEY, token)
-  sessionStorage.setItem(EXPIRY_KEY, (Date.now() + TOKEN_TTL_MS).toString())
+  localStorage.setItem(TOKEN_KEY, token)
+  localStorage.setItem(EXPIRY_KEY, (Date.now() + TOKEN_TTL_MS).toString())
 }
 
 /**
@@ -33,10 +33,10 @@ export function saveGoogleToken(token: string): void {
  * Automatically clears stale tokens.
  */
 export function getGoogleToken(): string | null {
-  const token = sessionStorage.getItem(TOKEN_KEY)
+  const token = localStorage.getItem(TOKEN_KEY)
   if (!token) return null
 
-  const expiry = sessionStorage.getItem(EXPIRY_KEY)
+  const expiry = localStorage.getItem(EXPIRY_KEY)
   if (expiry && Date.now() > parseInt(expiry, 10)) {
     clearGoogleToken()
     return null
@@ -57,20 +57,18 @@ export function isGoogleConnected(): boolean {
  * Clear the stored token and expiry (e.g. after a 401, sign-out, or manual disconnect).
  */
 export function clearGoogleToken(): void {
-  sessionStorage.removeItem(TOKEN_KEY)
-  sessionStorage.removeItem(EXPIRY_KEY)
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(EXPIRY_KEY)
 }
 
 /**
- * One-time migration: remove any token left over in localStorage from
- * previous versions of the app that used localStorage for token storage.
+ * One-time migration: remove the very old token key from pre-v2 of the app.
  * Call this once on app startup. Safe to call multiple times.
+ * NOTE: dhanrakshak_google_token and dhanrakshak_google_token_expiry are intentionally
+ * kept — they are the current active storage keys in localStorage.
  */
 export function purgeOldTokenKey(): void {
   localStorage.removeItem('dhanrakshak_oauth_provider_token')
-  // Also clear any tokens that were previously stored in localStorage
-  localStorage.removeItem('dhanrakshak_google_token')
-  localStorage.removeItem('dhanrakshak_google_token_expiry')
 }
 
 export async function validateGoogleToken(token: string): Promise<boolean> {
@@ -79,7 +77,7 @@ export async function validateGoogleToken(token: string): Promise<boolean> {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (res.status === 401 || res.status === 403) {
-      if (token === sessionStorage.getItem(TOKEN_KEY)) {
+      if (token === localStorage.getItem(TOKEN_KEY)) {
         clearGoogleToken()
       }
       return false

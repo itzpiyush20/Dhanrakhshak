@@ -461,7 +461,7 @@ export default function PendingPage() {
     try {
       setScanning(true)
       setError(null)
-      const { error } = await signInWithGoogle('/pending', true, true)
+      const { error } = await signInWithGoogle('/pending', true, false)
       if (error) throw new Error(error)
     } catch (err: any) {
       setError(err.message || 'Failed to redirect to Google.')
