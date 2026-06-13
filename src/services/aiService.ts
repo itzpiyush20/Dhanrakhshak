@@ -342,6 +342,7 @@ export interface AITransactionResult {
     | 'cheque'
     | 'unknown'
     | null
+  card_last4: string | null      // Last 4 digits of card, e.g. "1234"
   card_issuer: string | null    // Bank name, e.g. "HDFC", "SBI" — displayed to user
   card_brand: CardBrand | null  // Card network, e.g. "Visa", "Mastercard" — displayed to user
   transaction_time: string | null // HH:MM format
