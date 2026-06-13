@@ -8,10 +8,8 @@ import { supabase } from './supabase'
 import type { Database } from '@/types/database'
 import { extractBankName } from '@/utils'
 import { applyMerchantRulesFromDB } from './learningEngine'
-import { getGoogleToken, clearGoogleToken } from './googleAuth'
+import { getGoogleToken, clearGoogleToken, tryRefreshGoogleToken } from './googleAuth'
 import { analyzeTransactionEmailWithAI } from './aiService'
-import { normalizeMerchant } from './merchantNormalizer'
-import { checkScannerAccess } from './scannerGate'
 
 type EmailScanLog = Database['public']['Tables']['email_scan_logs']['Row']
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert']
@@ -95,30 +93,12 @@ const TRUSTED_SENDER_DOMAINS = new Set([
 // Hard-accept: clearly transactional (bypass further soft checks)
 // ============================================================
 const HARD_REJECT_SUBJECT_PATTERNS = [
-  // Statements and summaries
-  /\b(statement|e-?statement|monthly\s*statement|account\s*statement|credit\s*card\s*statement)\b/i,
-  // Newsletters and promotions
-  /\b(newsletter|unsubscribe|promotion|promotional|offer|coupon|deal|voucher|promo\s*code|discount\s*code)\b/i,
-  // Cashback OFFERS (not credits) and reward points
-  /\b(cashback\s*offer|cashback\s*on\s*your|earn\s*cashback|get\s*cashback|flat\s*\d+%\s*off)\b/i,
-  /\b(reward\s*points?|loyalty\s*points?|bonus\s*points?|points?\s*earned|points?\s*credited|you.ve\s*earned)\b/i,
-  // Sale and festival promotions
-  /\b(sale|big\s*billion|great\s*indian|festive\s*offer|mega\s*sale|flash\s*sale|bumper\s*sale|end\s*of\s*season)\b/i,
-  /\b(limited\s*(time|period|offer)|exclusive\s*(offer|deal)|special\s*(offer|deal))\b/i,
-  // Welcome and onboarding
+  /\b(statement|e-?statement|monthly\s*statement|account\s*statement)\b/i,
+  /\b(newsletter|unsubscribe|promotion|promotional|offer|coupon|deal|cashback\s*offer|reward\s*points|limited\s*period|sale)\b/i,
   /\b(welcome|onboarding|activate\s*your|verify\s*your\s*email|confirm\s*your)\b/i,
-  // Policy and terms updates
   /\b(policy\s*update|terms\s*of\s*service|privacy\s*update|security\s*update|agreement\s*update)\b/i,
-  // Bills due and reminders
-  /\b(minimum\s*due|payment\s*due|bill\s*generated|overdue|payable\s*by|due\s*date|bill\s*reminder)\b/i,
-  // Scheduled/future payments (not yet executed)
-  /\b(auto-?debit\s*scheduled|standing\s*instruction|pre-?authorized|will\s*be\s*debited)\b/i,
-  // Balance and limit alerts
-  /\b(balance\s*(update|alert|notification)|available\s*balance|account\s*balance|credit\s*limit)\b/i,
-  // Pre-approved offers
-  /\b(pre-?approved|credit\s*limit\s*(increase|enhanced|boost)|upgrade\s*your\s*card|loan\s*offer)\b/i,
-  // Inactivity / security notices
-  /\b(your\s*account\s*has\s*been|account\s*locked|suspicious\s*activity|unusual\s*login)\b/i,
+  /\b(minimum\s*due|payment\s*due|bill\s*generated|overdue|payable\s*by|due\s*date)\b/i,
+  /\b(auto-?debit\s*scheduled|standing\s*instruction|pre-?authorized)\b/i,
 ]
 
 const HARD_ACCEPT_SUBJECT_PATTERNS = [
@@ -479,49 +459,67 @@ function detectPaymentMode(text: string): PaymentMode {
 }
 
 // ============================================================
-// CARD BRAND DETECTION
+// CARD LAST-4 EXTRACTION
 // ============================================================
-type CardBrand = 'Visa' | 'Mastercard' | 'RuPay' | 'American Express' | 'Diners'
-
-function detectCardBrand(text: string): CardBrand | null {
-  if (/\b(amex|american\s*express)\b/i.test(text)) return 'American Express'
-  if (/\b(diners\s*club|diners)\b/i.test(text)) return 'Diners'
-  if (/\b(rupay|ru\s*pay)\b/i.test(text)) return 'RuPay'
-  if (/\b(mastercard|master\s*card)\b/i.test(text)) return 'Mastercard'
-  if (/\bvisa\b/i.test(text)) return 'Visa'
-  return null
+function getLastMatchIndex(preText: string, regex: RegExp): number {
+  const globalRegex = new RegExp(regex.source, regex.flags.includes('g') ? regex.flags : regex.flags + 'g')
+  let match
+  let lastIndex = -1
+  while ((match = globalRegex.exec(preText)) !== null) {
+    lastIndex = match.index
+  }
+  return lastIndex
 }
 
-// ============================================================
-// TRANSACTION TIME EXTRACTION
-// ============================================================
-function extractTransactionTime(text: string): string | null {
-  // 12-hour format: 8:45 PM, 08:45 AM
-  const amPmMatch = text.match(/\b(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM|am|pm)\b/)
-  if (amPmMatch) {
-    let h = parseInt(amPmMatch[1], 10)
-    const m = amPmMatch[2]
-    const meridiem = amPmMatch[3].toLowerCase()
-    if (meridiem === 'pm' && h < 12) h += 12
-    if (meridiem === 'am' && h === 12) h = 0
-    return `${String(h).padStart(2, '0')}:${m}`
+function extractCardLast4(text: string): string | null {
+  const candidateRegex = /(?:^|\D)(?:[xX*]+-?)*\s*(\d{4})\b/g
+  let match
+  const candidates: { digits: string; index: number }[] = []
+
+  while ((match = candidateRegex.exec(text)) !== null) {
+    const digits = match[1]
+    const idx = match.index + match[0].indexOf(digits)
+    candidates.push({ digits, index: idx })
   }
-  // 24-hour format: 20:32, 14:05 — only match plausible clock values
-  const h24Match = text.match(/\b([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?\b/)
-  if (h24Match) {
-    return `${h24Match[1]}:${h24Match[2]}`
+
+  for (const candidate of candidates) {
+    const digits = candidate.digits
+    const idx = candidate.index
+
+    const val = parseInt(digits, 10)
+    if (val >= 2020 && val <= 2035) continue
+
+    const preText = text.substring(Math.max(0, idx - 60), idx)
+
+    const isMasked = /[xX*]+-?\s*$/.test(preText)
+
+    const cardRegex = /\b(card|cc|credit|debit|visa|mastercard|mc|rupay|amex|diners|sbicard|sbi-card)\b/i
+    const accountRegex = /\b(a\/c|account|acct|acc|savings|current|deposit|loan|wallet)\b/i
+    const refRegex = /\b(ref\s*(?:no\.?|num(?:ber)?)?|reference\s*(?:no\.?|num(?:ber)?)?|txn\s*id|transaction\s*id|utr|otp|code|pin)\b/i
+
+    const cardLastIdx = getLastMatchIndex(preText, cardRegex)
+    const accountLastIdx = getLastMatchIndex(preText, accountRegex)
+    const refLastIdx = getLastMatchIndex(preText, refRegex)
+
+    const cardDist = cardLastIdx !== -1 ? preText.length - cardLastIdx : Infinity
+    const accountDist = accountLastIdx !== -1 ? preText.length - accountLastIdx : Infinity
+    const refDist = refLastIdx !== -1 ? preText.length - refLastIdx : Infinity
+
+    if (accountDist < cardDist) continue
+    if (refDist < cardDist) continue
+
+    const endsMatch = preText.match(/\b(ending|ends)\s*(?:in\s*)?$/i)
+    const hasEnds = !!endsMatch
+
+    if (!isMasked && cardDist > 40 && !hasEnds) continue
+
+    if (cardDist === Infinity && accountDist !== Infinity) continue
+    if (cardDist === Infinity && refDist !== Infinity) continue
+
+    return digits
   }
+
   return null
-}
-
-// ============================================================
-// MANDATORY EVIDENCE GATE — past-tense transaction verb
-// ============================================================
-const PAST_TENSE_TX_VERB_RE =
-  /\b(debited|credited|paid|transferred|withdrawn|charged|received|deposited|settled|cleared|processed|refunded|reversed)\b/i
-
-function hasPastTenseTransactionVerb(text: string): boolean {
-  return PAST_TENSE_TX_VERB_RE.test(text)
 }
 
 // ============================================================
@@ -693,9 +691,15 @@ export async function scanRealGmailInbox() {
   const { data: { session } } = await supabase.auth.getSession()
   const user = session?.user
 
-  const providerToken = getGoogleToken()
+  let providerToken = getGoogleToken()
 
   if (!user) return { data: null, error: new Error('User not authenticated') }
+
+  // If access token is expired, silently refresh it before giving up
+  if (!providerToken && session?.access_token) {
+    providerToken = await tryRefreshGoogleToken(session.access_token)
+  }
+
   if (!providerToken) {
     return {
       data: null,
@@ -704,14 +708,46 @@ export async function scanRealGmailInbox() {
   }
 
   try {
-    // Premium gate + cooldown check (service-layer enforcement)
-    const accessResult = await checkScannerAccess()
-    if (!accessResult.allowed) {
-      return { data: null, error: new Error(accessResult.message || 'Scanner access denied.') }
-    }
-
     const cleanEmail = user.email?.toLowerCase().trim() || ''
     const isOwner = OWNER_EMAILS.length > 0 && OWNER_EMAILS.includes(cleanEmail)
+    if (!isOwner) {
+      const { data: recentScanLogs } = await supabase
+        .from('email_scan_logs')
+        .select('scanned_at')
+        .eq('user_id', user.id)
+        .eq('status', 'success')
+        .order('scanned_at', { ascending: false })
+        .limit(1)
+
+      if (recentScanLogs && recentScanLogs.length > 0) {
+        const lastScanTime = new Date(recentScanLogs[0].scanned_at).getTime()
+        const hoursSinceLastScan = (Date.now() - lastScanTime) / (60 * 60 * 1000)
+        if (hoursSinceLastScan < 24) {
+          const hoursLeft = Math.ceil(24 - hoursSinceLastScan)
+          return {
+            data: null,
+            error: new Error(`Scan limit reached. Next scan available in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''}. All transactions from your last scan are already captured.`),
+          }
+        }
+      }
+    }
+
+    const [{ data: registeredCards }, { data: pastCards }] = await Promise.all([
+      supabase.from('cards').select('last4, issuer').eq('user_id', user.id),
+      supabase.from('transactions').select('card_last4, card_issuer').eq('user_id', user.id).eq('approval_status', 'approved').not('card_last4', 'is', null).not('card_issuer', 'is', null)
+    ])
+
+    const cardMap: Record<string, string> = {}
+    if (registeredCards) {
+      registeredCards.forEach(c => {
+        if (c.last4 && c.issuer) cardMap[c.last4] = c.issuer
+      })
+    }
+    if (pastCards) {
+      pastCards.forEach(c => {
+        if (c.card_last4 && c.card_issuer) cardMap[c.card_last4] = c.card_issuer
+      })
+    }
 
     let activeYear = 2026
     try {
@@ -747,142 +783,47 @@ export async function scanRealGmailInbox() {
       console.warn('Failed to query email scan logs, assuming first scan', e)
     }
 
-    // ── Incremental Gmail sync ──────────────────────────────
-    // On first scan: fetch last 7 days
-    // On subsequent scans: use Gmail historyId checkpoint to fetch only new emails.
-    // Falls back to date-based query if historyId is stale (>7 days) or missing.
-    // ──────────────────────────────────────────────────────
-
-    // Step 1: capture current historyId BEFORE fetching (save at end of scan)
-    let currentHistoryId: string | null = null
-    try {
-      const profileRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
-        headers: { Authorization: `Bearer ${providerToken}` },
-      })
-      if (profileRes.ok) {
-        const profileData = await profileRes.json()
-        currentHistoryId = profileData.historyId || null
-      }
-    } catch {
-      // non-fatal — scan continues without historyId
-    }
-
-    // Step 2: get last saved historyId from scan logs
-    let savedHistoryId: string | null = null
-    let lastScanAt: string | null = null
-    if (!isFirstScan) {
-      try {
-        const { data: lastLog } = await supabase
-          .from('email_scan_logs')
-          .select('gmail_history_id, scanned_at')
-          .eq('user_id', user.id)
-          .eq('status', 'success')
-          .not('gmail_history_id', 'is', null)
-          .order('scanned_at', { ascending: false })
-          .limit(1)
-
-        if (lastLog && lastLog.length > 0) {
-          savedHistoryId = (lastLog[0] as any).gmail_history_id || null
-          lastScanAt = lastLog[0].scanned_at || null
-        }
-      } catch {
-        // non-fatal
-      }
-    }
-
-    const maxResults = isOwner ? 200 : 100
-    let messages: { id: string; threadId: string }[] = []
     let startLimitTime = 0
+    let q = ''
+    if (isFirstScan) {
+      startLimitTime = Date.now() - 7 * 24 * 60 * 60 * 1000
+      const startLimitDate = new Date(startLimitTime)
+      const yyyy = startLimitDate.getFullYear()
+      const mm = String(startLimitDate.getMonth() + 1).padStart(2, '0')
+      const dd = String(startLimitDate.getDate()).padStart(2, '0')
 
-    // Step 3: try incremental fetch if historyId is fresh (< 7 days)
-    const historyFresh =
-      savedHistoryId &&
-      lastScanAt &&
-      Date.now() - new Date(lastScanAt).getTime() < 7 * 24 * 60 * 60 * 1000
-
-    if (!isFirstScan && historyFresh && savedHistoryId) {
-      try {
-        const histUrl = `https://gmail.googleapis.com/gmail/v1/users/me/history?startHistoryId=${savedHistoryId}&historyTypes=messageAdded&labelId=INBOX`
-        const histRes = await fetch(histUrl, { headers: { Authorization: `Bearer ${providerToken}` } })
-
-        if (histRes.status === 404) {
-          // historyId expired — fall through to full scan
-          console.warn('[emailScanner] historyId expired, falling back to full scan')
-        } else if (histRes.ok) {
-          const histData = await histRes.json()
-          const histMessages: { id: string; threadId: string }[] = (histData.history || [])
-            .flatMap((h: any) => h.messagesAdded || [])
-            .map((m: any) => m.message)
-            .filter((m: any) => m?.id)
-            .reduce((acc: { id: string; threadId: string }[], m: any) => {
-              if (!acc.some(x => x.id === m.id)) acc.push({ id: m.id, threadId: m.threadId || '' })
-              return acc
-            }, [])
-
-          messages = histMessages.slice(0, maxResults)
-          startLimitTime = new Date(`${activeYear}-01-01T00:00:00Z`).getTime()
-        }
-      } catch (histErr) {
-        console.warn('[emailScanner] history API failed, falling back to full scan:', histErr)
-      }
+      q = `after:${yyyy}/${mm}/${dd} (debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
+    } else {
+      startLimitTime = new Date(`${activeYear}-01-01T00:00:00Z`).getTime()
+      q = `after:${activeYear}/01/01 before:${activeYear + 1}/01/01 (debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
     }
 
-    // Step 4: full scan fallback (first scan or stale historyId)
-    if (messages.length === 0) {
-      if (isFirstScan) {
-        startLimitTime = Date.now() - 7 * 24 * 60 * 60 * 1000
-        const d = new Date(startLimitTime)
-        const yyyy = d.getFullYear()
-        const mm = String(d.getMonth() + 1).padStart(2, '0')
-        const dd = String(d.getDate()).padStart(2, '0')
-        const q = `after:${yyyy}/${mm}/${dd} (debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
-        let nextPageToken = ''
-        do {
-          const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=${encodeURIComponent(q)}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`
-          const listRes = await fetch(url, { headers: { Authorization: `Bearer ${providerToken}` } })
-          if (listRes.status === 401 || listRes.status === 403) { clearGoogleToken(); throw new Error('TOKEN_EXPIRED') }
-          if (!listRes.ok) throw new Error(`Gmail API List failed: ${listRes.statusText}`)
-          const listData = await listRes.json()
-          if (listData.messages) messages = messages.concat(listData.messages)
-          if (messages.length >= maxResults) { messages = messages.slice(0, maxResults); break }
-          nextPageToken = listData.nextPageToken || ''
-        } while (nextPageToken)
-      } else {
-        // Non-first scan with no historyId — scan since last successful scan date
-        const afterDate = lastScanAt
-          ? new Date(lastScanAt)
-          : new Date(`${activeYear}-01-01T00:00:00Z`)
-        startLimitTime = afterDate.getTime()
-        const yyyy = afterDate.getFullYear()
-        const mm = String(afterDate.getMonth() + 1).padStart(2, '0')
-        const dd = String(afterDate.getDate()).padStart(2, '0')
-        const q = `after:${yyyy}/${mm}/${dd} before:${activeYear + 1}/01/01 (debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
-        let nextPageToken = ''
-        do {
-          const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=${encodeURIComponent(q)}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`
-          const listRes = await fetch(url, { headers: { Authorization: `Bearer ${providerToken}` } })
-          if (listRes.status === 401 || listRes.status === 403) { clearGoogleToken(); throw new Error('TOKEN_EXPIRED') }
-          if (!listRes.ok) throw new Error(`Gmail API List failed: ${listRes.statusText}`)
-          const listData = await listRes.json()
-          if (listData.messages) messages = messages.concat(listData.messages)
-          if (messages.length >= maxResults) { messages = messages.slice(0, maxResults); break }
-          nextPageToken = listData.nextPageToken || ''
-        } while (nextPageToken)
+    let messages: { id: string; threadId: string }[] = []
+    let nextPageToken = ''
+
+    do {
+      const maxResults = isOwner ? 200 : 100
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=${encodeURIComponent(q)}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`
+      const listRes = await fetch(url, { headers: { Authorization: `Bearer ${providerToken}` } })
+
+      if (listRes.status === 401 || listRes.status === 403) {
+        clearGoogleToken()
+        throw new Error('TOKEN_EXPIRED')
       }
-    }
+      if (!listRes.ok) throw new Error(`Gmail API List failed: ${listRes.statusText}`)
+
+      const listData = await listRes.json()
+      if (listData.messages) messages = messages.concat(listData.messages)
+      const messageLimit = isOwner ? 200 : 100
+      if (messages.length >= messageLimit) { messages = messages.slice(0, messageLimit); break }
+      nextPageToken = listData.nextPageToken || ''
+    } while (nextPageToken)
 
     if (messages.length === 0) {
       const { data: log } = await supabase
         .from('email_scan_logs')
-        .insert({
-          user_id: user.id,
-          emails_processed: 0,
-          transactions_found: 0,
-          status: 'success',
-          ...(currentHistoryId ? { gmail_history_id: currentHistoryId } : {}),
-        } as any)
-        .select()
-        .single()
+        .insert({ user_id: user.id, emails_processed: 0, transactions_found: 0, status: 'success' })
+        .select().single()
       return { data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0 }, error: null }
     }
 
@@ -938,9 +879,6 @@ export async function scanRealGmailInbox() {
 
       let parsedTxn: TransactionInsert | null = null
 
-      // Mandatory evidence gate — reject if no past-tense transaction verb found
-      if (!hasPastTenseTransactionVerb(fullText)) continue
-
       const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY || ''
       if (geminiApiKey) {
         try {
@@ -951,25 +889,12 @@ export async function scanRealGmailInbox() {
                 continue
               }
 
-              // Normalize merchant to canonical form
-              const rawMerchant = aiResult.merchant || 'Other'
-              const normalized = normalizeMerchant(rawMerchant)
-              const resolvedMerchant = normalized.canonical || rawMerchant
-
+              const resolvedMerchant = aiResult.merchant || 'Other'
               let ruleResult
               try {
-                ruleResult = await applyMerchantRulesFromDB(
-                  user.id,
-                  resolvedMerchant,
-                  bodyText,
-                  aiResult.category || normalized.category || 'other'
-                )
+                ruleResult = await applyMerchantRulesFromDB(user.id, resolvedMerchant, bodyText, aiResult.category || 'other')
               } catch {
-                ruleResult = {
-                  category: aiResult.category || normalized.category || 'other',
-                  approval_status: 'pending',
-                  confidence: aiResult.confidence_score,
-                }
+                ruleResult = { category: aiResult.category || 'other', approval_status: 'pending', confidence: aiResult.confidence_score }
               }
 
               let approval_status = ruleResult.approval_status
@@ -984,19 +909,18 @@ export async function scanRealGmailInbox() {
                 category: ruleResult.category,
                 merchant: resolvedMerchant,
                 description: aiResult.description || `${resolvedMerchant} Transaction`,
-                // notes intentionally omitted — do not store email body
+                notes: emailContentForParsing,
                 date: aiResult.date || mailDate,
                 source: 'email',
                 approval_status: approval_status as 'approved' | 'pending' | 'rejected',
                 reference_id: aiResult.reference_id,
                 payment_mode: (aiResult.payment_mode || 'unknown') as any,
-                card_issuer: aiResult.card_issuer || null,
-                card_brand: aiResult.card_brand || detectCardBrand(fullText) || null,
-                transaction_time: aiResult.transaction_time || extractTransactionTime(bodyText) || null,
+                card_last4: aiResult.card_last4,
+                card_issuer: aiResult.card_issuer,
                 confidence_score: aiResult.confidence_score,
                 event_type: aiResult.transaction_type || 'debit',
                 email_message_id: mailMessageId || null,
-              } as any
+              }
             } else {
               continue
             }
@@ -1017,12 +941,7 @@ export async function scanRealGmailInbox() {
 
         const isHardAccepted = HARD_ACCEPT_SUBJECT_PATTERNS.some(p => p.test(subject))
 
-        // Extended promotional content rejection
-        const isPromotionalSpam =
-          /\b(?:promo(?:tion)?|coupon|unsubscribe|shop\s+now|buy\s+now|special\s+offer|limited\s+period|earn\s+cashback|get\s+cashback|cashback\s+on\s+your\s+next|exclusive\s+deal)\b/i.test(emailContentForParsing) ||
-          /\b(?:reward\s+points?|loyalty\s+points?|you.ve\s+earned|points?\s+credited|bonus\s+points?)\b/i.test(emailContentForParsing) ||
-          /\b(?:pre-?approved|credit\s+limit\s+(?:increase|enhanced)|upgrade\s+your\s+card|loan\s+offer)\b/i.test(emailContentForParsing) ||
-          /\b(?:available\s+balance\s+is|your\s+account\s+balance|balance\s+is\s+(?:rs|₹|inr))/i.test(emailContentForParsing)
+        const isPromotionalSpam = /\b(?:promo(?:tion)?|coupon|unsubscribe|shop\s+now|buy\s+now|special\s+offer|limited\s+period|earn\s+cashback|get\s+cashback|cashback\s+on\s+your\s+next|exclusive\s+deal)\b/i.test(emailContentForParsing)
         if (isPromotionalSpam) continue
 
         if (!isHardAccepted) {
@@ -1121,9 +1040,11 @@ export async function scanRealGmailInbox() {
         if (amount < 1) continue
 
         const paymentMode = detectPaymentMode(emailContentForParsing)
-        const cardBrand = detectCardBrand(emailContentForParsing)
-        const txTime = extractTransactionTime(emailContentForParsing)
-        const cardIssuer = extractBankName(emailContentForParsing) || null
+        const cardLast4 = extractCardLast4(emailContentForParsing)
+        let cardIssuer = extractBankName(emailContentForParsing) || null
+        if (!cardIssuer && cardLast4 && cardMap[cardLast4]) {
+          cardIssuer = cardMap[cardLast4]
+        }
 
         const knownMerchant = extractMerchantFromSnippet(fullText)
         const dynamicMerchant = extractDynamicMerchant(emailContentForParsing)
@@ -1139,13 +1060,6 @@ export async function scanRealGmailInbox() {
           merchant = dynamicMerchant
         } else if (subjectMerchant) {
           merchant = subjectMerchant
-        }
-
-        // Normalize merchant to canonical form
-        if (merchant) {
-          const norm = normalizeMerchant(merchant)
-          merchant = norm.canonical || merchant
-          if (norm.isKnown && category === 'other') category = norm.category
         }
 
         if (txType === 'credit' && knownMerchant && knownMerchant.name !== 'Salary Credit') {
@@ -1219,7 +1133,7 @@ export async function scanRealGmailInbox() {
           debitCreditClear,
         })
 
-        if (confidence < 70) {
+        if (confidence < 55) {
           skippedConfidence++
           continue
         }
@@ -1231,19 +1145,18 @@ export async function scanRealGmailInbox() {
           category: finalCategory,
           merchant,
           description,
-          // notes intentionally omitted — do not store email body
+          notes: emailContentForParsing,
           date: mailDate,
           source: 'email',
           approval_status,
           reference_id,
           payment_mode: paymentMode,
+          card_last4: cardLast4,
           card_issuer: cardIssuer,
-          card_brand: cardBrand,
-          transaction_time: txTime,
           confidence_score: confidence,
           event_type: eventType,
           email_message_id: mailMessageId || null,
-        } as any
+        }
       }
 
       if (parsedTxn) {
@@ -1259,11 +1172,9 @@ export async function scanRealGmailInbox() {
           emails_processed: validDetails.length,
           transactions_found: 0,
           status: 'success',
-          error_message: skippedConfidence > 0 ? `${skippedConfidence} email(s) skipped (confidence < 70)` : null,
-          ...(currentHistoryId ? { gmail_history_id: currentHistoryId } : {}),
-        } as any)
-        .select()
-        .single()
+          error_message: skippedConfidence > 0 ? `${skippedConfidence} email(s) skipped (low confidence)` : null,
+        })
+        .select().single()
       return { data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0 }, error: null }
     }
 
@@ -1287,11 +1198,9 @@ export async function scanRealGmailInbox() {
         emails_processed: validDetails.length,
         transactions_found: transactionsToInsert.length,
         status: 'success',
-        error_message: skippedConfidence > 0 ? `${skippedConfidence} email(s) skipped (confidence < 70)` : null,
-        ...(currentHistoryId ? { gmail_history_id: currentHistoryId } : {}),
-      } as any)
-      .select()
-      .single()
+        error_message: skippedConfidence > 0 ? `${skippedConfidence} email(s) skipped (confidence < 55)` : null,
+      })
+      .select().single()
 
     if (logError) throw logError
 
@@ -1332,20 +1241,22 @@ export async function scanRealGmailInbox() {
 /**
  * Calculate the next scheduled refresh time (always 6:00 AM today or tomorrow)
  */
-export function getNextRefreshTime(): Date {
+export function getNextRefreshTime(dailyScanTime = '06:00'): Date {
+  const [hour, minute] = dailyScanTime.split(':').map(Number)
   const now = new Date()
-  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 6, 0, 0, 0)
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour || 6, minute || 0, 0, 0)
   if (now.getTime() >= next.getTime()) next.setDate(next.getDate() + 1)
   return next
 }
 
 /**
- * Calculate the last scheduled refresh time (always 6:00 AM today or yesterday)
+ * Calculate the last scheduled refresh time (always target scan time today or yesterday)
  */
-export function getLastScheduledRefreshTime(): Date {
+export function getLastScheduledRefreshTime(dailyScanTime = '06:00'): Date {
+  const [hour, minute] = dailyScanTime.split(':').map(Number)
   const now = new Date()
-  const todaySix = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 6, 0, 0, 0)
-  if (now.getTime() >= todaySix.getTime()) return todaySix
+  const todayTarget = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour || 6, minute || 0, 0, 0)
+  if (now.getTime() >= todayTarget.getTime()) return todayTarget
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-  return new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 6, 0, 0, 0)
+  return new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), hour || 6, minute || 0, 0, 0)
 }

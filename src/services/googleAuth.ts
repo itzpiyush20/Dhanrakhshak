@@ -5,33 +5,30 @@
 // Supabase stores the token only during the initial OAuth callback —
 // after any session refresh or page reload, session.provider_token is null.
 //
-// This module persists the token + an expiry timestamp so we can:
-//   1. Know client-side if the token is expired (no network round-trip)
-//   2. Have one consistent token source for both UI and scanner
-//   3. React to token expiry by clearing state and re-showing connect UI
+// This module persists:
+//   - provider_token (access token, 58 min TTL)  → localStorage
+//   - provider_refresh_token (long-lived)         → localStorage
 //
-// Storage: localStorage (persists across tabs and browser restarts).
-// The 58-minute TTL limits exposure while covering the full Google token lifetime.
+// When the access token expires, tryRefreshGoogleToken() silently
+// exchanges the refresh token via /api/refresh-google-token (server-side,
+// keeps the Google client_secret off the browser). The user never needs
+// to re-authenticate unless they explicitly revoke access in their Google
+// account settings.
 // ============================================================
 
 const TOKEN_KEY = 'dhanrakshak_google_token'
 const EXPIRY_KEY = 'dhanrakshak_google_token_expiry'
+const REFRESH_TOKEN_KEY = 'dhanrakshak_google_refresh_token'
 
 const TOKEN_TTL_MS = 58 * 60 * 1000 // 58 minutes (Google tokens last 60 min)
 
-/**
- * Save a fresh Google provider token with an expiry timestamp.
- * Call this whenever onAuthStateChange gives us a session.provider_token.
- */
+// ── Access token ─────────────────────────────────────────────
+
 export function saveGoogleToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token)
   localStorage.setItem(EXPIRY_KEY, (Date.now() + TOKEN_TTL_MS).toString())
 }
 
-/**
- * Get the current Google token if valid, or null if expired / missing.
- * Automatically clears stale tokens.
- */
 export function getGoogleToken(): string | null {
   const token = localStorage.getItem(TOKEN_KEY)
   if (!token) return null
@@ -45,31 +42,76 @@ export function getGoogleToken(): string | null {
   return token
 }
 
-/**
- * Returns true if a non-expired Google token is stored.
- * Cheap synchronous check — safe to call in render paths.
- */
 export function isGoogleConnected(): boolean {
   return getGoogleToken() !== null
 }
 
-/**
- * Clear the stored token and expiry (e.g. after a 401, sign-out, or manual disconnect).
- */
+// Clears only the access token — keeps the refresh token so silent refresh still works.
 export function clearGoogleToken(): void {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(EXPIRY_KEY)
 }
 
-/**
- * One-time migration: remove the very old token key from pre-v2 of the app.
- * Call this once on app startup. Safe to call multiple times.
- * NOTE: dhanrakshak_google_token and dhanrakshak_google_token_expiry are intentionally
- * kept — they are the current active storage keys in localStorage.
- */
-export function purgeOldTokenKey(): void {
-  localStorage.removeItem('dhanrakshak_oauth_provider_token')
+// Clears everything — call only on sign-out or when the refresh token is revoked.
+export function clearAllGoogleTokens(): void {
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(EXPIRY_KEY)
+  localStorage.removeItem(REFRESH_TOKEN_KEY)
 }
+
+// ── Refresh token ─────────────────────────────────────────────
+
+export function saveGoogleRefreshToken(token: string): void {
+  localStorage.setItem(REFRESH_TOKEN_KEY, token)
+}
+
+export function getGoogleRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_TOKEN_KEY)
+}
+
+// ── Silent refresh ────────────────────────────────────────────
+
+/**
+ * Exchange the stored Google refresh token for a new access token via our
+ * Vercel API endpoint (which holds the client_secret server-side).
+ * Returns the new access token on success, null if refresh is not possible.
+ * Clears the refresh token if Google says it's been revoked (410 response).
+ */
+export async function tryRefreshGoogleToken(supabaseJwt: string): Promise<string | null> {
+  const refreshToken = getGoogleRefreshToken()
+  if (!refreshToken || !supabaseJwt) return null
+
+  try {
+    const res = await fetch('/api/refresh-google-token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseJwt}`,
+      },
+      body: JSON.stringify({ refreshToken }),
+    })
+
+    if (res.status === 410) {
+      // Refresh token revoked by the user in Google account settings
+      clearAllGoogleTokens()
+      return null
+    }
+
+    if (!res.ok) return null
+
+    const { accessToken } = await res.json() as { accessToken: string }
+    if (accessToken) {
+      saveGoogleToken(accessToken)
+      return accessToken
+    }
+    return null
+  } catch (e) {
+    console.warn('tryRefreshGoogleToken error:', e)
+    return null
+  }
+}
+
+// ── Validation & migration ────────────────────────────────────
 
 export async function validateGoogleToken(token: string): Promise<boolean> {
   try {
@@ -87,4 +129,9 @@ export async function validateGoogleToken(token: string): Promise<boolean> {
     console.warn('validateGoogleToken error:', e)
     return false
   }
+}
+
+// Remove the very old token key from pre-v2 of the app.
+export function purgeOldTokenKey(): void {
+  localStorage.removeItem('dhanrakshak_oauth_provider_token')
 }

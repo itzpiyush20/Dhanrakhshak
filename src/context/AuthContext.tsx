@@ -15,7 +15,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/services/supabase'
-import { saveGoogleToken, clearGoogleToken, isGoogleConnected, purgeOldTokenKey, validateGoogleToken } from '@/services/googleAuth'
+import { saveGoogleToken, clearGoogleToken, clearAllGoogleTokens, isGoogleConnected, purgeOldTokenKey, validateGoogleToken, saveGoogleRefreshToken, tryRefreshGoogleToken } from '@/services/googleAuth'
 import { Button } from '@/components/ui'
 import { identifyUser, resetAnalytics, track, EVENTS } from '@/services/analytics'
 import { getGlobalCurrency, getGlobalCurrencySymbol, setGlobalCurrency } from '@/utils'
@@ -463,7 +463,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setState({ user: null, session: null, loading: false })
       setHasGoogleToken(false)
-      clearGoogleToken()
+      clearAllGoogleTokens()
       // Clear all Supabase session keys from localStorage
       for (const key of Object.keys(localStorage)) {
         if (key.startsWith('sb-') || key.includes('supabase') || key.includes('oauth')) {
@@ -497,6 +497,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
 
     Promise.race([sessionPromise, timeoutPromise]).then(async ({ data: { session } }) => {
+      // Always persist the refresh token whenever Supabase gives us one
+      if (session?.provider_refresh_token) {
+        saveGoogleRefreshToken(session.provider_refresh_token)
+      }
+
       if (session?.provider_token) {
         const isGmailFlow = localStorage.getItem('dhanrakshak_requesting_gmail_scope') === 'true'
         if (isGmailFlow) {
@@ -504,17 +509,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setHasGoogleToken(true)
           localStorage.removeItem('dhanrakshak_requesting_gmail_scope')
         } else {
-          // If we got a provider_token but isGmailFlow is false (e.g. from standard login),
-          // let's verify if this token actually has Gmail scope before ignoring/clearing it.
-          // This supports seamless returning Google sign-in users.
           const isValid = await validateGoogleToken(session.provider_token)
           if (isValid) {
             saveGoogleToken(session.provider_token)
             setHasGoogleToken(true)
           } else {
-            setHasGoogleToken(isGoogleConnected())
+            // Access token from Supabase session is expired — try silent refresh
+            const newToken = session.access_token
+              ? await tryRefreshGoogleToken(session.access_token)
+              : null
+            setHasGoogleToken(!!newToken || isGoogleConnected())
           }
         }
+      } else if (!isGoogleConnected() && session?.access_token) {
+        // No access token in session at all — try silent refresh with stored refresh token
+        const newToken = await tryRefreshGoogleToken(session.access_token)
+        setHasGoogleToken(!!newToken)
       } else {
         setHasGoogleToken(isGoogleConnected())
       }
@@ -537,6 +547,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
+        // Always persist the refresh token whenever Supabase gives us one
+        if (session?.provider_refresh_token) {
+          saveGoogleRefreshToken(session.provider_refresh_token)
+        }
+
         if (session?.provider_token) {
           // Fresh token from OAuth callback — save ONLY if we explicitly initiated a Gmail scope flow
           const isGmailFlow = localStorage.getItem('dhanrakshak_requesting_gmail_scope') === 'true'
@@ -555,8 +570,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           }
         } else if (event === 'SIGNED_OUT') {
-          // Sign-out event — clear everything
-          clearGoogleToken()
+          // Sign-out event — clear access token AND refresh token
+          clearAllGoogleTokens()
           setHasGoogleToken(false)
         } else {
           setHasGoogleToken(isGoogleConnected())
