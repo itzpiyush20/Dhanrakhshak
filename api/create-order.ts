@@ -21,7 +21,7 @@ function isRateLimited(ip: string): boolean {
   return false
 }
 
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://dhanrakshak.vercel.app'
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://dhanrakshak-five.vercel.app'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers.origin || ''

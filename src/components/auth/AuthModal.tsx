@@ -124,8 +124,7 @@ export default function AuthModal() {
             <span className="text-xl font-bold">{currencySymbol || '₹'}</span>
           </div>
           <h1 className="text-2xl font-black tracking-tight text-zinc-50 mb-1 flex items-center justify-center select-none">
-            <span className="text-brand-400">Dhan</span>
-            <span>rakshak</span>
+            <span className="text-brand-400">Dhan</span><span>rakshak</span>
           </h1>
           <p className="text-[10px] font-bold tracking-wider text-emerald-400 uppercase text-center">
             Automated Spend Tracker

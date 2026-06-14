@@ -1,0 +1,13 @@
+- `[x]` Implement Custom Cursor Follower (`src/components/ui/CursorFollower.tsx`)
+- `[x]` Mount `<CursorFollower />` in root layout (`src/App.tsx`)
+- `[x]` Add CSS animations to `src/index.css`
+  - `[x]` Heading text shimmer (`@keyframes text-shimmer`, `.shimmer-text`)
+  - `[x]` Infinite logos marquee (`@keyframes marquee`)
+  - `[x]` SVG path drawing animation (`@keyframes draw-svg-path`)
+- `[x]` Correct the iOS logo (SVG instead of 🍎 emoji) in the Install Guide section on `src/pages/LandingPage.tsx`
+- `[x]` Implement word cycling animation in Hero sub-headline on `src/pages/LandingPage.tsx`
+- `[x]` Implement Infinite Bank Logo Marquee in `src/pages/LandingPage.tsx`
+- `[x]` Implement interactive Mouse Spotlight (radial gradient) on the Hero section in `src/pages/LandingPage.tsx`
+- `[x]` Implement Animated SVG line between the How It Works step cards in `src/pages/LandingPage.tsx`
+- `[x]` Verify build & TypeScript consistency (`npx tsc --noEmit`)
+- `[x]` Deploy direct to production using Vercel CLI (`vercel --prod`)

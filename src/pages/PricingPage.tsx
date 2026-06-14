@@ -7,6 +7,8 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AppLayout from '@/layouts/AppLayout'
 import { useAuth, useToast } from '@/context'
+import { motion } from 'framer-motion'
+import { useScrollReveal } from '@/hooks'
 
 // ── Feature lists for different subscription tiers ───────────
 const MONTHLY_FEATURES = [
@@ -32,6 +34,8 @@ export default function PricingPage() {
   const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'promo'>('razorpay')
   const [promoCode, setPromoCode] = useState('')
   const [processing, setProcessing] = useState(false)
+
+  useScrollReveal()
 
   const isActive  = profile?.subscription_status === 'active'
   const isTrial   = profile?.subscription_status === 'trial'
@@ -166,7 +170,12 @@ export default function PricingPage() {
       <div className="space-y-6 animate-fade-in" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
 
         {/* ── HEADER CARD ──────────────────────────────────── */}
-        <div className="relative rounded-3xl overflow-hidden sb-card-light p-8 sm:p-10">
+        <motion.div
+          className="relative rounded-3xl overflow-hidden sb-card-light p-8 sm:p-10"
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+        >
           <div className="relative z-10 flex flex-col items-center text-center space-y-4 max-w-2xl mx-auto">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold tracking-wide">
               <span className="relative flex h-2 w-2">
@@ -183,7 +192,7 @@ export default function PricingPage() {
               Unlock automated transaction logs, AI budget mapping, and offline security. No hidden charges, cancel with one click.
             </p>
           </div>
-        </div>
+        </motion.div>
 
         {/* ── STATUS BANNERS ──────────────────────────────────── */}
         <div className="space-y-3 animate-fade-in">

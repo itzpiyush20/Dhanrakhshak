@@ -29,8 +29,7 @@ export default function AuthLayout({ children, title, subtitle }: AuthLayoutProp
             <span className="text-2xl font-bold text-static-white" aria-hidden="true">{getGlobalCurrencySymbol()}</span>
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1 flex items-center justify-center select-none">
-            <span className="bg-gradient-to-r from-brand-300 to-emerald-400 bg-clip-text text-transparent">Dhan</span>
-            <span>rakshak</span>
+            <span className="bg-gradient-to-r from-brand-300 to-emerald-400 bg-clip-text text-transparent">Dhan</span><span className="text-white">rakshak</span>
           </h1>
           <p className="text-xs font-semibold tracking-wider text-brand-400 uppercase mb-4 text-center">
             {APP_CONFIG.APP_TAGLINE}

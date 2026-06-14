@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Dhanrakshak (Vite)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "C:\\Users\\itzpi\\OneDrive\\Desktop\\Dhanrakshak"],
+      "port": 5173
+    },
+    {
+      "name": "Analytics / DataPulse (Next.js)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "C:\\Users\\itzpi\\OneDrive\\Desktop\\Analytics"],
+      "port": 3000
+    }
+  ]
+}

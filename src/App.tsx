@@ -5,6 +5,7 @@
 
 import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import { AuthProvider, ToastProvider } from '@/context'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import AutoUpdateChecker from '@/components/AutoUpdateChecker'
@@ -12,6 +13,8 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import CookieConsent from '@/components/CookieConsent'
 import URLAuthTrigger from '@/components/auth/URLAuthTrigger'
 import AuthModal from '@/components/auth/AuthModal'
+import ScrollProgressBar from '@/components/ui/ScrollProgressBar'
+import { CursorFollower } from '@/components/ui'
 
 // ─── Eagerly loaded (public pages — tiny) ───────────────
 import LandingPage from '@/pages/LandingPage'
@@ -76,7 +79,56 @@ function PageLoader() {
   )
 }
 
+// ─── Animated Routes — page transition wrapper ───────────
+function AnimatedRoutes() {
+  const location = useLocation()
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.30, ease: [0.16, 1, 0.3, 1] }}
+        style={{ minHeight: '100vh' }}
+      >
+        <Routes location={location}>
+          {/* Public routes */}
+          <Route path="/"                element={<LandingPage />} />
+          <Route path="/login"           element={<LoginRedirect />} />
+          <Route path="/signup"          element={<SignupRedirect />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/support"         element={<SupportPage />} />
+          <Route path="/privacy"         element={<PrivacyPage />} />
+          <Route path="/about"           element={<AboutPage />} />
+          <Route path="/terms"           element={<TermsPage />} />
+          <Route path="/pricing"         element={<PricingPage />} />
+          <Route path="/refund-policy"   element={<RefundPage />} />
+          <Route path="/reset-password"  element={<ResetPasswordPage />} />
+
+          {/* Protected routes */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/dashboard"       element={<DashboardPage />} />
+            <Route path="/expenses"        element={<ExpensesPage />} />
+            <Route path="/budgets"         element={<BudgetsPage />} />
+            <Route path="/pending"         element={<PendingPage />} />
+            <Route path="/insights"        element={<AnalyticsPage />} />
+            <Route path="/settings"        element={<SettingsPage />} />
+            <Route path="/profile"         element={<ProfilePage />} />
+            <Route path="/subscriptions"   element={<SubscriptionsPage />} />
+            <Route path="/payment-success" element={<PaymentSuccessPage />} />
+          </Route>
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
+
 function App() {
+
   useEffect(() => {
     try {
       const stored = localStorage.getItem('dhanrakshak_theme')
@@ -104,37 +156,10 @@ function App() {
                 <URLAuthTrigger />
               </ErrorBoundary>
               <AuthModal />
+              <ScrollProgressBar />
+              <CursorFollower />
               
-              <Routes>
-              {/* Public routes */}
-              <Route path="/"                element={<LandingPage />} />
-              <Route path="/login"           element={<LoginRedirect />} />
-              <Route path="/signup"          element={<SignupRedirect />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/support"         element={<SupportPage />} />
-              <Route path="/privacy"         element={<PrivacyPage />} />
-              <Route path="/about"           element={<AboutPage />} />
-              <Route path="/terms"           element={<TermsPage />} />
-              <Route path="/pricing"         element={<PricingPage />} />
-              <Route path="/refund-policy"   element={<RefundPage />} />
-              <Route path="/reset-password"  element={<ResetPasswordPage />} />
-
-              {/* Protected routes */}
-              <Route element={<ProtectedRoute />}>
-                <Route path="/dashboard"       element={<DashboardPage />} />
-                <Route path="/expenses"        element={<ExpensesPage />} />
-                <Route path="/budgets"         element={<BudgetsPage />} />
-                <Route path="/pending"         element={<PendingPage />} />
-                <Route path="/insights"        element={<AnalyticsPage />} />
-                <Route path="/settings"        element={<SettingsPage />} />
-                <Route path="/profile"         element={<ProfilePage />} />
-                <Route path="/subscriptions"   element={<SubscriptionsPage />} />
-                <Route path="/payment-success" element={<PaymentSuccessPage />} />
-              </Route>
-
-              {/* Redirect to landing page */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
+              <AnimatedRoutes />
             </Suspense>
           </ErrorBoundary>
         </ToastProvider>

@@ -279,10 +279,11 @@ html { scroll-behavior: smooth; }
 ::-webkit-scrollbar-thumb:hover { background: var(--zinc-500); background-clip: padding-box; }
 
 /* ============================================
-   Motion — restrained, state-conveying only
-   (150–250ms; no decorative loops)
+   Motion System v2 — 7 animation systems
+   Scroll reveals, hero entry, 3D tilt, orbs, counters
    ============================================ */
 
+/* ── Core utility keyframes ── */
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -312,7 +313,95 @@ html { scroll-behavior: smooth; }
   to   { transform: rotate(360deg); }
 }
 
-/* Stagger delays for list reveals (kept subtle) */
+/* ── System 1: Scroll Reveal ── */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-reveal="from-left"] {
+  opacity: 0;
+  transform: translateX(-32px);
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-reveal="from-right"] {
+  opacity: 0;
+  transform: translateX(32px);
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-reveal="scale"] {
+  opacity: 0;
+  transform: scale(0.94);
+  transition: opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-revealed="true"] {
+  opacity: 1 !important;
+  transform: none !important;
+}
+[data-delay="80"]  { transition-delay: 80ms; }
+[data-delay="150"] { transition-delay: 150ms; }
+[data-delay="220"] { transition-delay: 220ms; }
+[data-delay="300"] { transition-delay: 300ms; }
+[data-delay="380"] { transition-delay: 380ms; }
+[data-delay="450"] { transition-delay: 450ms; }
+[data-delay="530"] { transition-delay: 530ms; }
+[data-delay="600"] { transition-delay: 600ms; }
+
+/* ── System 2: Hero gradient orbs ── */
+@keyframes orb-drift-1 {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(40px, -30px) scale(1.08); }
+  66%  { transform: translate(-20px, 20px) scale(0.95); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes orb-drift-2 {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(-50px, 20px) scale(0.92); }
+  66%  { transform: translate(30px, -40px) scale(1.06); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+@keyframes orb-drift-3 {
+  0%   { transform: translate(0, 0) scale(1.02); }
+  50%  { transform: translate(25px, 35px) scale(0.96); }
+  100% { transform: translate(0, 0) scale(1.02); }
+}
+.hero-orb-1 { animation: orb-drift-1 18s ease-in-out infinite; }
+.hero-orb-2 { animation: orb-drift-2 22s ease-in-out infinite; }
+.hero-orb-3 { animation: orb-drift-3 15s ease-in-out infinite; }
+
+/* ── System 2: Hero card float ── */
+@keyframes card-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-10px); }
+}
+.hero-card-float { animation: card-float 6s ease-in-out infinite; }
+
+/* ── System 2: Page entry fade for page transitions ── */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter { animation: page-enter 0.40s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* ── System 5: Pop-in for stats ── */
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(0.75); }
+  70%  { transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.animate-pop-in { animation: pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* ── Border grow animation for trust section ── */
+@keyframes border-grow-top {
+  from { background-size: 0% 4px, 100% 1px; }
+  to   { background-size: 100% 4px, 100% 1px; }
+}
+
+/* Stagger delays for list reveals */
 .stagger-1 { animation-delay: 0.03s; }
 .stagger-2 { animation-delay: 0.06s; }
 .stagger-3 { animation-delay: 0.09s; }
@@ -329,11 +418,43 @@ html { scroll-behavior: smooth; }
 .animate-slide-left { animation: slide-left 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .animate-spin-slow { animation: spin-slow 8s linear infinite; }
 
-/* Legacy decorative animations — neutralized to keep calm register.
-   (Names kept so existing class references don't error.) */
-.animate-float { animation: none; }
+/* Restored — now actually used */
+.animate-float { animation: card-float 6s ease-in-out infinite; }
 .animate-glow-pulse { animation: none; }
 .animate-aurora-drift { animation: none; }
+
+/* ── 3D Tilt card base ── */
+.tilt-card {
+  transform-style: preserve-3d;
+  transition: transform 0.1s ease-out, box-shadow 0.2s ease;
+  will-change: transform;
+}
+.tilt-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* ── CTA button magnetic base ── */
+.magnetic-btn {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform;
+}
+
+/* ── Typewriter cursor ── */
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+.typewriter-cursor {
+  display: inline-block;
+  width: 3px;
+  height: 1em;
+  background: var(--brand-400);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  border-radius: 2px;
+  animation: blink-cursor 1s step-end infinite;
+}
+.typewriter-cursor.done { animation: none; opacity: 0; }
 
 /* ============================================
    Component utilities
@@ -652,3 +773,79 @@ html { scroll-behavior: smooth; }
   box-shadow: 0 0 0 3px var(--status-positive-subtle);
 }
 .sb-text-input::placeholder { color: var(--zinc-500); }
+
+/* ============================================
+   Modern Animation Additions
+   ============================================ */
+
+/* 1. Heading Gradient Text Shimmer */
+@keyframes text-shimmer {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+.shimmer-text {
+  background: linear-gradient(
+    90deg,
+    var(--brand-400) 0%,
+    #10b981 25%,
+    var(--brand-300) 50%,
+    #10b981 75%,
+    var(--brand-400) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-fill-color: transparent;
+  animation: text-shimmer 5s linear infinite;
+  display: inline-block;
+}
+
+/* 2. Infinite Horizontal Marquee Scroll */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-container {
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  mask-image: linear-gradient(to right, transparent, white 15%, white 85%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, white 15%, white 85%, transparent);
+}
+
+.marquee-content {
+  display: flex;
+  gap: 1.5rem;
+  padding: 0.5rem 0;
+  width: max-content;
+  animation: marquee 35s linear infinite;
+}
+
+.marquee-container:hover .marquee-content {
+  animation-play-state: paused;
+}
+
+/* 3. SVG Path Drawing */
+@keyframes draw-svg-path {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-draw-path {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: draw-svg-path 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+

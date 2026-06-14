@@ -421,10 +421,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                   (isStaticLight || isLight)
                     ? "from-emerald-600 to-teal-500"
                     : "from-brand-300 to-emerald-400"
-                )}>Dhan</span><span className={cn(
-                  "font-bold transition-colors duration-300",
-                  isStaticLight ? "text-sb-ink" : "text-white"
-                )}>rakshak</span>
+                )}>Dhan</span><span className={cn((isStaticLight || isLight) ? "text-sb-ink" : "text-white")}>rakshak</span>
               </div>
               <span className={cn(
                 "text-[8px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full border hidden md:inline-flex items-center gap-1.5 transition-all duration-300 shadow-sm",
