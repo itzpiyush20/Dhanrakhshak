@@ -5,6 +5,7 @@
 // ============================================
 
 import { supabase } from './supabase'
+import { getLastScheduledRefreshTime, getNextRefreshTime } from './emailScanner'
 
 const OWNER_EMAILS = (import.meta.env.VITE_OWNER_EMAILS || '')
   .split(',')
@@ -75,7 +76,7 @@ export async function checkScannerAccess(): Promise<ScannerAccessResult> {
     }
   }
 
-  // 24-hour cooldown check
+  // Daily reset cooldown check
   const { data: recentScan } = await supabase
     .from('email_scan_logs')
     .select('scanned_at')
@@ -86,17 +87,17 @@ export async function checkScannerAccess(): Promise<ScannerAccessResult> {
 
   if (recentScan && recentScan.length > 0) {
     const lastScanMs = new Date(recentScan[0].scanned_at).getTime()
-    const hoursSince = (Date.now() - lastScanMs) / (60 * 60 * 1000)
+    const lastScheduledTime = getLastScheduledRefreshTime()
 
-    if (hoursSince < 24) {
-      const hoursLeft = Math.ceil(24 - hoursSince)
-      const nextScanTime = new Date(lastScanMs + 24 * 60 * 60 * 1000)
+    if (lastScanMs >= lastScheduledTime.getTime()) {
+      const nextScanTime = getNextRefreshTime()
+      const hoursLeft = Math.max(1, Math.ceil((nextScanTime.getTime() - Date.now()) / (60 * 60 * 1000)))
       return {
         allowed: false,
         reason: 'cooldown',
         hoursLeft,
         nextScanTime,
-        message: `Next scan available in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''}. All transactions from your last scan have been captured.`,
+        message: `Next scan available in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''} (after daily reset at 06:00 AM). All transactions from your last scan have been captured.`,
       }
     }
   }

@@ -172,10 +172,20 @@ export default function PendingPage() {
   useEffect(() => {
     if (!lastScanLog) return
 
-    const lastScanMs = new Date(lastScanLog.scanned_at).getTime()
-    const nextScanMs = lastScanMs + 24 * 60 * 60 * 1000
-
     const tick = () => {
+      const lastScanMs = new Date(lastScanLog.scanned_at).getTime()
+      const lastScheduledTime = getLastScheduledRefreshTime()
+      
+      // If the last scan was before the last daily scheduled refresh time,
+      // then the user is NOT on cooldown, so countdown is null.
+      if (lastScanMs < lastScheduledTime.getTime()) {
+        setNextScanCountdown(null)
+        setScanCooldownMessage(null)
+        return
+      }
+
+      // Otherwise, the user is on cooldown until the next refresh time
+      const nextScanMs = getNextRefreshTime().getTime()
       const remaining = nextScanMs - Date.now()
       if (remaining <= 0) {
         setNextScanCountdown(null)

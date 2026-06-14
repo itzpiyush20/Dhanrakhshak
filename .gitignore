@@ -48,3 +48,4 @@ temp_chrome_profile/
 scratch/
 
 
+.env*

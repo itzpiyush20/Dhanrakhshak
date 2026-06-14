@@ -721,12 +721,13 @@ export async function scanRealGmailInbox() {
 
       if (recentScanLogs && recentScanLogs.length > 0) {
         const lastScanTime = new Date(recentScanLogs[0].scanned_at).getTime()
-        const hoursSinceLastScan = (Date.now() - lastScanTime) / (60 * 60 * 1000)
-        if (hoursSinceLastScan < 24) {
-          const hoursLeft = Math.ceil(24 - hoursSinceLastScan)
+        const lastScheduledTime = getLastScheduledRefreshTime()
+        if (lastScanTime >= lastScheduledTime.getTime()) {
+          const nextScanTime = getNextRefreshTime()
+          const hoursLeft = Math.max(1, Math.ceil((nextScanTime.getTime() - Date.now()) / (60 * 60 * 1000)))
           return {
             data: null,
-            error: new Error(`Scan limit reached. Next scan available in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''}. All transactions from your last scan are already captured.`),
+            error: new Error(`Scan limit reached. Next scan available in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''} (after daily reset at 06:00 AM). All transactions from your last scan are already captured.`),
           }
         }
       }
@@ -792,10 +793,10 @@ export async function scanRealGmailInbox() {
       const mm = String(startLimitDate.getMonth() + 1).padStart(2, '0')
       const dd = String(startLimitDate.getDate()).padStart(2, '0')
 
-      q = `after:${yyyy}/${mm}/${dd} (debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
+      q = `after:${yyyy}/${mm}/${dd} (debit OR credit OR debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
     } else {
       startLimitTime = new Date(`${activeYear}-01-01T00:00:00Z`).getTime()
-      q = `after:${activeYear}/01/01 before:${activeYear + 1}/01/01 (debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
+      q = `after:${activeYear}/01/01 before:${activeYear + 1}/01/01 (debit OR credit OR debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
     }
 
     let messages: { id: string; threadId: string }[] = []
