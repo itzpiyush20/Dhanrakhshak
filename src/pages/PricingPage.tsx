@@ -9,6 +9,7 @@ import AppLayout from '@/layouts/AppLayout'
 import { useAuth, useToast } from '@/context'
 import { motion } from 'framer-motion'
 import { useScrollReveal } from '@/hooks'
+import { Card } from '@/components/ui'
 
 // ── Feature lists for different subscription tiers ───────────
 const MONTHLY_FEATURES = [
@@ -235,9 +236,12 @@ export default function PricingPage() {
           <div className="grid md:grid-cols-3 gap-6 items-stretch">
 
             {/* ── Standard: Monthly ─────────────────────────────── */}
-            <div
-              className="rounded-3xl p-8 flex flex-col cursor-pointer transition-all duration-300 sb-card-light relative group hover:-translate-y-1"
-              style={{ borderColor: selectedPlan === 'monthly' ? 'var(--sb-primary)' : 'var(--border-subtle)', borderWidth: selectedPlan === 'monthly' ? 2 : 1 }}
+            <Card
+              hoverable
+              glass
+              glow={selectedPlan === 'monthly'}
+              className="p-8 flex flex-col relative group"
+              style={{ borderColor: selectedPlan === 'monthly' ? 'var(--sb-primary)' : undefined, borderWidth: selectedPlan === 'monthly' ? 2 : undefined }}
               onClick={() => setSelectedPlan('monthly')}
             >
               <div className="flex items-center justify-between mb-6">
@@ -284,11 +288,14 @@ export default function PricingPage() {
                   </button>
                 )}
               </div>
-            </div>
+            </Card>
 
             {/* ── Featured: Annual ── */}
-            <div
-              className="rounded-3xl p-8 flex flex-col cursor-pointer relative overflow-hidden transition-all duration-300 sb-card-light border-brand-500 shadow-[var(--shadow-md)] group hover:-translate-y-1"
+            <Card
+              hoverable
+              glass
+              glow={true}
+              className="p-8 flex flex-col relative overflow-hidden group"
               style={{ borderColor: 'var(--sb-primary)', borderWidth: 2 }}
               onClick={() => setSelectedPlan('annual')}
             >
@@ -345,11 +352,13 @@ export default function PricingPage() {
                 )}
                 <p className="text-[10px] text-center text-zinc-500 font-medium">Secured via Razorpay · 256-bit SSL</p>
               </div>
-            </div>
+            </Card>
 
             {/* ── Promo / Coupon ────────────────────────────────── */}
-            <div
-              className="rounded-3xl p-8 flex flex-col sb-card-light relative group hover:-translate-y-1"
+            <Card
+              hoverable
+              glass
+              className="p-8 flex flex-col relative group"
               style={{ borderColor: 'var(--border-subtle)', borderWidth: 1 }}
             >
               <div className="mb-6">
@@ -381,7 +390,7 @@ export default function PricingPage() {
                   Enter Coupon Code
                 </button>
               </div>
-            </div>
+            </Card>
 
           </div>
         </div>
@@ -390,7 +399,7 @@ export default function PricingPage() {
         {!isPro && (
           <div id="checkout-section" className="max-w-2xl mx-auto pb-12 w-full animate-fade-in">
             {!user ? (
-              <div className="rounded-3xl shadow-md bg-surface-1 border border-border-subtle p-8 text-center space-y-6">
+              <Card glass className="rounded-3xl shadow-md p-8 text-center space-y-6">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-3xl shadow-sm">
                   🔒
                 </div>
@@ -417,9 +426,9 @@ export default function PricingPage() {
                 <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">
                   Standard stepwise checkout · 100% Secure & encrypted
                 </p>
-              </div>
+              </Card>
             ) : (
-              <div className="rounded-3xl shadow-md bg-surface-1 border border-border-subtle overflow-hidden">
+              <Card glass noPadding className="rounded-3xl shadow-md overflow-hidden">
 
                 {/* Tab switcher */}
                 <div className="flex bg-surface-2/40 border-b border-border-subtle">
@@ -528,7 +537,7 @@ export default function PricingPage() {
                   )}
 
                 </div>
-              </div>
+              </Card>
             )}
 
             {/* Refund note */}

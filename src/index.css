@@ -170,7 +170,7 @@
   /* Typography — one trustworthy grotesk family, system-backed (zero-dependency, fast).
      Tabular figures matter for money columns. */
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
-  --font-display: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Code", Consolas, monospace;
 
   /* Neutral ramp (inverts in light mode) */
@@ -518,31 +518,45 @@ html { scroll-behavior: smooth; }
    breaking. Prefer plain surface/border tokens for new work.
    ============================================ */
 
-/* Glass cards → clean solid surface cards */
+/* Glass cards → frosted glassmorphism */
 .glass-card,
 .glass-premium,
 .glass-effect {
-  background: var(--surface-1);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border: 1px solid var(--border-default);
+  background: rgba(22, 25, 32, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
   border-radius: 14px;
 }
 
-/* Gradient heading/stat text → solid current color */
-.aurora-gradient-text {
-  background: none;
-  -webkit-background-clip: border-box;
-  background-clip: border-box;
-  -webkit-text-fill-color: currentColor;
-  color: inherit;
+.light .glass-card,
+.light .glass-premium,
+.light .glass-effect {
+  background: rgba(255, 255, 255, 0.70);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.06);
 }
 
-/* Glow ring → quiet neutral hairline ring */
-.aurora-glow-ring { box-shadow: 0 0 0 1px var(--border-default); }
+/* Gradient heading/stat text */
+.aurora-gradient-text {
+  background: linear-gradient(135deg, var(--brand-400) 0%, #10b981 50%, var(--brand-300) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  display: inline-block;
+}
 
-/* Brand text glow → none */
-.glow-text-brand { text-shadow: none; }
+/* Glow ring */
+.aurora-glow-ring {
+  box-shadow: 0 0 16px 2px rgba(47, 192, 154, 0.15), inset 0 0 0 1px rgba(47, 192, 154, 0.2);
+}
+
+/* Brand text glow */
+.glow-text-brand { text-shadow: 0 0 12px rgba(47, 192, 154, 0.25); }
 
 /* Hover gradient border → off */
 .gradient-border-card::after { display: none !important; }
@@ -847,5 +861,83 @@ html { scroll-behavior: smooth; }
   stroke-dasharray: 200;
   stroke-dashoffset: 200;
   animation: draw-svg-path 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* ============================================
+   UI/UX Pro Max Premium Templates & Utilities
+   ============================================ */
+
+/* 1. Frosted Glass Panel / Card */
+.glass-panel {
+  background: rgba(22, 25, 32, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  transition: border-color 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.light .glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.06);
+}
+
+/* 2. Glow Hover Card Effect */
+.glow-hover {
+  transition: border-color 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glow-hover:hover {
+  border-color: rgba(47, 192, 154, 0.45) !important;
+  box-shadow: 0 12px 40px -4px rgba(47, 192, 154, 0.12), 0 0 0 1px rgba(47, 192, 154, 0.2);
+  transform: translateY(-2px);
+}
+
+.light .glow-hover:hover {
+  border-color: rgba(44, 149, 118, 0.4) !important;
+  box-shadow: 0 12px 40px -4px rgba(44, 149, 118, 0.08), 0 0 0 1px rgba(44, 149, 118, 0.15);
+}
+
+/* 3. Cinematic Transition for Hover/Interaction States */
+.cinematic-transition {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 4. Bento Grid Item */
+.bento-item {
+  border-radius: 20px;
+  padding: 24px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bento-item:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* 5. Glowing Button Shadow Feedback */
+.glow-button {
+  box-shadow: 0 4px 14px 0 rgba(47, 192, 154, 0.3);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glow-button:hover {
+  box-shadow: 0 6px 20px 0 rgba(47, 192, 154, 0.45);
+  transform: translateY(-1px);
+}
+
+.light .glow-button {
+  box-shadow: 0 4px 14px 0 rgba(14, 122, 93, 0.25);
+}
+
+.light .glow-button:hover {
+  box-shadow: 0 6px 20px 0 rgba(14, 122, 93, 0.4);
 }
 

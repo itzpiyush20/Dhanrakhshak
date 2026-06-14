@@ -11,6 +11,8 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
   hoverable?: boolean
   /** Emphasize as a featured card with a brand-tinted border */
   glow?: boolean
+  /** Premium frosted glassmorphism effect */
+  glass?: boolean
 }
 
 export default function Card({
@@ -18,6 +20,7 @@ export default function Card({
   noPadding = false,
   hoverable = false,
   glow = false,
+  glass = false,
   className,
   ...props
 }: CardProps) {
@@ -25,17 +28,13 @@ export default function Card({
     <div
       className={cn(
         // Base — solid surface, hairline border, soft neutral elevation
-        'rounded-2xl border bg-surface-1',
-        glow ? 'border-brand-500/35' : 'border-border-subtle',
-        'shadow-[var(--shadow-sm)]',
-        'transition-[transform,box-shadow,border-color] duration-200 ease-out',
+        glass ? 'glass-panel rounded-2xl' : 'rounded-2xl border bg-surface-1 border-border-subtle shadow-[var(--shadow-sm)]',
+        glow && 'border-brand-500/35 shadow-[0_0_20px_rgba(47,192,154,0.06)]',
+        'transition-[transform,box-shadow,border-color] duration-300 ease-out',
         !noPadding && 'p-5 md:p-6',
         // Hoverable — subtle lift, stronger border + elevation
         hoverable && [
-          'cursor-pointer',
-          'hover:-translate-y-0.5',
-          'hover:border-border-hover',
-          'hover:shadow-[var(--shadow-md)]',
+          'cursor-pointer glow-hover'
         ],
         className
       )}

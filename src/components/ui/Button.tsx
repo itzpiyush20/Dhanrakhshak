@@ -14,6 +14,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: ButtonSize
   block?: boolean
   loading?: boolean
+  glow?: boolean
 }
 
 const variantStyles: Record<ButtonVariant, string> = {
@@ -22,27 +23,27 @@ const variantStyles: Record<ButtonVariant, string> = {
     'shadow-[var(--shadow-sm)]',
     'hover:bg-[var(--btn-primary-bg-hover)]',
     'active:bg-[var(--btn-primary-bg-active)] active:scale-[0.98]',
-    'transition-[background-color,transform] duration-150',
+    'transition-[background-color,transform,box-shadow] duration-200',
   ].join(' '),
   secondary: [
     'bg-surface-1 border border-border-default',
     'text-zinc-100',
     'hover:bg-surface-2 hover:border-border-hover',
     'active:scale-[0.98]',
-    'transition-[background-color,border-color,transform] duration-150',
+    'transition-[background-color,border-color,transform,box-shadow] duration-200',
   ].join(' '),
   ghost: [
     'text-zinc-400',
     'hover:text-zinc-50 hover:bg-surface-2',
     'active:bg-surface-3 active:scale-[0.98]',
-    'transition-[color,background-color,transform] duration-150',
+    'transition-[color,background-color,transform] duration-200',
   ].join(' '),
   danger: [
     'bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)]',
     'text-[var(--status-danger-text)]',
     'hover:bg-[var(--status-danger-border)] hover:border-[var(--status-danger-text)]/40',
     'active:opacity-80 active:scale-[0.98]',
-    'transition-[background-color,border-color,opacity,transform] duration-150',
+    'transition-[background-color,border-color,opacity,transform] duration-200',
   ].join(' '),
 }
 
@@ -58,6 +59,7 @@ export default function Button({
   size = 'md',
   block = false,
   loading = false,
+  glow = false,
   disabled,
   className,
   ...props
@@ -71,6 +73,7 @@ export default function Button({
         variantStyles[variant],
         sizeStyles[size],
         block && 'w-full',
+        glow && 'glow-button',
         className
       )}
       disabled={disabled || loading}
