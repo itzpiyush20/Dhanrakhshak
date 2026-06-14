@@ -46,6 +46,8 @@ temp_chrome_profile/
 
 # Scratch directories
 scratch/
-
-
 .env*
+
+# AI Assistant local configs
+.gemini/
+.claude/
