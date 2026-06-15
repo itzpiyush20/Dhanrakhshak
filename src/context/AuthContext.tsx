@@ -230,6 +230,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    // Immediately unblock the loading guard with a minimal profile so the app
+    // never hangs on first-time users who have no localStorage cache yet.
+    setProfile((prev: any) => prev ?? {
+      id: state.user!.id,
+      email: state.user!.email,
+      subscription_status: 'trial',
+      subscription_expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      subscription_plan_type: 'trial',
+      daily_scan_time: '06:00',
+    })
+
     // 1. Immediately load cached settings and subscription from localStorage to prevent flashes
     try {
       const cachedStatus = localStorage.getItem(`dhanrakshak_sub_status_${state.user.id}`)
@@ -496,8 +507,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTimeout(() => resolve({ data: { session: null } }), 10000)
     )
 
-    Promise.race([sessionPromise, timeoutPromise]).then(async ({ data: { session } }) => {
-      // Always persist the refresh token whenever Supabase gives us one
+    Promise.race([sessionPromise, timeoutPromise]).then(({ data: { session } }) => {
+      // Clear loading immediately — token validation happens in the background
+      // so a slow Gmail API call never blocks the app from rendering.
+      setState({
+        user: session?.user ?? null,
+        session: session ?? null,
+        loading: false,
+      })
+
       if (session?.provider_refresh_token) {
         saveGoogleRefreshToken(session.provider_refresh_token)
       }
@@ -509,37 +527,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setHasGoogleToken(true)
           localStorage.removeItem('dhanrakshak_requesting_gmail_scope')
         } else {
-          const isValid = await validateGoogleToken(session.provider_token)
-          if (isValid) {
-            saveGoogleToken(session.provider_token)
-            setHasGoogleToken(true)
-          } else {
-            // Access token from Supabase session is expired — try silent refresh
-            const newToken = session.access_token
-              ? await tryRefreshGoogleToken(session.access_token)
-              : null
-            setHasGoogleToken(!!newToken || isGoogleConnected())
-          }
+          // Fire-and-forget: doesn't block loading
+          validateGoogleToken(session.provider_token).then(isValid => {
+            if (isValid) {
+              saveGoogleToken(session.provider_token!)
+              setHasGoogleToken(true)
+            } else {
+              const refreshPromise = session.access_token
+                ? tryRefreshGoogleToken(session.access_token)
+                : Promise.resolve(null)
+              refreshPromise.then(newToken => setHasGoogleToken(!!newToken || isGoogleConnected()))
+            }
+          })
         }
       } else if (!isGoogleConnected() && session?.access_token) {
-        // No access token in session at all — try silent refresh with stored refresh token
-        const newToken = await tryRefreshGoogleToken(session.access_token)
-        setHasGoogleToken(!!newToken)
+        tryRefreshGoogleToken(session.access_token).then(newToken => setHasGoogleToken(!!newToken))
       } else {
         setHasGoogleToken(isGoogleConnected())
       }
-      setState({
-        user: session?.user ?? null,
-        session: session ?? null,
-        loading: false,
-      })
     }).catch(() => {
       setState({ user: null, session: null, loading: false })
     })
 
     // Listen for auth changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (event === 'PASSWORD_RECOVERY') {
           setAuthModalOpen(false)
           if (window.location.pathname !== '/reset-password') {
@@ -547,44 +559,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // Always persist the refresh token whenever Supabase gives us one
+        // Clear loading immediately — token validation runs in the background
+        setState({
+          user: session?.user ?? null,
+          session,
+          loading: false,
+        })
+
         if (session?.provider_refresh_token) {
           saveGoogleRefreshToken(session.provider_refresh_token)
         }
 
         if (session?.provider_token) {
-          // Fresh token from OAuth callback — save ONLY if we explicitly initiated a Gmail scope flow
           const isGmailFlow = localStorage.getItem('dhanrakshak_requesting_gmail_scope') === 'true'
           if (isGmailFlow) {
             saveGoogleToken(session.provider_token)
             setHasGoogleToken(true)
             localStorage.removeItem('dhanrakshak_requesting_gmail_scope')
           } else {
-            // Check if this token is actually valid for Gmail (e.g. if Google returned a token with Gmail scope)
-            const isValid = await validateGoogleToken(session.provider_token)
-            if (isValid) {
-              saveGoogleToken(session.provider_token)
-              setHasGoogleToken(true)
-            } else {
-              setHasGoogleToken(isGoogleConnected())
-            }
+            // Fire-and-forget: doesn't block the auth state update
+            validateGoogleToken(session.provider_token).then(isValid => {
+              if (isValid) {
+                saveGoogleToken(session.provider_token!)
+                setHasGoogleToken(true)
+              } else {
+                setHasGoogleToken(isGoogleConnected())
+              }
+            })
           }
         } else if (event === 'SIGNED_OUT') {
-          // Sign-out event — clear access token AND refresh token
           clearAllGoogleTokens()
           setHasGoogleToken(false)
         } else {
           setHasGoogleToken(isGoogleConnected())
         }
-        // Note: TOKEN_REFRESHED event does NOT re-issue the Google provider_token
-        // so we don't clear hasGoogleToken on that event — the localStorage token
-        // (with our 55-min expiry) handles the lifecycle correctly.
-
-        setState({
-          user: session?.user ?? null,
-          session,
-          loading: false,
-        })
 
         if (event === 'SIGNED_IN' && session?.user) {
           // Identify user in PostHog
