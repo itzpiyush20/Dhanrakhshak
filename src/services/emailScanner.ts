@@ -721,13 +721,12 @@ export async function scanRealGmailInbox() {
 
       if (recentScanLogs && recentScanLogs.length > 0) {
         const lastScanTime = new Date(recentScanLogs[0].scanned_at).getTime()
-        const lastScheduledTime = getLastScheduledRefreshTime()
-        if (lastScanTime >= lastScheduledTime.getTime()) {
-          const nextScanTime = getNextRefreshTime()
-          const hoursLeft = Math.max(1, Math.ceil((nextScanTime.getTime() - Date.now()) / (60 * 60 * 1000)))
+        const hoursSinceLastScan = (Date.now() - lastScanTime) / (60 * 60 * 1000)
+        if (hoursSinceLastScan < 24) {
+          const hoursLeft = Math.ceil(24 - hoursSinceLastScan)
           return {
             data: null,
-            error: new Error(`Scan limit reached. Next scan available in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''} (after daily reset at 06:00 AM). All transactions from your last scan are already captured.`),
+            error: new Error(`Scan limit reached. Next scan available in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''}. All transactions from your last scan are already captured.`),
           }
         }
       }
@@ -784,7 +783,7 @@ export async function scanRealGmailInbox() {
       console.warn('Failed to query email scan logs, assuming first scan', e)
     }
 
-    const EMAIL_KEYWORDS = '(debit OR credit OR debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)'
+    const EMAIL_KEYWORDS = '(debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)'
 
     let startLimitTime = 0
     let q = ''
