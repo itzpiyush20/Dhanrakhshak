@@ -342,9 +342,8 @@ export interface AITransactionResult {
     | 'cheque'
     | 'unknown'
     | null
-  card_last4: string | null      // Last 4 digits of card, e.g. "1234"
-  card_issuer: string | null    // Bank name, e.g. "HDFC", "SBI" — displayed to user
-  card_brand: CardBrand | null  // Card network, e.g. "Visa", "Mastercard" — displayed to user
+  card_issuer: string | null    // Bank name e.g. "HDFC", "SBI" — internal use only
+  card_brand: CardBrand | null  // Card network e.g. "Visa", "Mastercard" — shown to user
   transaction_time: string | null // HH:MM format
   reference_id: string | null
   date: string | null
@@ -384,9 +383,13 @@ STRICT RULES — set is_transaction to FALSE for ALL of:
 - Balance update alerts, account balance notifications
 - Auto-debit SCHEDULED notices (money not yet moved)
 - Any email where money movement is in FUTURE tense ("will be debited", "scheduled for")
+- Order confirmation / booking confirmation emails where actual charge is not yet confirmed
+- Emails saying "We received your payment" sent BY a merchant to a customer (this is a payment receipt from the business — the customer paid, so this would be a debit for the customer)
+- Any email about savings, investments, wallet top-up offers, or cashback promotions
+- Statements, summaries, or account overviews
 
 ONLY set is_transaction to TRUE when money has ALREADY moved (past tense):
-- Debited, credited, paid, transferred, withdrawn, charged, received, deposited, settled
+- Debited, credited, paid, transferred, withdrawn, charged, received (when bank is informing customer of credit), deposited, settled
 
 If TRUE, extract:
 - transaction_type: 'debit' (money out) or 'credit' (money in)
@@ -395,12 +398,12 @@ If TRUE, extract:
 - category: one of 'food', 'groceries', 'transport', 'utilities', 'shopping', 'entertainment', 'subscriptions', 'salary', 'travel', 'health', 'investments', 'other'
 - description: short clear description (e.g. 'Swiggy food order', 'Airtel bill payment')
 - payment_mode: one of 'upi', 'credit_card', 'debit_card', 'net_banking', 'wallet', 'neft', 'imps', 'rtgs', 'atm', 'nach', 'cheque', 'unknown'
-- card_issuer: bank/issuer name (e.g. 'HDFC', 'SBI', 'ICICI', 'Axis', 'Kotak', 'Amex', 'IndusInd', 'Federal', 'RBL', 'Yes Bank', 'IDFC'). null if not found.
-- card_brand: card network if identifiable — one of 'Visa', 'Mastercard', 'RuPay', 'American Express', 'Diners'. null if not found.
+- card_issuer: issuing bank name only if clearly stated (e.g. 'HDFC', 'SBI', 'ICICI', 'Axis'). null if not found. Do NOT include account numbers or card numbers.
+- card_brand: card network only if explicitly mentioned — one of 'Visa', 'Mastercard', 'RuPay', 'American Express', 'Diners'. null if not found.
 - transaction_time: time of transaction in HH:MM (24h) format if mentioned. null if not found.
-- reference_id: UPI transaction ID, NEFT UTR, or similar reference number. null if not found.
+- reference_id: UPI transaction ID or NEFT UTR number for deduplication. null if not found.
 - date: transaction date in YYYY-MM-DD. Use email date "${emailDate}" if not specified.
-- confidence_score: 0-100
+- confidence_score: 0-100. Use 90+ only for clear bank-sent transaction alerts. Use 60-89 for likely transactions. Use 0-59 for uncertain cases (these will be reviewed or rejected).
 
 Return ONLY JSON, no markdown:
 {

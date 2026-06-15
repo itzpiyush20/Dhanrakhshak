@@ -176,17 +176,19 @@ export async function applyMerchantRulesFromDB(
       }
     }
 
-    // Partial match — merchant key contained in/by known rule keys
-    const lowerSnippet = snippet.toLowerCase()
+    // Partial match — only for keys with 5+ chars to prevent "jio", "air", "pay" etc.
+    // from false-matching against unrelated emails
+    const lowerSnippet = snippet.toLowerCase().substring(0, 300)
     for (const rule of rules) {
+      if (rule.merchant_key.length < 5) continue
       if (merchantKey.includes(rule.merchant_key) || lowerSnippet.includes(rule.merchant_key)) {
         const isAutoApprove =
-          rule.auto_approve && rule.confidence >= 80 && rule.times_confirmed >= 1
+          rule.auto_approve && rule.confidence >= 80 && rule.times_confirmed >= 2
 
         return {
           category: rule.preferred_category,
           approval_status: isAutoApprove ? 'approved' : 'pending',
-          confidence: Math.round(rule.confidence * 0.85),
+          confidence: Math.round(rule.confidence * 0.8),
           matchReason: `DB partial rule: '${rule.merchant_key}' (partial match)`,
         }
       }
