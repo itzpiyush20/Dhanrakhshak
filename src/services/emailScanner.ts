@@ -784,20 +784,23 @@ export async function scanRealGmailInbox() {
       console.warn('Failed to query email scan logs, assuming first scan', e)
     }
 
+    const EMAIL_KEYWORDS = '(debit OR credit OR debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)'
+
     let startLimitTime = 0
     let q = ''
     if (isFirstScan) {
+      // First scan: look back 7 days
       startLimitTime = Date.now() - 7 * 24 * 60 * 60 * 1000
-      const startLimitDate = new Date(startLimitTime)
-      const yyyy = startLimitDate.getFullYear()
-      const mm = String(startLimitDate.getMonth() + 1).padStart(2, '0')
-      const dd = String(startLimitDate.getDate()).padStart(2, '0')
-
-      q = `after:${yyyy}/${mm}/${dd} (debit OR credit OR debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
     } else {
-      startLimitTime = new Date(`${activeYear}-01-01T00:00:00Z`).getTime()
-      q = `after:${activeYear}/01/01 before:${activeYear + 1}/01/01 (debit OR credit OR debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
+      // Subsequent scans: rolling 26-hour window so emails from the last 2-3 hours
+      // are always included. Gmail's date-only `after:YYYY/MM/DD` can miss same-day
+      // recent emails; Unix-second timestamps give precise sub-day boundaries.
+      // Already-processed emails are excluded via existingMessageIds deduplication.
+      startLimitTime = Date.now() - 26 * 60 * 60 * 1000
     }
+    // Use Unix epoch (seconds) for precise filtering — Gmail supports this format
+    const sinceSeconds = Math.floor(startLimitTime / 1000)
+    q = `after:${sinceSeconds} ${EMAIL_KEYWORDS}`
 
     let messages: { id: string; threadId: string }[] = []
     let nextPageToken = ''
@@ -832,6 +835,7 @@ export async function scanRealGmailInbox() {
     const validDetails: any[] = []
     for (let i = 0; i < messages.length; i += batchSize) {
       const batch = messages.slice(i, i + batchSize)
+      let tokenExpiredDuringBatch = false
       const batchResults = await Promise.all(
         batch.map(async (m: { id: string }) => {
           try {
@@ -839,21 +843,37 @@ export async function scanRealGmailInbox() {
               `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}`,
               { headers: { Authorization: `Bearer ${providerToken}` } }
             )
+            if (res.status === 401 || res.status === 403) {
+              tokenExpiredDuringBatch = true
+              return null
+            }
             if (!res.ok) return null
             return await res.json()
           } catch { return null }
         })
       )
+      if (tokenExpiredDuringBatch) {
+        clearGoogleToken()
+        throw new Error('TOKEN_EXPIRED')
+      }
       validDetails.push(...batchResults.filter(Boolean))
     }
 
-    const { data: existingTxns } = await supabase
+    const { data: existingTxns, error: existingTxnsError } = await supabase
       .from('transactions')
       .select('email_message_id, reference_id')
       .eq('user_id', user.id)
 
-    const existingMessageIds = new Set<string>(existingTxns?.map((t) => t.email_message_id).filter((id): id is string => !!id))
-    const existingRefIds = new Set<string>(existingTxns?.map((t) => t.reference_id).filter((r): r is string => !!r))
+    if (existingTxnsError) {
+      console.error('[emailScanner] Failed to load existing transactions for dedup:', existingTxnsError)
+    }
+
+    const existingMessageIds = new Set<string>(
+      (existingTxns ?? []).map((t) => t.email_message_id).filter((id): id is string => !!id)
+    )
+    const existingRefIds = new Set<string>(
+      (existingTxns ?? []).map((t) => t.reference_id).filter((r): r is string => !!r)
+    )
 
     const transactionsToInsert: TransactionInsert[] = []
     let skippedConfidence = 0
