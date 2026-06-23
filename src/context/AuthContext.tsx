@@ -502,37 +502,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         saveGoogleRefreshToken(session.provider_refresh_token)
       }
 
-      if (session?.provider_token) {
-        const isGmailFlow = localStorage.getItem('dhanrakshak_requesting_gmail_scope') === 'true'
-        if (isGmailFlow) {
-          saveGoogleToken(session.provider_token)
-          setHasGoogleToken(true)
-          localStorage.removeItem('dhanrakshak_requesting_gmail_scope')
-        } else {
-          const isValid = await validateGoogleToken(session.provider_token)
-          if (isValid) {
-            saveGoogleToken(session.provider_token)
-            setHasGoogleToken(true)
-          } else {
-            // Access token from Supabase session is expired — try silent refresh
-            const newToken = session.access_token
-              ? await tryRefreshGoogleToken(session.access_token)
-              : null
-            setHasGoogleToken(!!newToken || isGoogleConnected())
-          }
-        }
-      } else if (!isGoogleConnected() && session?.access_token) {
-        // No access token in session at all — try silent refresh with stored refresh token
-        const newToken = await tryRefreshGoogleToken(session.access_token)
-        setHasGoogleToken(!!newToken)
-      } else {
-        setHasGoogleToken(isGoogleConnected())
-      }
+      // Set the auth state immediately to unblock app rendering/mounting
       setState({
         user: session?.user ?? null,
         session: session ?? null,
         loading: false,
       })
+
+      // Run Google OAuth validation/refresh in the background
+      if (session?.provider_token) {
+        const providerToken = session.provider_token
+        const isGmailFlow = localStorage.getItem('dhanrakshak_requesting_gmail_scope') === 'true'
+        if (isGmailFlow) {
+          saveGoogleToken(providerToken)
+          setHasGoogleToken(true)
+          localStorage.removeItem('dhanrakshak_requesting_gmail_scope')
+        } else {
+          validateGoogleToken(providerToken).then(async (isValid) => {
+            if (isValid) {
+              saveGoogleToken(providerToken)
+              setHasGoogleToken(true)
+            } else {
+              // Access token from Supabase session is expired — try silent refresh in background
+              const newToken = session.access_token
+                ? await tryRefreshGoogleToken(session.access_token)
+                : null
+              setHasGoogleToken(!!newToken || isGoogleConnected())
+            }
+          })
+        }
+      } else if (!isGoogleConnected() && session?.access_token) {
+        // No access token in session at all — try silent refresh with stored refresh token in background
+        tryRefreshGoogleToken(session.access_token).then((newToken) => {
+          setHasGoogleToken(!!newToken)
+        })
+      } else {
+        setHasGoogleToken(isGoogleConnected())
+      }
     }).catch(() => {
       setState({ user: null, session: null, loading: false })
     })
@@ -552,22 +558,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           saveGoogleRefreshToken(session.provider_refresh_token)
         }
 
+        // Set the auth state immediately to prevent visual block/hang during Google redirect
+        setState({
+          user: session?.user ?? null,
+          session,
+          loading: false,
+        })
+
         if (session?.provider_token) {
+          const providerToken = session.provider_token
           // Fresh token from OAuth callback — save ONLY if we explicitly initiated a Gmail scope flow
           const isGmailFlow = localStorage.getItem('dhanrakshak_requesting_gmail_scope') === 'true'
           if (isGmailFlow) {
-            saveGoogleToken(session.provider_token)
+            saveGoogleToken(providerToken)
             setHasGoogleToken(true)
             localStorage.removeItem('dhanrakshak_requesting_gmail_scope')
           } else {
-            // Check if this token is actually valid for Gmail (e.g. if Google returned a token with Gmail scope)
-            const isValid = await validateGoogleToken(session.provider_token)
-            if (isValid) {
-              saveGoogleToken(session.provider_token)
-              setHasGoogleToken(true)
-            } else {
-              setHasGoogleToken(isGoogleConnected())
-            }
+            // Check if this token is actually valid for Gmail in the background
+            validateGoogleToken(providerToken).then((isValid) => {
+              if (isValid) {
+                saveGoogleToken(providerToken)
+                setHasGoogleToken(true)
+              } else {
+                setHasGoogleToken(isGoogleConnected())
+              }
+            })
           }
         } else if (event === 'SIGNED_OUT') {
           // Sign-out event — clear access token AND refresh token
@@ -579,12 +594,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Note: TOKEN_REFRESHED event does NOT re-issue the Google provider_token
         // so we don't clear hasGoogleToken on that event — the localStorage token
         // (with our 55-min expiry) handles the lifecycle correctly.
-
-        setState({
-          user: session?.user ?? null,
-          session,
-          loading: false,
-        })
 
         if (event === 'SIGNED_IN' && session?.user) {
           // Identify user in PostHog

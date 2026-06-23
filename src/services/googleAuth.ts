@@ -77,9 +77,14 @@ export function getGoogleRefreshToken(): string | null {
  * Returns the new access token on success, null if refresh is not possible.
  * Clears the refresh token if Google says it's been revoked (410 response).
  */
+
+
 export async function tryRefreshGoogleToken(supabaseJwt: string): Promise<string | null> {
   const refreshToken = getGoogleRefreshToken()
   if (!refreshToken || !supabaseJwt) return null
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 6000)
 
   try {
     const res = await fetch('/api/refresh-google-token', {
@@ -89,7 +94,9 @@ export async function tryRefreshGoogleToken(supabaseJwt: string): Promise<string
         'Authorization': `Bearer ${supabaseJwt}`,
       },
       body: JSON.stringify({ refreshToken }),
+      signal: controller.signal,
     })
+    clearTimeout(timeoutId)
 
     if (res.status === 410) {
       // Refresh token revoked by the user in Google account settings
@@ -106,6 +113,7 @@ export async function tryRefreshGoogleToken(supabaseJwt: string): Promise<string
     }
     return null
   } catch (e) {
+    clearTimeout(timeoutId)
     console.warn('tryRefreshGoogleToken error:', e)
     return null
   }
@@ -114,10 +122,15 @@ export async function tryRefreshGoogleToken(supabaseJwt: string): Promise<string
 // ── Validation & migration ────────────────────────────────────
 
 export async function validateGoogleToken(token: string): Promise<boolean> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 5000)
+
   try {
     const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
       headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
     })
+    clearTimeout(timeoutId)
     if (res.status === 401 || res.status === 403) {
       if (token === localStorage.getItem(TOKEN_KEY)) {
         clearGoogleToken()
@@ -126,6 +139,7 @@ export async function validateGoogleToken(token: string): Promise<boolean> {
     }
     return res.ok
   } catch (e) {
+    clearTimeout(timeoutId)
     console.warn('validateGoogleToken error:', e)
     return false
   }
