@@ -10,6 +10,7 @@ import { useAuth, useToast } from '@/context'
 import { motion } from 'framer-motion'
 import { useScrollReveal } from '@/hooks'
 import { Card } from '@/components/ui'
+import { supabase } from '@/services/supabase'
 
 // ── Feature lists for different subscription tiers ───────────
 const MONTHLY_FEATURES = [
@@ -72,7 +73,9 @@ export default function PricingPage() {
     const scriptLoaded = await loadRazorpayScript()
     if (!scriptLoaded) { showToast('Failed to load Razorpay SDK. Check your internet.', 'error'); setProcessing(false); return }
     try {
-      const response  = await fetch('/api/create-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ planType: selectedPlan, userId: user.id }) })
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) { showToast('Your session expired. Please log in again.', 'error'); setProcessing(false); return }
+      const response  = await fetch('/api/create-order', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` }, body: JSON.stringify({ planType: selectedPlan }) })
       const orderData = await response.json()
       if (!response.ok || orderData.error) throw new Error(orderData.error || 'Could not initiate payment order')
 
@@ -86,7 +89,9 @@ export default function PricingPage() {
         handler: async (paymentResponse: any) => {
           setProcessing(true)
           try {
-            const verifyResponse = await fetch('/api/verify-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...paymentResponse, userId: user.id, planType: selectedPlan }) })
+            const { data: { session: verifySession } } = await supabase.auth.getSession()
+            if (!verifySession?.access_token) throw new Error('Your session expired. Please log in again.')
+            const verifyResponse = await fetch('/api/verify-payment', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${verifySession.access_token}` }, body: JSON.stringify({ ...paymentResponse, planType: selectedPlan }) })
             const verifyData = await verifyResponse.json()
             if (!verifyResponse.ok || verifyData.error) throw new Error(verifyData.error || 'Payment verification failed')
             

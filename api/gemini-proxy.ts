@@ -1,18 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import Razorpay from 'razorpay'
 import { createClient } from '@supabase/supabase-js'
-
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || '',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || '',
-})
 
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 )
 
-// Simple in-memory rate limiter: max 10 requests per IP per minute
+// Simple in-memory rate limiter: max 20 requests per IP per minute
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 
 function isRateLimited(ip: string): boolean {
@@ -22,12 +16,15 @@ function isRateLimited(ip: string): boolean {
     rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 })
     return false
   }
-  if (entry.count >= 10) return true
+  if (entry.count >= 20) return true
   entry.count++
   return false
 }
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://dhanrakshak-five.vercel.app'
+
+// Server-side only — never exposed to the client, unlike a VITE_-prefixed var.
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers.origin || ''
@@ -38,12 +35,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end()
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end()
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
+  if (!GEMINI_API_KEY) {
+    return res.status(503).json({ error: 'AI insights are not configured' })
   }
 
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || 'unknown'
@@ -51,9 +47,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' })
   }
 
-  // The order's notes.userId is later trusted by verify-payment.ts to attribute a
-  // payment to an account, so it must be derived from the caller's own token here,
-  // not from the request body.
   const authHeader = req.headers.authorization
   if (!authHeader?.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized' })
@@ -63,39 +56,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (userError || !user) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
-  const userId = user.id
 
-  const { planType } = req.body ?? {}
-
-  if (typeof planType !== 'string') {
-    return res.status(400).json({ error: 'planType is required' })
-  }
-
-  let amount = 0
-  if (planType === 'monthly') {
-    amount = 31 * 100
-  } else if (planType === 'annual') {
-    amount = 365 * 100
-  } else {
-    return res.status(400).json({ error: 'Invalid planType. Must be monthly or annual.' })
+  const { contents, generationConfig, safetySettings } = req.body ?? {}
+  if (!Array.isArray(contents)) {
+    return res.status(400).json({ error: 'contents array is required' })
   }
 
   try {
-    const order = await razorpay.orders.create({
-      amount,
-      currency: 'INR',
-      receipt: `receipt_${userId.slice(0, 8)}_${Date.now()}`,
-      notes: { userId, planType },
-    })
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents, generationConfig, safetySettings }),
+      }
+    )
 
-    return res.status(200).json({
-      id: order.id,
-      amount: order.amount,
-      currency: order.currency,
-    })
+    if (!geminiRes.ok) {
+      return res.status(geminiRes.status).json({ error: `Gemini API error: ${geminiRes.status}` })
+    }
+
+    const data = await geminiRes.json()
+    return res.status(200).json(data)
   } catch (error: any) {
-    console.error('Error creating Razorpay order:', error)
-    const isAuthError = error.statusCode === 401 || /auth|key/i.test(error.message || '')
-    return res.status(isAuthError ? 401 : 500).json({ error: error.message || 'Failed to create Razorpay order' })
+    console.error('Gemini proxy error:', error)
+    return res.status(500).json({ error: error.message || 'AI request failed' })
   }
 }

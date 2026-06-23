@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
+import { verifyHmacSignature, planDurationDays } from './_lib/razorpaySignature.js'
 
 export const config = {
   api: {
@@ -42,12 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET || ''
-    const generatedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(rawBody)
-      .digest('hex')
-
-    if (generatedSignature !== signature) {
+    if (!verifyHmacSignature(rawBody, secret, signature)) {
       console.error('Razorpay Webhook signature verification failed')
       return res.status(400).json({ error: 'Invalid webhook signature' })
     }
@@ -77,10 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ status: 'ignored_missing_notes' })
       }
 
-      let durationDays = 30
-      if (planType === 'annual') durationDays = 365
-      else if (planType === 'lifetime') durationDays = 36500
-
+      const durationDays = planDurationDays(planType)
       const subscription_expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
 
       const { error } = await supabaseAdmin

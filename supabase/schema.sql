@@ -25,9 +25,23 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   subscription_expires_at TIMESTAMPTZ,
   razorpay_subscription_id TEXT,
   razorpay_order_id TEXT,
+  is_admin BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
+
+-- Safety net for existing deployments: CREATE TABLE IF NOT EXISTS above is a
+-- no-op once profiles already exists, so make sure the column is added either way.
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
+
+-- Returns true if the given user (default: caller) is flagged as an admin.
+-- SECURITY DEFINER so it can read profiles.is_admin without recursing into
+-- the RLS policies that call it. Admin status is granted by manually setting
+-- profiles.is_admin = true for specific accounts — see TRANSFER_GUIDE.md.
+CREATE OR REPLACE FUNCTION public.is_admin(uid UUID DEFAULT auth.uid())
+RETURNS BOOLEAN AS $$
+  SELECT COALESCE((SELECT is_admin FROM public.profiles WHERE id = uid), false);
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 -- Auto-create profile when a new user signs up
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -171,7 +185,7 @@ ALTER TABLE public.email_scan_logs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 CREATE POLICY "Users can view own profile"
   ON public.profiles FOR SELECT
-  USING (auth.uid() = id OR (auth.jwt() ->> 'email') LIKE '%@dhanrakshak.in');
+  USING (auth.uid() = id OR public.is_admin());
 
 CREATE POLICY "Users can update own profile"
   ON public.profiles FOR UPDATE
@@ -293,7 +307,7 @@ CREATE POLICY "Anyone can insert feedback"
 DROP POLICY IF EXISTS "Users can view own feedback" ON public.feedback;
 CREATE POLICY "Users can view own feedback"
   ON public.feedback FOR SELECT
-  USING (auth.uid() = user_id OR (auth.jwt() ->> 'email') LIKE '%@dhanrakshak.in');
+  USING (auth.uid() = user_id OR public.is_admin());
 
 -- ==========================================
 -- 10. SIGNIN_LOGS TABLE
@@ -318,6 +332,52 @@ CREATE POLICY "Anyone can insert signin logs"
 -- Allow creators to view all signin logs
 CREATE POLICY "Creators can view all signin logs"
   ON public.signin_logs FOR SELECT
-  USING ((auth.jwt() ->> 'email') LIKE '%@dhanrakshak.in');
+  USING (public.is_admin());
 
+-- ==========================================
+-- 11. CARDS TABLE
+-- Card profile management per user
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.cards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  last4 TEXT NOT NULL,
+  issuer TEXT NOT NULL DEFAULT 'Unknown',
+  card_type TEXT NOT NULL DEFAULT 'debit' CHECK (card_type IN ('credit', 'debit')),
+  card_name TEXT DEFAULT NULL,
+  is_primary BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, last4, card_type)
+);
 
+CREATE INDEX IF NOT EXISTS idx_cards_user ON public.cards(user_id);
+
+ALTER TABLE public.cards ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own cards"
+  ON public.cards FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+DROP TRIGGER IF EXISTS set_updated_at_cards ON public.cards;
+CREATE TRIGGER set_updated_at_cards
+  BEFORE UPDATE ON public.cards
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+-- ==========================================
+-- 12. EMAIL DEDUPLICATION CONSTRAINT
+-- Prevents the same Gmail message being inserted as a
+-- transaction twice for the same user
+-- ==========================================
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'transactions_email_message_id_user_id_key'
+  ) THEN
+    ALTER TABLE public.transactions
+      ADD CONSTRAINT transactions_email_message_id_user_id_key
+      UNIQUE (email_message_id, user_id);
+  END IF;
+END$$;

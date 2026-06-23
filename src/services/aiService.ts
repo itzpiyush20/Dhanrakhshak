@@ -6,9 +6,24 @@
 // ============================================
 
 import { formatCurrency } from '@/utils'
+import { supabase } from '@/services/supabase'
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
+const GEMINI_PROXY_URL = '/api/gemini-proxy'
+
+/** Calls our server-side Gemini proxy so the API key never reaches the client bundle. */
+async function callGeminiProxy(body: Record<string, unknown>): Promise<any> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) throw new Error('Not authenticated')
+
+  const response = await fetch(GEMINI_PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) throw new Error(`Gemini proxy error: ${response.status}`)
+  return response.json()
+}
 
 export interface FinancialContext {
   month: string
@@ -35,35 +50,23 @@ export async function generateAIInsights(ctx: FinancialContext): Promise<{
   alerts: string[]
   source: 'gemini' | 'rule-based'
 }> {
-  if (!GEMINI_API_KEY) {
-    return { ...generateRuleBasedInsights(ctx), source: 'rule-based' }
-  }
-
   try {
     const prompt = buildPrompt(ctx)
 
-    const response = await fetch(GEMINI_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 800,
-          topP: 0.9,
-        },
-        safetySettings: [
-          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-        ],
-      }),
+    const data = await callGeminiProxy({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 800,
+        topP: 0.9,
+      },
+      safetySettings: [
+        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+      ],
     })
-
-    if (!response.ok) throw new Error(`Gemini API error: ${response.status}`)
-
-    const data = await response.json()
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
     const parsed = parseGeminiResponse(text)
     if (parsed.insights.length > 0) {
@@ -360,8 +363,6 @@ export async function analyzeTransactionEmailWithAI(
   body: string,
   emailDate: string
 ): Promise<AITransactionResult | null> {
-  if (!GEMINI_API_KEY) return null
-
   try {
     const prompt = `
 Analyze the following bank/payment email to determine if it describes a COMPLETED financial transaction.
@@ -436,23 +437,15 @@ If NOT a completed transaction:
 }
 `
 
-    const response = await fetch(GEMINI_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 500,
-          topP: 0.9,
-          responseMimeType: 'application/json',
-        },
-      }),
+    const data = await callGeminiProxy({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 500,
+        topP: 0.9,
+        responseMimeType: 'application/json',
+      },
     })
-
-    if (!response.ok) throw new Error(`Gemini API error: ${response.status}`)
-
-    const data = await response.json()
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
 
     const jsonMatch = text.match(/\{[\s\S]*\}/)

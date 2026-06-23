@@ -32,7 +32,7 @@ After transfer, the buyer must update these in Vercel (Settings → Environment 
 | `RAZORPAY_WEBHOOK_SECRET` | Set a new strong secret in Razorpay dashboard |
 | `VITE_RAZORPAY_KEY_ID` | Same as `RAZORPAY_KEY_ID` (used client-side) |
 | `VITE_GOOGLE_CLIENT_ID` | Replace with buyer's Google Cloud OAuth client ID |
-| `VITE_GEMINI_API_KEY` | Replace with buyer's Gemini API key |
+| `GEMINI_API_KEY` | Replace with buyer's Gemini API key (server-side only, consumed by `api/gemini-proxy.ts` — do NOT use a `VITE_`-prefixed name, that would expose it in the client bundle) |
 | `ALLOWED_ORIGIN` | Set to buyer's production domain |
 | `VITE_OWNER_EMAILS` | Set to buyer's admin email(s) |
 | `VITE_PROMO_CODES` | Update or remove |
@@ -55,17 +55,16 @@ Also update in source code:
 
 ### Option B — Fresh Supabase project (for a clean start)
 1. Buyer creates a new Supabase project
-2. Run `supabase/schema.sql` in the SQL editor
-3. Run any migration files in `supabase/migrations/` in order
-4. Update all `VITE_SUPABASE_URL` and key env vars in Vercel
-5. Note: existing user data will NOT transfer — only suitable for pre-launch sale
+2. Run `supabase/schema.sql` in the SQL editor (this is the single, complete, up-to-date schema — no other migration files need to be run)
+3. Update all `VITE_SUPABASE_URL` and key env vars in Vercel
+4. Note: existing user data will NOT transfer — only suitable for pre-launch sale
 
-### RLS Admin Backdoor
-The schema grants elevated SELECT access to emails matching `%@dhanrakshak.in`. The buyer should update this pattern in `schema.sql` and in the Supabase SQL editor to match their own admin email domain:
+### Admin Access
+Admin/creator access (viewing all feedback, signin logs, profiles) is granted per-account via the `profiles.is_admin` column, checked through the `public.is_admin()` SQL function — not by email domain. After transfer, the buyer should grant themselves admin access by running:
 ```sql
--- Find and update these two policies:
-USING (auth.uid() = id OR (auth.jwt() ->> 'email') LIKE '%@YOUR_DOMAIN.com');
+UPDATE public.profiles SET is_admin = true WHERE email = 'buyer@example.com';
 ```
+and revoke it from the previous owner's account if it transfers with the project.
 
 ---
 
