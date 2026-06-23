@@ -31,31 +31,35 @@ const OWNER_EMAILS = (import.meta.env.VITE_OWNER_EMAILS || '')
 // ============================================================
 const TRUSTED_SENDER_DOMAINS = new Set([
   // Indian PSU Banks
-  'sbi.co.in', 'onlinesbi.com', 'sbicards.com', 'sbicard.com',
-  'pnb.co.in', 'punjabnationalbank.in',
+  'sbi.co.in', 'onlinesbi.com', 'sbicards.com', 'sbicard.com', 'sbicard.in',
+  'pnb.co.in', 'punjabnationalbank.in', 'pnbcard.in',
   'canarabank.com', 'canarabank.in',
-  'bankofbaroda.in', 'bankofbaroda.com',
-  'bankofindia.co.in',
-  'unionbankofindia.org', 'unionbankofindia.com',
-  'indianbank.in',
-  'centralbankofindia.co.in',
-  'ucobank.com',
-  'iobnet.co.in',
+  'bankofbaroda.in', 'bankofbaroda.com', 'bobibanking.com',
+  'bankofindia.co.in', 'bankofindia.com',
+  'unionbankofindia.org', 'unionbankofindia.com', 'unionbank.co.in',
+  'indianbank.in', 'indianbank.co.in',
+  'centralbankofindia.co.in', 'centralbank.org.in',
+  'ucobank.com', 'ucobank.co.in',
+  'iobnet.co.in', 'iob.in', 'iob.co.in',
+  'idbi.co.in', 'idbibank.co.in', 'idbibank.in', 'idbibank.com',
   'allahababank.in',
   // Indian Private Banks
   'hdfcbank.com', 'hdfcbank.net',
-  'icicibank.com',
-  'axisbank.com',
-  'kotak.com', 'kotakbank.com',
+  'icicibank.com', 'icicibank.org', 'icici.com', 'icicibank.net',
+  'axisbank.com', 'axisbank.co.in', 'axis.bank.in', 'axisbank.in', 'axisbank.net',
+  'kotak.com', 'kotakbank.com', 'kotak.in',
   'yesbank.in', 'yesbank.com',
   'indusind.com', 'indusindbank.com',
-  'idfcfirstbank.com',
-  'federalbank.co.in',
-  'rblbank.com',
+  'idfcfirstbank.com', 'idfcfirst.com', 'idfcfirstbank.in',
+  'federalbank.co.in', 'federalbank.com',
+  'rblbank.com', 'rblbank.in',
   'aubank.in', 'aufinanciers.com',
   'bandhanbank.com',
   'dcbbank.com',
   'sbm.co.in', 'sbmbank.co.in',
+  'sib.co.in', 'southindianbank.com',
+  'kvb.co.in', 'kvbmail.com',
+  'karnatakabank.com', 'karnatakabank.co.in',
   // Credit Card Issuers
   'sbicard.com', 'sbicards.com',
   'citi.com', 'citibank.co.in', 'citibank.com',
@@ -75,6 +79,12 @@ const TRUSTED_SENDER_DOMAINS = new Set([
   'jiomoney.com',
   'nsdl.co.in',
   'npci.org.in',
+  'onecard.in', 'getonecard.app',
+  'sliceit.com',
+  'uni.cards', 'unicards.in',
+  'scapia.cards', 'scapia.app',
+  'jupiter.money',
+  'fi.money',
   // Notifications / alerts subdomains (common pattern)
   'alerts.hdfcbank.com', 'alerts.icicibank.com', 'alerts.axisbank.com',
   // IRCTC / Railways
@@ -710,7 +720,31 @@ export async function scanRealGmailInbox() {
   try {
     const cleanEmail = user.email?.toLowerCase().trim() || ''
     const isOwner = OWNER_EMAILS.length > 0 && OWNER_EMAILS.includes(cleanEmail)
-    if (!isOwner) {
+
+    // Check if the user has an active premium subscription to bypass the cooldown
+    let isPremium = false
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_status, subscription_expires_at')
+        .eq('id', user.id)
+        .single()
+      if (profile) {
+        if (profile.subscription_status === 'active') {
+          if (!profile.subscription_expires_at || new Date(profile.subscription_expires_at).getTime() > Date.now()) {
+            isPremium = true
+          }
+        } else if (profile.subscription_status === 'trial') {
+          if (profile.subscription_expires_at && new Date(profile.subscription_expires_at).getTime() > Date.now()) {
+            isPremium = true
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to query profile for premium bypass:', e)
+    }
+
+    if (!isOwner && !isPremium) {
       const { data: recentScanLogs } = await supabase
         .from('email_scan_logs')
         .select('scanned_at')
@@ -820,7 +854,14 @@ export async function scanRealGmailInbox() {
       nextPageToken = listData.nextPageToken || ''
     } while (nextPageToken)
 
-    if (messages.length === 0) {
+    // Deduplicate messages by id to avoid duplicate key errors within the same scan batch
+    const uniqueMessagesMap = new Map<string, { id: string; threadId: string }>()
+    for (const m of messages) {
+      if (m && m.id) uniqueMessagesMap.set(m.id, m)
+    }
+    const uniqueMessages = Array.from(uniqueMessagesMap.values())
+
+    if (uniqueMessages.length === 0) {
       const { data: log } = await supabase
         .from('email_scan_logs')
         .insert({ user_id: user.id, emails_processed: 0, transactions_found: 0, status: 'success' })
@@ -830,8 +871,8 @@ export async function scanRealGmailInbox() {
 
     const batchSize = 15
     const validDetails: any[] = []
-    for (let i = 0; i < messages.length; i += batchSize) {
-      const batch = messages.slice(i, i + batchSize)
+    for (let i = 0; i < uniqueMessages.length; i += batchSize) {
+      const batch = uniqueMessages.slice(i, i + batchSize)
       const batchResults = await Promise.all(
         batch.map(async (m: { id: string }) => {
           try {
@@ -857,6 +898,7 @@ export async function scanRealGmailInbox() {
 
     const transactionsToInsert: TransactionInsert[] = []
     let skippedConfidence = 0
+    const skippedEmailsDetails: string[] = []
 
     for (const mail of validDetails) {
       const mailMessageId: string = mail.id || ''
@@ -880,8 +922,7 @@ export async function scanRealGmailInbox() {
 
       let parsedTxn: TransactionInsert | null = null
 
-      const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY || ''
-      if (geminiApiKey) {
+      {
         try {
           const aiResult = await analyzeTransactionEmailWithAI(subject, bodyText, mailDate)
           if (aiResult) {
@@ -1136,6 +1177,10 @@ export async function scanRealGmailInbox() {
 
         if (confidence < 55) {
           skippedConfidence++
+          if (skippedEmailsDetails.length < 5) {
+            const domain = fromValue.match(/@([\w.-]+)/)?.[1] || 'unknown'
+            skippedEmailsDetails.push(`${domain}|"${subject.substring(0, 30)}"|Conf:${confidence}`)
+          }
           continue
         }
 
@@ -1173,7 +1218,7 @@ export async function scanRealGmailInbox() {
           emails_processed: validDetails.length,
           transactions_found: 0,
           status: 'success',
-          error_message: skippedConfidence > 0 ? `${skippedConfidence} email(s) skipped (low confidence)` : null,
+          error_message: skippedConfidence > 0 ? `${skippedConfidence} email(s) skipped (low confidence). Samples: ${skippedEmailsDetails.join('; ')}` : null,
         })
         .select().single()
       return { data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0 }, error: null }
@@ -1199,7 +1244,7 @@ export async function scanRealGmailInbox() {
         emails_processed: validDetails.length,
         transactions_found: transactionsToInsert.length,
         status: 'success',
-        error_message: skippedConfidence > 0 ? `${skippedConfidence} email(s) skipped (confidence < 55)` : null,
+        error_message: skippedConfidence > 0 ? `${skippedConfidence} email(s) skipped (confidence < 55). Samples: ${skippedEmailsDetails.join('; ')}` : null,
       })
       .select().single()
 
