@@ -5,7 +5,6 @@
 // ============================================
 
 import { supabase } from './supabase'
-import { getLastScheduledRefreshTime, getNextRefreshTime } from './emailScanner'
 
 const OWNER_EMAILS = (import.meta.env.VITE_OWNER_EMAILS || '')
   .split(',')
@@ -76,30 +75,28 @@ export async function checkScannerAccess(): Promise<ScannerAccessResult> {
     }
   }
 
-  // Daily reset cooldown check
-  if (!isPremium) {
-    const { data: recentScan } = await supabase
-      .from('email_scan_logs')
-      .select('scanned_at')
-      .eq('user_id', user.id)
-      .eq('status', 'success')
-      .order('scanned_at', { ascending: false })
-      .limit(1)
+  // 24-hour cooldown check
+  const { data: recentScan } = await supabase
+    .from('email_scan_logs')
+    .select('scanned_at')
+    .eq('user_id', user.id)
+    .eq('status', 'success')
+    .order('scanned_at', { ascending: false })
+    .limit(1)
 
-    if (recentScan && recentScan.length > 0) {
-      const lastScanMs = new Date(recentScan[0].scanned_at).getTime()
-      const lastScheduledTime = getLastScheduledRefreshTime()
+  if (recentScan && recentScan.length > 0) {
+    const lastScanMs = new Date(recentScan[0].scanned_at).getTime()
+    const hoursSince = (Date.now() - lastScanMs) / (60 * 60 * 1000)
 
-      if (lastScanMs >= lastScheduledTime.getTime()) {
-        const nextScanTime = getNextRefreshTime()
-        const hoursLeft = Math.max(1, Math.ceil((nextScanTime.getTime() - Date.now()) / (60 * 60 * 1000)))
-        return {
-          allowed: false,
-          reason: 'cooldown',
-          hoursLeft,
-          nextScanTime,
-          message: `Next scan available in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''} (after daily reset at 06:00 AM). All transactions from your last scan have been captured.`,
-        }
+    if (hoursSince < 24) {
+      const hoursLeft = Math.ceil(24 - hoursSince)
+      const nextScanTime = new Date(lastScanMs + 24 * 60 * 60 * 1000)
+      return {
+        allowed: false,
+        reason: 'cooldown',
+        hoursLeft,
+        nextScanTime,
+        message: `Next scan available in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''}. All transactions from your last scan have been captured.`,
       }
     }
   }

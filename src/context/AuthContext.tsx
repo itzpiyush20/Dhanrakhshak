@@ -230,6 +230,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    // Immediately unblock the loading guard with a minimal profile so the app
+    // never hangs on first-time users who have no localStorage cache yet.
+    setProfile((prev: any) => prev ?? {
+      id: state.user!.id,
+      email: state.user!.email,
+      subscription_status: 'trial',
+      subscription_expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      subscription_plan_type: 'trial',
+      daily_scan_time: '06:00',
+    })
+
     // 1. Immediately load cached settings and subscription from localStorage to prevent flashes
     try {
       const cachedStatus = localStorage.getItem(`dhanrakshak_sub_status_${state.user.id}`)
@@ -496,20 +507,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTimeout(() => resolve({ data: { session: null } }), 10000)
     )
 
-    Promise.race([sessionPromise, timeoutPromise]).then(async ({ data: { session } }) => {
-      // Always persist the refresh token whenever Supabase gives us one
-      if (session?.provider_refresh_token) {
-        saveGoogleRefreshToken(session.provider_refresh_token)
-      }
-
-      // Set the auth state immediately to unblock app rendering/mounting
+    Promise.race([sessionPromise, timeoutPromise]).then(({ data: { session } }) => {
+      // Clear loading immediately — token validation happens in the background
+      // so a slow Gmail API call never blocks the app from rendering.
       setState({
         user: session?.user ?? null,
         session: session ?? null,
         loading: false,
       })
 
-      // Run Google OAuth validation/refresh in the background
+      if (session?.provider_refresh_token) {
+        saveGoogleRefreshToken(session.provider_refresh_token)
+      }
+
       if (session?.provider_token) {
         const providerToken = session.provider_token
         const isGmailFlow = localStorage.getItem('dhanrakshak_requesting_gmail_scope') === 'true'
@@ -518,16 +528,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setHasGoogleToken(true)
           localStorage.removeItem('dhanrakshak_requesting_gmail_scope')
         } else {
-          validateGoogleToken(providerToken).then(async (isValid) => {
+          // Fire-and-forget: doesn't block loading
+          validateGoogleToken(providerToken).then((isValid) => {
             if (isValid) {
               saveGoogleToken(providerToken)
               setHasGoogleToken(true)
             } else {
               // Access token from Supabase session is expired — try silent refresh in background
-              const newToken = session.access_token
-                ? await tryRefreshGoogleToken(session.access_token)
-                : null
-              setHasGoogleToken(!!newToken || isGoogleConnected())
+              const refreshPromise = session.access_token
+                ? tryRefreshGoogleToken(session.access_token)
+                : Promise.resolve(null)
+              refreshPromise.then((newToken) => setHasGoogleToken(!!newToken || isGoogleConnected()))
             }
           })
         }
@@ -545,7 +556,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Listen for auth changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (event === 'PASSWORD_RECOVERY') {
           setAuthModalOpen(false)
           if (window.location.pathname !== '/reset-password') {
@@ -553,17 +564,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // Always persist the refresh token whenever Supabase gives us one
-        if (session?.provider_refresh_token) {
-          saveGoogleRefreshToken(session.provider_refresh_token)
-        }
-
-        // Set the auth state immediately to prevent visual block/hang during Google redirect
+        // Clear loading immediately — token validation runs in the background
+        // so a slow Gmail API call never blocks/hangs the auth state update.
         setState({
           user: session?.user ?? null,
           session,
           loading: false,
         })
+
+        if (session?.provider_refresh_token) {
+          saveGoogleRefreshToken(session.provider_refresh_token)
+        }
 
         if (session?.provider_token) {
           const providerToken = session.provider_token
@@ -574,7 +585,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setHasGoogleToken(true)
             localStorage.removeItem('dhanrakshak_requesting_gmail_scope')
           } else {
-            // Check if this token is actually valid for Gmail in the background
+            // Fire-and-forget: doesn't block the auth state update
             validateGoogleToken(providerToken).then((isValid) => {
               if (isValid) {
                 saveGoogleToken(providerToken)
@@ -585,7 +596,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             })
           }
         } else if (event === 'SIGNED_OUT') {
-          // Sign-out event — clear access token AND refresh token
           clearAllGoogleTokens()
           setHasGoogleToken(false)
         } else {

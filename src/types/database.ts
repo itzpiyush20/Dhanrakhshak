@@ -77,6 +77,8 @@ export interface Database {
           payment_mode: 'upi' | 'credit_card' | 'debit_card' | 'neft' | 'rtgs' | 'imps' | 'atm' | 'net_banking' | 'nach' | 'wallet' | 'cheque' | 'unknown' | null
           card_last4: string | null
           card_issuer: string | null
+          card_brand: 'Visa' | 'Mastercard' | 'RuPay' | 'American Express' | 'Diners' | null
+          transaction_time: string | null
           confidence_score: number | null
           event_type: 'debit' | 'credit' | 'refund' | 'emi' | 'sip' | 'salary' | 'chargeback' | 'subscription' | 'transfer' | 'insurance' | 'loan_repayment' | 'atm_withdrawal' | null
           email_message_id: string | null
@@ -100,6 +102,8 @@ export interface Database {
           payment_mode?: 'upi' | 'credit_card' | 'debit_card' | 'neft' | 'rtgs' | 'imps' | 'atm' | 'net_banking' | 'nach' | 'wallet' | 'cheque' | 'unknown' | null
           card_last4?: string | null
           card_issuer?: string | null
+          card_brand?: 'Visa' | 'Mastercard' | 'RuPay' | 'American Express' | 'Diners' | null
+          transaction_time?: string | null
           confidence_score?: number | null
           event_type?: 'debit' | 'credit' | 'refund' | 'emi' | 'sip' | 'salary' | 'chargeback' | 'subscription' | 'transfer' | 'insurance' | 'loan_repayment' | 'atm_withdrawal' | null
           email_message_id?: string | null
@@ -117,6 +121,8 @@ export interface Database {
           payment_mode?: string | null
           card_last4?: string | null
           card_issuer?: string | null
+          card_brand?: 'Visa' | 'Mastercard' | 'RuPay' | 'American Express' | 'Diners' | null
+          transaction_time?: string | null
           confidence_score?: number | null
           event_type?: string | null
           tags?: string[] | null

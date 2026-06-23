@@ -137,6 +137,7 @@ CREATE INDEX IF NOT EXISTS idx_transactions_user_category ON public.transactions
 CREATE INDEX IF NOT EXISTS idx_transactions_user_status ON public.transactions(user_id, approval_status);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_type ON public.transactions(user_id, type);
 CREATE INDEX IF NOT EXISTS idx_transactions_reference ON public.transactions(reference_id) WHERE reference_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_txn_reference_id ON public.transactions(user_id, reference_id) WHERE reference_id IS NOT NULL;
 
 -- Budgets: lookup by user + month
 CREATE INDEX IF NOT EXISTS idx_budgets_user_month ON public.budgets(user_id, month);

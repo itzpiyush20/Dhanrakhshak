@@ -755,32 +755,23 @@ export async function scanRealGmailInbox() {
 
       if (recentScanLogs && recentScanLogs.length > 0) {
         const lastScanTime = new Date(recentScanLogs[0].scanned_at).getTime()
-        const lastScheduledTime = getLastScheduledRefreshTime()
-        if (lastScanTime >= lastScheduledTime.getTime()) {
-          const nextScanTime = getNextRefreshTime()
-          const hoursLeft = Math.max(1, Math.ceil((nextScanTime.getTime() - Date.now()) / (60 * 60 * 1000)))
+        const hoursSinceLastScan = (Date.now() - lastScanTime) / (60 * 60 * 1000)
+        if (hoursSinceLastScan < 24) {
+          const hoursLeft = Math.ceil(24 - hoursSinceLastScan)
           return {
             data: null,
-            error: new Error(`Scan limit reached. Next scan available in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''} (after daily reset at 06:00 AM). All transactions from your last scan are already captured.`),
+            error: new Error(`Scan limit reached. Next scan available in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''}. All transactions from your last scan are already captured.`),
           }
         }
       }
     }
 
-    const [{ data: registeredCards }, { data: pastCards }] = await Promise.all([
-      supabase.from('cards').select('last4, issuer').eq('user_id', user.id),
-      supabase.from('transactions').select('card_last4, card_issuer').eq('user_id', user.id).eq('approval_status', 'approved').not('card_last4', 'is', null).not('card_issuer', 'is', null)
-    ])
+    const { data: registeredCards } = await supabase.from('cards').select('last4, issuer').eq('user_id', user.id)
 
     const cardMap: Record<string, string> = {}
     if (registeredCards) {
       registeredCards.forEach(c => {
         if (c.last4 && c.issuer) cardMap[c.last4] = c.issuer
-      })
-    }
-    if (pastCards) {
-      pastCards.forEach(c => {
-        if (c.card_last4 && c.card_issuer) cardMap[c.card_last4] = c.card_issuer
       })
     }
 
@@ -818,20 +809,23 @@ export async function scanRealGmailInbox() {
       console.warn('Failed to query email scan logs, assuming first scan', e)
     }
 
+    const EMAIL_KEYWORDS = '(debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)'
+
     let startLimitTime = 0
     let q = ''
     if (isFirstScan) {
+      // First scan: look back 7 days
       startLimitTime = Date.now() - 7 * 24 * 60 * 60 * 1000
-      const startLimitDate = new Date(startLimitTime)
-      const yyyy = startLimitDate.getFullYear()
-      const mm = String(startLimitDate.getMonth() + 1).padStart(2, '0')
-      const dd = String(startLimitDate.getDate()).padStart(2, '0')
-
-      q = `after:${yyyy}/${mm}/${dd} (debit OR credit OR debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
     } else {
-      startLimitTime = new Date(`${activeYear}-01-01T00:00:00Z`).getTime()
-      q = `after:${activeYear}/01/01 before:${activeYear + 1}/01/01 (debit OR credit OR debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)`
+      // Subsequent scans: rolling 26-hour window so emails from the last 2-3 hours
+      // are always included. Gmail's date-only `after:YYYY/MM/DD` can miss same-day
+      // recent emails; Unix-second timestamps give precise sub-day boundaries.
+      // Already-processed emails are excluded via existingMessageIds deduplication.
+      startLimitTime = Date.now() - 26 * 60 * 60 * 1000
     }
+    // Use Unix epoch (seconds) for precise filtering — Gmail supports this format
+    const sinceSeconds = Math.floor(startLimitTime / 1000)
+    q = `after:${sinceSeconds} ${EMAIL_KEYWORDS}`
 
     let messages: { id: string; threadId: string }[] = []
     let nextPageToken = ''
@@ -873,6 +867,7 @@ export async function scanRealGmailInbox() {
     const validDetails: any[] = []
     for (let i = 0; i < uniqueMessages.length; i += batchSize) {
       const batch = uniqueMessages.slice(i, i + batchSize)
+      let tokenExpiredDuringBatch = false
       const batchResults = await Promise.all(
         batch.map(async (m: { id: string }) => {
           try {
@@ -880,21 +875,37 @@ export async function scanRealGmailInbox() {
               `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}`,
               { headers: { Authorization: `Bearer ${providerToken}` } }
             )
+            if (res.status === 401 || res.status === 403) {
+              tokenExpiredDuringBatch = true
+              return null
+            }
             if (!res.ok) return null
             return await res.json()
           } catch { return null }
         })
       )
+      if (tokenExpiredDuringBatch) {
+        clearGoogleToken()
+        throw new Error('TOKEN_EXPIRED')
+      }
       validDetails.push(...batchResults.filter(Boolean))
     }
 
-    const { data: existingTxns } = await supabase
+    const { data: existingTxns, error: existingTxnsError } = await supabase
       .from('transactions')
       .select('email_message_id, reference_id')
       .eq('user_id', user.id)
 
-    const existingMessageIds = new Set<string>(existingTxns?.map((t) => t.email_message_id).filter((id): id is string => !!id))
-    const existingRefIds = new Set<string>(existingTxns?.map((t) => t.reference_id).filter((r): r is string => !!r))
+    if (existingTxnsError) {
+      console.error('[emailScanner] Failed to load existing transactions for dedup:', existingTxnsError)
+    }
+
+    const existingMessageIds = new Set<string>(
+      (existingTxns ?? []).map((t) => t.email_message_id).filter((id): id is string => !!id)
+    )
+    const existingRefIds = new Set<string>(
+      (existingTxns ?? []).map((t) => t.reference_id).filter((r): r is string => !!r)
+    )
 
     const transactionsToInsert: TransactionInsert[] = []
     let skippedConfidence = 0
@@ -951,14 +962,14 @@ export async function scanRealGmailInbox() {
                 category: ruleResult.category,
                 merchant: resolvedMerchant,
                 description: aiResult.description || `${resolvedMerchant} Transaction`,
-                notes: emailContentForParsing,
                 date: aiResult.date || mailDate,
                 source: 'email',
                 approval_status: approval_status as 'approved' | 'pending' | 'rejected',
                 reference_id: aiResult.reference_id,
                 payment_mode: (aiResult.payment_mode || 'unknown') as any,
-                card_last4: aiResult.card_last4,
                 card_issuer: aiResult.card_issuer,
+                card_brand: aiResult.card_brand,
+                transaction_time: aiResult.transaction_time,
                 confidence_score: aiResult.confidence_score,
                 event_type: aiResult.transaction_type || 'debit',
                 email_message_id: mailMessageId || null,
@@ -986,9 +997,15 @@ export async function scanRealGmailInbox() {
         const isPromotionalSpam = /\b(?:promo(?:tion)?|coupon|unsubscribe|shop\s+now|buy\s+now|special\s+offer|limited\s+period|earn\s+cashback|get\s+cashback|cashback\s+on\s+your\s+next|exclusive\s+deal)\b/i.test(emailContentForParsing)
         if (isPromotionalSpam) continue
 
+        // Always reject these — hard-accept subject does NOT override
+        if (/\b(?:declined|failed|unsuccessful|initiated|requested|rejected|cancelled|void|voided)\b/i.test(emailContentForParsing)) continue
+        if (/\b(?:otp|one\s*time\s*pass(?:word|code)|verification\s*code|verification\s*pin|passcode|security\s*pin|security\s*code|m-?pin|t-?pin|2fa|two\s*factor|auth\s*code|do\s*not\s*share)\b/i.test(emailContentForParsing)) continue
+        // Reject order-placed emails that lack an actual debit confirmation
+        if (
+          /\b(?:order\s*(?:placed|confirmed|received|acknowledged)|booking\s*(?:confirmed|received)|your\s*order\s*(?:is|has been))\b/i.test(emailContentForParsing) &&
+          !/\b(?:debited|charged|deducted|payment\s*(?:successful|done|completed|received)|amount\s*debited)\b/i.test(emailContentForParsing)
+        ) continue
         if (!isHardAccepted) {
-          if (/\b(?:declined|failed|unsuccessful|initiated|requested|rejected|cancelled|void|voided)\b/i.test(emailContentForParsing)) continue
-          if (/\b(?:otp|one\s*time\s*pass(?:word|code)|verification\s*code|verification\s*pin|passcode|security\s*pin|security\s*code|m-?pin|t-?pin|2fa|two\s*factor|auth\s*code|do\s*not\s*share)\b/i.test(emailContentForParsing)) continue
           if (/\b(?:due|reminder|remind|upcoming|due\s+date|minimum\s+due|statement\s+for|payment\s+due|overdue|payable|bill\s+generated|statement\s+of|monthly\s+statement|e-?statement|estatement)\b/i.test(emailContentForParsing)) continue
           if (/(?:will\s+be\s+debited|scheduled\s+for|pay\s+before|auto-?debit\s+has\s+been\s+scheduled|is\s+scheduled\s+for)/i.test(emailContentForParsing)) continue
           if (/\b(?:policy\s+update|security\s+policy|terms\s+of\s+service|agreement\s+update|privacy\s+update|will\s+not\s+be\s+charged|no\s+charges\s+apply)\b/i.test(emailContentForParsing)) continue
@@ -1010,12 +1027,12 @@ export async function scanRealGmailInbox() {
         if (amountMatches.length === 0) continue
 
         const filteredAmounts = amountMatches.filter(m => {
-          const preStart = Math.max(0, m.index - 30)
+          const preStart = Math.max(0, m.index - 80)
           const precedingText = emailContentForParsing.substring(preStart, m.index).toLowerCase()
-          const postEnd = Math.min(emailContentForParsing.length, m.index + m.text.length + 20)
+          const postEnd = Math.min(emailContentForParsing.length, m.index + m.text.length + 50)
           const succeedingText = emailContentForParsing.substring(m.index + m.text.length, postEnd).toLowerCase()
-          return !(/bal(?:ance)?|avail(?:able)?|limit|outstanding|ledger|total\s+due|minimum\s+due/i.test(precedingText) ||
-            /bal(?:ance)?|avail(?:able)?|limit|outstanding|ledger/i.test(succeedingText))
+          return !(/bal(?:ance)?|avail(?:able)?|limit|outstanding|ledger|total\s+due|minimum\s+due|reward|cashback\s+of|earn|bonus/i.test(precedingText) ||
+            /bal(?:ance)?|avail(?:able)?|limit|outstanding|ledger|reward|bonus/i.test(succeedingText))
         })
 
         if (filteredAmounts.length === 0) continue
@@ -1050,23 +1067,19 @@ export async function scanRealGmailInbox() {
         ]
         const creditWords = ['credited', 'credited to', 'received', 'received from', 'added', 'refund', 'refunded', 'cashback', 'deposited', 'salary', 'credit', 'reversed']
 
+        const FALSE_CREDIT_RECEIVED = /received\s+(?:your\s+)?(?:order|payment)|order\s+received|payment\s+received|we\s+(?:have\s+)?received\s+your|received\s+at/i
+
         let debitScore = 0, creditScore = 0
         debitWords.forEach(w => { if (windowContent.includes(w)) debitScore += 10 })
         creditWords.forEach(w => {
-          if (w === 'received') {
-            const hasFalseCreditReceived = /received\s+(?:your\s+)?order|order\s+received|payment\s+received|received\s+payment|received\s+at/i.test(windowContent)
-            if (hasFalseCreditReceived) return
-          }
+          if (w === 'received' && FALSE_CREDIT_RECEIVED.test(windowContent)) return
           if (windowContent.includes(w)) creditScore += 10
         })
 
         if (debitScore === 0 && creditScore === 0) {
           debitWords.forEach(w => { if (lowerContent.includes(w)) debitScore += 5 })
           creditWords.forEach(w => {
-            if (w === 'received') {
-              const hasFalseCreditReceived = /received\s+(?:your\s+)?order|order\s+received|payment\s+received|received\s+payment|received\s+at/i.test(lowerContent)
-              if (hasFalseCreditReceived) return
-            }
+            if (w === 'received' && FALSE_CREDIT_RECEIVED.test(lowerContent)) return
             if (lowerContent.includes(w)) creditScore += 5
           })
         }
@@ -1166,7 +1179,7 @@ export async function scanRealGmailInbox() {
         const confidence = computeConfidence({
           trustedSender: isTrustedSender,
           hardAcceptSubject: isHardAccepted,
-          hasTransactionKeyword: debitScore > 0 || creditScore > 0,
+          hasTransactionKeyword: (debitScore + creditScore) >= 20,
           hasAmount: true,
           hasMerchant: !isGenericMerchant,
           hasPaymentMode: paymentMode !== 'unknown',
@@ -1175,7 +1188,7 @@ export async function scanRealGmailInbox() {
           debitCreditClear,
         })
 
-        if (confidence < 55) {
+        if (confidence < 65) {
           skippedConfidence++
           if (skippedEmailsDetails.length < 5) {
             const domain = fromValue.match(/@([\w.-]+)/)?.[1] || 'unknown'
@@ -1191,13 +1204,11 @@ export async function scanRealGmailInbox() {
           category: finalCategory,
           merchant,
           description,
-          notes: emailContentForParsing,
           date: mailDate,
           source: 'email',
           approval_status,
           reference_id,
           payment_mode: paymentMode,
-          card_last4: cardLast4,
           card_issuer: cardIssuer,
           confidence_score: confidence,
           event_type: eventType,
@@ -1244,7 +1255,7 @@ export async function scanRealGmailInbox() {
         emails_processed: validDetails.length,
         transactions_found: transactionsToInsert.length,
         status: 'success',
-        error_message: skippedConfidence > 0 ? `${skippedConfidence} email(s) skipped (confidence < 55). Samples: ${skippedEmailsDetails.join('; ')}` : null,
+        error_message: skippedConfidence > 0 ? `${skippedConfidence} email(s) skipped (confidence < 65). Samples: ${skippedEmailsDetails.join('; ')}` : null,
       })
       .select().single()
 
