@@ -59,7 +59,7 @@ export default function TermsPage() {
             If you connect your Google Account (Gmail) to allow the email scanner engine to scan and extract transactions:
             - You explicitly grant Dhanrakshak permission to read, search, and parse financial transactional emails from whitelisted banking domains in your inbox.
             - Dhanrakshak only accesses transactional emails. We do not read personal, promotional, or social correspondence.
-            - The Gmail parsing takes place client-side inside your browser, and no raw email bodies are stored on our servers.
+            - Gmail parsing uses a combination of client-side pattern matching and Google's own Gemini AI (via a server-side proxy we control) for extraction accuracy. No raw email bodies are stored on our servers — content passes through the proxy in real time and is never logged or retained.
             - You can disconnect your Google account and revoke access at any time.
           `)}
 

@@ -33,9 +33,11 @@ In the [Google Cloud Console](https://console.cloud.google.com/), go to **APIs &
 When adding scopes to the OAuth Consent Screen:
 1. Select the `.../auth/gmail.readonly` scope.
 2. Provide the following written justification to Google's compliance reviewers when requested:
-   > "Dhanrakshak is a personal finance tool designed to automate expense tracking. We access the user's Gmail read-only inbox strictly to locate bank transaction alert emails (from whitelisted domains like HDFC, ICICI, SBI). 
-   > 
-   > Crucially, all email scanning and parsing are executed client-side inside the user's browser via regular expression matching. No raw email bodies or communication contents are ever uploaded, processed, or stored on our cloud servers. We do not sell user financial data, show advertisements, or share profiling data with any third parties."
+   > "Dhanrakshak is a personal finance tool designed to automate expense tracking. We access the user's Gmail read-only inbox strictly to locate bank transaction alert emails (from whitelisted domains like HDFC, ICICI, SBI).
+   >
+   > Transaction emails are parsed using a combination of client-side pattern matching and Google's own Gemini AI (called via a server-side proxy we control) for higher extraction accuracy. Email subject/body text is transmitted to our server and forwarded to Gemini solely to extract structured transaction fields (amount, merchant, date, category) in real time — it is never stored, logged, or retained after parsing completes, and only the extracted transaction fields are saved to our database. We do not sell user financial data, show advertisements, or share profiling data with any third parties."
+
+   Note: this justification must stay accurate to the actual data flow. If you change how email content is processed (e.g. add a new third-party AI provider, or start persisting raw content anywhere), update this text — and the Privacy Policy — to match before re-submitting, since reviewers test the app against what you've claimed.
 
 ---
 

@@ -107,7 +107,7 @@ export default function PrivacyPage() {
 
             Specifically:
             • We access your Gmail inbox only to read transaction alert emails from banking institutions.
-            • We do not store your raw email contents on our servers; they are parsed client-side in your browser.
+            • We do not store your raw email contents on our servers. Transaction emails are parsed using a combination of client-side pattern matching and Google's own Gemini AI (called via a server-side proxy we control solely to keep API credentials secure) — email text passes through this proxy in real time to extract transaction details and is never logged or retained afterward.
             • We do not share, transfer, or sell your Google user data to third-party databases, marketing platforms, or ad networks.
             • We do not use your Google user data to train machine learning or artificial intelligence models.
           `)}
