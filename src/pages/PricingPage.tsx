@@ -39,8 +39,17 @@ export default function PricingPage() {
 
   useScrollReveal()
 
-  const isActive  = profile?.subscription_status === 'active'
-  const isTrial   = profile?.subscription_status === 'trial'
+  const status = profile?.subscription_status
+  const isExpired = status === 'expired' || (status === 'active' && daysLeft <= 0) || (status === 'trial' && daysLeft <= 0)
+  const isTrialExpired = (status === 'trial' && daysLeft <= 0) || (status === 'expired' && profile?.subscription_plan_type === 'trial')
+  const isSubExpired = (status === 'active' && daysLeft <= 0) || (status === 'expired' && profile?.subscription_plan_type !== 'trial')
+  const isFreeOrCancelled = status === 'free' || status === 'cancelled' || !status
+
+  const isActiveActive = status === 'active' && daysLeft > 0
+  const isTrialActive = status === 'trial' && daysLeft > 0
+
+  const isActive  = isActiveActive
+  const isTrial   = isTrialActive
   const isPro     = isActive && profile?.subscription_plan_type !== 'monthly'
 
   const planName  = selectedPlan === 'annual' ? 'Yearly' : 'Monthly'
@@ -75,12 +84,33 @@ export default function PricingPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) { showToast('Your session expired. Please log in again.', 'error'); setProcessing(false); return }
-      const response  = await fetch('/api/create-order', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` }, body: JSON.stringify({ planType: selectedPlan }) })
+      const response  = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          planType: selectedPlan,
+          intrak_website_id: import.meta.env.VITE_INTRAK_WEBSITE_ID || '',
+          intrak_visitor_id: localStorage.getItem('_df_vid') || '',
+          intrak_session_id: sessionStorage.getItem('_df_sid') || '',
+          intrak_utm_source: new URLSearchParams(window.location.search).get('utm_source') || '',
+          intrak_utm_medium: new URLSearchParams(window.location.search).get('utm_medium') || '',
+          intrak_utm_campaign: new URLSearchParams(window.location.search).get('utm_campaign') || '',
+          intrak_referrer: document.referrer || '',
+          intrak_path: window.location.pathname,
+        })
+      })
       const orderData = await response.json()
       if (!response.ok || orderData.error) throw new Error(orderData.error || 'Could not initiate payment order')
 
+      const clientKey = (import.meta.env.VITE_RAZORPAY_KEY_ID && import.meta.env.VITE_RAZORPAY_KEY_ID.startsWith('rzp_'))
+        ? import.meta.env.VITE_RAZORPAY_KEY_ID
+        : 'rzp_test_placeholder'
+
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_placeholder',
+        key: clientKey,
         amount: orderData.amount, currency: orderData.currency,
         name: 'Dhanrakshak', description: `Upgrade to ${planName} Plan`,
         order_id: orderData.id,
@@ -215,13 +245,23 @@ export default function PricingPage() {
             </div>
           )}
 
-          {(!profile?.subscription_status || (isTrial && daysLeft <= 0)) && (
+          {(isExpired || isFreeOrCancelled) && (
             <div className="rounded-3xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-surface-1 border border-border-subtle shadow-md">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">🔒</span>
                 <div>
-                  <p className="text-sm font-bold text-sb-ink">Trial Expired — Dashboard Access Restricted</p>
-                  <p className="text-xs text-zinc-400 font-medium mt-0.5">Upgrade to restore local email parsing, budgets, and priority tracking modules.</p>
+                  <p className="text-sm font-bold text-sb-ink">
+                    {isTrialExpired 
+                      ? 'Trial Expired — Dashboard Access Restricted' 
+                      : isSubExpired 
+                      ? 'Subscription Expired — Dashboard Access Restricted'
+                      : 'Premium Subscription Required — Dashboard Access Restricted'}
+                  </p>
+                  <p className="text-xs text-zinc-400 font-medium mt-0.5">
+                    {isFreeOrCancelled
+                      ? 'Upgrade to enable automated email tracking, budgets, and priority tracking modules.'
+                      : 'Upgrade to restore local email parsing, budgets, and priority tracking modules.'}
+                  </p>
                 </div>
               </div>
               <span className="text-[10px] px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-red-500/10 text-red-400 border border-red-500/20 font-bold uppercase tracking-wider">Access Locked</span>

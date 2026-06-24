@@ -88,7 +88,16 @@ export default function AutoUpdateChecker() {
       if (target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
         const src = (target as HTMLScriptElement).src || (target as HTMLLinkElement).href
         if (src && (src.includes('/assets/') || src.includes('index-'))) {
-          console.warn('webapp: asset loading failed, reloading page to apply updates...', src)
+          console.warn('webapp: asset loading failed, checking for reload loop...', src)
+          try {
+            const nowTime = Date.now()
+            const lastReload = sessionStorage.getItem('dhanrakshak_last_auto_reload')
+            if (lastReload && nowTime - Number(lastReload) < 15000) {
+              console.warn('webapp: auto-reload loop detected via error listener & suppressed.')
+              return
+            }
+            sessionStorage.setItem('dhanrakshak_last_auto_reload', String(nowTime))
+          } catch (err) {}
           window.location.reload()
         }
       }

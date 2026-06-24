@@ -249,10 +249,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const cachedScanTime = localStorage.getItem(`dhanrakshak_daily_scan_time_${state.user.id}`) || '06:00'
 
       if (cachedStatus) {
+        let subStatus = cachedStatus
+        if (cachedExpires && (cachedStatus === 'active' || cachedStatus === 'trial')) {
+          const expiresTime = new Date(cachedExpires).getTime()
+          if (expiresTime <= Date.now()) {
+            subStatus = 'expired'
+          }
+        }
         setProfile({
           id: state.user.id,
           email: state.user.email,
-          subscription_status: cachedStatus,
+          subscription_status: subStatus,
           subscription_expires_at: cachedExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
           subscription_plan_type: cachedPlan || 'trial',
           daily_scan_time: cachedScanTime
@@ -296,9 +303,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // Prioritize database subscription status as the single source of truth
         const isSubscribed = data.subscription_status === 'active'
-        const subStatus = data.subscription_status || 'trial'
+        let subStatus = data.subscription_status || 'trial'
         const subExpires = data.subscription_expires_at || new Date(safeCreatedAtTime + 14 * 24 * 60 * 60 * 1000).toISOString()
         const subPlan = data.subscription_plan_type || (isSubscribed ? 'monthly' : 'trial')
+
+        // Check if expired
+        const expiresTime = new Date(subExpires).getTime()
+        if ((subStatus === 'active' || subStatus === 'trial') && expiresTime <= Date.now()) {
+          subStatus = 'expired'
+          // Write back to Supabase asynchronously
+          supabase
+            .from('profiles')
+            .update({ subscription_status: 'expired', updated_at: new Date().toISOString() })
+            .eq('id', state.user.id)
+            .then(({ error: expiryError }) => {
+              if (expiryError) console.warn('Failed to update expired subscription in database:', expiryError.message)
+              else console.log('Successfully auto-expired subscription in database.')
+            })
+        }
 
         // Cache subscription details back to localStorage
         localStorage.setItem(`dhanrakshak_sub_status_${state.user.id}`, subStatus)
@@ -374,6 +396,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             })
         }
       } else {
+        let subStatus = localStatus || 'trial'
         let subPlan = 'trial'
         if (localStatus === 'active') {
           subPlan = localPlan || ''
@@ -383,10 +406,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             subPlan = diffDays > 35 ? 'annual' : 'monthly'
           }
         }
+        if (localExpires && (subStatus === 'active' || subStatus === 'trial')) {
+          const expiresTime = new Date(localExpires).getTime()
+          if (expiresTime <= Date.now()) {
+            subStatus = 'expired'
+          }
+        }
         setProfile({
           id: state.user.id,
           email: state.user.email,
-          subscription_status: localStatus || 'trial',
+          subscription_status: subStatus,
           subscription_expires_at: localExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
           subscription_plan_type: subPlan,
           daily_scan_time: localStorage.getItem(`dhanrakshak_daily_scan_time_${state.user.id}`) || '06:00'
@@ -398,6 +427,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const localStatus = localStorage.getItem(`dhanrakshak_sub_status_${state.user.id}`)
       const localExpires = localStorage.getItem(`dhanrakshak_sub_expires_${state.user.id}`)
       const localPlan = localStorage.getItem(`dhanrakshak_sub_plan_${state.user.id}`)
+      let subStatus = localStatus || 'trial'
       let subPlan = 'trial'
       if (localStatus === 'active') {
         subPlan = localPlan || ''
@@ -407,10 +437,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           subPlan = diffDays > 35 ? 'annual' : 'monthly'
         }
       }
+      if (localExpires && (subStatus === 'active' || subStatus === 'trial')) {
+        const expiresTime = new Date(localExpires).getTime()
+        if (expiresTime <= Date.now()) {
+          subStatus = 'expired'
+        }
+      }
       setProfile({
         id: state.user.id,
         email: state.user.email,
-        subscription_status: localStatus || 'trial',
+        subscription_status: subStatus,
         subscription_expires_at: localExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
         subscription_plan_type: subPlan,
         daily_scan_time: localStorage.getItem(`dhanrakshak_daily_scan_time_${state.user.id}`) || '06:00'

@@ -2,8 +2,11 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import Razorpay from 'razorpay'
 import { createClient } from '@supabase/supabase-js'
 
+const razorpayKeyId = [process.env.RAZORPAY_KEY_ID, process.env.VITE_RAZORPAY_KEY_ID]
+  .find(k => k && k.startsWith('rzp_')) || process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || ''
+
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || '',
+  key_id: razorpayKeyId,
   key_secret: process.env.RAZORPAY_KEY_SECRET || '',
 })
 
@@ -65,7 +68,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   const userId = user.id
 
-  const { planType } = req.body ?? {}
+  const {
+    planType,
+    intrak_website_id,
+    intrak_visitor_id,
+    intrak_session_id,
+    intrak_utm_source,
+    intrak_utm_medium,
+    intrak_utm_campaign,
+    intrak_referrer,
+    intrak_path,
+  } = req.body ?? {}
 
   if (typeof planType !== 'string') {
     return res.status(400).json({ error: 'planType is required' })
@@ -81,11 +94,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const notes: Record<string, string> = {
+      userId,
+      planType,
+      intrak_event_name: 'purchase',
+    }
+
+    if (intrak_website_id) notes.intrak_website_id = String(intrak_website_id).slice(0, 256)
+    if (intrak_visitor_id) notes.intrak_visitor_id = String(intrak_visitor_id).slice(0, 256)
+    if (intrak_session_id) notes.intrak_session_id = String(intrak_session_id).slice(0, 256)
+    if (intrak_utm_source) notes.intrak_utm_source = String(intrak_utm_source).slice(0, 256)
+    if (intrak_utm_medium) notes.intrak_utm_medium = String(intrak_utm_medium).slice(0, 256)
+    if (intrak_utm_campaign) notes.intrak_utm_campaign = String(intrak_utm_campaign).slice(0, 256)
+    if (intrak_referrer) notes.intrak_referrer = String(intrak_referrer).slice(0, 256)
+    if (intrak_path) notes.intrak_path = String(intrak_path).slice(0, 256)
+
     const order = await razorpay.orders.create({
       amount,
       currency: 'INR',
       receipt: `receipt_${userId.slice(0, 8)}_${Date.now()}`,
-      notes: { userId, planType },
+      notes,
     })
 
     return res.status(200).json({

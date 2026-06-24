@@ -59,10 +59,32 @@ export async function checkScannerAccess(): Promise<ScannerAccessResult> {
     if (!profile) return false
     if (profile.subscription_status === 'active') {
       if (!profile.subscription_expires_at) return true
-      return new Date(profile.subscription_expires_at).getTime() > Date.now()
+      const hasExpired = new Date(profile.subscription_expires_at).getTime() <= Date.now()
+      if (hasExpired) {
+        supabase
+          .from('profiles')
+          .update({ subscription_status: 'expired', updated_at: new Date().toISOString() })
+          .eq('id', user.id)
+          .then(({ error }) => {
+            if (error) console.warn('Failed to update expired status in scanner gate:', error.message)
+          })
+        return false
+      }
+      return true
     }
     if (profile.subscription_status === 'trial') {
-      return new Date(profile.subscription_expires_at).getTime() > Date.now()
+      const hasExpired = new Date(profile.subscription_expires_at).getTime() <= Date.now()
+      if (hasExpired) {
+        supabase
+          .from('profiles')
+          .update({ subscription_status: 'expired', updated_at: new Date().toISOString() })
+          .eq('id', user.id)
+          .then(({ error }) => {
+            if (error) console.warn('Failed to update expired status in scanner gate:', error.message)
+          })
+        return false
+      }
+      return true
     }
     return false
   })()

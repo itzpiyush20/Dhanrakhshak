@@ -731,12 +731,30 @@ export async function scanRealGmailInbox() {
         .single()
       if (profile) {
         if (profile.subscription_status === 'active') {
-          if (!profile.subscription_expires_at || new Date(profile.subscription_expires_at).getTime() > Date.now()) {
+          if (!profile.subscription_expires_at) {
             isPremium = true
+          } else if (new Date(profile.subscription_expires_at).getTime() > Date.now()) {
+            isPremium = true
+          } else {
+            supabase
+              .from('profiles')
+              .update({ subscription_status: 'expired', updated_at: new Date().toISOString() })
+              .eq('id', user.id)
+              .then(({ error }) => {
+                if (error) console.warn('Failed to update expired status in email scanner:', error.message)
+              })
           }
         } else if (profile.subscription_status === 'trial') {
           if (profile.subscription_expires_at && new Date(profile.subscription_expires_at).getTime() > Date.now()) {
             isPremium = true
+          } else {
+            supabase
+              .from('profiles')
+              .update({ subscription_status: 'expired', updated_at: new Date().toISOString() })
+              .eq('id', user.id)
+              .then(({ error }) => {
+                if (error) console.warn('Failed to update expired status in email scanner:', error.message)
+              })
           }
         }
       }

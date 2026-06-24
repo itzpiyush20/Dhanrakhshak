@@ -252,7 +252,7 @@ export default function PendingPage() {
         setShowInactivityBanner(true)
       }
 
-      const lastScheduledTime = getLastScheduledRefreshTime()
+      const lastScheduledTime = getLastScheduledRefreshTime(dailyScanTime)
       if (!lastScan || lastScan.getTime() < lastScheduledTime.getTime()) {
         setSyncingBackground(true)
         if (hasGoogleToken) {
@@ -537,7 +537,7 @@ export default function PendingPage() {
               </Button>
             </div>
             <span className="text-[10px] font-semibold text-brand-300 font-mono bg-surface-2 border border-border-subtle/50 px-2 py-0.5 rounded-md">
-              📅 Next Refresh: {getNextRefreshTime().toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
+              📅 Next Refresh: {getNextRefreshTime(dailyScanTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
             </span>
           </div>
         </div>

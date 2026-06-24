@@ -8,8 +8,11 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 )
 
+const razorpayKeyId = [process.env.RAZORPAY_KEY_ID, process.env.VITE_RAZORPAY_KEY_ID]
+  .find(k => k && k.startsWith('rzp_')) || process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || ''
+
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || '',
+  key_id: razorpayKeyId,
   key_secret: process.env.RAZORPAY_KEY_SECRET || '',
 })
 
@@ -93,8 +96,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // prove the caller is who paid. Cross-check the order's own notes (set server-side
   // at creation time in create-order.ts) against the authenticated caller's id so a
   // payment's order_id/payment_id/signature can't be replayed by a different account.
+  let order: any;
   try {
-    const order = await razorpay.orders.fetch(razorpay_order_id)
+    order = await razorpay.orders.fetch(razorpay_order_id)
     const orderUserId = (order.notes as Record<string, string> | undefined)?.userId
     if (orderUserId !== userId) {
       console.error('Order/user mismatch for order:', razorpay_order_id)
@@ -104,6 +108,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('Error fetching Razorpay order for verification:', error)
     return res.status(400).json({ error: 'Could not verify order ownership.' })
   }
+
+async function notifyIntrak(order: any) {
+  const notes = order.notes || {};
+  if (!notes.intrak_website_id) return;
+
+  const intrakUrl = process.env.VITE_INTRAK_APP_URL || 'https://intrakv1.vercel.app';
+  const amount = order.amount ? order.amount / 100 : 0; // in Rupees
+  
+  try {
+    const payload = {
+      website_id: notes.intrak_website_id,
+      visitor_id: notes.intrak_visitor_id || 'unknown',
+      session_id: notes.intrak_session_id || 'unknown',
+      event_type: 'purchase',
+      event_name: notes.intrak_event_name || 'purchase',
+      path: notes.intrak_path || null,
+      referrer: notes.intrak_referrer || null,
+      utm_source: notes.intrak_utm_source || null,
+      utm_medium: notes.intrak_utm_medium || null,
+      utm_campaign: notes.intrak_utm_campaign || null,
+      revenue: amount,
+      currency: order.currency || 'INR',
+    };
+
+    console.log('Notifying Intrak of purchase event:', payload);
+    const res = await fetch(`${intrakUrl}/api/collect`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    
+    if (!res.ok) {
+      console.error(`Failed to notify Intrak: HTTP ${res.status} - ${await res.text()}`);
+    } else {
+      console.log('Successfully notified Intrak of purchase event.');
+    }
+  } catch (err) {
+    console.error('Error notifying Intrak:', err);
+  }
+}
 
   const durationDays = planDurationDays(planType)
   const subscription_expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
@@ -115,11 +161,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         subscription_status: 'active',
         subscription_expires_at,
         subscription_plan_type: planType,
+        razorpay_order_id: razorpay_order_id, // Fix idempotency bug
         updated_at: new Date().toISOString()
       })
       .eq('id', userId)
 
     if (error) throw error
+
+    // Notify Intrak background attribution tracker
+    await notifyIntrak(order);
 
     return res.status(200).json({
       success: true,

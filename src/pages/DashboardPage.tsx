@@ -200,7 +200,7 @@ export default function DashboardPage() {
 
       // 3. Auto-sync if last scan was before the last scheduled refresh
       if (profile) {
-        const lastScheduledTime = getLastScheduledRefreshTime()
+        const lastScheduledTime = getLastScheduledRefreshTime(dailyScanTime)
         if (!lastScan || lastScan.getTime() < lastScheduledTime.getTime()) {
           setSyncingBackground(true)
           try {
@@ -382,7 +382,7 @@ export default function DashboardPage() {
               </p>
               <span className="text-zinc-700 hidden sm:inline">•</span>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-surface-2 border border-border-subtle/50 text-[10px] font-semibold text-brand-300 font-mono">
-                📅 Next Refresh: {getNextRefreshTime().toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
+                📅 Next Refresh: {getNextRefreshTime(dailyScanTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
               </span>
             </div>
           </div>

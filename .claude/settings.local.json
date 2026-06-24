@@ -13,7 +13,9 @@
       "mcp__Claude_in_Chrome__javascript_tool",
       "PowerShell(cd \"$env:TEMP\\\\dhanrakhshak_deploy\"; npm run build 2>&1 | Select-Object -Last 60)",
       "Read(//c/Users/itzpi/OneDrive/Desktop/Dhanrakshak/**)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

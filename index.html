@@ -43,6 +43,29 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
 
+    <!-- Global resource error handler to prevent White Screen of Death on redeploy/404 assets -->
+    <script>
+      window.addEventListener('error', function(e) {
+        try {
+          var target = e.target;
+          if (target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
+            var src = target.src || target.href;
+            if (src && (src.indexOf('/assets/') !== -1 || src.indexOf('index-') !== -1)) {
+              console.warn('HTML Head: Asset load failed. Checking for reload loop...', src);
+              var now = Date.now();
+              var lastReload = sessionStorage.getItem('dhanrakshak_last_auto_reload');
+              if (lastReload && (now - Number(lastReload) < 15000)) {
+                console.error('HTML Head: Reload loop suppressed.');
+                return;
+              }
+              sessionStorage.setItem('dhanrakshak_last_auto_reload', String(now));
+              window.location.reload();
+            }
+          }
+        } catch (err) {}
+      }, true); // Use capture phase
+    </script>
+
     <!-- Bulletproof legacy service worker and cache purge (Background only) -->
     <script>
       try {
@@ -78,6 +101,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    
+    <!-- Intrak Tracking Script -->
+    <script async src="https://intrakv1.vercel.app/track.js" data-website-id="%VITE_INTRAK_WEBSITE_ID%"></script>
   </head>
   <body>
     <div id="root"></div>
