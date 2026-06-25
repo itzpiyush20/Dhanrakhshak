@@ -87,6 +87,10 @@ async function notifyIntrak(order: any) {
       utm_campaign: notes.intrak_utm_campaign || null,
       revenue: amount,
       currency: order.currency || 'INR',
+      // Keyed by order id so Intrak's /api/collect can dedupe this against the
+      // other paths that may also report the same purchase (verify-payment.ts,
+      // and Razorpay's own account-wide webhook calling Intrak directly).
+      external_id: `razorpay_${order.id}`,
     };
 
     console.log('Notifying Intrak of purchase event:', payload);
