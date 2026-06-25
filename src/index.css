@@ -518,14 +518,16 @@ html { scroll-behavior: smooth; }
    breaking. Prefer plain surface/border tokens for new work.
    ============================================ */
 
-/* Glass cards → frosted glassmorphism */
+/* Glass cards → clean solid surface cards (backdrop-filter removed: stacked
+   blur layers with the sticky header crashed the GPU compositor on some
+   hardware, leaving the page permanently blank after first paint) */
 .glass-card,
 .glass-premium,
 .glass-effect {
-  background: rgba(22, 25, 32, 0.65);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--border-default);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
   border-radius: 14px;
 }
@@ -533,10 +535,10 @@ html { scroll-behavior: smooth; }
 .light .glass-card,
 .light .glass-premium,
 .light .glass-effect {
-  background: rgba(255, 255, 255, 0.70);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: var(--surface-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--border-default);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.06);
 }
 
@@ -867,20 +869,21 @@ html { scroll-behavior: smooth; }
    UI/UX Pro Max Premium Templates & Utilities
    ============================================ */
 
-/* 1. Frosted Glass Panel / Card */
+/* 1. Frosted Glass Panel / Card → solid surface (backdrop-filter removed,
+   see .glass-card above for why) */
 .glass-panel {
-  background: rgba(22, 25, 32, 0.65);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--surface-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
   transition: border-color 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .light .glass-panel {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--surface-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(0, 0, 0, 0.06);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.06);
 }
