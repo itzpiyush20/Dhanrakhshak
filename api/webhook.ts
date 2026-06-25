@@ -122,7 +122,7 @@ async function notifyIntrak(order: any) {
       const durationDays = planDurationDays(planType)
       const subscription_expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
 
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('profiles')
         .update({
           subscription_status: 'active',
@@ -132,8 +132,16 @@ async function notifyIntrak(order: any) {
           updated_at: new Date().toISOString()
         })
         .eq('id', userId)
+        .select('id')
 
       if (error) throw error
+      // Supabase returns success with an empty array (no error) when the filter
+      // matches zero rows — without this check a missing/mismatched profile row
+      // would silently report success while never awarding the subscription.
+      if (!data || data.length === 0) {
+        console.error('Webhook subscription update matched no profile row for userId:', userId, 'order:', orderId)
+        throw new Error('No matching profile found to update.')
+      }
 
       console.log(`Successfully updated subscription for user ${userId} via webhook`)
 
