@@ -14,7 +14,7 @@ import {
 } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { User, Session } from '@supabase/supabase-js'
-import { supabase } from '@/services/supabase'
+import { supabase, readStoredSession } from '@/services/supabase'
 import { saveGoogleToken, clearGoogleToken, clearAllGoogleTokens, isGoogleConnected, purgeOldTokenKey, validateGoogleToken, saveGoogleRefreshToken, tryRefreshGoogleToken } from '@/services/googleAuth'
 import { Button } from '@/components/ui'
 import { identifyUser, resetAnalytics, track, EVENTS } from '@/services/analytics'
@@ -537,10 +537,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // This runs once on mount and is a no-op if the key doesn't exist.
     purgeOldTokenKey()
 
-    // Get initial session — with 10s timeout to prevent app hanging on stale auth
+    // Get initial session. supabase.auth.getSession() is gated behind the browser
+    // Web Locks API, which can hang on tab re-focus after idle or under contention.
+    // If it does not resolve quickly we fall back to the session persisted in
+    // localStorage — NEVER to a null session — so a user with a valid stored
+    // session is never falsely logged out and bounced to the landing page.
     const sessionPromise = supabase.auth.getSession()
-    const timeoutPromise = new Promise<{ data: { session: null } }>((resolve) =>
-      setTimeout(() => resolve({ data: { session: null } }), 10000)
+    const timeoutPromise = new Promise<{ data: { session: Session | null } }>((resolve) =>
+      setTimeout(() => resolve({ data: { session: readStoredSession() } }), 4000)
     )
 
     Promise.race([sessionPromise, timeoutPromise]).then(({ data: { session } }) => {
@@ -587,7 +591,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setHasGoogleToken(isGoogleConnected())
       }
     }).catch(() => {
-      setState({ user: null, session: null, loading: false })
+      // getSession() rejected — fall back to the persisted session rather than
+      // forcing a logout. Only treat as signed-out if storage is genuinely empty.
+      const stored = readStoredSession()
+      setState({ user: stored?.user ?? null, session: stored, loading: false })
     })
 
     // Listen for auth changes (login, logout, token refresh)
@@ -642,19 +649,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // (with our 55-min expiry) handles the lifecycle correctly.
 
         if (event === 'SIGNED_IN' && session?.user) {
-          // Identify user in PostHog
+          // Identify user in PostHog (not a Supabase call — safe to run inline)
           identifyUser(session.user.id, {
             email: session.user.email,
             created_at: session.user.created_at,
           })
-          // Log signin to DB — fully non-blocking, safe if table is missing
-          supabase.from('signin_logs').insert({
-            user_id: session.user.id,
-            email: session.user.email,
-            device_name: getDeviceName(),
-          }).then(({ error }) => {
-            if (error) console.warn('signin_logs insert failed (non-critical):', error.message)
-          })
+          // IMPORTANT: this callback is invoked while @supabase/auth-js holds its
+          // internal Web Locks lock. Running another Supabase call synchronously
+          // here can deadlock that lock and stall the very getSession() the app is
+          // waiting on. Defer it to a fresh task so the lock is released first.
+          const signedInUser = session.user
+          setTimeout(() => {
+            supabase.from('signin_logs').insert({
+              user_id: signedInUser.id,
+              email: signedInUser.email,
+              device_name: getDeviceName(),
+            }).then(({ error }) => {
+              if (error) console.warn('signin_logs insert failed (non-critical):', error.message)
+            })
+          }, 0)
         }
       }
     )
