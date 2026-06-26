@@ -7,8 +7,11 @@ import { Link } from 'react-router-dom'
 import { ROUTES } from '@/constants'
 import { motion } from 'framer-motion'
 import { useScrollReveal } from '@/hooks'
+import { useAuth } from '@/context/AuthContext'
+import { UserMenu } from '@/components/ui'
 
 export default function AboutPage() {
+  const { user, openAuthModal } = useAuth()
   useEffect(() => {
     document.title = 'About | Dhanrakshak'
     window.scrollTo(0, 0)
@@ -25,9 +28,13 @@ export default function AboutPage() {
             <span className="text-lg font-bold text-emerald-400">₹</span>
             <span className="text-sb-ink font-medium">Dhanrakshak</span>
           </Link>
-          <Link to={ROUTES.DASHBOARD} className="text-xs font-medium no-underline text-emerald-400">
-            ← Back to App
-          </Link>
+          {user ? (
+            <UserMenu />
+          ) : (
+            <button onClick={() => openAuthModal()} className="text-xs font-medium text-emerald-400 bg-transparent border-0 cursor-pointer">
+              Sign in
+            </button>
+          )}
         </div>
       </header>
 

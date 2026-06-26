@@ -5,8 +5,11 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ROUTES } from '@/constants'
+import { useAuth } from '@/context/AuthContext'
+import { UserMenu } from '@/components/ui'
 
 export default function TermsPage() {
+  const { user, openAuthModal } = useAuth()
   useEffect(() => {
     document.title = 'Terms of Service | Dhanrakshak'
     window.scrollTo(0, 0)
@@ -21,9 +24,13 @@ export default function TermsPage() {
             <span className="text-lg font-bold text-emerald-400">₹</span>
             <span className="text-sb-ink font-medium">Dhanrakshak</span>
           </Link>
-          <Link to={ROUTES.DASHBOARD} className="text-xs font-medium no-underline text-emerald-400">
-            ← Back to App
-          </Link>
+          {user ? (
+            <UserMenu />
+          ) : (
+            <button onClick={() => openAuthModal()} className="text-xs font-medium text-emerald-400 bg-transparent border-0 cursor-pointer">
+              Sign in
+            </button>
+          )}
         </div>
       </header>
 

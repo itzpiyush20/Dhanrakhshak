@@ -6,6 +6,7 @@ import { ROUTES } from '@/constants'
 import { Capacitor } from '@capacitor/core'
 import { cn } from '@/utils'
 import { useScrollReveal } from '@/hooks'
+import { UserMenu } from '@/components/ui'
 
 // ─────────────────────────────────────────────
 // Typewriter hook
@@ -439,7 +440,7 @@ export default function LandingPage() {
 
           <div className="flex items-center gap-3">
             {user ? (
-              <Link to={ROUTES.DASHBOARD} className="sb-btn-primary no-underline">Dashboard</Link>
+              <UserMenu />
             ) : (
               <>
                 <button onClick={() => openAuthModal()} className="text-sm text-sb-ink-muted hover:text-sb-ink transition-colors bg-transparent border-0 cursor-pointer">Sign in</button>

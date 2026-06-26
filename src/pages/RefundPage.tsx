@@ -6,8 +6,11 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ROUTES, APP_CONFIG } from '@/constants'
+import { useAuth } from '@/context/AuthContext'
+import { UserMenu } from '@/components/ui'
 
 export default function RefundPage() {
+  const { user, openAuthModal } = useAuth()
   useEffect(() => {
     document.title = 'Cancellation & Refund Policy | Dhanrakshak'
     window.scrollTo(0, 0)
@@ -22,9 +25,13 @@ export default function RefundPage() {
             <span className="text-lg font-bold" style={{ color: 'var(--sb-primary)' }}>₹</span>
             <span style={{ color: 'var(--sb-ink)', fontWeight: 500 }}>Dhanrakshak</span>
           </Link>
-          <Link to={ROUTES.DASHBOARD} className="sb-caption font-medium no-underline" style={{ color: 'var(--sb-primary)' }}>
-            ← Back to App
-          </Link>
+          {user ? (
+            <UserMenu />
+          ) : (
+            <button onClick={() => openAuthModal()} className="sb-caption font-medium bg-transparent border-0 cursor-pointer" style={{ color: 'var(--sb-primary)' }}>
+              Sign in
+            </button>
+          )}
         </div>
       </header>
 
