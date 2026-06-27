@@ -86,9 +86,18 @@ function AnimatedRoutes() {
     <AnimatePresence mode="wait">
       <motion.div
         key={location.pathname}
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -8 }}
+        // IMPORTANT: animate TRANSFORM ONLY — never opacity — for the app-shell
+        // wrapper. framer-motion sets `initial` as an inline style on mount and
+        // fades to `animate` via requestAnimationFrame. The browser PAUSES rAF in a
+        // backgrounded / mid-transition tab (exactly the tab state during a Google
+        // OAuth redirect back to /dashboard) and on a GPU compositor stall (a known
+        // failure mode here — see commit 55d2ace). If we gated visibility on opacity,
+        // a stalled animation would leave the ENTIRE app (nav + content) at opacity:0
+        // — a blank white screen with a correct page title. A stalled transform only
+        // leaves content a few px off, so the app is always visible regardless.
+        initial={{ y: 14 }}
+        animate={{ y: 0 }}
+        exit={{ y: -8 }}
         transition={{ duration: 0.30, ease: [0.16, 1, 0.3, 1] }}
         style={{ minHeight: '100vh' }}
       >
