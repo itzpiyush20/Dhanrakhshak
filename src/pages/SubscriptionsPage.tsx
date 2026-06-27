@@ -33,6 +33,47 @@ export default function SubscriptionsPage() {
   const [transactions, setTransactions] = useState<TransactionRow[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Merchants the user has marked as "not a subscription". These are filtered out
+  // of auto-detection without touching the underlying expense transactions, so the
+  // spend still counts everywhere else (Expenses, Dashboard, analytics). Reversible.
+  const ignoredStorageKey = user ? `dhanrakshak_ignored_subscriptions_${user.id}` : null
+  const [ignoredKeys, setIgnoredKeys] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!ignoredStorageKey) {
+      setIgnoredKeys([])
+      return
+    }
+    try {
+      const raw = localStorage.getItem(ignoredStorageKey)
+      setIgnoredKeys(raw ? JSON.parse(raw) : [])
+    } catch {
+      setIgnoredKeys([])
+    }
+  }, [ignoredStorageKey])
+
+  const persistIgnored = (keys: string[]) => {
+    setIgnoredKeys(keys)
+    if (ignoredStorageKey) {
+      try {
+        localStorage.setItem(ignoredStorageKey, JSON.stringify(keys))
+      } catch (e) {
+        console.warn('Failed to persist ignored subscriptions:', e)
+      }
+    }
+  }
+
+  // Match the same normalization used for grouping in detectSubscriptions().
+  const merchantKey = (merchant: string) => merchant.trim().toLowerCase()
+
+  const hideSubscription = (merchant: string) => {
+    const key = merchantKey(merchant)
+    if (ignoredKeys.includes(key)) return
+    persistIgnored([...ignoredKeys, key])
+  }
+
+  const restoreAllSubscriptions = () => persistIgnored([])
+
   // Manual Subscription Form States
   const [subName, setSubName] = useState('')
   const [subAmount, setSubAmount] = useState('')
@@ -76,7 +117,10 @@ export default function SubscriptionsPage() {
       grouped[cleanKey].push(t)
     })
 
-    for (const [_, txns] of Object.entries(grouped)) {
+    for (const [cleanKey, txns] of Object.entries(grouped)) {
+      // Skip merchants the user marked as "not a subscription".
+      if (ignoredKeys.includes(cleanKey)) continue
+
       txns.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       const latest = txns[0]
       const isSubCategory = latest.category === 'subscriptions' || latest.category === 'utilities'
@@ -398,10 +442,34 @@ export default function SubscriptionsPage() {
                                 Date: {formatDate(sub.nextRenewal)}
                               </span>
                             </div>
+                            <button
+                              type="button"
+                              onClick={() => hideSubscription(sub.merchant)}
+                              title="Not a subscription — hide from this list (keeps the expense)"
+                              aria-label={`Remove ${sub.merchant} from subscriptions`}
+                              className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-border-subtle/50 bg-surface-1 text-zinc-500 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/5 transition-colors cursor-pointer text-sm leading-none"
+                            >
+                              ✕
+                            </button>
                           </div>
                         </div>
                       )
                     })}
+                  </div>
+                )}
+
+                {ignoredKeys.length > 0 && (
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-dashed border-border-subtle/50 bg-surface-2/30 px-4 py-2.5">
+                    <span className="text-[11px] text-zinc-500">
+                      {ignoredKeys.length} item{ignoredKeys.length > 1 ? 's' : ''} hidden as “not a subscription”. Their expenses are still tracked.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={restoreAllSubscriptions}
+                      className="shrink-0 text-[11px] font-semibold text-brand-400 hover:text-brand-300 transition-colors cursor-pointer"
+                    >
+                      Restore all
+                    </button>
                   </div>
                 )}
               </Card>
