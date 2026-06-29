@@ -10,6 +10,17 @@ import { cn } from '@/utils'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth, useToast } from '@/context'
 import { submitFeedback, getTesterFeedbackLogs, supabase } from '@/services'
+import {
+  Bell,
+  User,
+  Settings,
+  Crown,
+  LogOut,
+  Menu,
+  X,
+  BarChart3,
+  Clock,
+} from 'lucide-react'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -411,7 +422,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           ? "border-sb-hairline bg-sb-canvas/90 text-sb-ink backdrop-blur-xl"
           : "border-border-subtle bg-surface-1/95 backdrop-blur-md text-zinc-100 shadow-[var(--shadow-sm)]"
       )}>
-        <div className="mx-auto max-w-[1280px] h-[64px] flex items-center justify-between px-6 gap-4">
+        <div className="mx-auto max-w-[1280px] h-[64px] flex items-center justify-between px-6 gap-6">
           <Link to="/" className="flex items-center gap-3 shrink-0 group">
             <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-brand-500 text-white shadow-[var(--shadow-sm)] border-0 group-hover:scale-115 group-hover:rotate-12 transition-all duration-300" aria-hidden="true">{currencySymbol}</span>
             <div className="flex items-center gap-2.5">
@@ -437,7 +448,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
 
           {/* Desktop Navigation Links */}
           {user && isAppRoute ? (
-            <nav className="hidden lg:flex items-center gap-4 text-xs font-semibold" aria-label="Desktop navigation">
+            <nav className="hidden lg:flex items-center gap-3 text-xs font-semibold min-w-0" aria-label="Desktop navigation">
                 {navItems
                   .filter(item => item.path !== ROUTES.PRICING)
                   .map((item) => {
@@ -447,7 +458,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                         key={item.path}
                         to={item.path}
                         className={cn(
-                          "relative py-1.5 px-3 rounded-lg text-xs font-semibold shrink-0 transition-all duration-200",
+                          "relative py-1.5 px-2.5 rounded-lg text-xs font-semibold shrink-0 transition-all duration-200 whitespace-nowrap",
                           isActive
                             ? isStaticLight
                               ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200/60 shadow-sm"
@@ -493,7 +504,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               </nav>
             )}
 
-            {/* Actions: Theme Toggle, Notifications, Profile, Hamburger, Upgrade CTA */}
+            {/* Actions: Notifications, Profile, Hamburger, Upgrade CTA */}
             <div className="flex items-center gap-3 sm:gap-4 shrink-0">
 
 
@@ -512,7 +523,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                     aria-label="View notifications"
                     aria-expanded={notificationDropdownOpen}
                   >
-                    <span aria-hidden="true" className="text-sm">🔔</span>
+                    <Bell className="h-4 w-4" />
                     {notifications.length > 0 && (
                       <span className="absolute top-1.5 right-1.5 flex h-2 w-2 items-center justify-center rounded-full bg-red-500 ring-1 ring-white/10" />
                     )}
@@ -523,8 +534,8 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                       <div className="fixed inset-0 z-40" onClick={() => setNotificationDropdownOpen(false)} />
                       <div className={cn("absolute right-0 mt-2 w-64 rounded-xl border p-3 shadow-2xl z-50 animate-scale-up backdrop-blur-xl max-h-[80vh] overflow-y-auto", isStaticLight ? "border-sb-hairline bg-sb-canvas text-sb-ink" : "border-border-subtle bg-surface-1 text-zinc-100")}>
                         <div className="flex items-center justify-between border-b border-border-subtle pb-2 mb-2">
-                          <span className={cn("text-[10px] font-bold uppercase tracking-widest", isStaticLight ? "text-sb-ink-muted" : "text-zinc-400")}>
-                            🔔 Notifications
+                          <span className={cn("text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5", isStaticLight ? "text-sb-ink-muted" : "text-zinc-400")}>
+                            <Bell className="h-3 w-3" /> Notifications
                           </span>
                           {notifications.length > 0 && (
                             <button
@@ -650,21 +661,21 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                           onClick={() => setProfileDropdownOpen(false)}
                           className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-400 hover:bg-surface-2 hover:text-zinc-100")}
                         >
-                          👤 Profile Section
+                          <User className="h-3.5 w-3.5 text-zinc-500 shrink-0" /> Profile Section
                         </Link>
                         <Link
                           to="/settings"
                           onClick={() => setProfileDropdownOpen(false)}
                           className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-400 hover:bg-surface-2 hover:text-zinc-100")}
                         >
-                          ⚙️ Settings Section
+                          <Settings className="h-3.5 w-3.5 text-zinc-500 shrink-0" /> Settings Section
                         </Link>
                         <Link
                           to="/pricing"
                           onClick={() => setProfileDropdownOpen(false)}
                           className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-400 hover:bg-surface-2 hover:text-zinc-100")}
                         >
-                          👑 Pricing & Plans
+                          <Crown className="h-3.5 w-3.5 text-zinc-500 shrink-0" /> Pricing & Plans
                         </Link>
                         <button
                           onClick={() => {
@@ -673,7 +684,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                           }}
                           className={cn("w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors border-t mt-1.5 pt-1.5 cursor-pointer", isStaticLight ? "border-sb-hairline text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)]" : "border-border-subtle text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)]")}
                         >
-                          🚪 Sign Out
+                          <LogOut className="h-3.5 w-3.5 text-red-400 shrink-0" /> Sign Out
                         </button>
                       </div>
                     </>
@@ -698,7 +709,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                 aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
                 aria-expanded={mobileMenuOpen}
               >
-                {mobileMenuOpen ? '✕' : '☰'}
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
             </div>
           </div>
@@ -758,33 +769,33 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                 <Link
                   to="/profile"
                   onClick={() => setMobileMenuOpen(false)}
-                  className={cn("block rounded-lg px-3 py-2.5 text-sm font-medium border-t mt-2 pt-3", isStaticLight ? "text-sb-ink border-sb-hairline hover:bg-sb-canvas-soft" : "text-static-zinc-400 hover:text-static-white border-static-white/10")}
+                  className={cn("flex items-center rounded-lg px-3 py-2.5 text-sm font-medium border-t mt-2 pt-3", isStaticLight ? "text-sb-ink border-sb-hairline hover:bg-sb-canvas-soft" : "text-static-zinc-400 hover:text-static-white border-static-white/10")}
                 >
-                  👤 Profile Section
+                  <User className="h-4 w-4 mr-2 text-zinc-500 shrink-0" /> Profile Section
                 </Link>
                 <Link
                   to="/settings"
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
-                    'block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                    'flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                     location.pathname === '/settings'
                       ? 'font-bold'
                       : ''
                   )}
                 >
-                  ⚙️ Settings Section
+                  <Settings className="h-4 w-4 mr-2 text-zinc-500 shrink-0" /> Settings Section
                 </Link>
                 <Link
                   to="/pricing"
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
-                    'block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                    'flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                     location.pathname === '/pricing'
                       ? 'font-bold'
                       : ''
                   )}
                 >
-                  👑 Pricing & Plans
+                  <Crown className="h-4 w-4 mr-2 text-zinc-500 shrink-0" /> Pricing & Plans
                 </Link>
 
                 <button
@@ -792,9 +803,9 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                     setMobileMenuOpen(false)
                     signOut()
                   }}
-                  className={cn("w-full text-left block rounded-lg px-3 py-2.5 text-sm font-medium border-t mt-1 pt-3 cursor-pointer", isStaticLight ? "border-sb-hairline text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)]" : "border-static-white/10 text-[#f87171] hover:bg-[#f87171]/15")}
+                  className={cn("w-full text-left flex items-center rounded-lg px-3 py-2.5 text-sm font-medium border-t mt-1 pt-3 cursor-pointer", isStaticLight ? "border-sb-hairline text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)]" : "border-static-white/10 text-[#f87171] hover:bg-[#f87171]/15")}
                 >
-                  🚪 Sign Out
+                  <LogOut className="h-4 w-4 mr-2 text-red-400 shrink-0" /> Sign Out
                 </button>
               </>
             ) : (
@@ -803,9 +814,9 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                   <Link
                     to="/dashboard"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="block rounded-xl px-3 py-2.5 text-sm font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-3 text-center no-underline"
+                    className="flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-3 text-center no-underline"
                   >
-                    📊 Go to Dashboard
+                    <BarChart3 className="h-4 w-4 shrink-0" /> Go to Dashboard
                   </Link>
                 )}
                 <a href="/#daily-utility" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>Daily Life</a>
@@ -821,9 +832,9 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                       setMobileMenuOpen(false)
                       signOut()
                     }}
-                    className={cn("w-full text-left block rounded-lg px-3 py-2.5 text-sm font-medium border-t mt-1 pt-3 cursor-pointer", isStaticLight ? "border-sb-hairline text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)]" : "border-static-white/10 text-[#f87171] hover:bg-[#f87171]/15")}
+                    className={cn("w-full text-left flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium border-t mt-1 pt-3 cursor-pointer", isStaticLight ? "border-sb-hairline text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)]" : "border-static-white/10 text-[#f87171] hover:bg-[#f87171]/15")}
                   >
-                    🚪 Sign Out
+                    <LogOut className="h-4 w-4 text-red-400 shrink-0" /> Sign Out
                   </button>
                 ) : (
                   <>
@@ -856,9 +867,11 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
       {/* Main Content */}
       {profile?.subscription_status === 'trial' && (
         <div className="bg-[var(--status-warning-subtle)] text-[var(--status-warning-text)] text-xs font-semibold py-2.5 px-4 text-center flex flex-col sm:flex-row items-center justify-center gap-1.5 shadow-inner border-b border-[var(--status-warning-border)]">
-          <span>⏳ Dhanrakshak Trial: You have {daysLeft} days remaining of full Pro access.</span>
-          <Link to="/pricing" className="underline hover:opacity-85 transition-opacity font-bold text-[var(--status-warning-text)]">
-            Upgrade Account to Keep Auto-Sync Active 👑
+          <span className="flex items-center gap-1.5 justify-center">
+            <Clock className="h-3.5 w-3.5 shrink-0" /> Dhanrakshak Trial: You have {daysLeft} days remaining of full Pro access.
+          </span>
+          <Link to="/pricing" className="underline hover:opacity-85 transition-opacity font-bold text-[var(--status-warning-text)] flex items-center gap-1">
+            Upgrade Account to Keep Auto-Sync Active <Crown className="h-3 w-3 shrink-0" />
           </Link>
         </div>
       )}

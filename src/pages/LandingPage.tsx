@@ -7,267 +7,9 @@ import { Capacitor } from '@capacitor/core'
 import { cn } from '@/utils'
 import { useScrollReveal } from '@/hooks'
 import { UserMenu } from '@/components/ui'
+import { Zap, Shield, Landmark, Wallet, Smartphone, RefreshCw, Lock, Bell } from 'lucide-react'
+import { useTypewriter, TiltCard, MagneticButton, ScrambleText, InteractionSimulation } from './landing'
 
-// ─────────────────────────────────────────────
-// Typewriter hook
-// ─────────────────────────────────────────────
-function useTypewriter(text: string, speed = 38, startDelay = 400) {
-  const [displayed, setDisplayed] = useState('')
-  const [done, setDone] = useState(false)
-  useEffect(() => {
-    setDisplayed('')
-    setDone(false)
-    let i = 0
-    const timeout = setTimeout(() => {
-      const interval = setInterval(() => {
-        i++
-        setDisplayed(text.slice(0, i))
-        if (i >= text.length) {
-          clearInterval(interval)
-          setTimeout(() => setDone(true), 800)
-        }
-      }, speed)
-      return () => clearInterval(interval)
-    }, startDelay)
-    return () => clearTimeout(timeout)
-  }, [text, speed, startDelay])
-  return { displayed, done }
-}
-
-// ─────────────────────────────────────────────
-// 3D Tilt card wrapper
-// ─────────────────────────────────────────────
-function TiltCard({ children, className }: { children: React.ReactNode; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!ref.current) return
-    const rect = ref.current.getBoundingClientRect()
-    const cx = rect.left + rect.width / 2
-    const cy = rect.top + rect.height / 2
-    const dx = (e.clientX - cx) / (rect.width / 2)
-    const dy = (e.clientY - cy) / (rect.height / 2)
-    ref.current.style.transform = `perspective(800px) rotateY(${dx * 7}deg) rotateX(${-dy * 7}deg) scale(1.02)`
-  }, [])
-  const handleMouseLeave = useCallback(() => {
-    if (!ref.current) return
-    ref.current.style.transform = 'perspective(800px) rotateY(0deg) rotateX(0deg) scale(1)'
-  }, [])
-  return (
-    <div
-      ref={ref}
-      className={cn('tilt-card', className)}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-    >
-      {children}
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────
-// Magnetic CTA button
-// ─────────────────────────────────────────────
-function MagneticButton({ children, className, onClick }: {
-  children: React.ReactNode
-  className?: string
-  onClick?: () => void
-}) {
-  const ref = useRef<HTMLButtonElement>(null)
-  const x = useSpring(0, { stiffness: 200, damping: 18 })
-  const y = useSpring(0, { stiffness: 200, damping: 18 })
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!ref.current) return
-    const rect = ref.current.getBoundingClientRect()
-    const cx = rect.left + rect.width / 2
-    const cy = rect.top + rect.height / 2
-    const dist = Math.hypot(e.clientX - cx, e.clientY - cy)
-    const maxRadius = 90
-    if (dist < maxRadius) {
-      x.set((e.clientX - cx) * 0.3)
-      y.set((e.clientY - cy) * 0.3)
-    }
-  }
-  const handleMouseLeave = () => { x.set(0); y.set(0) }
-
-  return (
-    <motion.button
-      ref={ref}
-      className={cn('magnetic-btn', className)}
-      style={{ x, y }}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      onClick={onClick}
-      whileTap={{ scale: 0.96 }}
-    >
-      {children}
-    </motion.button>
-  )
-}
-
-// ─────────────────────────────────────────────
-// Text scramble counter
-// ─────────────────────────────────────────────
-function ScrambleText({ value, trigger }: { value: string; trigger: boolean }) {
-  const [display, setDisplay] = useState('———')
-  const chars = '!<>-_\\/[]{}—=+*^?#abcdefghijklmnopqrstuvwxyz0123456789'
-  useEffect(() => {
-    if (!trigger) return
-    let iteration = 0
-    const maxIterations = value.length * 3
-    const interval = setInterval(() => {
-      setDisplay(
-        value.split('').map((char, idx) => {
-          if (idx < iteration / 3) return char
-          if (char === ' ') return ' '
-          return chars[Math.floor(Math.random() * chars.length)]
-        }).join('')
-      )
-      iteration++
-      if (iteration > maxIterations) {
-        clearInterval(interval)
-        setDisplay(value)
-      }
-    }, 35)
-    return () => clearInterval(interval)
-  }, [trigger, value])
-  return <span className="font-mono">{display}</span>
-}
-
-// ─────────────────────────────────────────────
-// InteractionSimulation (from original)
-// ─────────────────────────────────────────────
-function InteractionSimulation() {
-  const [step, setStep] = useState(0)
-  const [budgetAmount, setBudgetAmount] = useState(4000)
-
-  useEffect(() => {
-    let active = true
-    const run = () => {
-      if (!active) return
-      setStep(0); setBudgetAmount(4000)
-      setTimeout(() => { if (active) setStep(1) }, 1000)
-      setTimeout(() => { if (active) setStep(2) }, 3500)
-      setTimeout(() => { if (active) setStep(3) }, 6000)
-      setTimeout(() => { if (active) { setStep(4); setBudgetAmount(4250) } }, 8500)
-      setTimeout(() => { if (active) run() }, 12500)
-    }
-    run()
-    return () => { active = false }
-  }, [])
-
-  const totalBudget = 5000
-  const budgetPercent = (budgetAmount / totalBudget) * 100
-
-  return (
-    <div className="relative w-full max-w-[480px] sb-card-light p-6 flex flex-col gap-5 overflow-hidden select-none">
-      <style>{`
-        @keyframes laser-sweep { 0%{top:0%;opacity:0} 15%{opacity:1} 85%{opacity:1} 100%{top:100%;opacity:0} }
-        .laser-glow { position:absolute;left:0;right:0;height:2px;background:var(--sb-primary);opacity:0;z-index:10; }
-        .laser-glow-active { animation:laser-sweep 2.2s ease-in-out infinite; }
-        @keyframes pulse-border { 0%{border-color:var(--border-subtle)} 100%{border-color:var(--sb-primary)} }
-        .pulse-emerald { animation:pulse-border 1.5s infinite alternate; }
-        @keyframes insert-flash { 0%{background-color:var(--sb-primary-soft, transparent)} 100%{background-color:transparent} }
-        .animate-insert { animation:insert-flash 1.5s ease-out; }
-      `}</style>
-
-      <div className="flex items-center justify-between border-b border-sb-hairline pb-3">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-brand-400 animate-pulse" />
-          <span className="text-[11px] font-semibold tracking-wider uppercase text-sb-ink-secondary">Live Parser Engine</span>
-        </div>
-        <span className="text-[10px] font-mono text-sb-ink-muted bg-sb-canvas px-2 py-0.5 rounded border border-sb-hairline">
-          {step === 0 ? 'READY' : step === 1 ? 'ALERT_IN' : step === 2 ? 'PARSING' : step === 3 ? 'DB_COMMIT' : 'SYNCED'}
-        </span>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-semibold tracking-widest text-sb-ink-muted uppercase">1 · Incoming Bank Alert</span>
-        <div className="relative min-h-[76px] bg-sb-canvas rounded-xl border border-sb-hairline p-3 overflow-hidden flex flex-col justify-center">
-          {step === 2 && <div className="laser-glow laser-glow-active" />}
-          {step === 0 ? (
-            <div className="text-center text-xs text-sb-ink-muted font-mono italic">Waiting for transaction alert…</div>
-          ) : (
-            <div className={cn('flex gap-3 items-start transition-all duration-700', step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2', step === 2 && 'pulse-emerald')}>
-              <div className="h-8 w-8 rounded-lg bg-brand-500/10 border border-brand-500/20 flex items-center justify-center shrink-0 text-brand-400 font-mono text-sm font-bold">₹</div>
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-semibold text-sb-ink">SMS · ICICI Bank</span>
-                  <span className="text-[10px] text-sb-ink-muted">Just now</span>
-                </div>
-                <p className="text-xs text-sb-ink-secondary leading-normal font-mono">UPI debit INR 250.00 at Starbucks. Ref: 290812.</p>
-              </div>
-            </div>
-          )}
-          {step >= 3 && (
-            <div className="absolute right-2 bottom-2 bg-brand-500/10 text-brand-400 border border-brand-500/25 px-2 py-0.5 rounded text-[9px] font-semibold flex items-center gap-1 animate-scale-up">
-              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-              Parsed Locally ✔
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-semibold tracking-widest text-sb-ink-muted uppercase">2 · Device-Only Log</span>
-        <div className="border border-sb-hairline rounded-xl overflow-hidden bg-sb-canvas">
-          <div className="grid grid-cols-4 bg-sb-canvas border-b border-sb-hairline px-3 py-2 text-[10px] font-semibold text-sb-ink-muted tracking-widest uppercase">
-            <div>Date</div><div className="col-span-2">Merchant</div><div className="text-right">Amount</div>
-          </div>
-          <div className="divide-y divide-sb-hairline min-h-[90px]">
-            {step >= 3 && (
-              <div className="grid grid-cols-4 px-3 py-2 text-xs items-center bg-brand-500/10 animate-insert">
-                <div className="text-sb-ink-muted font-mono text-[10px]">Today</div>
-                <div className="col-span-2">
-                  <div className="font-semibold text-sb-ink">Starbucks</div>
-                  <div className="text-[10px] text-brand-400">Food & Dining</div>
-                </div>
-                <div className="text-right font-bold text-sb-ink font-mono text-xs">-₹250</div>
-              </div>
-            )}
-            <div className="grid grid-cols-4 px-3 py-2 text-xs items-center">
-              <div className="text-sb-ink-muted font-mono text-[10px]">Yest.</div>
-              <div className="col-span-2"><div className="font-medium text-sb-ink">Netflix</div><div className="text-[10px] text-sb-ink-muted">Subscription</div></div>
-              <div className="text-right text-sb-ink font-mono text-xs">-₹649</div>
-            </div>
-            <div className="grid grid-cols-4 px-3 py-2 text-xs items-center">
-              <div className="text-sb-ink-muted font-mono text-[10px]">Jun 4</div>
-              <div className="col-span-2"><div className="font-medium text-sb-ink">Zomato</div><div className="text-[10px] text-sb-ink-muted">Food & Dining</div></div>
-              <div className="text-right text-sb-ink font-mono text-xs">-₹320</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-semibold tracking-widest text-sb-ink-muted uppercase">3 · Budget Update</span>
-        <div className="border border-sb-hairline rounded-xl p-4 bg-sb-canvas flex flex-col gap-2.5">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">🍔</span>
-              <span className="text-xs font-semibold text-sb-ink">Food & Dining</span>
-            </div>
-            <span className="text-xs font-semibold text-sb-ink font-mono">₹{budgetAmount.toLocaleString('en-IN')} <span className="text-sb-ink-muted font-normal">/ ₹{totalBudget.toLocaleString('en-IN')}</span></span>
-          </div>
-          <div className="h-2 w-full bg-sb-hairline rounded-full overflow-hidden">
-            <div className="h-full rounded-full bg-brand-500 transition-all duration-1000 ease-out" style={{ width: `${budgetPercent}%` }} />
-          </div>
-          <div className="flex justify-between text-[10px] font-medium text-sb-ink-muted">
-            <span>{budgetPercent.toFixed(0)}% used</span>
-            {step === 4
-              ? <span className="text-brand-400 animate-pulse font-mono">+₹250 added just now</span>
-              : <span>₹{(totalBudget - budgetAmount).toLocaleString('en-IN')} remaining</span>
-            }
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────
-// Main LandingPage
-// ─────────────────────────────────────────────
 export default function LandingPage() {
   const { user, loading, openAuthModal } = useAuth()
   const navigate = useNavigate()
@@ -332,8 +74,6 @@ export default function LandingPage() {
     return () => obs.disconnect()
   }, [])
 
-
-
   // Scroll reveal
   useScrollReveal()
 
@@ -384,12 +124,12 @@ export default function LandingPage() {
   }
 
   const features = [
-    { icon: '⚡', title: 'Zero manual entry', desc: 'Bank alerts are read and logged automatically. Never type an expense again.' },
-    { icon: '🛡️', title: 'Complete privacy', desc: 'All parsing happens on your device. Your data never touches our servers.' },
-    { icon: '🏦', title: 'All Indian banks', desc: 'Works with ICICI, HDFC, SBI, Axis, Kotak and every UPI-enabled bank.' },
-    { icon: '💰', title: 'Smart budgets', desc: 'Set monthly limits per category. Get alerted before you overspend.' },
-    { icon: '📱', title: 'Install like an app', desc: 'Add to your home screen in seconds. No App Store, no APK needed.' },
-    { icon: '🔄', title: 'Subscription tracker', desc: 'See all recurring charges in one place. Cancel what you forgot about.' },
+    { icon: Zap, title: 'Zero manual entry', desc: 'Bank alerts are read and logged automatically. Never type an expense again.' },
+    { icon: Shield, title: 'Complete privacy', desc: 'All parsing happens on your device. Your data never touches our servers.' },
+    { icon: Landmark, title: 'All Indian banks', desc: 'Works with ICICI, HDFC, SBI, Axis, Kotak and every UPI-enabled bank.' },
+    { icon: Wallet, title: 'Smart budgets', desc: 'Set monthly limits per category. Get alerted before you overspend.' },
+    { icon: Smartphone, title: 'Install like an app', desc: 'Add to your home screen in seconds. No App Store, no APK needed.' },
+    { icon: RefreshCw, title: 'Subscription tracker', desc: 'See all recurring charges in one place. Cancel what you forgot about.' },
   ]
 
   const steps = [
@@ -407,7 +147,7 @@ export default function LandingPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-sb-canvas flex flex-col text-sb-ink page-enter" style={{ fontFamily: "'Inter', -apple-system, system-ui, sans-serif" }}>
+    <div className="min-h-screen bg-sb-canvas flex flex-col text-sb-ink page-enter">
 
       {/* ── NAVBAR ─────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 bg-sb-canvas/80 backdrop-blur-md border-b border-sb-hairline">
@@ -453,7 +193,7 @@ export default function LandingPage() {
 
       <main>
         {/* ── HERO ─────────────────────────────────────────── */}
-        <section ref={heroRef} onMouseMove={handleHeroMouseMove} className="pt-24 pb-20 border-b border-sb-hairline overflow-hidden relative">
+        <section ref={heroRef} onMouseMove={handleHeroMouseMove} className="pt-12 pb-10 md:pt-24 md:pb-20 border-b border-sb-hairline overflow-hidden relative">
           {/* Mouse Spotlight Glow */}
           <motion.div
             className="absolute inset-0 pointer-events-none hidden md:block z-0"
@@ -485,7 +225,7 @@ export default function LandingPage() {
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.4, delay: 0.2 }}
               >
-                <h1 className="text-5xl font-bold leading-[1.1] tracking-tight text-sb-ink mb-4">
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight text-sb-ink mb-4">
                   {line1.displayed}
                   {!line1.done && <span className="typewriter-cursor" />}
                   {line1.done && (
@@ -618,7 +358,7 @@ export default function LandingPage() {
         </section>
 
         {/* ── HOW IT WORKS ────────────────────────────────── */}
-        <section id="how-it-works" className="py-24 bg-sb-canvas-soft border-b border-sb-hairline">
+        <section id="how-it-works" className="py-12 md:py-24 bg-sb-canvas-soft border-b border-sb-hairline">
           <div className="mx-auto max-w-6xl px-6">
             <div className="text-center mb-16">
               <div data-reveal className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-sb-ink-muted mb-4">How it works</div>
@@ -660,7 +400,7 @@ export default function LandingPage() {
         </section>
 
         {/* ── FEATURES ────────────────────────────────────── */}
-        <section id="features" className="py-24 border-b border-sb-hairline">
+        <section id="features" className="py-12 md:py-24 border-b border-sb-hairline">
           <div className="mx-auto max-w-6xl px-6">
             <div className="text-center mb-16">
               <div data-reveal className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-sb-ink-muted mb-4">Features</div>
@@ -676,7 +416,7 @@ export default function LandingPage() {
                       whileHover={{ scale: 1.18, rotate: 6 }}
                       transition={{ type: 'spring', stiffness: 300, damping: 15 }}
                     >
-                      {f.icon}
+                      <f.icon className="h-5 w-5 text-brand-400" />
                     </motion.div>
                     <h3 className="text-base font-semibold text-sb-ink mb-2">{f.title}</h3>
                     <p className="text-sm text-sb-ink-secondary leading-relaxed">{f.desc}</p>
@@ -688,7 +428,7 @@ export default function LandingPage() {
         </section>
 
         {/* ── LIVE PARSER DEMO ────────────────────────────── */}
-        <section className="py-24 bg-sb-canvas-soft border-b border-sb-hairline">
+        <section className="py-12 md:py-24 bg-sb-canvas-soft border-b border-sb-hairline">
           <div className="mx-auto max-w-6xl px-6 grid lg:grid-cols-2 gap-16 items-start">
             <div className="space-y-6 pt-4" data-reveal="from-left">
               <div className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-sb-ink-muted">Try it live</div>
@@ -783,7 +523,7 @@ export default function LandingPage() {
         </section>
 
         {/* ── TRUST / PRIVACY ─────────────────────────────── */}
-        <section className="py-20 border-b border-sb-hairline">
+        <section className="py-10 md:py-20 border-b border-sb-hairline">
           <div className="mx-auto max-w-6xl px-6">
             <div ref={trustRef} data-reveal className="sb-card-light border-t-4 border-t-brand-500 p-10 md:p-12 flex flex-col md:flex-row items-center gap-10 justify-between">
               <div className="max-w-lg">
@@ -811,7 +551,7 @@ export default function LandingPage() {
         </section>
 
         {/* ── INSTALL GUIDE ───────────────────────────────── */}
-        <section id="install-guide" className="py-24 bg-sb-canvas-soft border-b border-sb-hairline">
+        <section id="install-guide" className="py-12 md:py-24 bg-sb-canvas-soft border-b border-sb-hairline">
           <div className="mx-auto max-w-6xl px-6 grid lg:grid-cols-2 gap-16 items-center">
             <div className="space-y-6" data-reveal="from-left">
               <div className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-sb-ink-muted">Install</div>
@@ -823,9 +563,9 @@ export default function LandingPage() {
               </p>
               <div className="space-y-3">
                 {[
-                  { icon: '⚡', text: 'No App Store or APK needed' },
-                  { icon: '🔒', text: 'Safe, lightweight, and offline-capable' },
-                  { icon: '🔔', text: 'Enable notifications for instant spend alerts' },
+                  { icon: Zap, text: 'No App Store or APK needed' },
+                  { icon: Lock, text: 'Safe, lightweight, and offline-capable' },
+                  { icon: Bell, text: 'Enable notifications for instant spend alerts' },
                 ].map((item, i) => (
                   <motion.div
                     key={item.text}
@@ -835,7 +575,9 @@ export default function LandingPage() {
                     viewport={{ once: true }}
                     transition={{ duration: 0.4, delay: i * 0.1 }}
                   >
-                    <div className="h-8 w-8 rounded-full bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-sm shrink-0">{item.icon}</div>
+                    <div className="h-8 w-8 rounded-full bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-sm shrink-0">
+                      <item.icon className="h-4 w-4 text-brand-400" />
+                    </div>
                     <p className="text-sm text-sb-ink-secondary font-medium">{item.text}</p>
                   </motion.div>
                 ))}
@@ -913,7 +655,7 @@ export default function LandingPage() {
         </section>
 
         {/* ── FAQ ──────────────────────────────────────────── */}
-        <section id="faq" className="py-24 border-b border-sb-hairline">
+        <section id="faq" className="py-12 md:py-24 border-b border-sb-hairline">
           <div className="mx-auto max-w-3xl px-6">
             <div className="text-center mb-14">
               <div data-reveal className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-sb-ink-muted mb-4">FAQ</div>
@@ -961,13 +703,13 @@ export default function LandingPage() {
         </section>
 
         {/* ── FINAL CTA ────────────────────────────────────── */}
-        <section className="py-28 text-center border-b border-sb-hairline relative overflow-hidden">
+        <section className="py-14 md:py-28 text-center border-b border-sb-hairline relative overflow-hidden">
           {/* Background orb */}
           <div className="absolute inset-0 pointer-events-none" aria-hidden>
             <div className="hero-orb-1 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-brand-500/8 blur-[120px]" />
           </div>
           <div className="mx-auto max-w-2xl px-6 space-y-6 relative z-10">
-            <h2 data-reveal="scale" className="text-5xl font-bold tracking-tight text-sb-ink">
+            <h2 data-reveal="scale" className="text-4xl md:text-5xl font-bold tracking-tight text-sb-ink">
               Take control of<br /><span className="shimmer-text">your finances today.</span>
             </h2>
             <p data-reveal data-delay="100" className="text-lg text-sb-ink-secondary max-w-md mx-auto leading-relaxed">

@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react'
 import { AppLayout } from '@/layouts'
-import { Card, Button, Input } from '@/components/ui'
+import { Card, Button, Input, Modal } from '@/components/ui'
 import { 
   getMerchantRules, 
   deleteMerchantRule, 
@@ -21,6 +21,24 @@ import { encryptText, decryptText, cn } from '@/utils'
 import { CATEGORIES } from '@/constants'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
+import {
+  Brain,
+  Trash2,
+  Lock,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  FileJson,
+  Key,
+  Globe,
+  Calendar,
+  Rocket,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  Plus,
+  Check,
+} from 'lucide-react'
 
 export default function SettingsPage() {
   const { user, currency, setCurrency, activeYear, startNewFinancialYear, dailyScanTime, updateDailyScanTime } = useAuth()
@@ -83,6 +101,17 @@ export default function SettingsPage() {
   const [changePasswordLoading, setChangePasswordLoading] = useState(false)
   const [changePasswordSuccess, setChangePasswordSuccess] = useState(false)
   const [changePasswordError, setChangePasswordError] = useState('')
+
+  // Confirmation Modals States
+  const [showRestoreConfirmModal, setShowRestoreConfirmModal] = useState(false)
+  const [pendingRestoreData, setPendingRestoreData] = useState<any[] | null>(null)
+  const [showFYConfirmModal, setShowFYConfirmModal] = useState(false)
+
+  const executeStartNewFinancialYear = () => {
+    startNewFinancialYear()
+    showToast(`Started ${activeYear + 1} Financial Year!`, 'success')
+    setShowFYConfirmModal(false)
+  }
 
   const handlePlainExport = async (format: 'csv' | 'json') => {
     setExportLoading(true)
@@ -281,16 +310,24 @@ export default function SettingsPage() {
         throw new Error('Backup format is invalid: expected a list of transactions.')
       }
 
-      const confirmRestore = window.confirm(`Decrypted backup successfully containing ${parsed.length} transactions. Would you like to merge these with your current data? (Only non-duplicate transactions will be added)`)
-      if (!confirmRestore) {
-        setRestoreLoading(false)
-        return
-      }
+      setPendingRestoreData(parsed)
+      setShowRestoreConfirmModal(true)
+    } catch (err: any) {
+      console.error('Restore error:', err)
+      setRestoreError(err.message || 'Decryption failed. Please verify the file and password.')
+    } finally {
+      setRestoreLoading(false)
+    }
+  }
 
+  const executeRestore = async () => {
+    if (!pendingRestoreData) return
+    setRestoreLoading(true)
+    try {
       const { data: currentTxns } = await getTransactions()
       const currentKeys = new Set(currentTxns?.map(t => `${t.date}-${t.amount}-${t.merchant || ''}-${t.description || ''}`))
 
-      const toInsert = parsed.filter((t: any) => {
+      const toInsert = pendingRestoreData.filter((t: any) => {
         const key = `${t.date}-${t.amount}-${t.merchant || ''}-${t.description || ''}`
         return !currentKeys.has(key)
       })
@@ -316,13 +353,16 @@ export default function SettingsPage() {
 
       setRestoreSuccess(true)
       setRestorePassword('')
+      const fileInput = document.getElementById('restore-file-input') as HTMLInputElement
       if (fileInput) fileInput.value = ''
-      showToast(`✅ Merged ${toInsert.length} new transactions from backup!`, 'success')
+      showToast(`Merged ${toInsert.length} new transactions from backup!`, 'success')
     } catch (err: any) {
       console.error('Restore error:', err)
-      setRestoreError(err.message || 'Decryption failed. Please verify the file and password.')
+      setRestoreError(err.message || 'Merge failed. Please try again.')
     } finally {
       setRestoreLoading(false)
+      setShowRestoreConfirmModal(false)
+      setPendingRestoreData(null)
     }
   }
 
@@ -379,7 +419,10 @@ export default function SettingsPage() {
           <div className="md:col-span-7 space-y-6">
             {/* Smart Merchant Rules Card */}
             <Card className="border-border-subtle bg-surface-1 shadow-md">
-              <h2 className="text-base font-bold text-zinc-200 mb-2">🧠 Smart Merchant Rules</h2>
+              <h2 className="text-base font-bold text-zinc-200 mb-2 flex items-center gap-2">
+                <Brain className="h-5 w-5 text-brand-400 shrink-0" />
+                <span>Smart Merchant Rules</span>
+              </h2>
               <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
                 Rules learned from your manual approvals. Dhanrakshak automatically categorizes subsequent transactions and auto-approves them when confidence is high.
               </p>
@@ -418,8 +461,8 @@ export default function SettingsPage() {
                     />
                     Auto-Approve
                   </label>
-                  <Button size="sm" type="submit" className="py-1 px-3 text-xs h-8">
-                    Add Rule
+                  <Button size="sm" type="submit" className="py-1 px-3 text-xs h-8 gap-1.5">
+                    <Plus className="h-3.5 w-3.5" /> Add Rule
                   </Button>
                 </div>
               </form>
@@ -460,10 +503,11 @@ export default function SettingsPage() {
                           </select>
                           <button
                             onClick={() => handleDeleteRule(key)}
-                            className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors flex items-center justify-center"
                             title="Delete Rule"
+                            aria-label={`Delete rule for ${key}`}
                           >
-                            🗑️
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                       </div>
@@ -478,7 +522,10 @@ export default function SettingsPage() {
           <div className="md:col-span-5 space-y-6">
             {/* Encrypted Backup & Restore Card */}
             <Card className="border-border-subtle bg-surface-1 shadow-md">
-              <h2 className="text-base font-bold text-zinc-200 mb-2">🔐 Privacy-First Encrypted Backup</h2>
+              <h2 className="text-base font-bold text-zinc-200 mb-2 flex items-center gap-2">
+                <Lock className="h-5 w-5 text-brand-400 shrink-0" />
+                <span>Privacy-First Encrypted Backup</span>
+              </h2>
               <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
                 Securely export or restore your transactions locally. All backups are encrypted client-side using industry-standard **AES-256-GCM** before downloading.
               </p>
@@ -489,8 +536,9 @@ export default function SettingsPage() {
                   <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Download Backup</h3>
                   <form onSubmit={handleBackup} className="space-y-3">
                     {backupSuccess && (
-                      <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-[11px] text-emerald-400 leading-relaxed animate-fade-in">
-                        ✅ Encrypted backup generated and downloaded successfully.
+                      <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-[11px] text-emerald-400 leading-relaxed animate-fade-in flex items-start gap-2">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
+                        <span>Encrypted backup generated and downloaded successfully.</span>
                       </div>
                     )}
                     <Input
@@ -501,8 +549,8 @@ export default function SettingsPage() {
                       onChange={(e) => setBackupPassword(e.target.value)}
                       required
                     />
-                    <Button type="submit" block size="sm" loading={backupLoading} disabled={backupLoading}>
-                      📥 Encrypt & Export Backup
+                    <Button type="submit" block size="sm" loading={backupLoading} disabled={backupLoading} className="gap-1.5">
+                      <Download className="h-4 w-4" /> Encrypt & Export Backup
                     </Button>
                   </form>
                 </div>
@@ -512,13 +560,15 @@ export default function SettingsPage() {
                   <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Restore Backup</h3>
                   <form onSubmit={handleRestore} className="space-y-3">
                     {restoreError && (
-                      <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-2.5 text-[11px] text-red-400 leading-relaxed">
-                        ❌ {restoreError}
+                      <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-2.5 text-[11px] text-red-400 leading-relaxed flex items-start gap-2">
+                        <XCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
+                        <span>{restoreError}</span>
                       </div>
                     )}
                     {restoreSuccess && (
-                      <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-[11px] text-emerald-400 leading-relaxed animate-fade-in">
-                        ✅ Backup successfully decrypted and data merged!
+                      <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-[11px] text-emerald-400 leading-relaxed animate-fade-in flex items-start gap-2">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
+                        <span>Backup successfully decrypted and data merged!</span>
                       </div>
                     )}
                     <div>
@@ -540,8 +590,8 @@ export default function SettingsPage() {
                       onChange={(e) => setRestorePassword(e.target.value)}
                       required
                     />
-                    <Button variant="secondary" type="submit" block loading={restoreLoading} disabled={restoreLoading}>
-                      📤 Decrypt & Merge Backup
+                    <Button variant="secondary" type="submit" block loading={restoreLoading} disabled={restoreLoading} className="gap-1.5">
+                      <Upload className="h-4 w-4" /> Decrypt & Merge Backup
                     </Button>
                   </form>
                 </div>
@@ -550,7 +600,10 @@ export default function SettingsPage() {
 
             {/* Plain Export Card */}
             <Card className="border-border-subtle bg-surface-1 shadow-md">
-              <h2 className="text-base font-bold text-zinc-200 mb-2">📥 Data Portability (Plain Export)</h2>
+              <h2 className="text-base font-bold text-zinc-200 mb-2 flex items-center gap-2">
+                <Download className="h-5 w-5 text-brand-400 shrink-0" />
+                <span>Data Portability (Plain Export)</span>
+              </h2>
               <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
                 Export all your transaction history in standard, human-readable formats for tax filing, spreadsheets, or migrations.
               </p>
@@ -561,7 +614,7 @@ export default function SettingsPage() {
                   className="flex-1 text-xs justify-center gap-1.5 cursor-pointer"
                   disabled={exportLoading}
                 >
-                  📊 Export CSV
+                  <FileSpreadsheet className="h-4 w-4 text-zinc-400 shrink-0" /> Export CSV
                 </Button>
                 <Button
                   onClick={() => handlePlainExport('json')}
@@ -569,26 +622,31 @@ export default function SettingsPage() {
                   className="flex-1 text-xs justify-center gap-1.5 cursor-pointer"
                   disabled={exportLoading}
                 >
-                  ⚙️ Export JSON
+                  <FileJson className="h-4 w-4 text-zinc-400 shrink-0" /> Export JSON
                 </Button>
               </div>
             </Card>
 
             {/* Change Password Card */}
             <Card className="border-border-subtle bg-surface-1 shadow-md">
-              <h2 className="text-base font-bold text-zinc-200 mb-2">🔑 Change Account Password</h2>
+              <h2 className="text-base font-bold text-zinc-200 mb-2 flex items-center gap-2">
+                <Key className="h-5 w-5 text-brand-400 shrink-0" />
+                <span>Change Account Password</span>
+              </h2>
               <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
                 Update your account password. Passwords must be at least 6 characters.
               </p>
               <form onSubmit={handleChangePassword} className="space-y-3">
                 {changePasswordError && (
-                  <div role="alert" className="rounded-xl bg-red-500/10 border border-red-500/20 p-2.5 text-[11px] text-red-400 leading-relaxed">
-                    ❌ {changePasswordError}
+                  <div role="alert" className="rounded-xl bg-red-500/10 border border-red-500/20 p-2.5 text-[11px] text-red-400 leading-relaxed flex items-start gap-2">
+                    <XCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
+                    <span>{changePasswordError}</span>
                   </div>
                 )}
                 {changePasswordSuccess && (
-                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-[11px] text-emerald-400 leading-relaxed">
-                    ✅ Password updated successfully!
+                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-[11px] text-emerald-400 leading-relaxed flex items-start gap-2">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
+                    <span>Password updated successfully!</span>
                   </div>
                 )}
                 <Input
@@ -609,15 +667,18 @@ export default function SettingsPage() {
                   required
                   disabled={changePasswordLoading}
                 />
-                <Button type="submit" block loading={changePasswordLoading} disabled={changePasswordLoading}>
-                  Update Password
+                <Button type="submit" block loading={changePasswordLoading} disabled={changePasswordLoading} className="gap-1.5">
+                  <Check className="h-4 w-4" /> Update Password
                 </Button>
               </form>
             </Card>
 
             {/* General Preferences Card */}
             <Card className="border-border-subtle bg-surface-1 shadow-md">
-              <h2 className="text-base font-bold text-zinc-200 mb-2">🌍 General & Theme Preferences</h2>
+              <h2 className="text-base font-bold text-zinc-200 mb-2 flex items-center gap-2">
+                <Globe className="h-5 w-5 text-brand-400 shrink-0" />
+                <span>General & Theme Preferences</span>
+              </h2>
               <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
                 Configure your currency formatting, locale structure, and theme color mode.
               </p>
@@ -695,7 +756,10 @@ export default function SettingsPage() {
 
             {/* Financial Year Management Card */}
             <Card className="border-border-subtle bg-surface-1 shadow-md">
-              <h2 className="text-base font-bold text-zinc-200 mb-2">📅 Financial Year Management</h2>
+              <h2 className="text-base font-bold text-zinc-200 mb-2 flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-brand-400 shrink-0" />
+                <span>Financial Year Management</span>
+              </h2>
               <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
                 Transactions are scanned and updated within the active financial year. Scans for this year will not update after December 31.
               </p>
@@ -712,16 +776,11 @@ export default function SettingsPage() {
                     <span className="text-[10px] text-zinc-500">Enable scanning for the next calendar year ({activeYear + 1})</span>
                   </div>
                   <Button
-                    onClick={() => {
-                      if (window.confirm(`Are you sure you want to start the ${activeYear + 1} financial year? Scanning for ${activeYear} transactions will stop, and scans for the new year ${activeYear + 1} will begin.`)) {
-                        startNewFinancialYear()
-                        showToast(`Started ${activeYear + 1} Financial Year!`, 'success')
-                      }
-                    }}
+                    onClick={() => setShowFYConfirmModal(true)}
                     size="sm"
-                    className="py-1.5 px-3.5 text-[11px] font-bold cursor-pointer"
+                    className="py-1.5 px-3.5 text-[11px] font-bold cursor-pointer gap-1.5"
                   >
-                    Start {activeYear + 1} 🚀
+                    <span>Start {activeYear + 1}</span> <Rocket className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
@@ -729,6 +788,63 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Restore Confirmation Modal */}
+      <Modal
+        isOpen={showRestoreConfirmModal}
+        onClose={() => {
+          setShowRestoreConfirmModal(false)
+          setPendingRestoreData(null)
+        }}
+        title="Confirm Backup Restore"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowRestoreConfirmModal(false)
+                setPendingRestoreData(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={executeRestore}>
+              Merge & Restore
+            </Button>
+          </>
+        }
+      >
+        <div className="flex items-start gap-3">
+          <HelpCircle className="h-5 w-5 text-brand-400 shrink-0 mt-0.5" />
+          <p className="text-sm text-text-secondary leading-relaxed">
+            Decrypted backup successfully containing {pendingRestoreData?.length || 0} transactions. Would you like to merge these with your current data? (Only non-duplicate transactions will be added)
+          </p>
+        </div>
+      </Modal>
+
+      {/* Start Financial Year Confirmation Modal */}
+      <Modal
+        isOpen={showFYConfirmModal}
+        onClose={() => setShowFYConfirmModal(false)}
+        title="Start New Financial Year"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowFYConfirmModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={executeStartNewFinancialYear}>
+              Start Year
+            </Button>
+          </>
+        }
+      >
+        <div className="flex items-start gap-3">
+          <HelpCircle className="h-5 w-5 text-brand-400 shrink-0 mt-0.5" />
+          <p className="text-sm text-text-secondary leading-relaxed">
+            Are you sure you want to start the {activeYear + 1} financial year? Scanning for {activeYear} transactions will stop, and scans for the new year {activeYear + 1} will begin.
+          </p>
+        </div>
+      </Modal>
     </AppLayout>
   )
 }

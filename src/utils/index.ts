@@ -147,12 +147,12 @@ export function getCurrentMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 }
 
-type ClassPrimitive = string | false | null | undefined
-type ClassValue = ClassPrimitive | ClassPrimitive[]
+import { clsx, type ClassValue } from 'clsx'
+import { twMerge } from 'tailwind-merge'
 
-/** Merge classnames, filtering falsy values. Accepts nested arrays. */
-export function cn(...classes: ClassValue[]): string {
-  return classes.flat().filter(Boolean).join(' ')
+/** Merge classnames, deduplicating Tailwind classes. */
+export function cn(...inputs: ClassValue[]): string {
+  return twMerge(clsx(inputs))
 }
 
 // ============================================

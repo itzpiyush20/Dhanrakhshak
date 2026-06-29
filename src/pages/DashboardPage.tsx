@@ -6,7 +6,24 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
-import { Card, Button, EmptyState } from '@/components/ui'
+import { Card, Button, EmptyState, Modal } from '@/components/ui'
+import ActiveSubscriptionsWidget from '@/components/dashboard/ActiveSubscriptionsWidget'
+import {
+  ChevronLeft,
+  ChevronRight,
+  AlertTriangle,
+  RefreshCw,
+  Crown,
+  DollarSign,
+  BarChart2,
+  Settings,
+  TrendingUp,
+  TrendingDown,
+  Shield,
+  Download,
+  Check,
+  CreditCard,
+} from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
 import { getTransactions, getMonthlySummary } from '@/services/transactions'
@@ -373,7 +390,7 @@ export default function DashboardPage() {
         {/* Top welcome & Month selector */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
+            <h1 className="text-2xl font-bold tracking-tight text-text-primary md:text-3xl">
               Hello, {getFirstName()}
             </h1>
             <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-2">
@@ -381,8 +398,8 @@ export default function DashboardPage() {
                 Here is your wealth overview for this month.
               </p>
               <span className="text-zinc-700 hidden sm:inline">•</span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-surface-2 border border-border-subtle/50 text-[10px] font-semibold text-brand-300 font-mono">
-                📅 Next Refresh: {getNextRefreshTime(dailyScanTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-surface-2 border border-border-subtle/50 text-[10px] font-semibold text-brand-300 font-mono">
+                Next Refresh: {getNextRefreshTime(dailyScanTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
               </span>
             </div>
           </div>
@@ -396,7 +413,7 @@ export default function DashboardPage() {
               className="hover:bg-surface-2 h-11 px-3.5 rounded-xl border border-border-subtle/50 text-xs font-semibold text-zinc-300 gap-1.5 flex items-center justify-center cursor-pointer"
               title="Configure Dashboard Widgets"
             >
-              ⚙️ Customize
+              <Settings className="h-3.5 w-3.5" /> Customize
             </Button>
 
             <div className="flex items-center gap-2 bg-surface-1 border border-border-subtle rounded-xl p-1 shrink-0 max-w-fit shadow-inner glass-card">
@@ -407,7 +424,7 @@ export default function DashboardPage() {
                 className="hover:bg-surface-2 h-9 w-9 p-0"
                 title="Previous Month"
               >
-                ◀️
+                <ChevronLeft className="h-4 w-4 text-zinc-400 hover:text-zinc-200" />
               </Button>
               <span className="px-4 text-sm font-semibold text-zinc-200 min-w-[120px] text-center">
                 {formatMonthName(selectedMonth)}
@@ -420,7 +437,7 @@ export default function DashboardPage() {
                 title="Next Month"
                 disabled={selectedMonth === getCurrentMonth()}
               >
-                ▶️
+                <ChevronRight className="h-4 w-4 text-zinc-400 hover:text-zinc-200" />
               </Button>
             </div>
           </div>
@@ -436,9 +453,9 @@ export default function DashboardPage() {
           <div role="alert" className="rounded-2xl bg-[var(--status-warning-subtle)] border border-[var(--status-warning-border)] p-4 text-sm text-[var(--status-warning-text)] flex flex-col gap-3 animate-fade-in shadow-md">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-start gap-2.5">
-                <span className="text-lg shrink-0 mt-0.5" aria-hidden="true">⚠️</span>
+                <AlertTriangle className="h-5 w-5 text-status-warning shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-bold text-white">
+                  <p className="font-bold text-text-primary">
                     {profile?.subscription_status === 'trial' ? 'Trial Active — Gmail Sync Unlocked' : 'Refresh Alert — Action Required'}
                   </p>
                   <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
@@ -452,21 +469,21 @@ export default function DashboardPage() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="text-[var(--status-warning-text)] border-[var(--status-warning-border)] bg-[var(--status-warning-subtle)] hover:bg-[var(--status-warning-border)] hover:border-[var(--status-warning-text)]/40 transition-all text-xs justify-center"
+                  className="text-[var(--status-warning-text)] border-[var(--status-warning-border)] bg-[var(--status-warning-subtle)] hover:bg-[var(--status-warning-border)] hover:border-[var(--status-warning-text)]/40 transition-all text-xs justify-center gap-1.5"
                   onClick={handleManualBannerSync}
                   loading={syncingBackground}
                   disabled={syncingBackground}
                 >
-                  🔄 Sync Now
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin-slow" /> Sync Now
                 </Button>
                 {(profile?.subscription_status === 'trial' || (profile?.subscription_status === 'active' && profile?.subscription_plan_type === 'monthly')) && (
                   <Link to="/pricing" className="shrink-0">
                     <Button
                       size="sm"
                       variant="secondary"
-                      className="text-brand-300 border-brand-500/20 bg-brand-500/5 hover:bg-brand-500/10 hover:border-brand-500/35 transition-all text-xs justify-center font-bold"
+                      className="text-brand-300 border-brand-500/20 bg-brand-500/5 hover:bg-brand-500/10 hover:border-brand-500/35 transition-all text-xs justify-center font-bold gap-1.5"
                     >
-                      👑 Upgrade to Yearly
+                      <Crown className="h-3.5 w-3.5" /> Upgrade to Yearly
                     </Button>
                   </Link>
                 )}
@@ -474,7 +491,10 @@ export default function DashboardPage() {
             </div>
             {syncError && (
               <div className="rounded-xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] px-3 py-2 text-xs text-[var(--status-danger-text)] flex flex-col sm:flex-row sm:items-center gap-2">
-                <span className="flex-1">⚠️ {syncError}</span>
+                <span className="flex-1 flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 text-status-danger shrink-0" />
+                  {syncError}
+                </span>
                 {(syncError.includes('expired') || syncError.includes('connected')) && (
                   <Link
                     to="/pending"
@@ -503,8 +523,8 @@ export default function DashboardPage() {
               <>
                 {/* Income card */}
                 <Card className="relative overflow-hidden border-l-4 border-l-[var(--status-positive-text)]/80 bg-surface-1 group hover:border-l-[var(--status-positive-text)] transition-all shadow-md">
-                  <div className="absolute top-0 right-0 p-4 opacity-10 text-4xl group-hover:scale-110 transition-transform">
-                    📈
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                    <TrendingUp className="h-10 w-10 text-status-positive" />
                   </div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                     Total Income
@@ -519,8 +539,8 @@ export default function DashboardPage() {
 
                 {/* Expenses card */}
                 <Card className="relative overflow-hidden border-l-4 border-l-[var(--status-warning-text)]/80 bg-surface-1 group hover:border-l-[var(--status-warning-text)] transition-all shadow-md">
-                  <div className="absolute top-0 right-0 p-4 opacity-10 text-4xl group-hover:scale-110 transition-transform">
-                    📉
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                    <TrendingDown className="h-10 w-10 text-status-warning" />
                   </div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                     Total Expenses
@@ -537,8 +557,8 @@ export default function DashboardPage() {
                 <Card className={`relative overflow-hidden border-l-4 bg-surface-1 group transition-all shadow-md sm:col-span-2 lg:col-span-1 ${
                   (summary?.savings || 0) >= 0 ? 'border-l-[var(--status-positive-text)]/80 hover:border-l-[var(--status-positive-text)]' : 'border-l-[var(--status-danger-text)]/80 hover:border-l-[var(--status-danger-text)]'
                 }`}>
-                  <div className="absolute top-0 right-0 p-4 opacity-10 text-4xl group-hover:scale-110 transition-transform">
-                    🛡️
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                    <Shield className="h-10 w-10 text-brand-400" />
                   </div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                     Net Savings
@@ -579,7 +599,7 @@ export default function DashboardPage() {
               <Card className={`${widgets.recent ? 'lg:col-span-7' : 'lg:col-span-12'} flex flex-col h-auto`}>
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h2 className="text-lg font-bold text-white">Monthly Spending Breakdown</h2>
+                    <h2 className="text-lg font-bold text-text-primary">Monthly Spending Breakdown</h2>
                     <p className="text-xs text-zinc-500 mt-0.5">Where your money went this month</p>
                   </div>
                 </div>
@@ -600,7 +620,7 @@ export default function DashboardPage() {
                     </div>
                   ) : !summary || summary.category_breakdown.length === 0 ? (
                     <EmptyState
-                      icon="📊"
+                      icon={<BarChart2 className="h-8 w-8 text-zinc-500" />}
                       title="No expenses tracked"
                       description="Add an expense in the selected month to see your breakdown chart."
                     />
@@ -663,7 +683,7 @@ export default function DashboardPage() {
               <Card className={`${widgets.breakdown ? 'lg:col-span-5' : 'lg:col-span-12'} flex flex-col h-auto`} noPadding>
                 <div className="flex items-center justify-between px-5 pt-5 pb-3">
                   <div>
-                    <h2 className="text-lg font-bold text-white">Recent Activity</h2>
+                    <h2 className="text-lg font-bold text-text-primary">Recent Activity</h2>
                     <p className="text-xs text-zinc-500 mt-0.5">Your globally recent transactions</p>
                   </div>
                   <Button
@@ -694,7 +714,7 @@ export default function DashboardPage() {
                   ) : recentTransactions.length === 0 ? (
                     <div className="p-5 flex-1 flex flex-col justify-center items-center">
                       <EmptyState
-                        icon="💸"
+                        icon={<DollarSign className="h-8 w-8 text-zinc-500" />}
                         title="No transactions yet"
                         description="Record a transaction to see your recent activity."
                       />
@@ -757,321 +777,177 @@ export default function DashboardPage() {
         )}
 
         {/* 🔄 Subscription Intelligence Widget */}
-        {widgets.subscriptions && !loading && recentTransactions.length > 0 && (() => {
-          const now = new Date()
-          const subs: Array<{ merchant: string; amount: number; daysToRenewal: number; category: string }> = []
-          const seen = new Set<string>()
-          const debits = recentTransactions.filter(t => t.type === 'debit')
+        <ActiveSubscriptionsWidget
+          recentTransactions={recentTransactions}
+          loading={loading}
+          isVisible={widgets.subscriptions}
+        />
 
-          // Group by merchant
-          const grouped: Record<string, typeof debits> = {}
-          debits.forEach(t => {
-            if (!t.merchant) return
-            const key = t.merchant.trim().toLowerCase()
-            if (!grouped[key]) grouped[key] = []
-            grouped[key].push(t)
-          })
-
-          // Detect recurring patterns (monthly ±10d, or subscription category)
-          for (const [key, txns] of Object.entries(grouped)) {
-            if (seen.has(key)) continue
-            txns.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            const latest = txns[0]
-            const isSubCat = ['subscriptions', 'utilities'].includes(latest.category)
-            let isRecurring = isSubCat
-
-            if (!isRecurring && txns.length >= 2) {
-              const d1 = new Date(txns[0].date), d2 = new Date(txns[1].date)
-              const diffDays = Math.round(Math.abs(d1.getTime() - d2.getTime()) / 86400000)
-              const amtVar = Math.abs(Number(txns[0].amount) - Number(txns[1].amount)) / (Number(txns[0].amount) || 1)
-              if (diffDays >= 22 && diffDays <= 40 && amtVar < 0.15) isRecurring = true
-            }
-
-            if (isRecurring) {
-              const lastBilled = new Date(latest.date)
-              const daysSince = Math.round((now.getTime() - lastBilled.getTime()) / 86400000)
-              if (daysSince < 60) {
-                const nextRenewal = new Date(lastBilled.getTime() + 30 * 86400000)
-                const daysToRenewal = Math.ceil((nextRenewal.getTime() - now.getTime()) / 86400000)
-                const avgAmt = txns.reduce((s, t) => s + Number(t.amount), 0) / txns.length
-                seen.add(key)
-                subs.push({ merchant: latest.merchant || 'Recurring', amount: Math.round(avgAmt), daysToRenewal, category: latest.category })
-              }
-            }
+        {/* 📋 Recent Activity View All Modal */}
+        <Modal
+          isOpen={showAllRecentModal}
+          onClose={() => setShowAllRecentModal(false)}
+          title="Recent Activity"
+          footer={
+            <Button variant="secondary" onClick={() => setShowAllRecentModal(false)}>
+              Close
+            </Button>
           }
-
-          subs.sort((a, b) => a.daysToRenewal - b.daysToRenewal)
-          const monthlyBurn = subs.reduce((s, sub) => s + sub.amount, 0)
-
-          if (subs.length === 0) return null
-
-          return (
-            <Card className="mt-2" id="subscription-widget">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-base font-bold text-white flex items-center gap-2">
-                    🔄 <span>Active Subscriptions</span>
-                    <span className="text-xs font-normal text-zinc-500 ml-1">auto-detected</span>
-                  </h2>
-                  <p className="text-xs text-zinc-500 mt-0.5">Monthly subscription burn: <span className="text-white font-semibold">{formatCurrency(monthlyBurn)}</span></p>
-                </div>
-                <Link to="/subscriptions" className="text-xs text-brand-400 hover:text-brand-300 font-semibold transition-colors">
-                  Manage →
-                </Link>
+        >
+          <div className="space-y-4">
+            <p className="text-xs text-zinc-400">Your past 15 transaction records</p>
+            {loadingAllRecent ? (
+              <div className="space-y-3">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-surface-2 animate-pulse">
+                    <div className="h-4 w-1/3 bg-zinc-700 rounded" />
+                    <div className="h-4 w-12 bg-zinc-700 rounded" />
+                  </div>
+                ))}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                {subs.slice(0, 6).map((sub, idx) => {
-                  const renewsColor = sub.daysToRenewal <= 3 ? 'text-[var(--status-danger-text)] bg-[var(--status-danger-subtle)] border-[var(--status-danger-border)]' :
-                    sub.daysToRenewal <= 7 ? 'text-[var(--status-warning-text)] bg-[var(--status-warning-subtle)] border-[var(--status-warning-border)]' :
-                    'text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border-[var(--status-positive-border)]'
-                  const cat = CATEGORIES[sub.category as keyof typeof CATEGORIES] || CATEGORIES.subscriptions
+            ) : allRecentTransactions.length === 0 ? (
+              <p className="text-xs text-zinc-500 text-center py-8">No transactions found.</p>
+            ) : (
+              <div className="divide-y divide-border-subtle/40">
+                {allRecentTransactions.map((txn) => {
+                  const cat = CATEGORIES[txn.category as keyof typeof CATEGORIES] || CATEGORIES.other
+                  const isDebit = txn.type === 'debit'
                   return (
-                    <div key={idx} className="flex items-center gap-3 rounded-xl bg-surface-2/50 border border-border-subtle/60 px-3 py-2.5 hover:bg-surface-2 transition-colors">
-                      <span className="text-xl shrink-0">{cat.emoji}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-zinc-200 truncate">{sub.merchant}</p>
-                        <p className="text-[10px] text-zinc-500 mt-0.5">{formatCurrency(sub.amount)}/mo</p>
+                    <div key={txn.id} className="flex items-center justify-between py-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-xl shrink-0">{cat.emoji}</span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-zinc-200 truncate">{txn.description || cat.label}</p>
+                          <span className="text-[9px] text-zinc-500">
+                            {new Date(txn.date).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        </div>
                       </div>
-                      <div className={`text-[10px] font-bold rounded-lg px-2 py-1 border shrink-0 ${renewsColor}`}>
-                        {sub.daysToRenewal <= 0 ? 'Due!' : sub.daysToRenewal === 1 ? '1 day' : `${sub.daysToRenewal}d`}
-                      </div>
+                      <span
+                        className={`text-xs font-bold shrink-0 ${
+                          isDebit ? 'text-[var(--status-danger-text)]' : 'text-[var(--status-positive-text)]'
+                        }`}
+                      >
+                        {isDebit ? '-' : '+'}{formatCurrency(Number(txn.amount))}
+                      </span>
                     </div>
                   )
                 })}
               </div>
-              {subs.length > 6 && (
-                <p className="text-xs text-zinc-500 mt-3 text-center">+{subs.length - 6} more · <Link to="/subscriptions" className="text-brand-400 hover:underline">View all</Link></p>
-              )}
-            </Card>
-          )
-        })()}
-
-        {/* 📋 Recent Activity View All Modal */}
-        {showAllRecentModal && (
-
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in overflow-y-auto" role="dialog" aria-modal="true" aria-label="Recent Transactions List">
-            <div className="w-full max-w-xl bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col max-h-[90vh] overflow-y-auto animate-scale-up">
-              
-              {/* Header */}
-              <div className="flex items-start justify-between border-b border-border-subtle/30 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-2xl bg-brand-500/10 border border-brand-500/30 flex items-center justify-center text-xl">
-                    💸
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-white">Recent Activity</h3>
-                    <p className="text-xs text-zinc-400 mt-0.5">Your past 15 transaction records</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowAllRecentModal(false)}
-                  className="h-8 w-8 rounded-full border border-border-subtle/50 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-surface-2 transition-colors cursor-pointer"
-                  aria-label="Close dialog"
-                >
-                  <span aria-hidden="true">✕</span>
-                </button>
-              </div>
-
-              {/* Content list */}
-              <div className="flex-1 overflow-y-auto py-4 space-y-2 pr-1">
-                {loadingAllRecent ? (
-                  <div className="space-y-3">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-surface-2 animate-pulse">
-                        <div className="h-4 w-1/3 bg-zinc-700 rounded" />
-                        <div className="h-4 w-12 bg-zinc-700 rounded" />
-                      </div>
-                    ))}
-                  </div>
-                ) : allRecentTransactions.length === 0 ? (
-                  <p className="text-xs text-zinc-500 text-center py-8">No transactions found.</p>
-                ) : (
-                  <div className="divide-y divide-border-subtle/40">
-                    {allRecentTransactions.map((txn) => {
-                      const cat = CATEGORIES[txn.category as keyof typeof CATEGORIES] || CATEGORIES.other
-                      const isDebit = txn.type === 'debit'
-                      return (
-                        <div key={txn.id} className="flex items-center justify-between py-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="text-xl shrink-0">{cat.emoji}</span>
-                            <div className="min-w-0">
-                              <p className="text-xs font-bold text-zinc-200 truncate">{txn.description || cat.label}</p>
-                              <span className="text-[9px] text-zinc-500">{new Date(txn.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-                            </div>
-                          </div>
-                          <span className={`text-xs font-bold shrink-0 ${isDebit ? 'text-[var(--status-danger-text)]' : 'text-[var(--status-positive-text)]'}`}>
-                            {isDebit ? '-' : '+'}{formatCurrency(Number(txn.amount))}
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="border-t border-border-subtle/30 pt-4 flex justify-end">
-                <Button variant="secondary" onClick={() => setShowAllRecentModal(false)}>
-                  Close
-                </Button>
-              </div>
-            </div>
+            )}
           </div>
-        )}
+        </Modal>
 
-        {/* 📊 Category Breakdown Details Modal */}
+        {/* 📊 Category Spending Breakdown Details Modal */}
         {showCategoryModal && selectedCategoryCode && (() => {
           const cat = CATEGORIES[selectedCategoryCode as keyof typeof CATEGORIES] || CATEGORIES.other
           const matchedSummaryItem = summary?.category_breakdown.find(item => item.category === selectedCategoryCode)
           const totalAmount = matchedSummaryItem?.amount || 0
           const totalCount = matchedSummaryItem?.count || 0
           
-          // Parse month label (e.g. "June 2026")
           const [yearStr, monStr] = selectedMonth.split('-')
           const monthDate = new Date(parseInt(yearStr, 10), parseInt(monStr, 10) - 1, 1)
           const monthLabel = monthDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
           
           return (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in overflow-y-auto" role="dialog" aria-modal="true" aria-label={`${cat.label} Transactions list`}>
-              <div className="w-full max-w-xl bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col max-h-[90vh] overflow-y-auto animate-scale-up text-zinc-100">
-                
-                {/* Header */}
-                <div className="flex items-start justify-between border-b border-border-subtle/30 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-2xl border flex items-center justify-center text-xl" style={{ backgroundColor: `${cat.color}15`, borderColor: `${cat.color}40`, borderStyle: 'solid', borderWidth: '1px' }}>
-                      {cat.emoji}
-                    </div>
-                    <div>
-                      <h3 className="text-base font-bold text-white">{cat.label} Spending</h3>
-                      <p className="text-xs text-zinc-400 mt-0.5">{monthLabel} · {formatCurrency(totalAmount)} total over {totalCount} transaction{totalCount > 1 ? 's' : ''}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowCategoryModal(false)
-                      setSelectedCategoryCode(null)
-                      setCategoryTransactions([])
-                    }}
-                    className="h-8 w-8 rounded-full border border-border-subtle/50 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-surface-2 transition-colors cursor-pointer"
-                    aria-label="Close dialog"
-                  >
-                    <span aria-hidden="true">✕</span>
-                  </button>
-                </div>
-
-                {/* Content list */}
-                <div className="flex-1 overflow-y-auto py-4 space-y-2 pr-1">
-                  {loadingCategoryTxns ? (
-                    <div className="space-y-3">
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-surface-2 animate-pulse">
-                          <div className="space-y-2 w-1/3">
-                            <div className="h-4 bg-zinc-700 rounded" />
-                            <div className="h-3 bg-zinc-800 rounded w-2/3" />
-                          </div>
-                          <div className="h-4 w-12 bg-zinc-700 rounded" />
+            <Modal
+              isOpen={showCategoryModal}
+              onClose={() => {
+                setShowCategoryModal(false)
+                setSelectedCategoryCode(null)
+                setCategoryTransactions([])
+              }}
+              title={`${cat.label} Spending`}
+              footer={
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowCategoryModal(false)
+                    setSelectedCategoryCode(null)
+                    setCategoryTransactions([])
+                  }}
+                  className="font-bold text-xs"
+                >
+                  Close
+                </Button>
+              }
+            >
+              <div className="space-y-4">
+                <p className="text-xs text-zinc-400">
+                  {monthLabel} · {formatCurrency(totalAmount)} total over {totalCount} transaction
+                  {totalCount > 1 ? 's' : ''}
+                </p>
+                {loadingCategoryTxns ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-surface-2 animate-pulse">
+                        <div className="space-y-2 w-1/3">
+                          <div className="h-4 bg-zinc-700 rounded" />
+                          <div className="h-3 bg-zinc-800 rounded w-2/3" />
                         </div>
-                      ))}
-                    </div>
-                  ) : categoryTransactions.length === 0 ? (
-                    <p className="text-xs text-zinc-500 text-center py-8">No transactions found for this category.</p>
-                  ) : (
-                    <div className="divide-y divide-border-subtle/40">
-                      {categoryTransactions.map((txn) => {
-                        return (
-                          <div key={txn.id} className="flex items-center justify-between py-3">
-                            <div className="flex flex-col min-w-0 pr-3">
-                              <p className="text-xs font-bold text-zinc-200 truncate">
-                                {txn.merchant || txn.description || 'Transaction'}
-                              </p>
-                              {txn.description && txn.description !== `${txn.merchant} Transaction` && (
-                                <p className="text-[10px] text-zinc-500 truncate mt-0.5">{txn.description}</p>
-                              )}
-                              <span className="text-[9px] text-zinc-500 mt-1">
-                                {new Date(txn.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                              </span>
-                            </div>
-                            <span className="text-xs font-bold shrink-0 text-[var(--status-danger-text)]">
-                              -{formatCurrency(Number(txn.amount))}
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Footer */}
-                <div className="border-t border-border-subtle/30 pt-4 flex justify-end">
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setShowCategoryModal(false)
-                      setSelectedCategoryCode(null)
-                      setCategoryTransactions([])
-                    }}
-                    className="font-bold text-xs"
-                  >
-                    Close
-                  </Button>
-                </div>
-
+                        <div className="h-4 w-12 bg-zinc-700 rounded" />
+                      </div>
+                    ))}
+                  </div>
+                ) : categoryTransactions.length === 0 ? (
+                  <p className="text-xs text-zinc-500 text-center py-8">No transactions found for this category.</p>
+                ) : (
+                  <div className="divide-y divide-border-subtle/40">
+                    {categoryTransactions.map((txn) => (
+                      <div key={txn.id} className="flex items-center justify-between py-3">
+                        <div className="flex flex-col min-w-0 pr-3">
+                          <p className="text-xs font-bold text-zinc-200 truncate">
+                            {txn.merchant || txn.description || 'Transaction'}
+                          </p>
+                          {txn.description && txn.description !== `${txn.merchant} Transaction` && (
+                            <p className="text-[10px] text-zinc-500 truncate mt-0.5">{txn.description}</p>
+                          )}
+                          <span className="text-[9px] text-zinc-500 mt-1">
+                            {new Date(txn.date).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        </div>
+                        <span className="text-xs font-bold shrink-0 text-[var(--status-danger-text)]">
+                          -{formatCurrency(Number(txn.amount))}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
+            </Modal>
           )
         })()}
 
-      {/* Year-End Financial Transition & Reset Modal */}
-      {showYearEndModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/85 backdrop-blur-md animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="yearend-title">
-          <div className="w-full max-w-lg bg-surface-1/95 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col max-h-[90vh] overflow-y-auto animate-scale-up text-left">
-            <div className="flex items-center gap-3 border-b border-border-subtle pb-4 mb-4">
-              <span className="text-3xl text-brand-400" aria-hidden="true">🔄</span>
-              <div>
-                <h2 id="yearend-title" className="text-lg font-bold text-white">Financial Year Completed</h2>
-                <p className="text-xs text-zinc-400 uppercase tracking-widest font-semibold mt-0.5">
-                  Year End Transition Process
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4 text-sm text-zinc-300">
-              <p className="leading-relaxed text-zinc-400">
-                Your <strong className="text-white">{priorYear} Financial Year</strong> is complete. 
-                Dhanrakshak operates on a calendar-year budget cycle (Jan 1 to Dec 31). To start fresh for the current year, please export your prior records.
-              </p>
-              
-              <div className="rounded-xl border border-[var(--status-warning-border)] bg-[var(--status-warning-subtle)] p-4 text-xs text-[var(--status-warning-text)] leading-normal flex gap-2">
-                <span className="text-base shrink-0">⚠️</span>
-                <p>
-                  <strong>Important:</strong> Downloading your backup file is mandatory before resetting. 
-                  Once you confirm, Dhanrakshak will restore everything to blank (wipe prior transactions, budgets, and logs) so the scanner can work as new.
-                </p>
-              </div>
-
-              <div className="bg-surface-2/40 border border-border-subtle rounded-xl p-3 text-xs flex justify-between items-center text-zinc-400">
-                <span>Prior Records Found</span>
-                <span className="font-semibold text-zinc-200">{priorYearTransactions.length} transaction(s)</span>
-              </div>
-            </div>
-
-            <div className="space-y-3 mt-6 pt-4 border-t border-border-subtle">
+        {/* Year-End Financial Transition & Reset Modal */}
+        <Modal
+          isOpen={showYearEndModal}
+          onClose={() => setShowYearEndModal(false)}
+          title="Financial Year Completed"
+          footer={
+            <div className="w-full space-y-3">
               <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider">1. Export Prior Year Records</p>
               <div className="flex gap-2.5">
                 <Button
                   onClick={() => exportData('csv')}
                   className="flex-1 text-xs justify-center gap-1 bg-surface-2 border border-border-subtle hover:border-brand-500/40 text-zinc-200"
                 >
-                  📥 Download CSV Report
+                  <Download className="h-4 w-4" /> Download CSV Report
                 </Button>
                 <Button
                   onClick={() => exportData('json')}
                   className="flex-1 text-xs justify-center gap-1 bg-surface-2 border border-border-subtle hover:border-brand-500/40 text-zinc-200"
                 >
-                  📥 Download JSON Backup
+                  <Download className="h-4 w-4" /> Download JSON Backup
                 </Button>
               </div>
-
               <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider pt-2">2. Clear & Start Fresh for New Year</p>
               <Button
                 variant="danger"
@@ -1081,111 +957,115 @@ export default function DashboardPage() {
                 loading={loading}
                 className="w-full text-xs py-3 font-bold justify-center"
               >
-                🚀 Export Completed - Reset Account & Start New Year
+                <Check className="h-4 w-4" /> Export Completed - Reset Account & Start New Year
               </Button>
             </div>
+          }
+        >
+          <div className="space-y-4 text-sm text-zinc-300">
+            <p className="leading-relaxed text-zinc-400">
+              Your <strong className="text-text-primary">{priorYear} Financial Year</strong> is complete. 
+              Dhanrakshak operates on a calendar-year budget cycle (Jan 1 to Dec 31). To start fresh for the current year, please export your prior records.
+            </p>
+            
+            <div className="rounded-xl border border-[var(--status-warning-border)] bg-[var(--status-warning-subtle)] p-4 text-xs text-[var(--status-warning-text)] leading-normal flex gap-2">
+              <AlertTriangle className="h-5 w-5 text-status-warning shrink-0 mt-0.5" />
+              <p>
+                <strong>Important:</strong> Downloading your backup file is mandatory before resetting. 
+                Once you confirm, Dhanrakshak will restore everything to blank (wipe prior transactions, budgets, and logs) so the scanner can work as new.
+              </p>
+            </div>
+
+            <div className="bg-surface-2/40 border border-border-subtle rounded-xl p-3 text-xs flex justify-between items-center text-zinc-400">
+              <span>Prior Records Found</span>
+              <span className="font-semibold text-zinc-200">{priorYearTransactions.length} transaction(s)</span>
+            </div>
           </div>
-        </div>
-      )}
-      {/* Widget Customization Modal */}
-      {showConfigModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in overflow-y-auto" role="dialog" aria-modal="true" aria-label="Configure Dashboard Widgets">
-          <div className="w-full max-w-md bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl animate-scale-up text-left max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-border-subtle/30 pb-4 mb-5">
-              <div className="flex items-center gap-2.5">
-                <span className="text-xl">⚙️</span>
+        </Modal>
+
+        {/* Widget Customization Modal */}
+        <Modal
+          isOpen={showConfigModal}
+          onClose={() => setShowConfigModal(false)}
+          title="Customize Dashboard"
+          footer={
+            <Button variant="secondary" onClick={() => setShowConfigModal(false)}>
+              Close
+            </Button>
+          }
+        >
+          <div className="space-y-4">
+            <p className="text-xs text-zinc-400 mb-4">Toggle widgets on or off</p>
+
+            {/* Stats Widget */}
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-surface-2/40 border border-border-subtle/30">
+              <div className="flex items-center gap-3">
+                <CreditCard className="h-5 w-5 text-brand-400 shrink-0" />
                 <div>
-                  <h3 className="text-base font-bold text-white">Customize Dashboard</h3>
-                  <p className="text-xs text-zinc-400 mt-0.5">Toggle widgets on or off</p>
+                  <p className="text-xs font-bold text-text-primary">Income, Expense & Savings Cards</p>
+                  <p className="text-[10px] text-zinc-500">Summary stats at the top</p>
                 </div>
               </div>
-              <button
-                onClick={() => setShowConfigModal(false)}
-                className="h-8 w-8 rounded-full border border-border-subtle/50 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-surface-2 transition-colors cursor-pointer"
-                aria-label="Close dialog"
-              >
-                ✕
-              </button>
+              <input
+                type="checkbox"
+                checked={widgets.stats}
+                onChange={() => toggleWidget('stats')}
+                className="h-4 w-4 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
+              />
             </div>
 
-            <div className="space-y-4">
-              {/* Stats Widget */}
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-surface-2/40 border border-border-subtle/30">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">💳</span>
-                  <div>
-                    <p className="text-xs font-bold text-white">Income, Expense & Savings Cards</p>
-                    <p className="text-[10px] text-zinc-500">Summary stats at the top</p>
-                  </div>
+            {/* Spending Breakdown Widget */}
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-surface-2/40 border border-border-subtle/30">
+              <div className="flex items-center gap-3">
+                <BarChart2 className="h-5 w-5 text-brand-400 shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-text-primary">Spending Breakdown</p>
+                  <p className="text-[10px] text-zinc-500">Monthly category breakdown list</p>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={widgets.stats}
-                  onChange={() => toggleWidget('stats')}
-                  className="h-4 w-4 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
-                />
               </div>
-
-              {/* Spending Breakdown Widget */}
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-surface-2/40 border border-border-subtle/30">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">📊</span>
-                  <div>
-                    <p className="text-xs font-bold text-white">Spending Breakdown</p>
-                    <p className="text-[10px] text-zinc-500">Monthly category breakdown list</p>
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={widgets.breakdown}
-                  onChange={() => toggleWidget('breakdown')}
-                  className="h-4 w-4 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
-                />
-              </div>
-
-              {/* Recent Activity Widget */}
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-surface-2/40 border border-border-subtle/30">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">💸</span>
-                  <div>
-                    <p className="text-xs font-bold text-white">Recent Activity List</p>
-                    <p className="text-[10px] text-zinc-500">Show last 5 recorded transactions</p>
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={widgets.recent}
-                  onChange={() => toggleWidget('recent')}
-                  className="h-4 w-4 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
-                />
-              </div>
-
-              {/* Subscription Widget */}
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-surface-2/40 border border-border-subtle/30">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">🔄</span>
-                  <div>
-                    <p className="text-xs font-bold text-white">Active Subscriptions</p>
-                    <p className="text-[10px] text-zinc-500">Auto-detected recurring services</p>
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={widgets.subscriptions}
-                  onChange={() => toggleWidget('subscriptions')}
-                  className="h-4 w-4 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
-                />
-              </div>
+              <input
+                type="checkbox"
+                checked={widgets.breakdown}
+                onChange={() => toggleWidget('breakdown')}
+                className="h-4 w-4 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
+              />
             </div>
 
-            <div className="border-t border-border-subtle/30 mt-6 pt-4 flex justify-end">
-              <Button variant="secondary" onClick={() => setShowConfigModal(false)}>
-                Close
-              </Button>
+            {/* Recent Activity Widget */}
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-surface-2/40 border border-border-subtle/30">
+              <div className="flex items-center gap-3">
+                <DollarSign className="h-5 w-5 text-brand-400 shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-text-primary">Recent Activity List</p>
+                  <p className="text-[10px] text-zinc-500">Show last 5 recorded transactions</p>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={widgets.recent}
+                onChange={() => toggleWidget('recent')}
+                className="h-4 w-4 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
+              />
+            </div>
+
+            {/* Subscription Widget */}
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-surface-2/40 border border-border-subtle/30">
+              <div className="flex items-center gap-3">
+                <RefreshCw className="h-5 w-5 text-brand-400 shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-text-primary">Active Subscriptions</p>
+                  <p className="text-[10px] text-zinc-500">Auto-detected recurring services</p>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={widgets.subscriptions}
+                onChange={() => toggleWidget('subscriptions')}
+                className="h-4 w-4 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
+              />
             </div>
           </div>
-        </div>
-      )}
+        </Modal>
       </div>
     </AppLayout>
   )
