@@ -448,7 +448,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
 
           {/* Desktop Navigation Links */}
           {user && isAppRoute ? (
-            <nav className="hidden lg:flex items-center gap-3 text-xs font-semibold min-w-0" aria-label="Desktop navigation">
+            <nav className="hidden lg:flex items-center gap-3 text-xs font-semibold min-w-0 overflow-x-auto scrollbar-none" aria-label="Desktop navigation">
                 {navItems
                   .filter(item => item.path !== ROUTES.PRICING)
                   .map((item) => {

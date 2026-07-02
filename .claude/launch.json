@@ -4,7 +4,7 @@
     {
       "name": "Dhanrakshak (Vite)",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "C:\\Users\\itzpi\\OneDrive\\Desktop\\Dhanrakshak"],
+      "runtimeArgs": ["run", "dev", "--prefix", "C:\\Users\\itzpi\\OneDrive\\Desktop\\Projects\\Dhanrakshak"],
       "port": 5173
     },
     {
