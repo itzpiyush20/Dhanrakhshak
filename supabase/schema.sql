@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- Safety net for existing deployments: CREATE TABLE IF NOT EXISTS above is a
 -- no-op once profiles already exists, so make sure the column is added either way.
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS ai_calls_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS ai_calls_reset_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
 -- Returns true if the given user (default: caller) is flagged as an admin.
 -- SECURITY DEFINER so it can read profiles.is_admin without recursing into
@@ -192,6 +194,39 @@ CREATE POLICY "Users can update own profile"
   ON public.profiles FOR UPDATE
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
+
+-- RLS policies can't restrict which COLUMNS an UPDATE touches, only which
+-- ROWS — so the policy above, on its own, lets a signed-in user set their
+-- own subscription_status to 'active' (free premium) or is_admin to true
+-- via a direct client call. This trigger closes that gap by rejecting
+-- changes to server-managed columns unless the request runs as the
+-- service role (webhook.ts / verify-payment.ts use the service-role key).
+CREATE OR REPLACE FUNCTION public.protect_server_only_profile_columns()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF auth.jwt() ->> 'role' = 'service_role' THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.subscription_status       IS DISTINCT FROM OLD.subscription_status
+     OR NEW.subscription_expires_at IS DISTINCT FROM OLD.subscription_expires_at
+     OR NEW.subscription_plan_type  IS DISTINCT FROM OLD.subscription_plan_type
+     OR NEW.razorpay_subscription_id IS DISTINCT FROM OLD.razorpay_subscription_id
+     OR NEW.razorpay_order_id        IS DISTINCT FROM OLD.razorpay_order_id
+     OR NEW.is_admin                 IS DISTINCT FROM OLD.is_admin
+  THEN
+    RAISE EXCEPTION 'Cannot modify server-managed subscription/admin fields directly';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS protect_server_only_profile_columns ON public.profiles;
+CREATE TRIGGER protect_server_only_profile_columns
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.protect_server_only_profile_columns();
 
 -- TRANSACTIONS policies
 CREATE POLICY "Users can view own transactions"

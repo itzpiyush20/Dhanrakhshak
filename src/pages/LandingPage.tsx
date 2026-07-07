@@ -274,9 +274,17 @@ export default function LandingPage() {
                     Go to Dashboard →
                   </Link>
                 ) : (
-                  <MagneticButton onClick={() => openAuthModal()} className="sb-btn-primary border-0 cursor-pointer">
-                    Start free — no card needed →
-                  </MagneticButton>
+                  <>
+                    <MagneticButton onClick={() => openAuthModal()} className="sb-btn-primary border-0 cursor-pointer">
+                      Start free — no card needed →
+                    </MagneticButton>
+                    <MagneticButton
+                      onClick={() => openAuthModal('/dashboard?demo=1', 'signup')}
+                      className="sb-btn-secondary border-0 cursor-pointer"
+                    >
+                      Try it with sample data
+                    </MagneticButton>
+                  </>
                 )}
                 <a href="#how-it-works" className="sb-btn-secondary no-underline">
                   See how it works

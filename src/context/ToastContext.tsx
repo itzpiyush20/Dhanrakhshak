@@ -2,14 +2,25 @@ import { createContext, useContext, useState, type ReactNode } from 'react'
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info'
 
+interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
 interface Toast {
   id: string
   message: string
   type: ToastType
+  action?: ToastAction
+}
+
+interface ShowToastOptions {
+  action?: ToastAction
+  duration?: number
 }
 
 interface ToastContextValue {
-  showToast: (message: string, type?: ToastType) => void
+  showToast: (message: string, type?: ToastType, options?: ShowToastOptions) => void
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null)
@@ -17,14 +28,13 @@ const ToastContext = createContext<ToastContextValue | null>(null)
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
 
-  const showToast = (message: string, type: ToastType = 'success') => {
+  const showToast = (message: string, type: ToastType = 'success', options?: ShowToastOptions) => {
     const id = Math.random().toString(36).substring(2) + Date.now().toString(36)
-    setToasts((prev) => [...prev, { id, message, type }])
-    
-    // Auto dismiss after 3.5 seconds
+    setToasts((prev) => [...prev, { id, message, type, action: options?.action }])
+
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id))
-    }, 3500)
+    }, options?.duration ?? 3500)
   }
 
   const removeToast = (id: string) => {
@@ -68,13 +78,26 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 </span>
                 <p className={`text-xs font-semibold leading-relaxed ${textColor}`}>{toast.message}</p>
               </div>
-              <button
-                onClick={() => removeToast(toast.id)}
-                className="text-zinc-500 hover:text-zinc-300 font-bold ml-3 text-xs transition-colors cursor-pointer shrink-0"
-                aria-label="Dismiss toast"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-3 shrink-0 ml-3">
+                {toast.action && (
+                  <button
+                    onClick={() => {
+                      toast.action!.onClick()
+                      removeToast(toast.id)
+                    }}
+                    className={`text-xs font-bold underline underline-offset-2 hover:opacity-80 transition-opacity cursor-pointer ${textColor}`}
+                  >
+                    {toast.action.label}
+                  </button>
+                )}
+                <button
+                  onClick={() => removeToast(toast.id)}
+                  className="text-zinc-500 hover:text-zinc-300 font-bold text-xs transition-colors cursor-pointer"
+                  aria-label="Dismiss toast"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           )
         })}

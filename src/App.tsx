@@ -9,6 +9,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { AuthProvider, ToastProvider } from '@/context'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import AutoUpdateChecker from '@/components/AutoUpdateChecker'
+import InstallPrompt from '@/components/InstallPrompt'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import CookieConsent from '@/components/CookieConsent'
 import URLAuthTrigger from '@/components/auth/URLAuthTrigger'
@@ -156,6 +157,7 @@ function App() {
     <BrowserRouter>
       <ScrollToTop />
       <AutoUpdateChecker />
+      <InstallPrompt />
       <CookieConsent />
       <AuthProvider>
         <ToastProvider>

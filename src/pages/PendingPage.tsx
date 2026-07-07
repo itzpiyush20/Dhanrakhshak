@@ -3,7 +3,7 @@
 // Auto-scans bank alerts and reviews pending txns
 // ============================================
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
 import { Card, Button, Input, Select, Badge, EmptyState, Modal } from '@/components/ui'
@@ -44,7 +44,6 @@ import {
   FileText,
   Trash2,
   Check,
-  HelpCircle,
   AlertCircle,
   Sparkles,
   CheckCircle2,
@@ -148,7 +147,12 @@ export default function PendingPage() {
   const [pendingTxns, setPendingTxns] = useState<TransactionRow[]>([])
   const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
-  const [scanSuccessMessage, setScanSuccessMessage] = useState<string | null>(null)
+  const [scanSuccessMessage, setScanSuccessMessage] = useState<{
+    total: number
+    autoApproved: number
+    pendingReview: number
+    skipped: number
+  } | null>(null)
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const isGoogleConnected = hasGoogleToken
@@ -162,7 +166,6 @@ export default function PendingPage() {
     Record<string, { category: string; description: string }>
   >({})
 
-  const [confirmApproveId, setConfirmApproveId] = useState<string | null>(null)
   const { showToast } = useToast()
 
   const [autoCategorizedTxns, setAutoCategorizedTxns] = useState<any[]>([])
@@ -316,50 +319,135 @@ export default function PendingPage() {
     }))
   }
 
-  const handleApprove = async (id: string) => {
-    const fields = editingFields[id]
-    if (!fields) return
-
-    const originalTxn = pendingTxns.find((t) => t.id === id)
-    if (originalTxn) {
-      const merchantToLearn = originalTxn.merchant || ''
-      if (
-        merchantToLearn &&
-        merchantToLearn.length > 2 &&
-        !['Retail Transaction', 'Incoming Credit', 'Bank Transaction'].includes(merchantToLearn)
-      ) {
-        saveMerchantRule(merchantToLearn, fields.category, true)
-        if (user?.id) {
-          saveMerchantRuleToDb(user.id, merchantToLearn, fields.category, true).catch(console.warn)
-        }
-      }
+  // Learns the merchant → category rule immediately (cheap, low-stakes, and
+  // useful even if the approval itself is later undone) and surfaces that
+  // learning to the user — previously this happened silently.
+  const learnMerchantRule = (txn: TransactionRow, category: string): string | null => {
+    const merchant = txn.merchant || ''
+    if (
+      !merchant ||
+      merchant.length <= 2 ||
+      ['Retail Transaction', 'Incoming Credit', 'Bank Transaction'].includes(merchant)
+    ) {
+      return null
     }
+    saveMerchantRule(merchant, category, true)
+    if (user?.id) {
+      saveMerchantRuleToDb(user.id, merchant, category, true).catch(console.warn)
+    }
+    const categoryLabel = CATEGORIES[category as keyof typeof CATEGORIES]?.label || category
+    return `Got it — ${merchant} → ${categoryLabel} from now on.`
+  }
 
-    setActionLoadingId(id)
-    setError(null)
+  // Writes the actual approval to the database. Split from the tap handler
+  // below so the write can be delayed a few seconds for the undo window.
+  const commitApproval = async (txn: TransactionRow, fields: { category: string; description: string }) => {
     try {
-      if (originalTxn && originalTxn.merchant) {
+      if (txn.merchant) {
         await supabase
           .from('transactions')
           .update({ category: fields.category })
-          .eq('user_id', originalTxn.user_id)
-          .eq('merchant', originalTxn.merchant)
+          .eq('user_id', txn.user_id)
+          .eq('merchant', txn.merchant)
       }
 
-      const { error } = await updateTransaction(id, {
+      const { error } = await updateTransaction(txn.id, {
         category: fields.category,
         description: fields.description,
         approval_status: 'approved',
       })
-
       if (error) throw error
-      await fetchPendingData()
     } catch (err: any) {
       console.error('Error approving transaction:', err)
-      setError(err.message || 'Failed to approve transaction.')
-    } finally {
-      setActionLoadingId(null)
+      showToast(err.message || 'Failed to approve transaction.', 'error')
+      // Put it back in view so the user isn't left wondering where it went.
+      await fetchPendingData()
     }
+  }
+
+  // One-tap approve: removes the row immediately (feels instant), commits
+  // the write a few seconds later, and gives the user a real Undo window
+  // in between instead of a confirm-before-you-can-act modal.
+  const pendingCommitTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const pendingCommitTimers = pendingCommitTimersRef.current
+
+  const handleApproveWithUndo = (txn: TransactionRow) => {
+    const fields = editingFields[txn.id] || { category: txn.category, description: txn.description || '' }
+
+    setPendingTxns((prev) => prev.filter((t) => t.id !== txn.id))
+    setTotalPendingCount((prev) => Math.max(0, prev - 1))
+    setTotalPendingValue((prev) => Math.max(0, prev - Number(txn.amount)))
+
+    const learnedMsg = learnMerchantRule(txn, fields.category)
+
+    const timer = setTimeout(() => {
+      pendingCommitTimers.delete(txn.id)
+      commitApproval(txn, fields)
+    }, 5000)
+    pendingCommitTimers.set(txn.id, timer)
+
+    showToast(learnedMsg ? `Approved. ${learnedMsg}` : 'Transaction approved.', 'success', {
+      duration: 5000,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          const pending = pendingCommitTimers.get(txn.id)
+          if (pending) {
+            clearTimeout(pending)
+            pendingCommitTimers.delete(txn.id)
+          }
+          setPendingTxns((prev) => [txn, ...prev])
+          setTotalPendingCount((prev) => prev + 1)
+          setTotalPendingValue((prev) => prev + Number(txn.amount))
+        },
+      },
+    })
+  }
+
+  // Bulk approve — only offered for high-confidence suggestions (>=80%,
+  // the same threshold already used for the green confidence badge), so it
+  // never silently approves something the categorizer wasn't sure about.
+  const handleApproveAllHighConfidence = () => {
+    const eligible = pendingTxns.filter((txn) => {
+      const suggestion = applyMerchantRules(txn.merchant || '', (txn as any).notes || '', txn.category)
+      return suggestion.confidence >= 80
+    })
+    if (eligible.length === 0) return
+
+    setPendingTxns((prev) => prev.filter((t) => !eligible.some((e) => e.id === t.id)))
+    setTotalPendingCount((prev) => Math.max(0, prev - eligible.length))
+    setTotalPendingValue((prev) => Math.max(0, prev - eligible.reduce((sum, t) => sum + Number(t.amount), 0)))
+
+    const snapshot = eligible.map((txn) => ({
+      txn,
+      fields: editingFields[txn.id] || { category: txn.category, description: txn.description || '' },
+    }))
+    snapshot.forEach(({ txn, fields }) => learnMerchantRule(txn, fields.category))
+
+    const timer = setTimeout(() => {
+      snapshot.forEach(({ txn }) => pendingCommitTimers.delete(txn.id))
+      snapshot.forEach(({ txn, fields }) => commitApproval(txn, fields))
+    }, 5000)
+    snapshot.forEach(({ txn }) => pendingCommitTimers.set(txn.id, timer))
+
+    showToast(`Approved ${eligible.length} high-confidence transaction${eligible.length === 1 ? '' : 's'}.`, 'success', {
+      duration: 5000,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          snapshot.forEach(({ txn }) => {
+            const pending = pendingCommitTimers.get(txn.id)
+            if (pending) {
+              clearTimeout(pending)
+              pendingCommitTimers.delete(txn.id)
+            }
+          })
+          setPendingTxns((prev) => [...snapshot.map((s) => s.txn), ...prev])
+          setTotalPendingCount((prev) => prev + eligible.length)
+          setTotalPendingValue((prev) => prev + eligible.reduce((sum, t) => sum + Number(t.amount), 0))
+        },
+      },
+    })
   }
 
   const handleReject = async (id: string) => {
@@ -452,19 +540,9 @@ export default function PendingPage() {
       const pendingCount = count - autoApproved
       const skipped = (res.data as any)?.skippedConfidence || 0
 
-      const txns = res.data?.transactions || []
-      const approvedTxns = txns.filter((t: any) => t.approval_status === 'approved')
-
-      let successMsg = `✨ Sync complete! Found ${count} transaction(s). Auto-approved ${autoApproved}, added ${pendingCount} for review.${skipped > 0 ? ` (${skipped} emails skipped — low confidence)` : ''}`
-
-      if (approvedTxns.length > 0) {
-        successMsg += '\n\n✅ Auto-Approved Transactions:'
-        approvedTxns.forEach((t: any) => {
-          successMsg += `\n• ${t.merchant || 'Merchant'}: ${formatCurrency(Number(t.amount))} (${t.category})`
-        })
-      }
-
-      setScanSuccessMessage(successMsg)
+      // Per-transaction detail already lives in the auto-categorization review
+      // modal below — this stays a short, glanceable summary, not a repeat dump.
+      setScanSuccessMessage({ total: count, autoApproved, pendingReview: pendingCount, skipped })
 
       const autoList = res.data?.transactions?.filter((t: any) => t.approval_status === 'approved') || []
       if (autoList.length > 0) {
@@ -661,7 +739,20 @@ export default function PendingPage() {
           <div role="status" className="rounded-2xl bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] p-4 text-sm text-[var(--status-positive-text)] flex items-start justify-between gap-3 animate-fade-in shadow-md">
             <div className="flex items-start gap-2.5">
               <CheckCircle2 className="h-5 w-5 text-[var(--status-positive-text)] shrink-0 mt-0.5" />
-              <span className="whitespace-pre-line leading-relaxed">{scanSuccessMessage}</span>
+              <div>
+                <p className="font-semibold">
+                  {scanSuccessMessage.total === 0
+                    ? 'Sync complete — no new transactions found.'
+                    : `${scanSuccessMessage.total} new transaction${scanSuccessMessage.total === 1 ? '' : 's'} found.`}
+                </p>
+                {scanSuccessMessage.total > 0 && (
+                  <p className="text-xs opacity-80 mt-1">
+                    {scanSuccessMessage.autoApproved} auto-approved
+                    {scanSuccessMessage.pendingReview > 0 ? `, ${scanSuccessMessage.pendingReview} waiting below for your review` : ''}
+                    {scanSuccessMessage.skipped > 0 ? ` · ${scanSuccessMessage.skipped} skipped (low confidence)` : ''}
+                  </p>
+                )}
+              </div>
             </div>
             <button
               onClick={() => setScanSuccessMessage(null)}
@@ -797,9 +888,22 @@ export default function PendingPage() {
 
         {/* Transaction review list */}
         <div className="w-full space-y-5">
-          <div>
-            <h2 className="text-lg font-bold text-white">Review Required</h2>
-            <p className="text-xs text-zinc-400 mt-0.5">Transactions displayed here are from the past 7 days.</p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-bold text-white">Review Required</h2>
+              <p className="text-xs text-zinc-400 mt-0.5">Transactions displayed here are from the past 7 days.</p>
+            </div>
+            {(() => {
+              const highConfidenceCount = pendingTxns.filter(
+                (t) => applyMerchantRules(t.merchant || '', (t as any).notes || '', t.category).confidence >= 80
+              ).length
+              if (highConfidenceCount === 0) return null
+              return (
+                <Button size="sm" variant="secondary" onClick={handleApproveAllHighConfidence} className="gap-1.5 shrink-0">
+                  <Check className="h-3.5 w-3.5" /> Approve all {highConfidenceCount} high-confidence
+                </Button>
+              )
+            })()}
           </div>
 
           {loading ? (
@@ -963,11 +1067,9 @@ export default function PendingPage() {
                     <Button
                       size="sm"
                       className="w-full sm:w-auto justify-center gap-1.5"
-                      onClick={() => setConfirmApproveId(txn.id)}
-                      loading={actionLoadingId === txn.id}
-                      disabled={actionLoadingId === txn.id}
+                      onClick={() => handleApproveWithUndo(txn)}
                     >
-                      <Check className="h-4 w-4" /> Review & Approve
+                      <Check className="h-4 w-4" /> Approve
                     </Button>
                   </div>
                 </Card>
@@ -1057,39 +1159,6 @@ export default function PendingPage() {
               </div>
             ))}
           </div>
-        </div>
-      </Modal>
-
-      {/* Approval Confirmation Modal */}
-      <Modal
-        isOpen={!!confirmApproveId}
-        onClose={() => setConfirmApproveId(null)}
-        title="Approve Transaction"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setConfirmApproveId(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={async () => {
-                const id = confirmApproveId
-                if (id) {
-                  setConfirmApproveId(null)
-                  await handleApprove(id)
-                  showToast('Transaction approved')
-                }
-              }}
-            >
-              Approve
-            </Button>
-          </>
-        }
-      >
-        <div className="flex items-start gap-3">
-          <HelpCircle className="h-5 w-5 text-brand-400 shrink-0 mt-0.5" />
-          <p className="text-sm text-text-secondary leading-relaxed">
-            Are you sure you want to approve this transaction?
-          </p>
         </div>
       </Modal>
     </AppLayout>

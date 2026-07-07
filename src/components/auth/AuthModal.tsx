@@ -261,28 +261,31 @@ export default function AuthModal() {
           Continue with Google
         </Button>
 
-        {/* Security & Trust Note */}
-        <div className="mt-5 p-3.5 rounded-2xl bg-surface-2 border border-border-subtle/50 text-[10.5px] text-zinc-400 space-y-2 leading-relaxed">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-50 mb-0.5">
-            <span className="text-emerald-400">🛡️</span> Security & Privacy Note
+        {/* Calm, glanceable version of what Google sign-in means — shown
+            before the user clicks through to Google's consent screen,
+            rather than only reassuring after the fact. */}
+        <div className="mt-5 p-3.5 rounded-2xl bg-surface-2 border border-border-subtle/50 space-y-2.5">
+          <div className="flex items-start gap-2.5">
+            <span className="text-sm shrink-0 mt-0.5" aria-hidden="true">📩</span>
+            <p className="text-[11px] text-zinc-300 leading-relaxed">
+              <strong className="text-zinc-50">What's read:</strong> only bank alert emails, to detect transactions.
+            </p>
           </div>
-          <p>
-            Hi, I'm the creator of <strong className="text-zinc-50">{APP_CONFIG.APP_NAME}</strong>. We keep your data 100% secure:
+          <div className="flex items-start gap-2.5">
+            <span className="text-sm shrink-0 mt-0.5" aria-hidden="true">🔒</span>
+            <p className="text-[11px] text-zinc-300 leading-relaxed">
+              <strong className="text-zinc-50">Stays on your device:</strong> parsing happens in your browser — raw emails are never uploaded or stored on our servers.
+            </p>
+          </div>
+          <div className="flex items-start gap-2.5">
+            <span className="text-sm shrink-0 mt-0.5" aria-hidden="true">✅</span>
+            <p className="text-[11px] text-zinc-300 leading-relaxed">
+              <strong className="text-zinc-50">What you get:</strong> transactions tracked automatically, with zero manual entry.
+            </p>
+          </div>
+          <p className="text-[10px] text-zinc-500 leading-relaxed pt-1 border-t border-border-subtle/40">
+            Prefer not to connect Gmail? Sign up with email/password instead — no external permissions requested, and you can link Gmail later from Settings. Since {APP_CONFIG.APP_NAME} is still completing Google's formal app verification, Google may show an "unverified app" screen with a developer key instead of our name — that's expected; click <span className="font-mono text-zinc-400">Advanced → Go to {APP_CONFIG.APP_NAME}</span> to continue safely.
           </p>
-          <ul className="list-disc pl-3.5 space-y-1">
-            <li>
-              <strong className="text-zinc-300">Google Login & Sync</strong>: Logging in with Google automatically connects your Gmail inbox so Dhanrakshak can scan bank alerts. Email parsing is done entirely inside your browser; raw emails are never uploaded or stored on our servers.
-            </li>
-            <li>
-              <strong className="text-zinc-300">Email/Password Login</strong>: Signing up with email and password requests no external permissions. You can choose to link your Gmail account later if you wish.
-            </li>
-            <li>
-              <strong className="text-zinc-300">Google Warning & Approvals</strong>: Since this is currently a test app, Google may display an "unverified app" screen during setup. Google's formal approval is being obtained in due course. You can safely click <span className="text-zinc-50 font-mono">Advanced &rarr; Go to Dhanrakshak</span> to proceed.
-            </li>
-            <li>
-              <strong className="text-zinc-300">Developer Project Key</strong>: On the Google login screen, you may see a developer project identifier key (a random alphanumeric string) instead of the name "Dhanrakshak". This is standard Google behavior for unverified test apps and is completely safe.
-            </li>
-          </ul>
         </div>
       </div>
     </div>

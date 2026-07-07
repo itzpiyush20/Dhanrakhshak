@@ -7,7 +7,9 @@ import { useState, useEffect, useMemo } from 'react'
 import AppLayout from '@/layouts/AppLayout'
 import { Card } from '@/components/ui'
 import { supabase } from '@/services/supabase'
+import { useAuth } from '@/context/AuthContext'
 import { getCurrentMonth, withTimeout } from '@/utils'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { detectAnomalies, generateForecast, generateAIInsights } from '@/services/aiService'
 import type { FinancialContext } from '@/services/aiService'
 import {
@@ -273,11 +275,26 @@ const getMoMTrend = (allTxns: any[]) => {
 }
 
 export default function AnalyticsPage() {
+  const { user } = useAuth()
   const [trendRange, setTrendRange] = useState<RangeType>('this-week')
   const [allocationRange, setAllocationRange] = useState<RangeType>('this-week')
   const [transactions, setTransactions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Progressive disclosure — a mixed-literacy audience opening 8 analytics
+  // modules at once tends to bounce off the page entirely. Default to the 3
+  // core ones; remember the choice once someone opts into the rest.
+  const [showAdvanced, setShowAdvanced] = useState(
+    () => localStorage.getItem('dhanrakshak_analytics_advanced') === 'true'
+  )
+  const toggleAdvanced = () => {
+    setShowAdvanced((prev) => {
+      const next = !prev
+      localStorage.setItem('dhanrakshak_analytics_advanced', String(next))
+      return next
+    })
+  }
 
   // AI Insights State
   const [aiInsights, setAiInsights] = useState<string[]>([])
@@ -291,8 +308,12 @@ export default function AnalyticsPage() {
   const [simWants, setSimWants] = useState<number>(0)
 
   useEffect(() => {
+    if (user) localStorage.setItem(`dhanrakshak_visited_analytics_${user.id}`, 'true')
+  }, [user])
+
+  useEffect(() => {
     document.title = 'Insights | Dhanrakshak'
-    
+
     async function fetchAllData() {
       setLoading(true)
       setError(null)
@@ -394,8 +415,11 @@ export default function AnalyticsPage() {
     }
   }, [totalIncome, wantsSpent])
 
-  // Generate AI insights when financial data is ready
+  // Generate AI insights when financial data is ready — only once the
+  // advanced section is actually opened, so users who never look don't
+  // burn Gemini quota for a card they'll never see.
   useEffect(() => {
+    if (!showAdvanced) return
     if (loading || transactions.length === 0) return
     if (totalIncome === 0 && totalDebit === 0) return
 
@@ -432,7 +456,7 @@ export default function AnalyticsPage() {
         setAiAlerts([])
       })
       .finally(() => setAiLoading(false))
-  }, [loading, transactions.length, selectedMonth])
+  }, [loading, transactions.length, selectedMonth, showAdvanced])
 
   return (
     <AppLayout>
@@ -462,61 +486,7 @@ export default function AnalyticsPage() {
           </div>
         )}
 
-        {/* SECTION 1: Executive Diagnostic Summary (Highest Priority) */}
-        {loading ? (
-          <div className="grid gap-6 md:grid-cols-3">
-            <Card className="h-60 skeleton"><div /></Card>
-            <Card className="md:col-span-2 h-60 skeleton"><div /></Card>
-          </div>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-3">
-            <AdherenceDiagnostic
-              healthScore={healthScore}
-              totalIncome={totalIncome}
-              totalDebit={totalDebit}
-            />
-            <BudgetVisualizer
-              needsSpent={needsSpent}
-              needsPct={needsPct}
-              wantsSpent={wantsSpent}
-              wantsPct={wantsPct}
-              savingsSpent={savingsSpent}
-              finalSavingsPct={finalSavingsPct}
-              totalIncome={totalIncome}
-              emergencyMonths={emergencyMonths}
-              isEmergencyFundReady={isEmergencyFundReady}
-            />
-          </div>
-        )}
-
-        {/* SECTION 2: AI Wealth Advisory + Anomalies + Scenario Simulator */}
-        {!loading && (
-          <div className="space-y-6">
-            <AnomalyAlerts anomalies={anomalies} />
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <AIInsights
-                aiSource={aiSource}
-                aiLoading={aiLoading}
-                aiAlerts={aiAlerts}
-                aiInsights={aiInsights}
-              />
-              <ScenarioSimulator
-                simSalary={simSalary}
-                setSimSalary={setSimSalary}
-                simWants={simWants}
-                setSimWants={setSimWants}
-                totalIncome={totalIncome}
-                wantsSpent={wantsSpent}
-                needsSpent={needsSpent}
-              />
-            </div>
-
-            <ForecastPanel forecast={forecast} />
-          </div>
-        )}
-
-        {/* SECTION 3: Visual Cashflow Trends (Bar Chart) */}
+        {/* Core view: trend, breakdown, one tip — enough for most check-ins */}
         <TrendChart
           trendRange={trendRange}
           setTrendRange={setTrendRange}
@@ -525,7 +495,6 @@ export default function AnalyticsPage() {
           hasTransactions={transactions.length > 0}
         />
 
-        {/* SECTION 4: Expense Doughnut Allocation & Smart Wealth Advising Alerts */}
         <div className="grid gap-6 lg:grid-cols-12">
           <ExpenseBreakdown
             allocationRange={allocationRange}
@@ -540,6 +509,78 @@ export default function AnalyticsPage() {
             savingsRate={savingsRate}
           />
         </div>
+
+        {/* Progressive disclosure toggle */}
+        {!loading && (
+          <button
+            onClick={toggleAdvanced}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border-subtle/50 bg-surface-2/40 text-xs font-semibold text-zinc-400 hover:text-zinc-200 hover:bg-surface-2 transition-colors"
+          >
+            {showAdvanced ? (
+              <>Hide advanced analysis <ChevronUp className="h-3.5 w-3.5" /></>
+            ) : (
+              <>Show advanced analysis — health score, AI insights, forecast, anomalies <ChevronDown className="h-3.5 w-3.5" /></>
+            )}
+          </button>
+        )}
+
+        {showAdvanced && (
+          <>
+            {/* Executive Diagnostic Summary */}
+            {loading ? (
+              <div className="grid gap-6 md:grid-cols-3">
+                <Card className="h-60 skeleton"><div /></Card>
+                <Card className="md:col-span-2 h-60 skeleton"><div /></Card>
+              </div>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-3">
+                <AdherenceDiagnostic
+                  healthScore={healthScore}
+                  totalIncome={totalIncome}
+                  totalDebit={totalDebit}
+                />
+                <BudgetVisualizer
+                  needsSpent={needsSpent}
+                  needsPct={needsPct}
+                  wantsSpent={wantsSpent}
+                  wantsPct={wantsPct}
+                  savingsSpent={savingsSpent}
+                  finalSavingsPct={finalSavingsPct}
+                  totalIncome={totalIncome}
+                  emergencyMonths={emergencyMonths}
+                  isEmergencyFundReady={isEmergencyFundReady}
+                />
+              </div>
+            )}
+
+            {/* AI Wealth Advisory + Anomalies + Scenario Simulator */}
+            {!loading && (
+              <div className="space-y-6">
+                <AnomalyAlerts anomalies={anomalies} />
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <AIInsights
+                    aiSource={aiSource}
+                    aiLoading={aiLoading}
+                    aiAlerts={aiAlerts}
+                    aiInsights={aiInsights}
+                  />
+                  <ScenarioSimulator
+                    simSalary={simSalary}
+                    setSimSalary={setSimSalary}
+                    simWants={simWants}
+                    setSimWants={setSimWants}
+                    totalIncome={totalIncome}
+                    wantsSpent={wantsSpent}
+                    needsSpent={needsSpent}
+                  />
+                </div>
+
+                <ForecastPanel forecast={forecast} />
+              </div>
+            )}
+          </>
+        )}
       </div>
     </AppLayout>
   )

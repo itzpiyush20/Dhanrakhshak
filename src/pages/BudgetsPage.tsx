@@ -157,6 +157,20 @@ export default function BudgetsPage() {
     return spent >= b.amount * 0.7
   })
 
+  // Under-budget deserves the same visual weight as a warning — an app that
+  // only speaks up when you overspend trains people to avoid opening it.
+  const isCurrentMonth = selectedMonth === getCurrentMonth()
+  const allOnTrack = budgets.length > 0 && warningBudgets.length === 0
+
+  // Loss-framed pace projection: "at this rate, you'll end the month over
+  // budget" lands harder mid-month than a static percentage-used bar.
+  const today = new Date()
+  const [selYear, selMon] = selectedMonth.split('-').map(Number)
+  const daysInSelectedMonth = new Date(selYear, selMon, 0).getDate()
+  const daysElapsed = isCurrentMonth ? today.getDate() : daysInSelectedMonth
+  const projectPace = (spent: number) =>
+    daysElapsed > 0 ? (spent / daysElapsed) * daysInSelectedMonth : spent
+
   return (
     <AppLayout>
       <div className="space-y-8 animate-fade-in">
@@ -199,6 +213,17 @@ export default function BudgetsPage() {
         {error && (
           <div className="rounded-2xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-4 text-sm text-[var(--status-danger-text)]">
             {error}
+          </div>
+        )}
+
+        {/* Positive reinforcement — same visual weight as the warning banner
+            below, shown only when every budget is genuinely on track. */}
+        {allOnTrack && (
+          <div className="rounded-2xl border p-4 text-xs font-semibold leading-relaxed flex items-center gap-3 animate-fade-in bg-[var(--status-positive-subtle)] border-[var(--status-positive-border)] text-[var(--status-positive-text)]">
+            <span className="text-base select-none">✅</span>
+            <span>
+              Nice — all {budgets.length} budget{budgets.length === 1 ? '' : 's'} on track this month, {formatCurrency(remainingBudget)} left overall.
+            </span>
           </div>
         )}
 
@@ -385,6 +410,20 @@ export default function BudgetsPage() {
                             />
                           </div>
                         </div>
+
+                        {/* Pace projection — only meaningful mid-month, and
+                            only useful before the limit's already blown. */}
+                        {isCurrentMonth && pct < 100 && (() => {
+                          const projected = projectPace(spent)
+                          const projectedOver = projected - budget.amount
+                          if (projectedOver <= 0) return null
+                          return (
+                            <p className="text-[11px] text-[var(--status-warning-text)] font-medium flex items-center gap-1">
+                              <span aria-hidden="true">📉</span>
+                              At this pace, ends the month {formatCurrency(projectedOver)} over budget.
+                            </p>
+                          )
+                        })()}
                       </div>
                     )
                   })}

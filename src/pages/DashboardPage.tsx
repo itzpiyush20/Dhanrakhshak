@@ -4,7 +4,7 @@
 // ============================================
 
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
 import { Card, Button, EmptyState, Modal } from '@/components/ui'
 import ActiveSubscriptionsWidget from '@/components/dashboard/ActiveSubscriptionsWidget'
@@ -23,16 +23,24 @@ import {
   Download,
   Check,
   CreditCard,
+  Wallet,
+  Sparkles,
+  X,
+  CalendarCheck,
+  CheckCircle2,
+  Circle,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
 import { getTransactions, getMonthlySummary } from '@/services/transactions'
+import { getBudgets } from '@/services/budgets'
 import {
   supabase,
   resetAccountData,
   getNextRefreshTime,
   getLastScheduledRefreshTime,
   scanRealGmailInbox,
+  seedSandboxData,
 } from '@/services'
 import { migrateLocalStorageRulesToDB } from '@/services/learningEngine'
 import { formatCurrency, formatCurrencyCompact, getCurrentMonth, formatDate, withTimeout } from '@/utils'
@@ -53,9 +61,38 @@ interface SummaryData {
   }>
 }
 
+// Records today's visit in localStorage (last 14 days kept) and returns how
+// many distinct days the user has opened the app in the trailing 7 days.
+// There's no visit-log table, so this is a cheap, honest proxy for "checked
+// in" — it tracks opens, not data completeness.
+function recordVisitAndGetStreak(userId: string): number {
+  const key = `dhanrakshak_visit_days_${userId}`
+  const today = new Date().toISOString().slice(0, 10)
+  let days: string[] = []
+  try {
+    days = JSON.parse(localStorage.getItem(key) || '[]')
+  } catch (e) {}
+  if (!days.includes(today)) days.push(today)
+  days = days.slice(-14)
+  try {
+    localStorage.setItem(key, JSON.stringify(days))
+  } catch (e) {}
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+  return days.filter((d) => new Date(d).getTime() >= weekAgo).length
+}
+
+interface SyncSummary {
+  total: number
+  autoApproved: number
+  pendingReview: number
+  topCategory?: { label: string; amount: number }
+}
+
 export default function DashboardPage() {
   const { user, profile, hasGoogleToken, notifyGoogleTokenCleared, dailyScanTime } = useAuth()
   const { showToast } = useToast()
+  const navigate = useNavigate()
+  const location = useLocation()
 
   // Helper to extract first name of the user, ignoring standard titles
   const getFirstName = (fullName?: string) => {
@@ -74,6 +111,31 @@ export default function DashboardPage() {
   const [recentTransactions, setRecentTransactions] = useState<TransactionRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Safe-to-spend hero number
+  const [monthBudgetTotal, setMonthBudgetTotal] = useState(0)
+
+  // Calm consistency chip
+  const [streakDays, setStreakDays] = useState(0)
+
+  // First-run checklist
+  const [checklistDismissed, setChecklistDismissed] = useState(false)
+  const [visitedAnalytics, setVisitedAnalytics] = useState(false)
+
+  // Post-sync summary card (replaces plain "sync complete" toast)
+  const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null)
+
+  // Demo data seeding (from the landing page "Try demo" CTA)
+  const [seedingDemo, setSeedingDemo] = useState(false)
+
+  // Month-end recap — shown once on the first visit of a new month
+  const [monthEndRecap, setMonthEndRecap] = useState<{
+    month: string
+    totalExpenses: number
+    totalIncome: number
+    topCategory?: { label: string; amount: number }
+    priorExpenses: number | null
+  } | null>(null)
 
   // Recent transactions modal state
   const [showAllRecentModal, setShowAllRecentModal] = useState(false)
@@ -151,10 +213,11 @@ export default function DashboardPage() {
       setError(null)
     }
     try {
-      const [summaryRes, transactionsRes] = await withTimeout(
+      const [summaryRes, transactionsRes, budgetsRes] = await withTimeout(
         Promise.all([
           getMonthlySummary(month),
           getTransactions({ limit: 5 }), // Show global recent transactions
+          getBudgets(month),
         ]),
         45000, // 45-second timeout to handle Supabase cold starts
         'Dashboard data fetch'
@@ -165,6 +228,7 @@ export default function DashboardPage() {
 
       setSummary(summaryRes.data)
       setRecentTransactions(transactionsRes.data || [])
+      setMonthBudgetTotal((budgetsRes.data || []).reduce((sum, b) => sum + Number(b.amount), 0))
       if (silent) setError(null) // Clear any previous timeout error on silent success
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err)
@@ -276,6 +340,78 @@ export default function DashboardPage() {
     }
   }, [user, checkScheduledTasks])
 
+  // Calm consistency chip + first-run checklist bookkeeping
+  useEffect(() => {
+    if (!user) return
+    setStreakDays(recordVisitAndGetStreak(user.id))
+    setChecklistDismissed(localStorage.getItem(`dhanrakshak_checklist_dismissed_${user.id}`) === 'true')
+    setVisitedAnalytics(localStorage.getItem(`dhanrakshak_visited_analytics_${user.id}`) === 'true')
+  }, [user])
+
+  // Month-end recap — the peak-end rule says a session that closes on a
+  // summary is remembered better, and it's a good reason to open the app
+  // again next month. Fires once, the first time the app is opened in a
+  // new calendar month, recapping the month that just ended.
+  useEffect(() => {
+    if (!user) return
+    const key = `dhanrakshak_last_seen_month_${user.id}`
+    const lastSeen = localStorage.getItem(key)
+    const current = getCurrentMonth()
+
+    if (lastSeen && lastSeen !== current) {
+      const priorMonth = (() => {
+        const [y, m] = lastSeen.split('-').map(Number)
+        const d = new Date(y, m - 2, 1)
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      })()
+
+      Promise.all([getMonthlySummary(lastSeen), getMonthlySummary(priorMonth)])
+        .then(([recapRes, priorRes]) => {
+          if (!recapRes.data || recapRes.data.total_expenses === 0) return
+          const top = recapRes.data.category_breakdown[0]
+          setMonthEndRecap({
+            month: lastSeen,
+            totalExpenses: recapRes.data.total_expenses,
+            totalIncome: recapRes.data.total_income,
+            topCategory: top ? { label: CATEGORIES[top.category as keyof typeof CATEGORIES]?.label || top.category, amount: top.amount } : undefined,
+            priorExpenses: priorRes.data ? priorRes.data.total_expenses : null,
+          })
+        })
+        .catch(() => {})
+    }
+
+    localStorage.setItem(key, current)
+  }, [user])
+
+  const dismissChecklist = () => {
+    if (!user) return
+    setChecklistDismissed(true)
+    localStorage.setItem(`dhanrakshak_checklist_dismissed_${user.id}`, 'true')
+  }
+
+  // "Try demo with sample data" — arrives here via ?demo=1 from the landing
+  // page CTA, right after the user finishes signing up. Auto-populates the
+  // account instead of sending them hunting for the seed button in Settings.
+  useEffect(() => {
+    if (!user) return
+    const params = new URLSearchParams(location.search)
+    if (params.get('demo') !== '1') return
+
+    navigate(location.pathname, { replace: true })
+    setSeedingDemo(true)
+    seedSandboxData()
+      .then(({ error }) => {
+        if (error) throw error
+        showToast('Demo data loaded — explore freely. Clear it anytime from Settings.', 'success')
+        fetchDashboardData(selectedMonth)
+      })
+      .catch((err: any) => {
+        showToast(err.message || 'Could not load demo data.', 'error')
+      })
+      .finally(() => setSeedingDemo(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+
   const exportData = (format: 'csv' | 'json') => {
     if (priorYearTransactions.length === 0) return
 
@@ -345,7 +481,28 @@ export default function DashboardPage() {
 
       setShowInactivityBanner(false)
       setSyncError(null)
-      showToast('✅ Sync complete! Dashboard updated.', 'success')
+
+      const txns = res.data?.transactions || []
+      const autoApproved = res.data?.autoApprovedCount || 0
+      const categoryTotals = new Map<string, number>()
+      txns
+        .filter((t: any) => t.type === 'debit')
+        .forEach((t: any) => {
+          categoryTotals.set(t.category, (categoryTotals.get(t.category) || 0) + Number(t.amount))
+        })
+      let topCategory: SyncSummary['topCategory']
+      if (categoryTotals.size > 0) {
+        const [code, amount] = [...categoryTotals.entries()].sort((a, b) => b[1] - a[1])[0]
+        const label = CATEGORIES[code as keyof typeof CATEGORIES]?.label || code
+        topCategory = { label, amount }
+      }
+
+      setSyncSummary({
+        total: txns.length,
+        autoApproved,
+        pendingReview: txns.length - autoApproved,
+        topCategory,
+      })
       fetchDashboardData(selectedMonth)
     } catch (e: any) {
       setSyncError(e.message || 'Sync failed. Please try again.')
@@ -384,6 +541,17 @@ export default function DashboardPage() {
       ? Math.max(0, Math.min(100, (summary.savings / summary.total_income) * 100))
       : 0
 
+  // "Safe to spend" — the one glanceable number that answers "am I okay?"
+  // without the user having to do the income/expense/savings math themselves.
+  // Only meaningful for the current month (there's no "days left" in a past one).
+  const isCurrentMonth = selectedMonth === getCurrentMonth()
+  const today = new Date()
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+  const daysLeftInMonth = Math.max(1, daysInMonth - today.getDate() + 1)
+  const spentSoFar = summary?.total_expenses || 0
+  const budgetRemaining = monthBudgetTotal - spentSoFar
+  const safeToSpendPerDay = budgetRemaining / daysLeftInMonth
+
   return (
     <AppLayout>
       <div className="space-y-8 animate-fade-in">
@@ -401,6 +569,11 @@ export default function DashboardPage() {
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-surface-2 border border-border-subtle/50 text-[10px] font-semibold text-brand-300 font-mono">
                 Next Refresh: {getNextRefreshTime(dailyScanTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
               </span>
+              {streakDays > 1 && (
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-surface-2 border border-border-subtle/50 text-[10px] font-semibold text-zinc-400">
+                  <CalendarCheck className="h-3 w-3 shrink-0" /> Checked in {streakDays} days this week
+                </span>
+              )}
             </div>
           </div>
 
@@ -447,6 +620,100 @@ export default function DashboardPage() {
           <div className="rounded-2xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-4 text-sm text-[var(--status-danger-text)]">
             {error}
           </div>
+        )}
+
+        {seedingDemo && (
+          <div role="status" className="rounded-2xl bg-brand-500/10 border border-brand-500/20 p-4 text-sm text-brand-400 flex items-center gap-2.5 animate-fade-in shadow-md">
+            <Sparkles className="h-4 w-4 shrink-0 animate-pulse" /> Loading sample data…
+          </div>
+        )}
+
+        {syncSummary && (
+          <div role="status" className="rounded-2xl bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] p-4 text-sm text-[var(--status-positive-text)] flex items-start justify-between gap-3 animate-fade-in shadow-md">
+            <div className="flex items-start gap-2.5">
+              <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">
+                  {syncSummary.total === 0
+                    ? 'Sync complete — no new transactions found.'
+                    : `${syncSummary.total} new transaction${syncSummary.total === 1 ? '' : 's'} found.`}
+                </p>
+                {syncSummary.total > 0 && (
+                  <p className="text-xs opacity-80 mt-1">
+                    {syncSummary.autoApproved} auto-approved
+                    {syncSummary.pendingReview > 0 ? `, ${syncSummary.pendingReview} waiting for your review` : ''}
+                    {syncSummary.topCategory
+                      ? ` · biggest category: ${syncSummary.topCategory.label} (${formatCurrency(syncSummary.topCategory.amount)})`
+                      : ''}
+                  </p>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => setSyncSummary(null)}
+              className="shrink-0 opacity-70 hover:opacity-100 transition-opacity"
+              aria-label="Dismiss sync summary"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {!checklistDismissed && (recentTransactions.length === 0 || monthBudgetTotal === 0) && (
+          <Card className="relative overflow-hidden shadow-md animate-fade-in">
+            <button
+              onClick={dismissChecklist}
+              className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"
+              aria-label="Dismiss checklist"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <h2 className="text-sm font-bold text-text-primary">Get set up in 3 steps</h2>
+            <p className="text-xs text-zinc-500 mt-0.5 mb-4">A quick tour of what makes Dhanrakshak useful.</p>
+            <div className="space-y-3">
+              {[
+                {
+                  done: recentTransactions.length > 0,
+                  label: 'Add your first transaction',
+                  hint: 'Connect Gmail on Pending Alerts, or add one manually.',
+                  to: recentTransactions.length > 0 ? null : '/expenses',
+                },
+                {
+                  done: monthBudgetTotal > 0,
+                  label: 'Set a monthly budget',
+                  hint: 'Pick one category to start — you can add more later.',
+                  to: monthBudgetTotal > 0 ? null : '/budgets',
+                },
+                {
+                  done: visitedAnalytics,
+                  label: 'Explore your Analytics',
+                  hint: 'See trends, forecasts, and where your money goes.',
+                  to: visitedAnalytics ? null : '/analytics',
+                },
+              ].map((step) => (
+                <div key={step.label} className="flex items-center gap-3">
+                  {step.done ? (
+                    <CheckCircle2 className="h-4.5 w-4.5 text-[var(--status-positive-text)] shrink-0" />
+                  ) : (
+                    <Circle className="h-4.5 w-4.5 text-zinc-600 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium ${step.done ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>
+                      {step.label}
+                    </p>
+                    {!step.done && <p className="text-xs text-zinc-500">{step.hint}</p>}
+                  </div>
+                  {step.to && (
+                    <Link to={step.to}>
+                      <Button size="sm" variant="secondary" className="shrink-0 text-xs">
+                        Go
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
         )}
 
         {showInactivityBanner && (
@@ -508,6 +775,54 @@ export default function DashboardPage() {
           </div>
         )}
 
+
+        {/* Safe-to-spend hero number — the single glanceable answer to
+            "am I okay this month?", shown only for the month in progress. */}
+        {!loading && isCurrentMonth && (
+          <Card className="relative overflow-hidden shadow-md">
+            {monthBudgetTotal === 0 ? (
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-xl bg-surface-2 border border-border-subtle/50 flex items-center justify-center shrink-0">
+                    <Wallet className="h-5 w-5 text-zinc-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-text-primary">Set a budget to see what's safe to spend</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">Takes under a minute — pick one category to start.</p>
+                  </div>
+                </div>
+                <Link to="/budgets" className="shrink-0">
+                  <Button size="sm">Set a budget</Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="flex items-center gap-4">
+                <div className={`h-11 w-11 rounded-xl border flex items-center justify-center shrink-0 ${
+                  safeToSpendPerDay >= 0
+                    ? 'bg-[var(--status-positive-subtle)] border-[var(--status-positive-border)]'
+                    : 'bg-[var(--status-danger-subtle)] border-[var(--status-danger-border)]'
+                }`}>
+                  <Wallet className={`h-5 w-5 ${safeToSpendPerDay >= 0 ? 'text-[var(--status-positive-text)]' : 'text-[var(--status-danger-text)]'}`} />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                    {safeToSpendPerDay >= 0 ? 'Safe to spend' : 'Over budget by'}
+                  </p>
+                  <p className={`text-2xl font-bold tracking-tight ${safeToSpendPerDay >= 0 ? 'text-[var(--status-positive-text)]' : 'text-[var(--status-danger-text)]'}`}>
+                    {safeToSpendPerDay >= 0
+                      ? `${formatCurrency(safeToSpendPerDay)}/day`
+                      : formatCurrency(Math.abs(budgetRemaining))}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    {safeToSpendPerDay >= 0
+                      ? `${formatCurrency(budgetRemaining)} left across ${daysLeftInMonth} day${daysLeftInMonth === 1 ? '' : 's'}`
+                      : `for the rest of ${formatMonthName(selectedMonth)}`}
+                  </p>
+                </div>
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* Stats summary section */}
         {widgets.stats && (
@@ -1065,6 +1380,49 @@ export default function DashboardPage() {
               />
             </div>
           </div>
+        </Modal>
+
+        {/* Month-end recap */}
+        <Modal
+          isOpen={!!monthEndRecap}
+          onClose={() => setMonthEndRecap(null)}
+          title={monthEndRecap ? `${formatMonthName(monthEndRecap.month)} recap` : 'Recap'}
+          footer={
+            <Button block onClick={() => setMonthEndRecap(null)} className="justify-center">
+              Got it
+            </Button>
+          }
+        >
+          {monthEndRecap && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-surface-2/40 border border-border-subtle/30 p-3.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Total spent</p>
+                  <p className="text-xl font-bold text-text-primary mt-1">{formatCurrency(monthEndRecap.totalExpenses)}</p>
+                </div>
+                <div className="rounded-xl bg-surface-2/40 border border-border-subtle/30 p-3.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Net saved</p>
+                  <p className={`text-xl font-bold mt-1 ${monthEndRecap.totalIncome - monthEndRecap.totalExpenses >= 0 ? 'text-[var(--status-positive-text)]' : 'text-[var(--status-danger-text)]'}`}>
+                    {formatCurrency(monthEndRecap.totalIncome - monthEndRecap.totalExpenses)}
+                  </p>
+                </div>
+              </div>
+
+              {monthEndRecap.topCategory && (
+                <p className="text-sm text-zinc-300">
+                  Biggest category: <strong className="text-text-primary">{monthEndRecap.topCategory.label}</strong> ({formatCurrency(monthEndRecap.topCategory.amount)})
+                </p>
+              )}
+
+              {monthEndRecap.priorExpenses !== null && monthEndRecap.priorExpenses > 0 && (
+                <p className="text-sm text-zinc-300">
+                  {monthEndRecap.totalExpenses < monthEndRecap.priorExpenses
+                    ? `You spent ${formatCurrency(monthEndRecap.priorExpenses - monthEndRecap.totalExpenses)} less than the month before — nice work.`
+                    : `You spent ${formatCurrency(monthEndRecap.totalExpenses - monthEndRecap.priorExpenses)} more than the month before.`}
+                </p>
+              )}
+            </div>
+          )}
         </Modal>
       </div>
     </AppLayout>

@@ -57,6 +57,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
+  // Per-user daily quota, tracked in Postgres so it survives cold starts
+  // (the in-memory IP limiter above resets per serverless instance and
+  // doesn't actually bound cost under any real load).
+  const DAILY_AI_CALL_LIMIT = 50
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .select('ai_calls_count, ai_calls_reset_at')
+    .eq('id', user.id)
+    .single()
+
+  if (profileError || !profile) {
+    return res.status(500).json({ error: 'Failed to verify usage quota' })
+  }
+
+  const resetAt = new Date(profile.ai_calls_reset_at).getTime()
+  const needsReset = Date.now() - resetAt > 24 * 60 * 60 * 1000
+  const currentCount = needsReset ? 0 : profile.ai_calls_count
+
+  if (currentCount >= DAILY_AI_CALL_LIMIT) {
+    return res.status(429).json({ error: 'Daily AI insights limit reached. Try again tomorrow.' })
+  }
+
+  await supabaseAdmin
+    .from('profiles')
+    .update({
+      ai_calls_count: currentCount + 1,
+      ...(needsReset ? { ai_calls_reset_at: new Date().toISOString() } : {}),
+    })
+    .eq('id', user.id)
+
   const { contents, generationConfig, safetySettings } = req.body ?? {}
   if (!Array.isArray(contents)) {
     return res.status(400).json({ error: 'contents array is required' })

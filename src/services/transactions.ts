@@ -37,10 +37,7 @@ export async function getTransactions(options?: {
     const startDate = `${options.month}-01`
     const [year, mon] = options.month.split('-').map(Number)
     const endDate = new Date(year, mon, 0).toISOString().split('T')[0]
-    const effectiveStart = startDate < '2026-01-01' ? '2026-01-01' : startDate
-    query = query.gte('date', effectiveStart).lte('date', endDate)
-  } else {
-    query = query.gte('date', '2026-01-01')
+    query = query.gte('date', startDate).lte('date', endDate)
   }
 
   if (options?.type) {
@@ -103,14 +100,11 @@ export async function getMonthlySummary(month: string) {
   const [year, mon] = month.split('-').map(Number)
   const endDate = new Date(year, mon, 0).toISOString().split('T')[0]
 
-  // Enforce starting January 2026 threshold
-  const effectiveStart = startDate < '2026-01-01' ? '2026-01-01' : startDate
-
   const { data, error } = await supabase
     .from('transactions')
     .select('amount, type, category')
     .eq('approval_status', 'approved')
-    .gte('date', effectiveStart)
+    .gte('date', startDate)
     .lte('date', endDate)
 
   if (error || !data) return { data: null, error }
@@ -168,14 +162,9 @@ export async function getHistoricalAnalytics(monthsCount = 6) {
     rawMonths.unshift(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
   }
 
-  // Filter out any months before January 2026
-  const months = rawMonths.filter((m) => m >= '2026-01')
+  const months = rawMonths
 
-  if (months.length === 0) {
-    return { data: [], error: null }
-  }
-
-  // Get start date of the oldest month, ensuring it is at least 2026-01-01
+  // Get start date of the oldest month in the window
   const startDate = `${months[0]}-01`
 
   const { data, error } = await supabase
