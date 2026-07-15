@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dhanrakshak-cache-v3';
+const CACHE_NAME = 'dhanrakshak-cache-v4';
 const APP_SHELL = [
   '/',
   '/manifest.json',
