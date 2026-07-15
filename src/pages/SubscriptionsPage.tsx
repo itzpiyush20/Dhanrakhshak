@@ -3,7 +3,7 @@
 // Detects, aggregates, and manages recurring payments
 // ============================================
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import AppLayout from '@/layouts/AppLayout'
 import { Card, Button, Badge, Input } from '@/components/ui'
 import Select from '@/components/ui/Select'
@@ -73,6 +73,11 @@ export default function SubscriptionsPage() {
   }
 
   const restoreAllSubscriptions = () => persistIgnored([])
+
+  // Display filters — narrow what's shown, never what detectSubscriptions() analyzes
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterCategory, setFilterCategory] = useState('all')
+  const [renewalWindow, setRenewalWindow] = useState<'7' | '30' | '90' | 'all'>('all')
 
   // Manual Subscription Form States
   const [subName, setSubName] = useState('')
@@ -192,6 +197,21 @@ export default function SubscriptionsPage() {
 
   const detectedSubs = detectSubscriptions()
   const totalMonthlyOutflow = detectedSubs.reduce((sum, s) => sum + s.amount, 0)
+
+  const uniqueSubCategories = useMemo(
+    () => [...new Set(detectedSubs.map((s) => s.category))],
+    [detectedSubs]
+  )
+
+  const visibleSubs = useMemo(() => {
+    return detectedSubs.filter((s) => {
+      const q = searchQuery.trim().toLowerCase()
+      const matchesSearch = !q || s.merchant.toLowerCase().includes(q)
+      const matchesCategory = filterCategory === 'all' || s.category === filterCategory
+      const matchesWindow = renewalWindow === 'all' || s.daysToRenewal <= Number(renewalWindow)
+      return matchesSearch && matchesCategory && matchesWindow
+    })
+  }, [detectedSubs, searchQuery, filterCategory, renewalWindow])
 
   // Verify duplicates (e.g. streaming duplicate warnings)
   const musicKeywords = ['spotify', 'apple music', 'yt music', 'youtube music', 'wynk', 'jiosaavn']
@@ -379,13 +399,55 @@ export default function SubscriptionsPage() {
               <Card className="border-border-subtle bg-surface-1 shadow-md">
                 <h2 className="text-base font-bold text-zinc-200 mb-4">📅 Subscription Renewal Calendar</h2>
 
+                <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                  <input
+                    type="search"
+                    placeholder="Search subscriptions..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="flex-1 bg-surface-2 border border-border-subtle/50 text-zinc-200 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                    aria-label="Search subscriptions"
+                  />
+                  <select
+                    value={filterCategory}
+                    onChange={(e) => setFilterCategory(e.target.value)}
+                    className="bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
+                    aria-label="Filter by category"
+                  >
+                    <option value="all">All Categories</option>
+                    {uniqueSubCategories.map((code) => {
+                      const meta = CATEGORIES[code as keyof typeof CATEGORIES]
+                      return (
+                        <option key={code} value={code}>
+                          {meta ? `${meta.emoji} ${meta.label}` : code}
+                        </option>
+                      )
+                    })}
+                  </select>
+                  <select
+                    value={renewalWindow}
+                    onChange={(e) => setRenewalWindow(e.target.value as typeof renewalWindow)}
+                    className="bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
+                    aria-label="Filter by renewal window"
+                  >
+                    <option value="all">Any time</option>
+                    <option value="7">Next 7 days</option>
+                    <option value="30">Next 30 days</option>
+                    <option value="90">Next 90 days</option>
+                  </select>
+                </div>
+
                 {detectedSubs.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-xs text-zinc-500">
                     No active recurring payments detected in this period. Add subscriptions manually or scan transaction alerts.
                   </div>
+                ) : visibleSubs.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-xs text-zinc-500">
+                    No subscriptions match your filters.
+                  </div>
                 ) : (
                   <div className="space-y-3">
-                    {detectedSubs.map((sub, idx) => {
+                    {visibleSubs.map((sub, idx) => {
                       const categoryMeta = CATEGORIES[sub.category as keyof typeof CATEGORIES]
                       
                       let badgeVariant: 'success' | 'warning' | 'danger' = 'success'
