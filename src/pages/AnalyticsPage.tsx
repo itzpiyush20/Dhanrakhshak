@@ -22,6 +22,7 @@ import {
   TrendChart,
   ExpenseBreakdown,
   SmartWealthTips,
+  PeriodSelector,
   type RangeType
 } from './analytics'
 
@@ -276,8 +277,7 @@ const getMoMTrend = (allTxns: any[]) => {
 
 export default function AnalyticsPage() {
   const { user } = useAuth()
-  const [trendRange, setTrendRange] = useState<RangeType>('this-week')
-  const [allocationRange, setAllocationRange] = useState<RangeType>('this-week')
+  const [range, setRange] = useState<RangeType>('this-week')
   const [transactions, setTransactions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -349,8 +349,8 @@ export default function AnalyticsPage() {
   }, [])
 
   // 1. Cashflow Analytics Data (memoized to avoid recalculation on every render)
-  const trendData = useMemo(() => getTrendData(transactions, trendRange), [transactions, trendRange])
-  const summary = useMemo(() => getAllocationData(transactions, allocationRange), [transactions, allocationRange])
+  const trendData = useMemo(() => getTrendData(transactions, range), [transactions, range])
+  const summary = useMemo(() => getAllocationData(transactions, range), [transactions, range])
   const trend = useMemo(() => getMoMTrend(transactions), [transactions])
 
   // 2. Anomaly detection & forecasting (memoized)
@@ -469,14 +469,20 @@ export default function AnalyticsPage() {
               CA-verified budget diagnostics, cashflow trend analytics, and smart wealth advisors unified.
             </p>
           </div>
-          <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
-            <span className="text-xs text-zinc-500">Selected Month:</span>
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-surface-1 border border-border-subtle rounded-xl px-3 py-1.5 text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
-            />
+          <div className="flex flex-wrap items-center gap-4 self-start sm:self-center shrink-0 bg-surface-2/40 border border-border-subtle/30 rounded-xl px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-500">Range:</span>
+              <PeriodSelector value={range} onChange={setRange} id="insights-range" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-500">Advisory month:</span>
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="bg-surface-1 border border-border-subtle rounded-xl px-3 py-1.5 text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
+              />
+            </div>
           </div>
         </div>
 
@@ -488,8 +494,7 @@ export default function AnalyticsPage() {
 
         {/* Core view: trend, breakdown, one tip — enough for most check-ins */}
         <TrendChart
-          trendRange={trendRange}
-          setTrendRange={setTrendRange}
+          range={range}
           trendData={trendData}
           loading={loading}
           hasTransactions={transactions.length > 0}
@@ -497,8 +502,6 @@ export default function AnalyticsPage() {
 
         <div className="grid gap-6 lg:grid-cols-12">
           <ExpenseBreakdown
-            allocationRange={allocationRange}
-            setAllocationRange={setAllocationRange}
             summary={summary}
             loading={loading}
           />

@@ -1,6 +1,5 @@
 import { Card, EmptyState } from '@/components/ui'
 import { formatCurrencyCompact } from '@/utils'
-import { PeriodSelector } from './PeriodSelector'
 import type { RangeType } from './PeriodSelector'
 import { BarChart3 } from 'lucide-react'
 
@@ -12,8 +11,7 @@ interface TrendItem {
 }
 
 interface TrendChartProps {
-  trendRange: RangeType
-  setTrendRange: (range: RangeType) => void
+  range: RangeType
   trendData: TrendItem[]
   loading: boolean
   hasTransactions: boolean
@@ -40,8 +38,7 @@ const getTrendDescription = (trendData: TrendItem[], range: RangeType) => {
 }
 
 export function TrendChart({
-  trendRange,
-  setTrendRange,
+  range,
   trendData,
   loading,
   hasTransactions,
@@ -58,10 +55,8 @@ export function TrendChart({
             <BarChart3 className="w-5 h-5 text-brand-400 shrink-0" />
             Income vs Expense Trend
           </h2>
-          <p className="text-xs text-zinc-500 mt-0.5">{getTrendDescription(trendData, trendRange)}</p>
+          <p className="text-xs text-zinc-500 mt-0.5">{getTrendDescription(trendData, range)}</p>
         </div>
-        
-        <PeriodSelector value={trendRange} onChange={setTrendRange} />
       </div>
 
       <div className="flex-1 flex flex-col justify-end mt-8">

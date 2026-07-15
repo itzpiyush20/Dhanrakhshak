@@ -8,6 +8,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
 import { Card, Button, EmptyState, Modal } from '@/components/ui'
 import ActiveSubscriptionsWidget from '@/components/dashboard/ActiveSubscriptionsWidget'
+import QuickAddWidget from '@/components/dashboard/QuickAddWidget'
 import {
   ChevronLeft,
   ChevronRight,
@@ -26,13 +27,13 @@ import {
   Wallet,
   Sparkles,
   X,
-  CalendarCheck,
+  Flame,
   CheckCircle2,
   Circle,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
-import { getTransactions, getMonthlySummary } from '@/services/transactions'
+import { getTransactions, getMonthlySummary, getLoggingStreak } from '@/services/transactions'
 import { getBudgets } from '@/services/budgets'
 import {
   supabase,
@@ -59,26 +60,6 @@ interface SummaryData {
     count: number
     percentage: number
   }>
-}
-
-// Records today's visit in localStorage (last 14 days kept) and returns how
-// many distinct days the user has opened the app in the trailing 7 days.
-// There's no visit-log table, so this is a cheap, honest proxy for "checked
-// in" — it tracks opens, not data completeness.
-function recordVisitAndGetStreak(userId: string): number {
-  const key = `dhanrakshak_visit_days_${userId}`
-  const today = new Date().toISOString().slice(0, 10)
-  let days: string[] = []
-  try {
-    days = JSON.parse(localStorage.getItem(key) || '[]')
-  } catch (e) {}
-  if (!days.includes(today)) days.push(today)
-  days = days.slice(-14)
-  try {
-    localStorage.setItem(key, JSON.stringify(days))
-  } catch (e) {}
-  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
-  return days.filter((d) => new Date(d).getTime() >= weekAgo).length
 }
 
 interface SyncSummary {
@@ -115,8 +96,11 @@ export default function DashboardPage() {
   // Safe-to-spend hero number
   const [monthBudgetTotal, setMonthBudgetTotal] = useState(0)
 
-  // Calm consistency chip
-  const [streakDays, setStreakDays] = useState(0)
+  // Calm consistency chip — real logging activity, not app opens
+  const [streakInfo, setStreakInfo] = useState<{ streak: number; loggedToday: boolean }>({
+    streak: 0,
+    loggedToday: false,
+  })
 
   // First-run checklist
   const [checklistDismissed, setChecklistDismissed] = useState(false)
@@ -340,13 +324,19 @@ export default function DashboardPage() {
     }
   }, [user, checkScheduledTasks])
 
+  const refreshStreak = useCallback(async () => {
+    if (!user) return
+    const { data } = await getLoggingStreak()
+    setStreakInfo(data)
+  }, [user])
+
   // Calm consistency chip + first-run checklist bookkeeping
   useEffect(() => {
     if (!user) return
-    setStreakDays(recordVisitAndGetStreak(user.id))
+    refreshStreak()
     setChecklistDismissed(localStorage.getItem(`dhanrakshak_checklist_dismissed_${user.id}`) === 'true')
     setVisitedAnalytics(localStorage.getItem(`dhanrakshak_visited_analytics_${user.id}`) === 'true')
-  }, [user])
+  }, [user, refreshStreak])
 
   // Month-end recap — the peak-end rule says a session that closes on a
   // summary is remembered better, and it's a good reason to open the app
@@ -552,6 +542,13 @@ export default function DashboardPage() {
   const budgetRemaining = monthBudgetTotal - spentSoFar
   const safeToSpendPerDay = budgetRemaining / daysLeftInMonth
 
+  // Most-used categories this month, for Quick-Add's one-tap chips
+  const topCategories = (summary?.category_breakdown || [])
+    .slice()
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 4)
+    .map((c) => c.category)
+
   return (
     <AppLayout>
       <div className="space-y-8 animate-fade-in">
@@ -569,9 +566,9 @@ export default function DashboardPage() {
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-surface-2 border border-border-subtle/50 text-[10px] font-semibold text-brand-300 font-mono">
                 Next Refresh: {getNextRefreshTime(dailyScanTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
               </span>
-              {streakDays > 1 && (
+              {streakInfo.streak > 1 && (
                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-surface-2 border border-border-subtle/50 text-[10px] font-semibold text-zinc-400">
-                  <CalendarCheck className="h-3 w-3 shrink-0" /> Checked in {streakDays} days this week
+                  <Flame className="h-3 w-3 shrink-0" /> {streakInfo.streak} day streak
                 </span>
               )}
             </div>
@@ -775,6 +772,23 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {isCurrentMonth && (
+          <>
+            <QuickAddWidget
+              topCategories={topCategories}
+              onAdded={() => {
+                fetchDashboardData(selectedMonth)
+                refreshStreak()
+              }}
+            />
+
+            {!loading && !streakInfo.loggedToday && (
+              <p className="text-xs text-zinc-500 -mt-4">
+                Log an expense today to {streakInfo.streak > 0 ? 'keep' : 'start'} your streak.
+              </p>
+            )}
+          </>
+        )}
 
         {/* Safe-to-spend hero number — the single glanceable answer to
             "am I okay this month?", shown only for the month in progress. */}
