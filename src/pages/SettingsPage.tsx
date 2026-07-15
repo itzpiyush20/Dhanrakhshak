@@ -4,7 +4,6 @@
 // ============================================
 
 import { useState, useEffect } from 'react'
-import { AppLayout } from '@/layouts'
 import { Card, Button, Input, Modal } from '@/components/ui'
 import { 
   getMerchantRules, 
@@ -41,7 +40,7 @@ import {
 } from 'lucide-react'
 
 export default function SettingsPage() {
-  const { user, currency, setCurrency, activeYear, startNewFinancialYear, dailyScanTime, updateDailyScanTime } = useAuth()
+  const { user, activeYear, startNewFinancialYear, dailyScanTime, updateDailyScanTime } = useAuth()
   const { showToast } = useToast()
 
   const [isLight, setIsLight] = useState(() => {
@@ -404,7 +403,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <AppLayout>
+    <>
       <div className="space-y-8 animate-fade-in">
         {/* Header */}
         <div>
@@ -684,23 +683,6 @@ export default function SettingsPage() {
               </p>
               
               <div className="space-y-4 text-xs">
-                <div className="flex items-center justify-between border-b border-border-subtle/30 pb-3">
-                  <span className="text-zinc-400 font-medium">Local Currency</span>
-                  <select
-                    value={currency}
-                    onChange={(e) => {
-                      const val = e.target.value as 'INR' | 'USD'
-                      setCurrency(val)
-                      showToast(`Currency changed to ${val === 'INR' ? 'Indian Rupee (₹)' : 'US Dollar ($)'}`, 'success')
-                    }}
-                    aria-label="Localization Currency Preference"
-                    className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold"
-                  >
-                    <option value="INR">🇮🇳 INR (₹)</option>
-                    <option value="USD">🇺🇸 USD ($)</option>
-                  </select>
-                </div>
-
                 <div className="flex items-center justify-between border-b border-border-subtle/30 pb-3 pt-1">
                   <div className="flex flex-col">
                     <span className="text-zinc-400 font-medium">Night Mode</span>
@@ -747,9 +729,7 @@ export default function SettingsPage() {
 
                 <div className="flex items-center justify-between pt-1">
                   <span className="text-zinc-400">Language Locale</span>
-                  <span className="font-bold text-zinc-300 font-mono">
-                    {currency === 'INR' ? 'en-IN' : 'en-US'}
-                  </span>
+                  <span className="font-bold text-zinc-300 font-mono">en-IN</span>
                 </div>
               </div>
             </Card>
@@ -845,6 +825,6 @@ export default function SettingsPage() {
           </p>
         </div>
       </Modal>
-    </AppLayout>
+    </>
   )
 }

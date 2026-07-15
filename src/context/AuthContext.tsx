@@ -18,7 +18,6 @@ import { supabase, readStoredSession } from '@/services/supabase'
 import { saveGoogleToken, clearGoogleToken, clearAllGoogleTokens, isGoogleConnected, purgeOldTokenKey, validateGoogleToken, saveGoogleRefreshToken, tryRefreshGoogleToken } from '@/services/googleAuth'
 import { Button } from '@/components/ui'
 import { identifyUser, resetAnalytics, track, EVENTS } from '@/services/analytics'
-import { getGlobalCurrency, getGlobalCurrencySymbol, setGlobalCurrency } from '@/utils'
 
 interface AuthState {
   user: User | null
@@ -44,8 +43,6 @@ interface AuthContextValue extends AuthState {
   authModalTab: 'login' | 'signup'
   openAuthModal: (redirectPath?: string, tab?: 'login' | 'signup') => void
   closeAuthModal: () => void
-  currency: 'INR' | 'USD'
-  setCurrency: (currency: 'INR' | 'USD') => void
   currencySymbol: string
   activeYear: number
   startNewFinancialYear: (year?: number) => void
@@ -108,25 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionModalError, setSessionModalError] = useState<string | null>(null)
   const [profile, setProfile] = useState<any>(null)
 
-  const [currency, setCurrencyState] = useState<'INR' | 'USD'>(() => getGlobalCurrency())
-  const [currencySymbol, setCurrencySymbol] = useState<string>(() => getGlobalCurrencySymbol())
-
-  const setCurrency = useCallback((newCurrency: 'INR' | 'USD') => {
-    setGlobalCurrency(newCurrency)
-    setCurrencyState(newCurrency)
-    setCurrencySymbol(newCurrency === 'INR' ? '₹' : '$')
-    if (state.user) {
-      supabase
-        .from('profiles')
-        .update({ currency: newCurrency })
-        .eq('id', state.user.id)
-        .then(({ error }) => {
-          if (error) {
-            console.warn('Failed to sync currency to Supabase profiles (non-critical):', error.message)
-          }
-        })
-    }
-  }, [state.user])
+  const currencySymbol = '₹'
 
   const [activeYear, setActiveYearState] = useState<number>(2026)
 
@@ -270,13 +249,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setDailyScanTimeState(cachedScanTime)
       }
 
-      const cachedCurrency = localStorage.getItem('dhanrakshak_currency_preference') as 'INR' | 'USD' | null
-      if (cachedCurrency) {
-        setGlobalCurrency(cachedCurrency)
-        setCurrencyState(cachedCurrency)
-        setCurrencySymbol(cachedCurrency === 'INR' ? '₹' : '$')
-      }
-
       const cachedYear = localStorage.getItem(`dhanrakshak_active_financial_year_${state.user.id}`)
       if (cachedYear) {
         setActiveYearState(parseInt(cachedYear, 10))
@@ -334,28 +306,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           subscription_plan_type: subPlan
         })
 
-        // Sync settings (currency and active_financial_year)
+        // Sync settings (active_financial_year)
         // Check database value first. If present, sync to local. If absent/null, sync local to DB.
-        
-        // Currency Sync
-        let currentCurrency: 'INR' | 'USD' = 'INR'
-        const localCurrencyPref = localStorage.getItem('dhanrakshak_currency_preference') as 'INR' | 'USD' | null
-        if (data.currency) {
-          currentCurrency = data.currency as 'INR' | 'USD'
-          setGlobalCurrency(currentCurrency)
-          setCurrencyState(currentCurrency)
-          setCurrencySymbol(currentCurrency === 'INR' ? '₹' : '$')
-        } else if (localCurrencyPref) {
-          currentCurrency = localCurrencyPref
-          // Sync local preference to Supabase since it's null in DB
-          supabase
-            .from('profiles')
-            .update({ currency: localCurrencyPref })
-            .eq('id', state.user.id)
-            .then(({ error: syncError }) => {
-              if (syncError) console.warn('Non-critical: Failed to sync local currency preference to DB:', syncError.message)
-            })
-        }
 
         // Active Year Sync
         let currentYear = 2026
@@ -966,8 +918,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authModalTab,
         openAuthModal,
         closeAuthModal,
-        currency,
-        setCurrency,
         currencySymbol,
         activeYear,
         startNewFinancialYear,
