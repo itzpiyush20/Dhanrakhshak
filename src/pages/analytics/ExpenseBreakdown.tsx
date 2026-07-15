@@ -1,8 +1,6 @@
 import { Card, EmptyState } from '@/components/ui'
 import { formatCurrencyCompact } from '@/utils'
 import { CATEGORIES } from '@/constants'
-import { PeriodSelector } from './PeriodSelector'
-import type { RangeType } from './PeriodSelector'
 import { PieChart } from 'lucide-react'
 
 interface CategoryBreakdownItem {
@@ -20,15 +18,11 @@ interface SummaryData {
 }
 
 interface ExpenseBreakdownProps {
-  allocationRange: RangeType
-  setAllocationRange: (range: RangeType) => void
   summary: SummaryData | null
   loading: boolean
 }
 
 export function ExpenseBreakdown({
-  allocationRange,
-  setAllocationRange,
   summary,
   loading,
 }: ExpenseBreakdownProps) {
@@ -58,8 +52,6 @@ export function ExpenseBreakdown({
           </h2>
           <p className="text-xs text-zinc-500 mt-0.5">Category distribution for selected period</p>
         </div>
-
-        <PeriodSelector value={allocationRange} onChange={setAllocationRange} />
       </div>
 
       <div className="flex-1 flex flex-col justify-center items-center py-4">
