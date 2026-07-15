@@ -8,6 +8,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
 import { Card, Button, EmptyState, Modal } from '@/components/ui'
 import ActiveSubscriptionsWidget from '@/components/dashboard/ActiveSubscriptionsWidget'
+import QuickAddWidget from '@/components/dashboard/QuickAddWidget'
 import {
   ChevronLeft,
   ChevronRight,
@@ -541,6 +542,13 @@ export default function DashboardPage() {
   const budgetRemaining = monthBudgetTotal - spentSoFar
   const safeToSpendPerDay = budgetRemaining / daysLeftInMonth
 
+  // Most-used categories this month, for Quick-Add's one-tap chips
+  const topCategories = (summary?.category_breakdown || [])
+    .slice()
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 4)
+    .map((c) => c.category)
+
   return (
     <AppLayout>
       <div className="space-y-8 animate-fade-in">
@@ -764,6 +772,19 @@ export default function DashboardPage() {
           </div>
         )}
 
+        <QuickAddWidget
+          topCategories={topCategories}
+          onAdded={() => {
+            fetchDashboardData(selectedMonth)
+            refreshStreak()
+          }}
+        />
+
+        {!loading && !streakInfo.loggedToday && (
+          <p className="text-xs text-zinc-500 -mt-4">
+            Log an expense today to {streakInfo.streak > 0 ? 'keep' : 'start'} your streak.
+          </p>
+        )}
 
         {/* Safe-to-spend hero number — the single glanceable answer to
             "am I okay this month?", shown only for the month in progress. */}
