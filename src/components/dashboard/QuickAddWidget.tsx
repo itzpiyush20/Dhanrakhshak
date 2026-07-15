@@ -87,6 +87,7 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
             <button
               type="button"
               onClick={() => setType('debit')}
+              aria-pressed={type === 'debit'}
               className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
                 type === 'debit'
                   ? 'bg-[var(--status-danger-subtle)] text-[var(--status-danger-text)]'
@@ -98,6 +99,7 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
             <button
               type="button"
               onClick={() => setType('credit')}
+              aria-pressed={type === 'credit'}
               className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
                 type === 'credit'
                   ? 'bg-[var(--status-positive-subtle)] text-[var(--status-positive-text)]'
@@ -145,6 +147,7 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
                 key={code}
                 type="button"
                 onClick={() => { setCategory(code); setShowMore(false) }}
+                aria-pressed={category === code}
                 className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
                   category === code
                     ? 'bg-brand-500/15 border-brand-500/40 text-brand-300'
@@ -158,6 +161,7 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
           <button
             type="button"
             onClick={() => setShowMore((v) => !v)}
+            aria-pressed={showMore || (category !== '' && !chips.includes(category))}
             className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
               showMore || (category && !chips.includes(category))
                 ? 'bg-brand-500/15 border-brand-500/40 text-brand-300'
@@ -175,6 +179,7 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
           <Select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
+            aria-label="Category"
             placeholder="Choose a category"
             options={Object.entries(CATEGORIES).map(([value, cat]) => ({
               value,
