@@ -772,18 +772,22 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <QuickAddWidget
-          topCategories={topCategories}
-          onAdded={() => {
-            fetchDashboardData(selectedMonth)
-            refreshStreak()
-          }}
-        />
+        {isCurrentMonth && (
+          <>
+            <QuickAddWidget
+              topCategories={topCategories}
+              onAdded={() => {
+                fetchDashboardData(selectedMonth)
+                refreshStreak()
+              }}
+            />
 
-        {!loading && !streakInfo.loggedToday && (
-          <p className="text-xs text-zinc-500 -mt-4">
-            Log an expense today to {streakInfo.streak > 0 ? 'keep' : 'start'} your streak.
-          </p>
+            {!loading && !streakInfo.loggedToday && (
+              <p className="text-xs text-zinc-500 -mt-4">
+                Log an expense today to {streakInfo.streak > 0 ? 'keep' : 'start'} your streak.
+              </p>
+            )}
+          </>
         )}
 
         {/* Safe-to-spend hero number — the single glanceable answer to
