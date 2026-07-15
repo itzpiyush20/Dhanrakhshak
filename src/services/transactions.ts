@@ -225,3 +225,50 @@ export async function bulkUpdateTransactionsCategory(ids: string[], category: st
   return { error }
 }
 
+export interface LoggingStreak {
+  streak: number
+  loggedToday: boolean
+}
+
+/**
+ * Consecutive days (ending today, or yesterday if nothing's logged yet
+ * today) with at least one transaction created. Uses `created_at` (when the
+ * record was logged) rather than `date` (what the expense is for), so
+ * backdating an entry can't manufacture streak days.
+ */
+export async function getLoggingStreak(): Promise<{ data: LoggingStreak; error: Error | null }> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { data: { streak: 0, loggedToday: false }, error: new Error('User not authenticated') }
+  }
+
+  const since = new Date()
+  since.setDate(since.getDate() - 60)
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('created_at')
+    .eq('user_id', user.id)
+    .eq('approval_status', 'approved')
+    .gte('created_at', since.toISOString())
+
+  if (error || !data) {
+    return { data: { streak: 0, loggedToday: false }, error: error as Error | null }
+  }
+
+  const days = new Set(data.map((t) => t.created_at.slice(0, 10)))
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const loggedToday = days.has(todayStr)
+
+  const cursor = new Date()
+  if (!loggedToday) cursor.setDate(cursor.getDate() - 1)
+
+  let streak = 0
+  while (days.has(cursor.toISOString().slice(0, 10))) {
+    streak++
+    cursor.setDate(cursor.getDate() - 1)
+  }
+
+  return { data: { streak, loggedToday }, error: null }
+}
+
