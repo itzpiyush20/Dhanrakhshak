@@ -51,3 +51,4 @@ scratch/
 # AI Assistant local configs
 .gemini/
 .claude/
+graphify-out/
