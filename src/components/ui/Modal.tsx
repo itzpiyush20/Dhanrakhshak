@@ -44,7 +44,7 @@ export default function Modal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-0 sm:p-4 overflow-hidden">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -56,21 +56,19 @@ export default function Modal({
 
           {/* Modal Content */}
           <motion.div
-            initial={{ opacity: 0, y: 100, scale: 0.95 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ 
               opacity: 1, 
               y: 0, 
-              scale: 1,
               transition: { type: 'spring', damping: 25, stiffness: 350 }
             }}
             exit={{ 
               opacity: 0, 
-              y: 50, 
-              scale: 0.95,
+              y: 20, 
               transition: { duration: 0.2 }
             }}
             className={cn(
-              "relative w-full sm:max-w-lg bg-surface-1 border-t sm:border border-border-subtle rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden z-10",
+              "relative w-full sm:max-w-lg bg-surface-1 border-t sm:border border-border-subtle rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[80svh] sm:max-h-[75svh] overflow-hidden z-10",
               className
             )}
           >
