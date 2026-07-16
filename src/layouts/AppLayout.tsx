@@ -10,6 +10,8 @@ import { cn } from '@/utils'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth, useToast } from '@/context'
 import { submitFeedback, getTesterFeedbackLogs, supabase } from '@/services'
+import { getActiveReceivables } from '@/services/transactions'
+import { getInsurancePolicies } from '@/services/insurance'
 import {
   Bell,
   User,
@@ -114,6 +116,51 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           } else if (pct >= 70) {
             items.push({
               message: `🔔 Reached ${Math.round(pct)}% of budget limit for ${catLabel}.`,
+              type: 'warning'
+            })
+          }
+        })
+      }
+
+      // 3. Receivables due within 7 days or overdue
+      const { data: receivables } = await getActiveReceivables()
+      if (receivables) {
+        const today = new Date()
+        receivables.forEach((r) => {
+          if (!r.expected_return_date) return
+          const dueDate = new Date(r.expected_return_date)
+          const isOverdue = dueDate < today
+          const daysOut = Math.ceil((dueDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
+          if (isOverdue) {
+            items.push({
+              message: `💸 ${r.counterparty || 'Someone'} still owes you back for an expense (overdue).`,
+              type: 'danger'
+            })
+          } else if (daysOut <= 7) {
+            items.push({
+              message: `💸 ${r.counterparty || 'Someone'} owes you back within ${daysOut} day(s).`,
+              type: 'warning'
+            })
+          }
+        })
+      }
+
+      // 4. Insurance premiums due within 7 days or overdue
+      const { data: policies } = await getInsurancePolicies()
+      if (policies) {
+        const today = new Date()
+        policies.forEach((p) => {
+          const dueDate = new Date(p.next_due_date)
+          const isOverdue = dueDate < today
+          const daysOut = Math.ceil((dueDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
+          if (isOverdue) {
+            items.push({
+              message: `🛡️ ${p.policy_name} premium is overdue.`,
+              type: 'danger'
+            })
+          } else if (daysOut <= 7) {
+            items.push({
+              message: `🛡️ ${p.policy_name} premium due in ${daysOut} day(s).`,
               type: 'warning'
             })
           }
