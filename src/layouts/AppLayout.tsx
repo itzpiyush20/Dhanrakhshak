@@ -122,15 +122,19 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
         })
       }
 
-      // 3. Receivables due within 7 days or overdue
-      const { data: receivables } = await getActiveReceivables()
+      // 3 & 4. Receivables and insurance premiums due within 7 days or overdue
+      const todayStr = new Date().toISOString().split('T')[0]
+      const [{ data: receivables }, { data: policies }] = await Promise.all([
+        getActiveReceivables(),
+        getInsurancePolicies()
+      ])
+
       if (receivables) {
-        const today = new Date()
         receivables.forEach((r) => {
           if (!r.expected_return_date) return
           const dueDate = new Date(r.expected_return_date)
-          const isOverdue = dueDate < today
-          const daysOut = Math.ceil((dueDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
+          const isOverdue = r.expected_return_date < todayStr
+          const daysOut = Math.ceil((dueDate.getTime() - new Date(todayStr).getTime()) / (24 * 60 * 60 * 1000))
           if (isOverdue) {
             items.push({
               message: `💸 ${r.counterparty || 'Someone'} still owes you back for an expense (overdue).`,
@@ -145,14 +149,11 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
         })
       }
 
-      // 4. Insurance premiums due within 7 days or overdue
-      const { data: policies } = await getInsurancePolicies()
       if (policies) {
-        const today = new Date()
         policies.forEach((p) => {
           const dueDate = new Date(p.next_due_date)
-          const isOverdue = dueDate < today
-          const daysOut = Math.ceil((dueDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
+          const isOverdue = p.next_due_date < todayStr
+          const daysOut = Math.ceil((dueDate.getTime() - new Date(todayStr).getTime()) / (24 * 60 * 60 * 1000))
           if (isOverdue) {
             items.push({
               message: `🛡️ ${p.policy_name} premium is overdue.`,
