@@ -272,3 +272,68 @@ export async function getLoggingStreak(): Promise<{ data: LoggingStreak; error: 
   return { data: { streak, loggedToday }, error: null }
 }
 
+/** Returnable debits due this month or earlier, not yet received */
+export async function getActiveReceivables() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { data: null, error: new Error('User not authenticated') }
+
+  const now = new Date()
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('is_returnable', true)
+    .eq('return_status', 'pending')
+    .lte('expected_return_date', endOfMonth)
+
+  return { data: data as TransactionRow[] | null, error }
+}
+
+/** Marks a receivable as received: creates the payback credit and updates the original */
+export async function settleReceivable(transactionId: string) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { data: null, error: new Error('User not authenticated') }
+
+  const { data: original, error: fetchError } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('id', transactionId)
+    .single()
+
+  if (fetchError || !original) {
+    return { data: null, error: fetchError || new Error('Receivable not found') }
+  }
+
+  const { data: creditTxn, error: insertError } = await supabase
+    .from('transactions')
+    .insert({
+      user_id: user.id,
+      type: 'credit',
+      amount: original.amount,
+      category: original.category,
+      description: `Returned by ${original.counterparty || 'counterparty'}`,
+      date: new Date().toISOString().split('T')[0],
+      source: 'manual',
+      approval_status: 'approved',
+    })
+    .select()
+    .single()
+
+  if (insertError || !creditTxn) {
+    return { data: null, error: insertError || new Error('Failed to create payback transaction') }
+  }
+
+  const { error: updateError } = await supabase
+    .from('transactions')
+    .update({ return_status: 'received', settled_by_transaction_id: creditTxn.id })
+    .eq('id', transactionId)
+
+  if (updateError) {
+    return { data: null, error: updateError }
+  }
+
+  return { data: creditTxn as TransactionRow, error: null }
+}
+
