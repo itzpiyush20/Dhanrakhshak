@@ -10,6 +10,7 @@ import { Card, Button, EmptyState, Modal } from '@/components/ui'
 import ActiveSubscriptionsWidget from '@/components/dashboard/ActiveSubscriptionsWidget'
 import QuickAddWidget from '@/components/dashboard/QuickAddWidget'
 import ReceivablesCard from '@/components/dashboard/ReceivablesCard'
+import InsurancePremiumCard from '@/components/dashboard/InsurancePremiumCard'
 import {
   ChevronLeft,
   ChevronRight,
@@ -790,6 +791,7 @@ export default function DashboardPage() {
             )}
 
             <ReceivablesCard onSettled={() => fetchDashboardData(selectedMonth)} />
+            <InsurancePremiumCard onPaid={() => fetchDashboardData(selectedMonth)} />
           </>
         )}
 
