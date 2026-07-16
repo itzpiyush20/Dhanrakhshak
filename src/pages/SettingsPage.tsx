@@ -817,6 +817,7 @@ export default function SettingsPage() {
                   placeholder="Policy name (e.g. LIC Term Plan)"
                   value={newPolicyName}
                   onChange={(e) => setNewPolicyName(e.target.value)}
+                  aria-label="Policy name"
                   className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 sm:col-span-2"
                 />
                 <select
@@ -860,6 +861,7 @@ export default function SettingsPage() {
                   placeholder="Remarks (optional)"
                   value={newRemarks}
                   onChange={(e) => setNewRemarks(e.target.value)}
+                  aria-label="Remarks"
                   className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 sm:col-span-2"
                 />
                 <Button size="sm" type="submit" className="sm:col-span-2 justify-center">
