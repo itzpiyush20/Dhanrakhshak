@@ -13,7 +13,7 @@ const mockEqUpdate = vi.fn()
 // settleReceivable's fetch-by-id: 1) and hand-nesting to a fixed depth
 // breaks whichever query doesn't match that exact depth. Only the
 // terminal methods (.gte/.lte/.single/.order) resolve to a value.
-function makeChain(table: string) {
+function makeChain() {
   const chain: any = {
     select: () => chain,
     eq: () => chain,
@@ -28,7 +28,7 @@ vi.mock('./supabase', () => ({
   supabase: {
     auth: { getUser: (...args: any[]) => mockGetUser(...args) },
     from: (table: string) => ({
-      select: () => makeChain(table),
+      select: () => makeChain(),
       insert: (...args: any[]) => {
         mockInsert(table, ...args)
         return { select: () => ({ single: (...a: any[]) => mockSingle(...a) }) }
