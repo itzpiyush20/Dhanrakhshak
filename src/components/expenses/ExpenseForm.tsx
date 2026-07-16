@@ -66,6 +66,11 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
       return
     }
 
+    if (isReturnable && (!counterparty.trim() || !expectedReturnDate)) {
+      setError('Please fill in who owes this and the expected return date')
+      return
+    }
+
     setLoading(true)
 
     const tags = tagsInput
