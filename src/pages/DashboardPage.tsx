@@ -789,7 +789,7 @@ export default function DashboardPage() {
               </p>
             )}
 
-            <ReceivablesCard />
+            <ReceivablesCard onSettled={() => fetchDashboardData(selectedMonth)} />
           </>
         )}
 

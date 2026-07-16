@@ -6,6 +6,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Card, Button } from '@/components/ui'
+import { useToast } from '@/context'
 import { formatCurrency, formatDate } from '@/utils'
 import { getActiveReceivables, settleReceivable } from '@/services/transactions'
 import { HandCoins } from 'lucide-react'
@@ -13,7 +14,13 @@ import type { Database } from '@/types/database'
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row']
 
-export default function ReceivablesCard() {
+interface ReceivablesCardProps {
+  /** Called after a receivable is successfully settled. */
+  onSettled?: () => void
+}
+
+export default function ReceivablesCard({ onSettled }: ReceivablesCardProps) {
+  const { showToast } = useToast()
   const [receivables, setReceivables] = useState<TransactionRow[]>([])
   const [loading, setLoading] = useState(true)
   const [settlingId, setSettlingId] = useState<string | null>(null)
@@ -30,9 +37,16 @@ export default function ReceivablesCard() {
 
   const handleSettle = async (id: string) => {
     setSettlingId(id)
-    await settleReceivable(id)
+    const { error } = await settleReceivable(id)
     await fetchReceivables()
     setSettlingId(null)
+
+    if (error) {
+      showToast(error.message || 'Could not mark as received. Please try again.', 'error')
+      return
+    }
+
+    onSettled?.()
   }
 
   if (loading || receivables.length === 0) return null
