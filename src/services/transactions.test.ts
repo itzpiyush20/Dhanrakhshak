@@ -141,4 +141,41 @@ describe('settleReceivable', () => {
     const { error } = await settleReceivable('missing')
     expect(error).not.toBeNull()
   })
+
+  it('propagates the error if creating the credit transaction fails', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    const original = {
+      id: 't1',
+      user_id: 'u1',
+      amount: 500,
+      category: 'food',
+      counterparty: 'Rahul',
+    }
+    const insertError = { message: 'insert failed' }
+    mockSingle.mockResolvedValueOnce({ data: original, error: null }) // fetch original
+    mockSingle.mockResolvedValueOnce({ data: null, error: insertError }) // insert credit fails
+
+    const { data, error } = await settleReceivable('t1')
+    expect(data).toBeNull()
+    expect(error).toBe(insertError)
+  })
+
+  it('propagates the error if marking the original as received fails', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    const original = {
+      id: 't1',
+      user_id: 'u1',
+      amount: 500,
+      category: 'food',
+      counterparty: 'Rahul',
+    }
+    const updateError = { message: 'update failed' }
+    mockSingle.mockResolvedValueOnce({ data: original, error: null }) // fetch original
+    mockSingle.mockResolvedValueOnce({ data: { id: 't2' }, error: null }) // insert credit
+    mockEqUpdate.mockResolvedValueOnce({ error: updateError }) // update original fails
+
+    const { data, error } = await settleReceivable('t1')
+    expect(data).toBeNull()
+    expect(error).toBe(updateError)
+  })
 })

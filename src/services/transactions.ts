@@ -306,14 +306,16 @@ export async function settleReceivable(transactionId: string) {
     return { data: null, error: fetchError || new Error('Receivable not found') }
   }
 
+  const originalRow = original as TransactionRow
+
   const { data: creditTxn, error: insertError } = await supabase
     .from('transactions')
     .insert({
       user_id: user.id,
       type: 'credit',
-      amount: original.amount,
-      category: original.category,
-      description: `Returned by ${original.counterparty || 'counterparty'}`,
+      amount: originalRow.amount,
+      category: originalRow.category,
+      description: `Returned by ${originalRow.counterparty || 'counterparty'}`,
       date: new Date().toISOString().split('T')[0],
       source: 'manual',
       approval_status: 'approved',
