@@ -48,7 +48,7 @@ interface SummaryData {
 }
 
 // Group default categories into 50/30/20 definitions
-const NEEDS_CATEGORIES = ['groceries', 'utilities', 'transport', 'rent', 'health', 'education']
+const NEEDS_CATEGORIES = ['groceries', 'utilities', 'transport', 'rent', 'health', 'education', 'insurance']
 const WANTS_CATEGORIES = ['food', 'shopping', 'entertainment', 'subscriptions', 'travel', 'other', 'transfers']
 const SAVINGS_CATEGORIES = ['investments']
 

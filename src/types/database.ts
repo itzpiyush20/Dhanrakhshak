@@ -83,6 +83,11 @@ export interface Database {
           event_type: 'debit' | 'credit' | 'refund' | 'emi' | 'sip' | 'salary' | 'chargeback' | 'subscription' | 'transfer' | 'insurance' | 'loan_repayment' | 'atm_withdrawal' | null
           email_message_id: string | null
           tags: string[] | null
+          is_returnable: boolean
+          counterparty: string | null
+          expected_return_date: string | null
+          return_status: 'pending' | 'received' | null
+          settled_by_transaction_id: string | null
           created_at: string
           updated_at: string
         }
@@ -108,6 +113,11 @@ export interface Database {
           event_type?: 'debit' | 'credit' | 'refund' | 'emi' | 'sip' | 'salary' | 'chargeback' | 'subscription' | 'transfer' | 'insurance' | 'loan_repayment' | 'atm_withdrawal' | null
           email_message_id?: string | null
           tags?: string[] | null
+          is_returnable?: boolean
+          counterparty?: string | null
+          expected_return_date?: string | null
+          return_status?: 'pending' | 'received' | null
+          settled_by_transaction_id?: string | null
         }
         Update: {
           amount?: number
@@ -126,6 +136,11 @@ export interface Database {
           confidence_score?: number | null
           event_type?: string | null
           tags?: string[] | null
+          is_returnable?: boolean
+          counterparty?: string | null
+          expected_return_date?: string | null
+          return_status?: 'pending' | 'received' | null
+          settled_by_transaction_id?: string | null
         }
       }
       budgets: {
@@ -147,6 +162,37 @@ export interface Database {
         Update: {
           amount?: number
           category?: string
+        }
+      }
+      insurance_policies: {
+        Row: {
+          id: string
+          user_id: string
+          policy_name: string
+          policy_type: 'life' | 'health'
+          premium_amount: number
+          frequency: 'monthly' | 'quarterly' | 'half_yearly' | 'annual'
+          next_due_date: string
+          remarks: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          policy_name: string
+          policy_type: 'life' | 'health'
+          premium_amount: number
+          frequency: 'monthly' | 'quarterly' | 'half_yearly' | 'annual'
+          next_due_date: string
+          remarks?: string | null
+        }
+        Update: {
+          policy_name?: string
+          policy_type?: 'life' | 'health'
+          premium_amount?: number
+          frequency?: 'monthly' | 'quarterly' | 'half_yearly' | 'annual'
+          next_due_date?: string
+          remarks?: string | null
         }
       }
       email_scan_logs: {
