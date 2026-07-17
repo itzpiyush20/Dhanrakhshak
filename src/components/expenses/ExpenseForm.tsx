@@ -3,7 +3,7 @@
 // ============================================
 
 import { useState, type FormEvent } from 'react'
-import { Button, Input, Card } from '@/components/ui'
+import { Button, Input } from '@/components/ui'
 import Select from '@/components/ui/Select'
 import { CATEGORIES } from '@/constants'
 import { useAuth } from '@/context/AuthContext'
@@ -165,11 +165,7 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
   }
 
   return (
-    <Card>
-      <h2 className="text-lg font-semibold text-white mb-5">
-        {isEditing ? '✏️ Edit Transaction' : '➕ Add Transaction'}
-      </h2>
-
+    <>
       {error && (
         <div role="alert" className="mb-4 rounded-xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-3 text-sm text-[var(--status-danger-text)]">
           {error}
@@ -240,7 +236,7 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
                 .map((t, idx) => (
                   <span
                     key={idx}
-                    className="inline-flex items-center px-2 py-0.5 rounded-lg bg-brand-500/10 border border-brand-500/25 text-[10px] font-semibold text-brand-400"
+                    className="inline-flex items-center px-2 py-0.5 rounded-lg bg-brand-500/10 border border-brand-500/25 text-xs font-semibold text-brand-400"
                   >
                     #{t}
                   </span>
@@ -303,6 +299,6 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
           )}
         </div>
       </form>
-    </Card>
+    </>
   )
 }

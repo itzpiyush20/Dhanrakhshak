@@ -3,12 +3,13 @@
 // edit/delete actions and bulk operations
 // ============================================
 
-import { Card, Badge, Button, EmptyState } from '@/components/ui'
+import { Card, Badge, Button, EmptyState, ConfirmDialog } from '@/components/ui'
 import { CATEGORIES } from '@/constants'
 import { formatCurrency, formatDate } from '@/utils'
 import { deleteTransaction, bulkDeleteTransactions, bulkUpdateTransactionsCategory } from '@/services/transactions'
 import type { Database } from '@/types/database'
 import { useState, useEffect } from 'react'
+import { Pencil, Trash2 } from 'lucide-react'
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row']
 
@@ -28,6 +29,8 @@ export default function ExpenseList({
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
 
   // Reset selection when transactions change
   useEffect(() => {
@@ -35,7 +38,6 @@ export default function ExpenseList({
   }, [transactions])
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this transaction?')) return
     setDeletingId(id)
     await deleteTransaction(id)
     setDeletingId(null)
@@ -58,7 +60,6 @@ export default function ExpenseList({
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return
-    if (!confirm(`Delete all ${selectedIds.length} selected transactions?`)) return
     setIsBulkDeleting(true)
     try {
       await bulkDeleteTransactions(selectedIds)
@@ -114,6 +115,7 @@ export default function ExpenseList({
   }
 
   return (
+    <>
     <Card noPadding>
       {/* Bulk Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-surface-2 border-b border-border-subtle/50 rounded-t-2xl">
@@ -152,11 +154,11 @@ export default function ExpenseList({
             </select>
 
             <button
-              onClick={handleBulkDelete}
+              onClick={() => setConfirmBulkDelete(true)}
               disabled={isBulkDeleting}
-              className="px-3 py-1.5 rounded-xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] text-xs text-[var(--status-danger-text)] hover:bg-[var(--status-danger-border)] transition-all font-semibold cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] text-xs text-[var(--status-danger-text)] hover:bg-[var(--status-danger-border)] transition-all font-semibold cursor-pointer disabled:opacity-50"
             >
-              {isBulkDeleting ? 'Deleting...' : '🗑️ Delete'}
+              <Trash2 className="h-3.5 w-3.5" /> {isBulkDeleting ? 'Deleting...' : 'Delete'}
             </button>
           </div>
         )}
@@ -201,7 +203,7 @@ export default function ExpenseList({
                     {txn.tags && txn.tags.map((tag, idx) => (
                       <span
                         key={idx}
-                        className="inline-flex items-center text-[10px] text-zinc-500 font-semibold hover:text-zinc-300 transition-colors"
+                        className="inline-flex items-center text-xs text-zinc-500 font-semibold hover:text-zinc-300 transition-colors"
                       >
                         #{tag}
                       </span>
@@ -228,19 +230,21 @@ export default function ExpenseList({
                     size="sm"
                     className="h-8 w-8 p-0 flex items-center justify-center cursor-pointer"
                     onClick={() => onEdit(txn)}
+                    aria-label={`Edit ${txn.description || cat.label}`}
                     title="Edit"
                   >
-                    ✏️
+                    <Pencil className="h-3.5 w-3.5" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-8 w-8 p-0 flex items-center justify-center text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] cursor-pointer"
-                    onClick={() => handleDelete(txn.id)}
+                    onClick={() => setConfirmDeleteId(txn.id)}
                     loading={deletingId === txn.id}
+                    aria-label={`Delete ${txn.description || cat.label}`}
                     title="Delete"
                   >
-                    🗑️
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
@@ -249,5 +253,30 @@ export default function ExpenseList({
         })}
       </div>
     </Card>
+
+    <ConfirmDialog
+      isOpen={confirmDeleteId !== null}
+      onClose={() => setConfirmDeleteId(null)}
+      onConfirm={async () => {
+        if (confirmDeleteId) await handleDelete(confirmDeleteId)
+        setConfirmDeleteId(null)
+      }}
+      title="Delete transaction"
+      message="This transaction will be permanently removed. This can't be undone."
+      confirmLabel="Delete"
+    />
+
+    <ConfirmDialog
+      isOpen={confirmBulkDelete}
+      onClose={() => setConfirmBulkDelete(false)}
+      onConfirm={async () => {
+        await handleBulkDelete()
+        setConfirmBulkDelete(false)
+      }}
+      title="Delete transactions"
+      message={`${selectedIds.length} transaction${selectedIds.length === 1 ? '' : 's'} will be permanently removed. This can't be undone.`}
+      confirmLabel="Delete"
+    />
+    </>
   )
 }

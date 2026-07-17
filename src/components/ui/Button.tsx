@@ -14,7 +14,6 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: ButtonSize
   block?: boolean
   loading?: boolean
-  glow?: boolean
 }
 
 const variantStyles: Record<ButtonVariant, string> = {
@@ -59,7 +58,6 @@ export default function Button({
   size = 'md',
   block = false,
   loading = false,
-  glow = false,
   disabled,
   className,
   ...props
@@ -73,7 +71,6 @@ export default function Button({
         variantStyles[variant],
         sizeStyles[size],
         block && 'w-full',
-        glow && 'glow-button',
         className
       )}
       disabled={disabled || loading}

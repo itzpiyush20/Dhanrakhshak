@@ -4,8 +4,10 @@
 // ============================================
 
 import { useState, useEffect, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import AppLayout from '@/layouts/AppLayout'
-import { Card, Button, Badge, Input } from '@/components/ui'
+import { Card, Button, Badge, Input, EmptyState } from '@/components/ui'
+import { RefreshCw } from 'lucide-react'
 import Select from '@/components/ui/Select'
 import { getTransactions, createTransaction } from '@/services'
 import { formatCurrency, formatDate } from '@/utils'
@@ -360,7 +362,7 @@ export default function SubscriptionsPage() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">
+                      <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">
                         Category
                       </label>
                       <Select
@@ -372,7 +374,7 @@ export default function SubscriptionsPage() {
                       </Select>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">
+                      <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">
                         Renewal Day (of month)
                       </label>
                       <select
@@ -405,7 +407,7 @@ export default function SubscriptionsPage() {
                     placeholder="Search subscriptions..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1 bg-surface-2 border border-border-subtle/50 text-zinc-200 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                    className="flex-1 bg-surface-2 border border-border-subtle/50 text-zinc-200 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400"
                     aria-label="Search subscriptions"
                   />
                   <select
@@ -438,9 +440,16 @@ export default function SubscriptionsPage() {
                 </div>
 
                 {detectedSubs.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-xs text-zinc-500">
-                    No active recurring payments detected in this period. Add subscriptions manually or scan transaction alerts.
-                  </div>
+                  <EmptyState
+                    icon={<RefreshCw className="h-8 w-8 text-zinc-500" />}
+                    title="No subscriptions detected"
+                    description="Add a recurring expense manually, or scan your bank alerts to detect them automatically."
+                    action={
+                      <Link to="/expenses" state={{ openForm: true }}>
+                        <Button size="sm">Add an expense</Button>
+                      </Link>
+                    }
+                  />
                 ) : visibleSubs.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-xs text-zinc-500">
                     No subscriptions match your filters.
@@ -472,7 +481,7 @@ export default function SubscriptionsPage() {
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold text-zinc-200 truncate capitalize">{sub.merchant}</span>
                                 {sub.priceChange !== null && (
-                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
                                     sub.priceChange > 0
                                       ? 'bg-red-500/15 text-red-400'
                                       : 'bg-emerald-500/15 text-emerald-400'
@@ -482,10 +491,10 @@ export default function SubscriptionsPage() {
                                 )}
                               </div>
                               <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-[10px] text-zinc-500">
+                                <span className="text-xs text-zinc-500">
                                   Last billed: {formatDate(sub.lastBilled)}
                                 </span>
-                                <span className="text-[9px] bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded-full">
+                                <span className="text-xs bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded-full">
                                   {freqLabel} · {sub.timesCharged}× charged
                                 </span>
                               </div>
@@ -494,13 +503,13 @@ export default function SubscriptionsPage() {
                           <div className="flex items-center gap-4 justify-between sm:justify-end">
                             <div className="flex flex-col items-end">
                               <span className="font-extrabold text-zinc-100">{formatCurrency(sub.amount)}</span>
-                              <span className="text-[9px] text-zinc-500">{freqLabel.toLowerCase()}</span>
+                              <span className="text-xs text-zinc-500">{freqLabel.toLowerCase()}</span>
                             </div>
                             <div className="flex flex-col items-end gap-1">
                               <Badge variant={badgeVariant}>
                                 {sub.daysToRenewal <= 0 ? 'Renews today' : sub.daysToRenewal === 1 ? 'Renews tomorrow' : `Renews in ${sub.daysToRenewal}d`}
                               </Badge>
-                              <span className="text-[9px] text-zinc-500">
+                              <span className="text-xs text-zinc-500">
                                 Date: {formatDate(sub.nextRenewal)}
                               </span>
                             </div>
@@ -509,7 +518,7 @@ export default function SubscriptionsPage() {
                               onClick={() => hideSubscription(sub.merchant)}
                               title="Not a subscription — hide from this list (keeps the expense)"
                               aria-label={`Remove ${sub.merchant} from subscriptions`}
-                              className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-border-subtle/50 bg-surface-1 text-zinc-500 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/5 transition-colors cursor-pointer text-sm leading-none"
+                              className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-border-subtle/50 bg-surface-1 text-zinc-500 hover:text-[var(--status-danger-text)] hover:border-[var(--status-danger-border)] hover:bg-[var(--status-danger-subtle)] transition-colors cursor-pointer text-sm leading-none"
                             >
                               ✕
                             </button>

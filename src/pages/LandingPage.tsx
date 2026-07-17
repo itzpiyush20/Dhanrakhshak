@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { motion, useSpring, useTransform, useMotionValue, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/context'
 import { ROUTES } from '@/constants'
 import { Capacitor } from '@capacitor/core'
@@ -8,7 +8,7 @@ import { cn } from '@/utils'
 import { useScrollReveal } from '@/hooks'
 import { UserMenu } from '@/components/ui'
 import { Zap, Shield, Landmark, Wallet, Smartphone, RefreshCw, Lock, Bell } from 'lucide-react'
-import { useTypewriter, TiltCard, MagneticButton, ScrambleText, InteractionSimulation } from './landing'
+import { InteractionSimulation } from './landing'
 
 export default function LandingPage() {
   const { user, loading, openAuthModal } = useAuth()
@@ -18,46 +18,19 @@ export default function LandingPage() {
   const [mockSms, setMockSms] = useState('Alert: UPI debit of INR 649.00 on ICICI Bank Card XX9008 at NETFLIX is successful. Ref: 98127301.')
   const [parsedResult, setParsedResult] = useState<{ merchant: string; amount: number; bank: string; category: string } | null>(null)
   const [parsing, setParsing] = useState(false)
-  const [trustVisible, setTrustVisible] = useState(false)
-  const trustRef = useRef<HTMLDivElement>(null)
-
-  // Typewriter for H1
-  const line1 = useTypewriter('Your expenses,', 42, 300)
-  const line2 = useTypewriter('tracked automatically.', 38, line1.done ? 100 : 9999)
 
   // Rotating words for Hero sub-headline
   const rotatingWords = ['transactions', 'expenses', 'budgets', 'subscriptions']
   const [wordIndex, setWordIndex] = useState(0)
 
   useEffect(() => {
-    if (!line2.done) return
     const interval = setInterval(() => {
       setWordIndex((prev) => (prev + 1) % rotatingWords.length)
     }, 2800)
     return () => clearInterval(interval)
-  }, [line2.done])
+  }, [])
 
   const rotatingWord = rotatingWords[wordIndex]
-
-  // Mouse Spotlight in Hero
-  const heroRef = useRef<HTMLDivElement>(null)
-  const spotlightX = useMotionValue(0)
-  const spotlightY = useMotionValue(0)
-  const spotlightSpringConfig = { stiffness: 100, damping: 25 }
-  const smoothSpotlightX = useSpring(spotlightX, spotlightSpringConfig)
-  const smoothSpotlightY = useSpring(spotlightY, spotlightSpringConfig)
-
-  const handleHeroMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!heroRef.current) return
-    const rect = heroRef.current.getBoundingClientRect()
-    spotlightX.set(e.clientX - rect.left)
-    spotlightY.set(e.clientY - rect.top)
-  }, [spotlightX, spotlightY])
-
-  const spotlightBg = useTransform(
-    [smoothSpotlightX, smoothSpotlightY],
-    ([x, y]) => `radial-gradient(550px circle at ${x}px ${y}px, rgba(16, 185, 129, 0.075), transparent)`
-  )
 
   // Intersection observer for How It Works step lines drawing
   const stepsRef = useRef<HTMLDivElement>(null)
@@ -76,18 +49,6 @@ export default function LandingPage() {
 
   // Scroll reveal
   useScrollReveal()
-
-  // Trust section observer (for scramble trigger)
-  useEffect(() => {
-    const el = trustRef.current
-    if (!el) return
-    const obs = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setTrustVisible(true); obs.disconnect() } },
-      { threshold: 0.3 }
-    )
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [])
 
   useEffect(() => {
     if (!loading && Capacitor.isNativePlatform()) {
@@ -157,7 +118,7 @@ export default function LandingPage() {
             <span className="text-base font-extrabold tracking-tight">
               <span className="text-brand-400">Dhan</span><span>rakshak</span>
             </span>
-            <span className="hidden md:flex items-center gap-1 text-[10px] font-bold tracking-widest uppercase px-2.5 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400">
+            <span className="hidden md:flex items-center gap-1 text-xs font-bold tracking-widest uppercase px-2.5 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400">
               <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />Auto Tracker
             </span>
           </Link>
@@ -184,7 +145,7 @@ export default function LandingPage() {
             ) : (
               <>
                 <button onClick={() => openAuthModal()} className="text-sm text-sb-ink-muted hover:text-sb-ink transition-colors bg-transparent border-0 cursor-pointer">Sign in</button>
-                <MagneticButton onClick={() => openAuthModal()} className="sb-btn-primary border-0 cursor-pointer">Get started</MagneticButton>
+                <button onClick={() => openAuthModal()} className="sb-btn-primary border-0 cursor-pointer">Get started</button>
               </>
             )}
           </div>
@@ -193,19 +154,7 @@ export default function LandingPage() {
 
       <main>
         {/* ── HERO ─────────────────────────────────────────── */}
-        <section ref={heroRef} onMouseMove={handleHeroMouseMove} className="pt-12 pb-10 md:pt-24 md:pb-20 border-b border-sb-hairline overflow-hidden relative">
-          {/* Mouse Spotlight Glow */}
-          <motion.div
-            className="absolute inset-0 pointer-events-none hidden md:block z-0"
-            style={{ background: spotlightBg }}
-          />
-          {/* Ambient gradient orbs */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none z-0" aria-hidden>
-            <div className="hero-orb-1 absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-brand-500/10 blur-[100px]" />
-            <div className="hero-orb-2 absolute top-20 right-0 w-[400px] h-[400px] rounded-full bg-brand-700/15 blur-[120px]" />
-            <div className="hero-orb-3 absolute bottom-0 left-1/3 w-[300px] h-[300px] rounded-full bg-brand-400/8 blur-[80px]" />
-          </div>
-
+        <section className="pt-12 pb-10 md:pt-24 md:pb-20 border-b border-sb-hairline overflow-hidden relative">
           <div className="mx-auto max-w-6xl px-6 grid lg:grid-cols-2 gap-16 items-center relative z-10">
             <div className="space-y-8">
               {/* Badge */}
@@ -219,28 +168,18 @@ export default function LandingPage() {
                 100% local parsing · Zero bank access required
               </motion.div>
 
-              {/* Typewriter H1 */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.4, delay: 0.2 }}
               >
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight text-sb-ink mb-4">
-                  {line1.displayed}
-                  {!line1.done && <span className="typewriter-cursor" />}
-                  {line1.done && (
-                    <>
-                      <br />
-                      {line2.displayed}
-                      {!line2.done && <span className="typewriter-cursor" />}
-                      {line2.done && <span className="typewriter-cursor done" />}
-                    </>
-                  )}
+                  Your expenses,<br />tracked automatically.
                 </h1>
                 <motion.p
                   initial={{ opacity: 0, y: 10 }}
-                  animate={line2.done ? { opacity: 1, y: 0 } : {}}
-                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
                   className="text-lg text-sb-ink-secondary leading-relaxed max-w-md min-h-[3.5rem]"
                 >
                   Dhanrakshak reads your bank alert SMSes and emails, then logs all your{" "}
@@ -266,7 +205,7 @@ export default function LandingPage() {
               <motion.div
                 className="flex flex-wrap gap-3"
                 initial={{ opacity: 0, y: 12 }}
-                animate={line2.done ? { opacity: 1, y: 0 } : {}}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
               >
                 {user ? (
@@ -275,15 +214,15 @@ export default function LandingPage() {
                   </Link>
                 ) : (
                   <>
-                    <MagneticButton onClick={() => openAuthModal()} className="sb-btn-primary border-0 cursor-pointer">
+                    <button onClick={() => openAuthModal()} className="sb-btn-primary border-0 cursor-pointer">
                       Start free — no card needed →
-                    </MagneticButton>
-                    <MagneticButton
+                    </button>
+                    <button
                       onClick={() => openAuthModal('/dashboard?demo=1', 'signup')}
                       className="sb-btn-secondary border-0 cursor-pointer"
                     >
                       Try it with sample data
-                    </MagneticButton>
+                    </button>
                   </>
                 )}
                 <a href="#how-it-works" className="sb-btn-secondary no-underline">
@@ -295,7 +234,7 @@ export default function LandingPage() {
               <motion.div
                 className="flex gap-10 pt-2 border-t border-sb-hairline"
                 initial={{ opacity: 0 }}
-                animate={line2.done ? { opacity: 1 } : {}}
+                animate={{ opacity: 1 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
               >
                 {[
@@ -306,7 +245,7 @@ export default function LandingPage() {
                   <motion.div
                     key={m.label}
                     initial={{ opacity: 0, scale: 0.8 }}
-                    animate={line2.done ? { opacity: 1, scale: 1 } : {}}
+                    animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.4, delay: 0.25 + i * 0.08, type: 'spring', bounce: 0.4 }}
                   >
                     <p className={cn('text-xl font-bold', m.accent ? 'text-brand-400' : 'text-sb-ink')}>{m.val}</p>
@@ -316,16 +255,13 @@ export default function LandingPage() {
               </motion.div>
             </div>
 
-            {/* Floating hero card */}
             <motion.div
               className="flex justify-center lg:justify-end"
               initial={{ opacity: 0, x: 40 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.7, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
             >
-              <div className="hero-card-float">
-                <InteractionSimulation />
-              </div>
+              <InteractionSimulation />
             </motion.div>
           </div>
         </section>
@@ -349,13 +285,13 @@ export default function LandingPage() {
                     {bank}
                   </div>
                 ))}
-                {/* Loop 2 */}
+                {/* Loop 2 — duplicated only to create a seamless scroll loop; hidden from assistive tech */}
                 {[
-                  'ICICI Bank', 'HDFC Bank', 'SBI', 'Axis Bank', 'Kotak Bank', 
+                  'ICICI Bank', 'HDFC Bank', 'SBI', 'Axis Bank', 'Kotak Bank',
                   'Paytm', 'PhonePe', 'Google Pay', 'Cred', 'Jupiter', 'Fi Money',
                   'IndusInd Bank', 'Yes Bank', 'PNB', 'BOB'
                 ].map((bank) => (
-                  <div key={bank + '-dup'} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sb-canvas-soft border border-sb-hairline hover:border-brand-500/30 hover:text-sb-primary transition-all duration-300 animate-none">
+                  <div key={bank + '-dup'} aria-hidden="true" className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sb-canvas-soft border border-sb-hairline hover:border-brand-500/30 hover:text-sb-primary transition-all duration-300 animate-none">
                     <span className="w-1.5 h-1.5 rounded-full bg-brand-500/70" />
                     {bank}
                   </div>
@@ -376,7 +312,7 @@ export default function LandingPage() {
             <div ref={stepsRef} className="grid md:grid-cols-3 gap-6">
               {steps.map((s, i) => (
                 <div key={s.num} data-reveal data-delay={String(i * 150)}>
-                  <TiltCard className="sb-card-light p-8 relative group transition-all duration-300 h-full">
+                  <div className="sb-card-light p-8 relative group transition-shadow duration-300 hover:shadow-md h-full">
                     <div className="text-5xl font-black text-sb-ink-muted/30 mb-6 leading-none group-hover:text-brand-500/40 transition-colors duration-300">{s.num}</div>
                     {i < steps.length - 1 && (
                       <svg className="hidden md:block absolute top-[60px] -right-[15px] w-8 h-6 text-brand-500/40 z-10" viewBox="0 0 32 16" fill="none">
@@ -400,7 +336,7 @@ export default function LandingPage() {
                     )}
                     <h3 className="text-lg font-semibold text-sb-ink mb-3">{s.title}</h3>
                     <p className="text-sm text-sb-ink-secondary leading-relaxed">{s.desc}</p>
-                  </TiltCard>
+                  </div>
                 </div>
               ))}
             </div>
@@ -412,23 +348,19 @@ export default function LandingPage() {
           <div className="mx-auto max-w-6xl px-6">
             <div className="text-center mb-16">
               <div data-reveal className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-sb-ink-muted mb-4">Features</div>
-              <h2 data-reveal data-delay="80" className="text-4xl font-bold tracking-tight text-sb-ink mb-4">Smart, simple, and <span className="shimmer-text">100% private.</span></h2>
+              <h2 data-reveal data-delay="80" className="text-4xl font-bold tracking-tight text-sb-ink mb-4">Smart, simple, and <span className="text-sb-primary">100% private.</span></h2>
               <p data-reveal data-delay="150" className="text-sb-ink-secondary text-lg max-w-lg mx-auto">Everything you need to manage your money — without handing over your data.</p>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {features.map((f, i) => (
                 <div key={f.title} data-reveal data-delay={String(i * 80)}>
-                  <TiltCard className="sb-card-light p-6 group h-full">
-                    <motion.div
-                      className="h-10 w-10 rounded-xl flex items-center justify-center text-xl mb-5 bg-brand-500/10 border border-brand-500/20"
-                      whileHover={{ scale: 1.18, rotate: 6 }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 15 }}
-                    >
+                  <div className="sb-card-light p-6 group h-full transition-shadow duration-300 hover:shadow-md">
+                    <div className="h-10 w-10 rounded-xl flex items-center justify-center text-xl mb-5 bg-brand-500/10 border border-brand-500/20 transition-transform duration-200 group-hover:scale-110">
                       <f.icon className="h-5 w-5 text-brand-400" />
-                    </motion.div>
+                    </div>
                     <h3 className="text-base font-semibold text-sb-ink mb-2">{f.title}</h3>
                     <p className="text-sm text-sb-ink-secondary leading-relaxed">{f.desc}</p>
-                  </TiltCard>
+                  </div>
                 </div>
               ))}
             </div>
@@ -441,7 +373,7 @@ export default function LandingPage() {
             <div className="space-y-6 pt-4" data-reveal="from-left">
               <div className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-sb-ink-muted">Try it live</div>
               <h2 className="text-4xl font-bold tracking-tight text-sb-ink leading-tight">
-                Paste any bank SMS.<br /><span className="shimmer-text">Watch it parse.</span>
+                Paste any bank SMS.<br /><span className="text-sb-primary">Watch it parse.</span>
               </h2>
               <p className="text-sb-ink-secondary leading-relaxed">
                 This is exactly how Dhanrakshak works — reading your bank alerts and extracting the merchant, amount, and category automatically. Your real alerts are parsed on-device, never uploaded.
@@ -480,12 +412,12 @@ export default function LandingPage() {
                   placeholder="Paste your bank SMS here…"
                 />
               </div>
-              <MagneticButton
+              <button
                 onClick={handleTestParse}
                 className={cn('sb-btn-primary w-full border-0 cursor-pointer', (parsing || !mockSms.trim()) && 'opacity-40 pointer-events-none')}
               >
                 {parsing ? 'Reading alert…' : 'Auto-detect transaction'}
-              </MagneticButton>
+              </button>
 
               <AnimatePresence>
                 {parsedResult && (
@@ -518,7 +450,7 @@ export default function LandingPage() {
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.25, delay: i * 0.06 }}
                         >
-                          <p className="text-[10px] text-sb-ink-muted uppercase tracking-widest mb-1">{label}</p>
+                          <p className="text-xs text-sb-ink-muted uppercase tracking-widest mb-1">{label}</p>
                           <p className={cn('text-sm font-semibold', accent ? 'text-brand-400' : 'text-sb-ink')}>{val}</p>
                         </motion.div>
                       ))}
@@ -533,7 +465,7 @@ export default function LandingPage() {
         {/* ── TRUST / PRIVACY ─────────────────────────────── */}
         <section className="py-10 md:py-20 border-b border-sb-hairline">
           <div className="mx-auto max-w-6xl px-6">
-            <div ref={trustRef} data-reveal className="sb-card-light border-t-4 border-t-brand-500 p-10 md:p-12 flex flex-col md:flex-row items-center gap-10 justify-between">
+            <div data-reveal className="sb-card-light p-10 md:p-12 flex flex-col md:flex-row items-center gap-10 justify-between">
               <div className="max-w-lg">
                 <h2 className="text-2xl font-bold text-sb-ink mb-4">Your money, your data. Always local.</h2>
                 <p className="text-sb-ink-secondary leading-relaxed text-sm">
@@ -546,9 +478,7 @@ export default function LandingPage() {
                   { val: '256-bit', label: 'SSL encryption', sub: 'Bank-grade security' },
                 ].map((s) => (
                   <div key={s.label} className="text-center">
-                    <p className="text-4xl font-black text-brand-400 font-mono">
-                      <ScrambleText value={s.val} trigger={trustVisible} />
-                    </p>
+                    <p className="text-4xl font-black text-brand-400 font-mono">{s.val}</p>
                     <p className="text-sm font-semibold text-sb-ink mt-2">{s.label}</p>
                     <p className="text-xs text-sb-ink-muted mt-1">{s.sub}</p>
                   </div>
@@ -564,7 +494,7 @@ export default function LandingPage() {
             <div className="space-y-6" data-reveal="from-left">
               <div className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-sb-ink-muted">Install</div>
               <h2 className="text-4xl font-bold text-sb-ink leading-tight">
-                On your phone<br />in <span className="shimmer-text">60 seconds.</span>
+                On your phone<br />in <span className="text-sb-primary">60 seconds.</span>
               </h2>
               <p className="text-sb-ink-secondary leading-relaxed">
                 Dhanrakshak is a Progressive Web App. No App Store, no APK, no Play Store approvals. Just open the website and install it to your home screen.
@@ -651,7 +581,7 @@ export default function LandingPage() {
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.25, delay: i * 0.07 }}
                       >
-                        <span className="h-5 w-5 rounded-full bg-brand-500/15 border border-brand-500/25 text-brand-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                        <span className="h-5 w-5 rounded-full bg-brand-500/15 border border-brand-500/25 text-brand-400 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
                         <p className="text-sm text-sb-ink-secondary leading-relaxed">{step}</p>
                       </motion.li>
                     ))}
@@ -677,6 +607,7 @@ export default function LandingPage() {
                     <button
                       onClick={() => setExpandedFaq(isOpen ? null : idx)}
                       className="w-full text-left px-6 py-5 flex items-center justify-between cursor-pointer border-none bg-transparent"
+                      aria-expanded={isOpen}
                     >
                       <span className="text-base font-semibold text-sb-ink pr-4">{item.q}</span>
                       <motion.span
@@ -712,13 +643,9 @@ export default function LandingPage() {
 
         {/* ── FINAL CTA ────────────────────────────────────── */}
         <section className="py-14 md:py-28 text-center border-b border-sb-hairline relative overflow-hidden">
-          {/* Background orb */}
-          <div className="absolute inset-0 pointer-events-none" aria-hidden>
-            <div className="hero-orb-1 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-brand-500/8 blur-[120px]" />
-          </div>
           <div className="mx-auto max-w-2xl px-6 space-y-6 relative z-10">
             <h2 data-reveal="scale" className="text-4xl md:text-5xl font-bold tracking-tight text-sb-ink">
-              Take control of<br /><span className="shimmer-text">your finances today.</span>
+              Take control of<br /><span className="text-sb-primary">your finances today.</span>
             </h2>
             <p data-reveal data-delay="100" className="text-lg text-sb-ink-secondary max-w-md mx-auto leading-relaxed">
               Free account. 14-day full trial. No credit card required. Delete your data anytime.
@@ -735,9 +662,9 @@ export default function LandingPage() {
                   Go to Dashboard →
                 </Link>
               ) : (
-                <MagneticButton onClick={() => openAuthModal()} className="sb-btn-primary border-0 cursor-pointer text-base px-7 py-3">
+                <button onClick={() => openAuthModal()} className="sb-btn-primary border-0 cursor-pointer text-base px-7 py-3">
                   Start free — no card needed →
-                </MagneticButton>
+                </button>
               )}
               <Link to={ROUTES.PRICING} className="sb-btn-secondary no-underline">
                 View pricing

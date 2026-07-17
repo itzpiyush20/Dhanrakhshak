@@ -74,7 +74,7 @@ export default function UserMenu({ className }: UserMenuProps) {
           )}
         </span>
         <span className="text-xs font-semibold truncate max-w-[90px] hidden sm:inline">{firstName}</span>
-        <span className="text-[8px] opacity-60" aria-hidden="true">▼</span>
+        <span className="text-xs opacity-60" aria-hidden="true">▼</span>
       </button>
 
       {open && (

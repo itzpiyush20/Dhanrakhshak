@@ -512,7 +512,7 @@ export default function SettingsPage() {
                   </select>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <label className="flex items-center gap-1.5 text-[10px] text-zinc-400 cursor-pointer select-none">
+                  <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={newAutoApprove}
@@ -541,7 +541,7 @@ export default function SettingsPage() {
                       >
                         <div className="flex flex-col gap-1">
                           <span className="font-semibold text-zinc-200 capitalize truncate max-w-[150px]">{key}</span>
-                          <label className="flex items-center gap-1.5 text-[10px] text-zinc-500 cursor-pointer select-none">
+                          <label className="flex items-center gap-1.5 text-xs text-zinc-500 cursor-pointer select-none">
                             <input
                               type="checkbox"
                               checked={rule.autoApprove}
@@ -563,7 +563,7 @@ export default function SettingsPage() {
                           </select>
                           <button
                             onClick={() => handleDeleteRule(key)}
-                            className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors flex items-center justify-center"
+                            className="p-1.5 rounded text-zinc-500 hover:text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] transition-colors flex items-center justify-center"
                             title="Delete Rule"
                             aria-label={`Delete rule for ${key}`}
                           >
@@ -632,7 +632,7 @@ export default function SettingsPage() {
                       </div>
                     )}
                     <div>
-                      <label htmlFor="restore-file-input" className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5 cursor-pointer">
+                      <label htmlFor="restore-file-input" className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1.5 cursor-pointer">
                         Select Backup File (.drbak)
                       </label>
                       <input
@@ -747,7 +747,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between border-b border-border-subtle/30 pb-3 pt-1">
                   <div className="flex flex-col">
                     <span className="text-zinc-400 font-medium">Night Mode</span>
-                    <span className="text-[10px] text-zinc-500">Enable dark theme for low-light environments</span>
+                    <span className="text-xs text-zinc-500">Enable dark theme for low-light environments</span>
                   </div>
                   <button
                     onClick={toggleTheme}
@@ -770,7 +770,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between border-b border-border-subtle/30 pb-3 pt-1">
                   <div className="flex flex-col">
                     <span className="text-zinc-400 font-medium">Daily Scan Schedule</span>
-                    <span className="text-[10px] text-zinc-500">Time to automatically scan for transactions daily</span>
+                    <span className="text-xs text-zinc-500">Time to automatically scan for transactions daily</span>
                   </div>
                   <input
                     type="time"
@@ -884,13 +884,13 @@ export default function SettingsPage() {
                         <span className="font-semibold text-zinc-200 truncate block">
                           {p.policy_type === 'life' ? '🧬' : '🏥'} {p.policy_name}
                         </span>
-                        <span className="text-[10px] text-zinc-500">
+                        <span className="text-xs text-zinc-500">
                           {formatCurrency(p.premium_amount)} · {p.frequency.replace('_', '-')} · due {formatDate(p.next_due_date)}
                         </span>
                       </div>
                       <button
                         onClick={() => handleDeletePolicy(p.id)}
-                        className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors flex items-center justify-center shrink-0"
+                        className="p-1.5 rounded text-zinc-500 hover:text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] transition-colors flex items-center justify-center shrink-0"
                         title="Delete policy"
                         aria-label={`Delete ${p.policy_name}`}
                       >
@@ -921,7 +921,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between pt-1">
                   <div className="flex flex-col">
                     <span className="text-zinc-400 font-medium">Start New Financial Year</span>
-                    <span className="text-[10px] text-zinc-500">Enable scanning for the next calendar year ({activeYear + 1})</span>
+                    <span className="text-xs text-zinc-500">Enable scanning for the next calendar year ({activeYear + 1})</span>
                   </div>
                   <Button
                     onClick={() => setShowFYConfirmModal(true)}

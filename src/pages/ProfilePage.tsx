@@ -5,19 +5,22 @@
 
 import { useState, useEffect } from 'react'
 import { AppLayout } from '@/layouts'
-import { Card, Button, Input, Badge } from '@/components/ui'
+import { Card, Button, Input, Badge, ConfirmDialog } from '@/components/ui'
 import { useAuth } from '@/context/AuthContext'
-import { 
-  getProfile, 
-  updateProfile, 
-  resetAccountData, 
-  seedSandboxData, 
-  deleteAccount 
+import { useToast } from '@/context'
+import {
+  getProfile,
+  updateProfile,
+  resetAccountData,
+  seedSandboxData,
+  deleteAccount
 } from '@/services'
 
 export default function ProfilePage() {
   const { user, resetPassword, signOut, refreshProfile } = useAuth()
-  
+  const { showToast } = useToast()
+  const [confirmWipeOpen, setConfirmWipeOpen] = useState(false)
+
   // Profile Form States
   const [fullName, setFullName] = useState(user?.user_metadata?.full_name || '')
   const [avatarUrl, setAvatarUrl] = useState(user?.user_metadata?.avatar_url || '')
@@ -115,11 +118,6 @@ export default function ProfilePage() {
   }
 
   const handleWipeData = async () => {
-    const doubleConfirm = confirm(
-      '⚠️ WARNING: Are you absolutely sure you want to permanently delete all transactions, budgets, and scanning logs?\n\nThis action cannot be undone.'
-    )
-    if (!doubleConfirm) return
-
     setResetLoading(true)
     setResetSuccess(false)
     setError(null)
@@ -142,9 +140,6 @@ export default function ProfilePage() {
     e.preventDefault()
     if (deleteConfirmEmail !== user?.email) return
 
-    const confirmMsg = `⚠️ EXTREME WARNING: You are about to permanently delete your Dhanrakshak account and completely wipe ALL transaction metrics, budgets, settings, and credentials.\n\nThis cannot be undone. Are you absolutely certain you want to proceed?`
-    if (!window.confirm(confirmMsg)) return
-
     setDeleteLoading(true)
     setError(null)
 
@@ -154,16 +149,17 @@ export default function ProfilePage() {
         throw deleteErr || new Error('An error occurred during account deletion.')
       }
 
-      if (deleteErr) {
-        alert(`✨ Account records wiped successfully!\n\nNote: Auth deletion requires executing the 'delete_user()' SQL function in Supabase. You are being logged out now.`)
-      } else {
-        alert(method === 'rpc' 
-          ? '🛡️ Your account and all secure data have been completely deleted. Thank you for using Dhanrakshak!'
-          : '✨ Account data purged successfully! You have been signed out.'
-        )
-      }
+      showToast(
+        deleteErr
+          ? 'Account data wiped. You are being signed out.'
+          : method === 'rpc'
+            ? 'Your account and all data have been deleted. Thank you for using Dhanrakshak.'
+            : 'Account data deleted. You have been signed out.',
+        'success'
+      )
 
-      // Sync signOut to clear state & cookies
+      // Give the toast a moment to be seen before signOut redirects away.
+      await new Promise((resolve) => setTimeout(resolve, 1200))
       await signOut()
     } catch (err: any) {
       console.error('Error deleting account:', err)
@@ -217,7 +213,7 @@ export default function ProfilePage() {
                     Email Address
                   </label>
                   <Input value={user?.email || ''} disabled />
-                  <p className="text-[10px] text-zinc-400 mt-1">Unique login email identifier (disabled)</p>
+                  <p className="text-xs text-zinc-400 mt-1">Unique login email identifier (disabled)</p>
                 </div>
 
                 <div>
@@ -321,11 +317,11 @@ export default function ProfilePage() {
                 <Button
                   variant="danger"
                   block
-                  onClick={handleWipeData}
+                  onClick={() => setConfirmWipeOpen(true)}
                   loading={resetLoading}
                   disabled={resetLoading}
                 >
-                  ⚠️ Reset Account Data
+                  Reset Account Data
                 </Button>
               </div>
             </Card>
@@ -341,7 +337,7 @@ export default function ProfilePage() {
 
               <form onSubmit={handleDeleteAccount} className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">
+                  <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1.5">
                     Confirm Deletion by Typing: <span className="text-zinc-300 font-mono lowercase select-all">{user?.email}</span>
                   </label>
                   <Input
@@ -362,13 +358,25 @@ export default function ProfilePage() {
                   loading={deleteLoading}
                   className="bg-[var(--status-danger-text)] hover:opacity-90 active:opacity-80 disabled:opacity-40 transition-all duration-200"
                 >
-                  ❌ Permanently Delete My Account
+                  Permanently Delete My Account
                 </Button>
               </form>
             </Card>
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmWipeOpen}
+        onClose={() => setConfirmWipeOpen(false)}
+        onConfirm={async () => {
+          await handleWipeData()
+          setConfirmWipeOpen(false)
+        }}
+        title="Reset account data"
+        message="All transactions, budgets, and scan logs will be permanently deleted. This can't be undone."
+        confirmLabel="Reset data"
+      />
     </AppLayout>
   )
 }

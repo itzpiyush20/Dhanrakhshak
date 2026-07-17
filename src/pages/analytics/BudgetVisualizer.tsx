@@ -98,7 +98,7 @@ export function BudgetVisualizer({
             <ShieldCheck className="w-4 h-4 text-brand-400 shrink-0" />
             Emergency Reserve Status
           </span>
-          <span className="text-zinc-500 text-[10px]">
+          <span className="text-zinc-500 text-xs">
             Current Reserve covers <strong>{emergencyMonths} months</strong> of average essentials.
           </span>
         </div>

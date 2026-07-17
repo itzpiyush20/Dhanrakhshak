@@ -77,7 +77,7 @@ export function ScenarioSimulator({
             {formatCurrency(simulatedSavings)} ({simSavingsPct}%)
           </span>
         </div>
-        <div className="text-[10px] text-zinc-500 leading-relaxed flex items-start gap-1.5">
+        <div className="text-xs text-zinc-500 leading-relaxed flex items-start gap-1.5">
           {simSavingsPct >= 20 ? (
             <>
               <CheckCircle2 className="w-3.5 h-3.5 text-[var(--status-positive-text)] shrink-0 mt-0.5" />

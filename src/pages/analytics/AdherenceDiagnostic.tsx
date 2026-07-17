@@ -25,13 +25,13 @@ export function AdherenceDiagnostic({ healthScore, totalIncome, totalDebit }: Ad
         <span className={`text-4xl font-extrabold tracking-tight ${scoreColor}`}>
           {healthScore}
         </span>
-        <span className="absolute bottom-1 text-[9px] uppercase tracking-wider font-bold text-zinc-500">
+        <span className="absolute bottom-1 text-xs uppercase tracking-wider font-bold text-zinc-500">
           Health Index
         </span>
       </div>
       
       <h2 className="text-md font-bold text-zinc-200">Adherence Diagnostic</h2>
-      <p className="text-[10px] text-zinc-500 uppercase font-mono tracking-wider mt-1.5 border border-zinc-800 rounded-full px-3.5 py-0.5 flex items-center gap-1.5 justify-center">
+      <p className="text-xs text-zinc-500 uppercase font-mono tracking-wider mt-1.5 border border-zinc-800 rounded-full px-3.5 py-0.5 flex items-center gap-1.5 justify-center">
         <Check className="w-3 h-3 text-[var(--status-positive-text)]" /> Platform Verified
       </p>
 

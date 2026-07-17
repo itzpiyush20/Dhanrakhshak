@@ -43,7 +43,10 @@ export default function PricingPage() {
   const isExpired = status === 'expired' || (status === 'active' && daysLeft <= 0) || (status === 'trial' && daysLeft <= 0)
   const isTrialExpired = (status === 'trial' && daysLeft <= 0) || (status === 'expired' && profile?.subscription_plan_type === 'trial')
   const isSubExpired = (status === 'active' && daysLeft <= 0) || (status === 'expired' && profile?.subscription_plan_type !== 'trial')
-  const isFreeOrCancelled = status === 'free' || status === 'cancelled' || !status
+  // Never subscribed (signed-out visitor, or a signed-in account that hasn't started a trial yet) —
+  // this is a prospective customer, not someone who lost access. Show them the trial offer, not a lock screen.
+  const neverSubscribed = !user || status === 'free' || !status
+  const isCancelled = status === 'cancelled'
 
   const isActiveActive = status === 'active' && daysLeft > 0
   const isTrialActive = status === 'trial' && daysLeft > 0
@@ -218,7 +221,7 @@ export default function PricingPage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              Verify Dhanrakshak Financial Security Plans
+              Plans & Pricing
             </div>
             
             <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-sb-ink select-none">
@@ -241,30 +244,47 @@ export default function PricingPage() {
                   <p className="text-xs text-zinc-400 font-medium mt-0.5">Full access to premium features active. Upgrade to prevent any interruption to your automatic email tracking.</p>
                 </div>
               </div>
-              <span className="text-[10px] px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold uppercase tracking-wider">Trial Access</span>
+              <span className="text-xs px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold uppercase tracking-wider">Trial Access</span>
             </div>
           )}
 
-          {(isExpired || isFreeOrCancelled) && (
+          {neverSubscribed && (
             <div className="rounded-3xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-surface-1 border border-border-subtle shadow-md">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">🔒</span>
+                <span className="text-2xl">✨</span>
                 <div>
-                  <p className="text-sm font-bold text-sb-ink">
-                    {isTrialExpired 
-                      ? 'Trial Expired — Dashboard Access Restricted' 
-                      : isSubExpired 
-                      ? 'Subscription Expired — Dashboard Access Restricted'
-                      : 'Premium Subscription Required — Dashboard Access Restricted'}
-                  </p>
+                  <p className="text-sm font-bold text-sb-ink">Start your 14-day free trial</p>
                   <p className="text-xs text-zinc-400 font-medium mt-0.5">
-                    {isFreeOrCancelled
-                      ? 'Upgrade to enable automated email tracking, budgets, and priority tracking modules.'
-                      : 'Upgrade to restore local email parsing, budgets, and priority tracking modules.'}
+                    Try automated tracking, budgets, and insights free for 14 days. No card required.
                   </p>
                 </div>
               </div>
-              <span className="text-[10px] px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-red-500/10 text-red-400 border border-red-500/20 font-bold uppercase tracking-wider">Access Locked</span>
+              {!user && (
+                <span className="text-xs px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-[var(--status-positive-subtle)] text-[var(--status-positive-text)] border border-[var(--status-positive-border)] font-bold uppercase tracking-wider">No card needed</span>
+              )}
+            </div>
+          )}
+
+          {(isExpired || isCancelled) && (
+            <div className="rounded-3xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-surface-1 border border-border-subtle shadow-md">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">⏸️</span>
+                <div>
+                  <p className="text-sm font-bold text-sb-ink">
+                    {isTrialExpired
+                      ? 'Your trial has ended'
+                      : isSubExpired
+                      ? 'Your subscription has ended'
+                      : 'Your plan is inactive'}
+                  </p>
+                  <p className="text-xs text-zinc-400 font-medium mt-0.5">
+                    {isCancelled
+                      ? 'Resubscribe to turn automated email tracking, budgets, and priority tracking back on.'
+                      : 'Renew to restore automated email tracking, budgets, and priority tracking.'}
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 bg-[var(--status-warning-subtle)] text-[var(--status-warning-text)] border border-[var(--status-warning-border)] font-bold uppercase tracking-wider">Inactive</span>
             </div>
           )}
 
@@ -283,8 +303,6 @@ export default function PricingPage() {
             {/* ── Standard: Monthly ─────────────────────────────── */}
             <Card
               hoverable
-              glass
-              glow={selectedPlan === 'monthly'}
               className="p-8 flex flex-col relative group"
               style={{ borderColor: selectedPlan === 'monthly' ? 'var(--sb-primary)' : undefined, borderWidth: selectedPlan === 'monthly' ? 2 : undefined }}
               onClick={() => setSelectedPlan('monthly')}
@@ -338,14 +356,12 @@ export default function PricingPage() {
             {/* ── Featured: Annual ── */}
             <Card
               hoverable
-              glass
-              glow={true}
               className="p-8 flex flex-col relative overflow-hidden group"
               style={{ borderColor: 'var(--sb-primary)', borderWidth: 2 }}
               onClick={() => setSelectedPlan('annual')}
             >
               {/* Best value badge */}
-              <div className="absolute top-0 right-0 sb-pill-tag-green text-[9px] font-extrabold uppercase tracking-widest px-4 py-2 rounded-bl-2xl rounded-tr-2xl">
+              <div className="absolute top-0 right-0 sb-pill-tag-green text-xs font-extrabold uppercase tracking-widest px-4 py-2 rounded-bl-2xl rounded-tr-2xl">
                 Best Value · Save 15%
               </div>
 
@@ -360,7 +376,7 @@ export default function PricingPage() {
                   <span className="text-xs text-zinc-400">/year</span>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">₹1 per day</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">₹1 per day</span>
                   <span className="text-xs text-zinc-400 font-medium">Billed once per year</span>
                 </div>
               </div>
@@ -395,19 +411,17 @@ export default function PricingPage() {
                     {isActive && profile?.subscription_plan_type === 'monthly' ? 'Upgrade to Yearly' : 'Get Yearly'}
                   </button>
                 )}
-                <p className="text-[10px] text-center text-zinc-500 font-medium">Secured via Razorpay · 256-bit SSL</p>
+                <p className="text-xs text-center text-zinc-500 font-medium">Secured via Razorpay · 256-bit SSL</p>
               </div>
             </Card>
 
             {/* ── Promo / Coupon ────────────────────────────────── */}
             <Card
               hoverable
-              glass
               className="p-8 flex flex-col relative group"
-              style={{ borderColor: 'var(--border-subtle)', borderWidth: 1 }}
             >
               <div className="mb-6">
-                <span className="inline-flex items-center bg-surface-2 border border-border-subtle px-2.5 py-0.5 rounded-full text-[10px] font-semibold text-zinc-400">Special Access</span>
+                <span className="inline-flex items-center bg-surface-2 border border-border-subtle px-2.5 py-0.5 rounded-full text-xs font-semibold text-zinc-400">Special Access</span>
                 <h2 className="text-lg font-bold text-sb-ink mt-4">Coupon Code</h2>
               </div>
 
@@ -444,7 +458,7 @@ export default function PricingPage() {
         {!isPro && (
           <div id="checkout-section" className="max-w-2xl mx-auto pb-12 w-full animate-fade-in">
             {!user ? (
-              <Card glass className="rounded-3xl shadow-md p-8 text-center space-y-6">
+              <Card className="rounded-3xl shadow-md p-8 text-center space-y-6">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-3xl shadow-sm">
                   🔒
                 </div>
@@ -468,12 +482,12 @@ export default function PricingPage() {
                     Create Account
                   </button>
                 </div>
-                <p className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">
+                <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">
                   Standard stepwise checkout · 100% Secure & encrypted
                 </p>
               </Card>
             ) : (
-              <Card glass noPadding className="rounded-3xl shadow-md overflow-hidden">
+              <Card noPadding className="rounded-3xl shadow-md overflow-hidden">
 
                 {/* Tab switcher */}
                 <div className="flex bg-surface-2/40 border-b border-border-subtle">
@@ -500,13 +514,13 @@ export default function PricingPage() {
                       {/* Order summary card */}
                       <div className="rounded-2xl p-5 flex justify-between items-start bg-surface-2/40 border border-border-subtle/50">
                         <div>
-                          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Order Summary</p>
+                          <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Order Summary</p>
                           <p className="text-lg mt-2 font-extrabold text-sb-ink">{planName} Plan</p>
                           <p className="text-xs text-zinc-400 font-medium mt-0.5">{planSub}</p>
                         </div>
                         <div className="text-right">
                           <p className="font-extrabold text-2xl text-sb-ink tracking-tight">₹{planPrice}</p>
-                          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">incl. GST</p>
+                          <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">incl. GST</p>
                         </div>
                       </div>
 
@@ -530,7 +544,7 @@ export default function PricingPage() {
                       {/* Trust bar */}
                       <div className="rounded-2xl p-3 flex flex-wrap items-center justify-center gap-2 bg-surface-2/40 border border-border-subtle/50">
                         {['UPI', 'Debit/Credit Cards', 'NetBanking', 'Google Pay', 'PhonePe'].map((m) => (
-                          <span key={m} className="text-[10px] px-3 py-1 rounded-full bg-surface-1 border border-border-subtle text-zinc-400 font-bold uppercase tracking-wider">{m}</span>
+                          <span key={m} className="text-xs px-3 py-1 rounded-full bg-surface-1 border border-border-subtle text-zinc-400 font-bold uppercase tracking-wider">{m}</span>
                         ))}
                       </div>
 
@@ -543,7 +557,7 @@ export default function PricingPage() {
                         {processing ? 'Opening secure checkout…' : `Pay ₹${planPrice} & Activate ${planName}`}
                       </button>
 
-                      <p className="text-[10px] text-center text-zinc-500 font-semibold uppercase tracking-wider">
+                      <p className="text-xs text-center text-zinc-500 font-semibold uppercase tracking-wider">
                         🔒 Secured with bank-grade 256-bit SSL encryption · Powered by Razorpay
                       </p>
                     </div>
@@ -559,9 +573,9 @@ export default function PricingPage() {
                       </div>
                       <div className="space-y-4">
                         <div className="flex flex-col gap-2">
-                          <label className="text-[10px] block font-bold uppercase tracking-widest text-zinc-500">Promo Code</label>
+                          <label className="text-xs block font-bold uppercase tracking-widest text-zinc-500">Promo Code</label>
                           <input
-                            className="w-full bg-surface-2 border border-border-subtle/50 text-zinc-200 text-sm rounded-xl px-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all uppercase font-semibold tracking-wider"
+                            className="w-full bg-surface-2 border border-border-subtle/50 text-zinc-200 text-sm rounded-xl px-4 py-3 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all uppercase font-semibold tracking-wider"
                             type="text"
                             placeholder="e.g. DHANVIP"
                             value={promoCode}
@@ -597,7 +611,7 @@ export default function PricingPage() {
         <div className="border-t border-border-subtle py-16 animate-fade-in">
           <div className="mx-auto max-w-7xl">
             <div className="text-center max-w-xl mx-auto mb-12 space-y-4">
-              <span className="inline-flex items-center bg-surface-1 border border-border-subtle px-3 py-1 rounded-full text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">The Dhanrakshak Standard</span>
+              <span className="inline-flex items-center bg-surface-1 border border-border-subtle px-3 py-1 rounded-full text-xs font-semibold text-zinc-400 uppercase tracking-widest">The Dhanrakshak Standard</span>
               <h2 className="text-3xl font-extrabold text-sb-ink tracking-tight">Built on Privacy & Local Isolation</h2>
               <p className="text-xs text-zinc-400 leading-relaxed font-medium">
                 We believe your banking transcripts are private. Dhanrakshak is designed from the ground up to prevent data brokerage.

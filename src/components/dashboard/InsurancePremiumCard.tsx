@@ -79,7 +79,7 @@ export default function InsurancePremiumCard({ onPaid }: InsurancePremiumCardPro
                 <p className="text-xs font-semibold text-zinc-200 truncate">
                   {p.policy_type === 'life' ? '🧬' : '🏥'} {p.policy_name} — {formatCurrency(Number(p.premium_amount))}
                 </p>
-                <p className={`text-[10px] mt-0.5 ${isOverdue ? 'text-[var(--status-danger-text)]' : 'text-[var(--status-warning-text)]'}`}>
+                <p className={`text-xs mt-0.5 ${isOverdue ? 'text-[var(--status-danger-text)]' : 'text-[var(--status-warning-text)]'}`}>
                   {isOverdue ? 'Overdue since ' : 'Due '}
                   {formatDate(p.next_due_date)}
                 </p>

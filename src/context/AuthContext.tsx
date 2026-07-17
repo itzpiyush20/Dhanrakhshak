@@ -782,10 +782,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     />
                     <div className="flex flex-col">
                       <span className="text-xs font-semibold text-zinc-200">{session.name}</span>
-                      <span className="text-[10px] text-zinc-500 mt-0.5">{formatRelativeTime(session.lastActive)}</span>
+                      <span className="text-xs text-zinc-500 mt-0.5">{formatRelativeTime(session.lastActive)}</span>
                     </div>
                   </div>
-                  <span className="text-[10px] uppercase font-bold text-zinc-500 px-2 py-0.5 border border-border-subtle rounded-full">
+                  <span className="text-xs uppercase font-bold text-zinc-500 px-2 py-0.5 border border-border-subtle rounded-full">
                     Active
                   </span>
                 </div>

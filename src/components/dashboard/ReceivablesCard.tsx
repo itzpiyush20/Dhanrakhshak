@@ -82,7 +82,7 @@ export default function ReceivablesCard({ onSettled }: ReceivablesCardProps) {
                 <p className="text-xs font-semibold text-zinc-200 truncate">
                   {r.counterparty || 'Someone'} owes {formatCurrency(Number(r.amount))}
                 </p>
-                <p className={`text-[10px] mt-0.5 ${dateColor}`}>
+                <p className={`text-xs mt-0.5 ${dateColor}`}>
                   {isOverdue ? 'Overdue since ' : 'Due '}
                   {r.expected_return_date ? formatDate(r.expected_return_date) : 'soon'}
                   {r.notes ? ` · ${r.notes}` : ''}

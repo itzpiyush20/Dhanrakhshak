@@ -6,14 +6,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
-import { Card, Button, EmptyState, Modal } from '@/components/ui'
+import { Card, Button, EmptyState, Modal, MonthPicker } from '@/components/ui'
 import ActiveSubscriptionsWidget from '@/components/dashboard/ActiveSubscriptionsWidget'
 import QuickAddWidget from '@/components/dashboard/QuickAddWidget'
 import ReceivablesCard from '@/components/dashboard/ReceivablesCard'
 import InsurancePremiumCard from '@/components/dashboard/InsurancePremiumCard'
 import {
-  ChevronLeft,
-  ChevronRight,
   AlertTriangle,
   RefreshCw,
   Crown,
@@ -503,22 +501,6 @@ export default function DashboardPage() {
     }
   }
 
-  const handlePrevMonth = () => {
-    const [year, mon] = selectedMonth.split('-').map(Number)
-    const prevDate = new Date(year, mon - 2, 1)
-    setSelectedMonth(
-      `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
-    )
-  }
-
-  const handleNextMonth = () => {
-    const [year, mon] = selectedMonth.split('-').map(Number)
-    const nextDate = new Date(year, mon, 1)
-    setSelectedMonth(
-      `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`
-    )
-  }
-
   const formatMonthName = (monthStr: string) => {
     const [year, mon] = monthStr.split('-').map(Number)
     return new Date(year, mon - 1, 1).toLocaleDateString('en-IN', {
@@ -565,11 +547,11 @@ export default function DashboardPage() {
                 Here is your wealth overview for this month.
               </p>
               <span className="text-zinc-700 hidden sm:inline">•</span>
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-surface-2 border border-border-subtle/50 text-[10px] font-semibold text-brand-300 font-mono">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-surface-2 border border-border-subtle/50 text-xs font-semibold text-brand-300 font-mono">
                 Next Refresh: {getNextRefreshTime(dailyScanTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
               </span>
               {streakInfo.streak > 1 && (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-surface-2 border border-border-subtle/50 text-[10px] font-semibold text-zinc-400">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-surface-2 border border-border-subtle/50 text-xs font-semibold text-zinc-400">
                   <Flame className="h-3 w-3 shrink-0" /> {streakInfo.streak} day streak
                 </span>
               )}
@@ -588,30 +570,7 @@ export default function DashboardPage() {
               <Settings className="h-3.5 w-3.5" /> Customize
             </Button>
 
-            <div className="flex items-center gap-2 bg-surface-1 border border-border-subtle rounded-xl p-1 shrink-0 max-w-fit shadow-inner glass-card">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handlePrevMonth}
-                className="hover:bg-surface-2 h-9 w-9 p-0"
-                title="Previous Month"
-              >
-                <ChevronLeft className="h-4 w-4 text-zinc-400 hover:text-zinc-200" />
-              </Button>
-              <span className="px-4 text-sm font-semibold text-zinc-200 min-w-[120px] text-center">
-                {formatMonthName(selectedMonth)}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleNextMonth}
-                className="hover:bg-surface-2 h-9 w-9 p-0"
-                title="Next Month"
-                disabled={selectedMonth === getCurrentMonth()}
-              >
-                <ChevronRight className="h-4 w-4 text-zinc-400 hover:text-zinc-200" />
-              </Button>
-            </div>
+            <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
           </div>
         </div>
 
@@ -856,7 +815,7 @@ export default function DashboardPage() {
             ) : (
               <>
                 {/* Income card */}
-                <Card className="relative overflow-hidden border-l-4 border-l-[var(--status-positive-text)]/80 bg-surface-1 group hover:border-l-[var(--status-positive-text)] transition-all shadow-md">
+                <Card className="relative overflow-hidden bg-surface-1 group shadow-md">
                   <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
                     <TrendingUp className="h-10 w-10 text-status-positive" />
                   </div>
@@ -871,15 +830,15 @@ export default function DashboardPage() {
                   </div>
                 </Card>
 
-                {/* Expenses card */}
-                <Card className="relative overflow-hidden border-l-4 border-l-[var(--status-warning-text)]/80 bg-surface-1 group hover:border-l-[var(--status-warning-text)] transition-all shadow-md">
+                {/* Expenses card — a neutral fact, not a warning */}
+                <Card className="relative overflow-hidden bg-surface-1 group shadow-md">
                   <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-                    <TrendingDown className="h-10 w-10 text-status-warning" />
+                    <TrendingDown className="h-10 w-10 text-zinc-400" />
                   </div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                     Total Expenses
                   </p>
-                  <p className="mt-2 text-3xl font-bold tracking-tight text-[var(--status-warning-text)] animate-slide-up stagger-2">
+                  <p className="mt-2 text-3xl font-bold tracking-tight text-text-primary animate-slide-up stagger-2">
                     {formatCurrency(summary?.total_expenses || 0)}
                   </p>
                   <div className="mt-2 flex items-center gap-1 text-xs text-zinc-500">
@@ -888,9 +847,7 @@ export default function DashboardPage() {
                 </Card>
 
                 {/* Savings card */}
-                <Card className={`relative overflow-hidden border-l-4 bg-surface-1 group transition-all shadow-md sm:col-span-2 lg:col-span-1 ${
-                  (summary?.savings || 0) >= 0 ? 'border-l-[var(--status-positive-text)]/80 hover:border-l-[var(--status-positive-text)]' : 'border-l-[var(--status-danger-text)]/80 hover:border-l-[var(--status-danger-text)]'
-                }`}>
+                <Card className="relative overflow-hidden bg-surface-1 group shadow-md sm:col-span-2 lg:col-span-1">
                   <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
                     <Shield className="h-10 w-10 text-brand-400" />
                   </div>
@@ -1083,7 +1040,7 @@ export default function DashboardPage() {
                                 <p className="text-xs font-semibold text-zinc-200 truncate">
                                   {txn.description || cat.label}
                                 </p>
-                                <span className="text-[10px] text-zinc-500 block mt-0.5">
+                                <span className="text-xs text-zinc-500 block mt-0.5">
                                   {formatDate(txn.date)}
                                 </span>
                               </div>
@@ -1152,7 +1109,7 @@ export default function DashboardPage() {
                         <span className="text-xl shrink-0">{cat.emoji}</span>
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-zinc-200 truncate">{txn.description || cat.label}</p>
-                          <span className="text-[9px] text-zinc-500">
+                          <span className="text-xs text-zinc-500">
                             {new Date(txn.date).toLocaleDateString('en-IN', {
                               day: '2-digit',
                               month: 'short',
@@ -1238,9 +1195,9 @@ export default function DashboardPage() {
                             {txn.merchant || txn.description || 'Transaction'}
                           </p>
                           {txn.description && txn.description !== `${txn.merchant} Transaction` && (
-                            <p className="text-[10px] text-zinc-500 truncate mt-0.5">{txn.description}</p>
+                            <p className="text-xs text-zinc-500 truncate mt-0.5">{txn.description}</p>
                           )}
-                          <span className="text-[9px] text-zinc-500 mt-1">
+                          <span className="text-xs text-zinc-500 mt-1">
                             {new Date(txn.date).toLocaleDateString('en-IN', {
                               day: '2-digit',
                               month: 'short',
@@ -1337,7 +1294,7 @@ export default function DashboardPage() {
                 <CreditCard className="h-5 w-5 text-brand-400 shrink-0" />
                 <div>
                   <p className="text-xs font-bold text-text-primary">Income, Expense & Savings Cards</p>
-                  <p className="text-[10px] text-zinc-500">Summary stats at the top</p>
+                  <p className="text-xs text-zinc-500">Summary stats at the top</p>
                 </div>
               </div>
               <input
@@ -1354,7 +1311,7 @@ export default function DashboardPage() {
                 <BarChart2 className="h-5 w-5 text-brand-400 shrink-0" />
                 <div>
                   <p className="text-xs font-bold text-text-primary">Spending Breakdown</p>
-                  <p className="text-[10px] text-zinc-500">Monthly category breakdown list</p>
+                  <p className="text-xs text-zinc-500">Monthly category breakdown list</p>
                 </div>
               </div>
               <input
@@ -1371,7 +1328,7 @@ export default function DashboardPage() {
                 <DollarSign className="h-5 w-5 text-brand-400 shrink-0" />
                 <div>
                   <p className="text-xs font-bold text-text-primary">Recent Activity List</p>
-                  <p className="text-[10px] text-zinc-500">Show last 5 recorded transactions</p>
+                  <p className="text-xs text-zinc-500">Show last 5 recorded transactions</p>
                 </div>
               </div>
               <input
@@ -1388,7 +1345,7 @@ export default function DashboardPage() {
                 <RefreshCw className="h-5 w-5 text-brand-400 shrink-0" />
                 <div>
                   <p className="text-xs font-bold text-text-primary">Active Subscriptions</p>
-                  <p className="text-[10px] text-zinc-500">Auto-detected recurring services</p>
+                  <p className="text-xs text-zinc-500">Auto-detected recurring services</p>
                 </div>
               </div>
               <input
@@ -1416,11 +1373,11 @@ export default function DashboardPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl bg-surface-2/40 border border-border-subtle/30 p-3.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Total spent</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Total spent</p>
                   <p className="text-xl font-bold text-text-primary mt-1">{formatCurrency(monthEndRecap.totalExpenses)}</p>
                 </div>
                 <div className="rounded-xl bg-surface-2/40 border border-border-subtle/30 p-3.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Net saved</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Net saved</p>
                   <p className={`text-xl font-bold mt-1 ${monthEndRecap.totalIncome - monthEndRecap.totalExpenses >= 0 ? 'text-[var(--status-positive-text)]' : 'text-[var(--status-danger-text)]'}`}>
                     {formatCurrency(monthEndRecap.totalIncome - monthEndRecap.totalExpenses)}
                   </p>

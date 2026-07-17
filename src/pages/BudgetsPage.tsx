@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { AppLayout } from '@/layouts'
-import { Card, Button, Input, Select, Badge, EmptyState } from '@/components/ui'
+import { Card, Button, Input, Select, Badge, EmptyState, ConfirmDialog } from '@/components/ui'
 import { getBudgets, upsertBudget, deleteBudget } from '@/services/budgets'
 import { getMonthlySummary } from '@/services/transactions'
 import { formatCurrency, getCurrentMonth, withTimeout } from '@/utils'
@@ -39,6 +39,7 @@ export default function BudgetsPage() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const { showToast } = useToast()
 
   // Form states
@@ -106,8 +107,6 @@ export default function BudgetsPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Remove budget limit for this category?')) return
-
     setActionLoading(true)
     setError(null)
     try {
@@ -264,7 +263,7 @@ export default function BudgetsPage() {
             <p className="mt-1.5 text-2xl font-bold text-white">
               {formatCurrency(totalBudgeted)}
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Sum of active limit caps</p>
+            <p className="text-xs text-zinc-500 mt-1">Sum of active limit caps</p>
           </Card>
           <Card>
             <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 font-medium">
@@ -273,7 +272,7 @@ export default function BudgetsPage() {
             <p className="mt-1.5 text-2xl font-bold text-[var(--status-warning-text)]">
               {formatCurrency(totalSpent)}
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">Expenses in budgeted categories</p>
+            <p className="text-xs text-zinc-500 mt-1">Expenses in budgeted categories</p>
           </Card>
           <Card>
             <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
@@ -286,7 +285,7 @@ export default function BudgetsPage() {
             >
               {formatCurrency(remainingBudget)}
             </p>
-            <p className="text-[10px] text-zinc-500 mt-1">
+            <p className="text-xs text-zinc-500 mt-1">
               {remainingBudget >= 0 ? 'Within budget limit' : 'Limit exceeded!'}
             </p>
           </Card>
@@ -389,7 +388,7 @@ export default function BudgetsPage() {
                               variant="ghost"
                               size="sm"
                               className="text-zinc-500 hover:text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] h-8 w-8 p-0"
-                              onClick={() => handleDelete(budget.id)}
+                              onClick={() => setConfirmDeleteId(budget.id)}
                               disabled={actionLoading}
                               title="Delete budget"
                             >
@@ -470,12 +469,24 @@ export default function BudgetsPage() {
               </div>
 
               <Button type="submit" block loading={actionLoading} disabled={actionLoading}>
-                🔒 Establish Limit
+                Set Limit
               </Button>
             </form>
           </Card>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmDeleteId !== null}
+        onClose={() => setConfirmDeleteId(null)}
+        onConfirm={async () => {
+          if (confirmDeleteId) await handleDelete(confirmDeleteId)
+          setConfirmDeleteId(null)
+        }}
+        title="Remove budget limit"
+        message="This category will no longer have a monthly limit. You can set a new one anytime."
+        confirmLabel="Remove"
+      />
     </AppLayout>
   )
 }

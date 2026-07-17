@@ -95,7 +95,7 @@ export function TrendChart({
                       key={index}
                       className="flex-1 flex flex-col items-center h-full justify-end group relative"
                     >
-                      <div className="absolute bottom-full mb-2 bg-zinc-950 border border-zinc-800 text-[10px] p-2.5 rounded-xl shadow-xl space-y-1 opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-10 min-w-[120px] text-left">
+                      <div className="absolute bottom-full mb-2 bg-zinc-950 border border-zinc-800 text-xs p-2.5 rounded-xl shadow-xl space-y-1 opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-10 min-w-[120px] text-left">
                         <p className="font-semibold text-zinc-300 border-b border-border-subtle/50 pb-1 mb-1">
                           {h.label}
                         </p>
@@ -126,7 +126,7 @@ export function TrendChart({
                         />
                       </div>
 
-                      <span className="text-[10px] text-zinc-500 font-semibold mt-2.5 group-hover:text-zinc-200 transition-colors shrink-0">
+                      <span className="text-xs text-zinc-500 font-semibold mt-2.5 group-hover:text-zinc-200 transition-colors shrink-0">
                         {h.label}
                       </span>
                     </div>
@@ -135,7 +135,7 @@ export function TrendChart({
               </div>
             </div>
 
-            <div className="flex items-center justify-center gap-6 pt-2 text-[10px] font-semibold tracking-wide uppercase text-zinc-500">
+            <div className="flex items-center justify-center gap-6 pt-2 text-xs font-semibold tracking-wide uppercase text-zinc-500">
               <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full bg-[var(--status-positive-text)]/80" />
                 <span>Total Income</span>

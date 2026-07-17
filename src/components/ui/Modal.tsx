@@ -11,6 +11,8 @@ interface ModalProps {
   children: ReactNode
   footer?: ReactNode
   className?: string
+  /** Anchors the modal to the bottom of the viewport on mobile (a bottom sheet), centered on larger screens. */
+  sheet?: boolean
 }
 
 export default function Modal({
@@ -20,6 +22,7 @@ export default function Modal({
   children,
   footer,
   className,
+  sheet = false,
 }: ModalProps) {
 
   // Escape key and scroll lock
@@ -44,7 +47,10 @@ export default function Modal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-10 overflow-hidden">
+        <div className={cn(
+          "fixed inset-0 z-modal flex justify-center overflow-hidden",
+          sheet ? "items-end sm:items-start p-0 sm:p-4 sm:pt-10" : "items-start p-4 pt-10"
+        )}>
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -57,18 +63,19 @@ export default function Modal({
           {/* Modal Content */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
-            animate={{ 
-              opacity: 1, 
-              y: 0, 
+            animate={{
+              opacity: 1,
+              y: 0,
               transition: { type: 'spring', damping: 25, stiffness: 350 }
             }}
-            exit={{ 
-              opacity: 0, 
-              y: 20, 
+            exit={{
+              opacity: 0,
+              y: 20,
               transition: { duration: 0.2 }
             }}
             className={cn(
-              "relative w-full max-w-lg bg-surface-1 border border-border-subtle rounded-2xl shadow-2xl flex flex-col max-h-[75svh] overflow-hidden z-10",
+              "relative w-full max-w-lg bg-surface-1 border border-border-subtle shadow-2xl flex flex-col max-h-[75svh] overflow-hidden",
+              sheet ? "rounded-t-3xl sm:rounded-2xl max-h-[92svh] sm:max-h-[75svh]" : "rounded-2xl",
               className
             )}
           >

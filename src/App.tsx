@@ -5,7 +5,7 @@
 
 import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
 import { AuthProvider, ToastProvider } from '@/context'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import AutoUpdateChecker from '@/components/AutoUpdateChecker'
@@ -15,7 +15,9 @@ import CookieConsent from '@/components/CookieConsent'
 import URLAuthTrigger from '@/components/auth/URLAuthTrigger'
 import AuthModal from '@/components/auth/AuthModal'
 import ScrollProgressBar from '@/components/ui/ScrollProgressBar'
-import { CursorFollower } from '@/components/ui'
+
+// Marketing/legal routes only — app routes don't need a reading-progress chrome element.
+const MARKETING_ROUTES = new Set(['/', '/support', '/privacy', '/about', '/terms', '/pricing', '/refund-policy'])
 
 // ─── Eagerly loaded (public pages — tiny) ───────────────
 import LandingPage from '@/pages/LandingPage'
@@ -31,6 +33,12 @@ function LoginRedirect() {
 function SignupRedirect() {
   const location = useLocation()
   return <Navigate to={`/?auth=signup${location.search ? '&' + location.search.substring(1) : ''}${location.hash}`} replace />
+}
+
+function MarketingScrollProgress() {
+  const { pathname } = useLocation()
+  if (!MARKETING_ROUTES.has(pathname)) return null
+  return <ScrollProgressBar />
 }
 
 function ScrollToTop() {
@@ -155,26 +163,27 @@ function App() {
 
   return (
     <BrowserRouter>
-      <ScrollToTop />
-      <AutoUpdateChecker />
-      <InstallPrompt />
-      <CookieConsent />
-      <AuthProvider>
-        <ToastProvider>
-          <ErrorBoundary>
-            <Suspense fallback={<PageLoader />}>
-              <ErrorBoundary fallback={null}>
-                <URLAuthTrigger />
-              </ErrorBoundary>
-              <AuthModal />
-              <ScrollProgressBar />
-              <CursorFollower />
-              
-              <AnimatedRoutes />
-            </Suspense>
-          </ErrorBoundary>
-        </ToastProvider>
-      </AuthProvider>
+      <MotionConfig reducedMotion="user">
+        <ScrollToTop />
+        <AutoUpdateChecker />
+        <InstallPrompt />
+        <CookieConsent />
+        <AuthProvider>
+          <ToastProvider>
+            <ErrorBoundary>
+              <Suspense fallback={<PageLoader />}>
+                <ErrorBoundary fallback={null}>
+                  <URLAuthTrigger />
+                </ErrorBoundary>
+                <AuthModal />
+                <MarketingScrollProgress />
+
+                <AnimatedRoutes />
+              </Suspense>
+            </ErrorBoundary>
+          </ToastProvider>
+        </AuthProvider>
+      </MotionConfig>
     </BrowserRouter>
   )
 }

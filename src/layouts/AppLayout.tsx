@@ -9,6 +9,8 @@ import { ROUTES } from '@/constants'
 import { cn } from '@/utils'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth, useToast } from '@/context'
+import Button from '@/components/ui/Button'
+import Modal from '@/components/ui/Modal'
 import { submitFeedback, getTesterFeedbackLogs, supabase } from '@/services'
 import { getActiveReceivables } from '@/services/transactions'
 import { getInsurancePolicies } from '@/services/insurance'
@@ -22,6 +24,14 @@ import {
   X,
   BarChart3,
   Clock,
+  MessageSquare,
+  ChevronDown,
+  ChevronUp,
+  Star,
+  Home,
+  CreditCard,
+  Plus,
+  Sparkles,
 } from 'lucide-react'
 
 interface AppLayoutProps {
@@ -33,10 +43,10 @@ const navItems = [
   { label: 'Dashboard', path: ROUTES.DASHBOARD },
   { label: 'Expenses', path: ROUTES.EXPENSES },
   { label: 'Budgets', path: ROUTES.BUDGETS },
-  { label: 'Pending Alerts', path: ROUTES.PENDING },
+  { label: 'Pending', path: ROUTES.PENDING },
   { label: 'Insights', path: ROUTES.INSIGHTS },
   { label: 'Subscriptions', path: ROUTES.SUBSCRIPTIONS },
-  { label: 'Pricing & Plans', path: ROUTES.PRICING },
+  { label: 'Pricing', path: ROUTES.PRICING },
 ]
 
 export default function AppLayout({ children, isStaticLight = false }: AppLayoutProps) {
@@ -55,68 +65,85 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
     '/payment-success'
   ].includes(location.pathname)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [notifications, setNotifications] = useState<Array<{ message: string; type: 'danger' | 'warning' | 'info' }>>([])
+  type NotificationItem = { key: string; message: string; type: 'danger' | 'warning' | 'info'; href: string }
+  const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false)
+
+  const getDismissedKeys = (): Set<string> => {
+    try {
+      const raw = localStorage.getItem('dhanrakshak_dismissed_notifications')
+      return new Set(raw ? JSON.parse(raw) : [])
+    } catch {
+      return new Set()
+    }
+  }
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return
-    
+
     // Check if we have cached notifications that are less than 5 minutes old (V2: extended from 30s to reduce Supabase load)
     try {
       const cachedData = sessionStorage.getItem('dhanrakshak_notifications_cache')
       if (cachedData) {
         const { items, timestamp } = JSON.parse(cachedData)
         if (Date.now() - timestamp < 300000) {
-          setNotifications(items)
+          const dismissed = getDismissedKeys()
+          setNotifications((items as NotificationItem[]).filter((i) => !dismissed.has(i.key)))
           return
         }
       }
     } catch (e) {}
 
-    const items: Array<{ message: string; type: 'danger' | 'warning' | 'info' }> = []
-    
+    const items: NotificationItem[] = []
+
     try {
       const curMonth = new Date().toISOString().substring(0, 7)
-      
+
       // 1. Fetch pending alerts count
       const { count: pendingCount, error: pendingErr } = await supabase
         .from('transactions')
         .select('*', { count: 'exact', head: true })
         .eq('approval_status', 'pending')
-      
+
       if (!pendingErr && pendingCount && pendingCount > 0) {
         items.push({
-          message: `📬 You have ${pendingCount} pending transaction alert(s) requiring review.`,
-          type: 'info'
+          key: 'pending_count',
+          message: `You have ${pendingCount} pending transaction alert(s) requiring review.`,
+          type: 'info',
+          href: '/pending',
         })
       }
- 
+
       // 2. Fetch budgets and expenses for current month
       const [budgetsRes, summaryRes] = await Promise.all([
         supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', curMonth),
         supabase.from('transactions').select('amount, category').eq('approval_status', 'approved').eq('type', 'debit').gte('date', `${curMonth}-01`)
       ])
- 
+
       if (!budgetsRes.error && budgetsRes.data && !summaryRes.error && summaryRes.data) {
         const spentMap: Record<string, number> = {}
         summaryRes.data.forEach((t) => {
           spentMap[t.category] = (spentMap[t.category] || 0) + Number(t.amount)
         })
- 
+
         budgetsRes.data.forEach((budget) => {
           const spent = spentMap[budget.category] || 0
           const pct = budget.amount > 0 ? (spent / budget.amount) * 100 : 0
           const catLabel = budget.category.toUpperCase()
- 
+
           if (pct >= 100) {
             items.push({
-              message: `⚠️ Budget exceeded for ${catLabel}! (Spent ${Math.round(pct)}% of limit)`,
-              type: 'danger'
+              key: `budget_over_${budget.category}_${curMonth}`,
+              message: `Budget exceeded for ${catLabel}! (Spent ${Math.round(pct)}% of limit)`,
+              type: 'danger',
+              href: '/budgets',
             })
           } else if (pct >= 70) {
             items.push({
-              message: `🔔 Reached ${Math.round(pct)}% of budget limit for ${catLabel}.`,
-              type: 'warning'
+              key: `budget_near_${budget.category}_${curMonth}`,
+              message: `Reached ${Math.round(pct)}% of budget limit for ${catLabel}.`,
+              type: 'warning',
+              href: '/budgets',
             })
           }
         })
@@ -137,13 +164,17 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           const daysOut = Math.ceil((dueDate.getTime() - new Date(todayStr).getTime()) / (24 * 60 * 60 * 1000))
           if (isOverdue) {
             items.push({
-              message: `💸 ${r.counterparty || 'Someone'} still owes you back for an expense (overdue).`,
-              type: 'danger'
+              key: `receivable_overdue_${r.id}`,
+              message: `${r.counterparty || 'Someone'} still owes you back for an expense (overdue).`,
+              type: 'danger',
+              href: '/dashboard',
             })
           } else if (daysOut <= 7) {
             items.push({
-              message: `💸 ${r.counterparty || 'Someone'} owes you back within ${daysOut} day(s).`,
-              type: 'warning'
+              key: `receivable_soon_${r.id}`,
+              message: `${r.counterparty || 'Someone'} owes you back within ${daysOut} day(s).`,
+              type: 'warning',
+              href: '/dashboard',
             })
           }
         })
@@ -156,13 +187,17 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           const daysOut = Math.ceil((dueDate.getTime() - new Date(todayStr).getTime()) / (24 * 60 * 60 * 1000))
           if (isOverdue) {
             items.push({
-              message: `🛡️ ${p.policy_name} premium is overdue.`,
-              type: 'danger'
+              key: `insurance_overdue_${p.id}`,
+              message: `${p.policy_name} premium is overdue.`,
+              type: 'danger',
+              href: '/dashboard',
             })
           } else if (daysOut <= 7) {
             items.push({
-              message: `🛡️ ${p.policy_name} premium due in ${daysOut} day(s).`,
-              type: 'warning'
+              key: `insurance_soon_${p.id}`,
+              message: `${p.policy_name} premium due in ${daysOut} day(s).`,
+              type: 'warning',
+              href: '/dashboard',
             })
           }
         })
@@ -170,17 +205,27 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
     } catch (e) {
       console.error('Error fetching notifications:', e)
     }
- 
-    setNotifications(items)
 
-    // Save to cache
+    // Save the full (undismissed-filtered) set to cache, then filter for display
     try {
       sessionStorage.setItem('dhanrakshak_notifications_cache', JSON.stringify({
         items,
         timestamp: Date.now()
       }))
     } catch (e) {}
+
+    const dismissed = getDismissedKeys()
+    setNotifications(items.filter((i) => !dismissed.has(i.key)))
   }, [user])
+
+  const handleClearNotifications = () => {
+    try {
+      const dismissed = getDismissedKeys()
+      notifications.forEach((n) => dismissed.add(n.key))
+      localStorage.setItem('dhanrakshak_dismissed_notifications', JSON.stringify([...dismissed]))
+    } catch (e) {}
+    setNotifications([])
+  }
 
   useEffect(() => {
     fetchNotifications()
@@ -205,6 +250,19 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
   }
 
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
+
+  // Escape closes whichever header dropdown/menu is open
+  useEffect(() => {
+    if (!notificationDropdownOpen && !profileDropdownOpen && !mobileMenuOpen) return
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setNotificationDropdownOpen(false)
+      setProfileDropdownOpen(false)
+      setMobileMenuOpen(false)
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [notificationDropdownOpen, profileDropdownOpen, mobileMenuOpen])
 
   // Feedback Modal States
   const [feedbackOpen, setFeedbackOpen] = useState(false)
@@ -254,45 +312,19 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
     }
   }
 
-  // Security Splash Overlay State
-  const [showSecuritySplash, setShowSecuritySplash] = useState(() => {
+  // First-run privacy explainer — a single static dismissible card (no fake
+  // "verification" timer; just tells the user what happens once and gets out
+  // of the way).
+  const [showPrivacyNote, setShowPrivacyNote] = useState(() => {
     try {
       return localStorage.getItem('dhanrakshak_security_acknowledged') !== 'true'
     } catch (e) {
       return true
     }
   })
-  const [progress, setProgress] = useState(0)
-  const [splashStepText, setSplashStepText] = useState('Initializing Private Local Environment...')
 
-  useEffect(() => {
-    if (showSecuritySplash) {
-      let currentProgress = 0
-      const interval = setInterval(() => {
-        currentProgress += 1
-        if (currentProgress >= 100) {
-          currentProgress = 100
-          setSplashStepText('Security checks complete. Connection verified!')
-          clearInterval(interval)
-        } else if (currentProgress < 25) {
-          setSplashStepText('Initializing secure device-only zone...')
-        } else if (currentProgress < 50) {
-          setSplashStepText('Enabling row-level security (RLS) policies...')
-        } else if (currentProgress < 75) {
-          setSplashStepText('Deploying local regex transaction scanners...')
-        } else if (currentProgress < 95) {
-          setSplashStepText('Establishing encrypted connection channel...')
-        } else {
-          setSplashStepText('Verifying integrity policies...')
-        }
-        setProgress(currentProgress)
-      }, 15) // 100 * 15ms = 1.5 seconds load
-      return () => clearInterval(interval)
-    }
-  }, [showSecuritySplash])
-
-  const handleAcknowledgeSplash = () => {
-    setShowSecuritySplash(false)
+  const handleDismissPrivacyNote = () => {
+    setShowPrivacyNote(false)
     try {
       localStorage.setItem('dhanrakshak_security_acknowledged', 'true')
     } catch (e) {}
@@ -390,80 +422,6 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
       <a href="#main-content" className="skip-to-content">
         Skip to main content
       </a>
-      {/* Dynamic Security Verification Splash Overlay */}
-      {showSecuritySplash && (
-        <div className="fixed inset-0 z-[9999] bg-surface-0 flex flex-col items-center justify-center p-4 transition-all duration-500 ease-out animate-fade-in animate-none">
-          {/* Security Shield Icon */}
-          <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-brand-500/10 border border-brand-500/30 shadow-2xl shadow-brand-500/20">
-            <div className="absolute inset-0 rounded-3xl bg-brand-500/5 animate-pulse" />
-            <span className="text-4xl animate-bounce">🛡️</span>
-          </div>
-
-          {/* Secure Loading Text */}
-          <h3 className="text-lg font-bold tracking-tight text-zinc-50 mb-2 text-center">
-            Secure Local Data Acknowledgment
-          </h3>
-          <p className="text-xs text-zinc-400 mb-6 font-semibold uppercase tracking-widest text-center">
-            Dhanrakshak Financial Security Protocol
-          </p>
-
-          {/* Progress bar */}
-          <div className="h-1.5 w-64 bg-surface-3 rounded-full overflow-hidden mb-3 shadow-inner border border-border-subtle">
-            <div
-              className="h-full bg-brand-500 rounded-full transition-all duration-75 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-
-          {/* Dynamic Loading Step Text */}
-          <p className="text-xs text-zinc-400 font-medium mb-8 text-center animate-pulse h-4">
-            {splashStepText}
-          </p>
-
-          {/* Solid Reassurance Card with High Contrast */}
-          <div className="w-full max-w-md bg-surface-1 border border-border-subtle rounded-2xl p-5 shadow-[var(--shadow-md)] animate-fade-in space-y-4 mb-8">
-            <p className="text-xs font-bold text-[var(--status-positive-text)] uppercase tracking-widest flex items-center justify-center gap-1.5">
-              <span>🔒</span> Zero-Trust Data Integrity Architecture
-            </p>
-
-            <div className="space-y-3 text-xs text-zinc-300 leading-relaxed font-medium">
-              <p className="flex items-start gap-2">
-                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
-                <span><strong>100% Local Scans:</strong> Email scanning is processed directly in your browser. Raw messages are parsed and discarded instantly.</span>
-              </p>
-              <p className="flex items-start gap-2">
-                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
-                <span><strong>Read-Only Google Access:</strong> Our Google OAuth integration requests restricted read-only permissions, unable to send or modify any emails.</span>
-              </p>
-              <p className="flex items-start gap-2">
-                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
-                <span><strong>No Passwords Requested:</strong> We never prompt for credit card PINs, banking credentials, net-banking security passwords, or OTPs.</span>
-              </p>
-              <p className="flex items-start gap-2">
-                <span className="text-[var(--status-positive-text)] mt-0.5 select-none">✔</span>
-                <span><strong>Supabase Isolation:</strong> Extracted data is saved inside your private database instance, fully isolated via Row-Level Security (RLS).</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Premium Entry Button */}
-          <div className="h-14 flex items-center justify-center">
-            {progress === 100 ? (
-              <button
-                onClick={handleAcknowledgeSplash}
-                className="px-8 py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-sm tracking-wide shadow-[var(--shadow-md)] hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer animate-scale-up"
-              >
-                Verify & Enter Dashboard
-              </button>
-            ) : (
-              <p className="text-zinc-400 text-xs font-semibold uppercase tracking-widest animate-pulse">
-                Auditing System Security Policies...
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
       <header className={cn(
         "sticky top-0 z-50 w-full border-b select-none transition-all duration-300",
         isStaticLight
@@ -476,19 +434,17 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
             <div className="flex items-center gap-2.5">
               <div className="text-base tracking-tight leading-none">
                 <span className={cn(
-                  "font-extrabold bg-gradient-to-r bg-clip-text text-transparent transition-all duration-300",
-                  (isStaticLight || isLight)
-                    ? "from-emerald-600 to-teal-500"
-                    : "from-brand-300 to-emerald-400"
+                  "font-extrabold transition-colors duration-300",
+                  (isStaticLight || isLight) ? "text-sb-primary" : "text-brand-400"
                 )}>Dhan</span><span className={cn((isStaticLight || isLight) ? "text-sb-ink" : "text-white")}>rakshak</span>
               </div>
               <span className={cn(
-                "text-[8px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full border hidden md:inline-flex items-center gap-1.5 transition-all duration-300 shadow-sm",
+                "text-xs font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full border hidden md:inline-flex items-center gap-1.5",
                 (isStaticLight || isLight)
-                  ? "bg-emerald-50 border-emerald-200/50 text-emerald-700 shadow-emerald-500/5"
-                  : "bg-brand-500/10 border-brand-500/20 text-brand-400 shadow-brand-500/5"
+                  ? "bg-brand-50 border-brand-200/60 text-brand-700"
+                  : "bg-brand-500/10 border-brand-500/20 text-brand-400"
               )}>
-                <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", (isStaticLight || isLight) ? "bg-emerald-500" : "bg-brand-400")} />
+                <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", (isStaticLight || isLight) ? "bg-brand-600" : "bg-brand-400")} />
                 Automated Tracker
               </span>
             </div>
@@ -562,18 +518,20 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                   <button
                     onClick={() => setNotificationDropdownOpen(!notificationDropdownOpen)}
                     className={cn(
-                      "transition-colors h-8 w-8 flex items-center justify-center rounded-lg relative cursor-pointer",
-                      isStaticLight 
-                        ? "text-sb-ink-muted hover:text-sb-ink hover:bg-sb-canvas-soft" 
+                      "transition-colors h-11 w-11 flex items-center justify-center rounded-lg relative cursor-pointer",
+                      isStaticLight
+                        ? "text-sb-ink-muted hover:text-sb-ink hover:bg-sb-canvas-soft"
                         : "text-zinc-400 hover:text-white hover:bg-white/5"
                     )}
                     title="Notifications"
-                    aria-label="View notifications"
+                    aria-label={notifications.length > 0 ? `View notifications (${notifications.length} unread)` : 'View notifications'}
                     aria-expanded={notificationDropdownOpen}
                   >
                     <Bell className="h-4 w-4" />
                     {notifications.length > 0 && (
-                      <span className="absolute top-1.5 right-1.5 flex h-2 w-2 items-center justify-center rounded-full bg-red-500 ring-1 ring-white/10" />
+                      <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--status-danger-text)] px-0.5 text-[10px] font-bold text-white ring-1 ring-white/10">
+                        {notifications.length > 9 ? '9+' : notifications.length}
+                      </span>
                     )}
                   </button>
 
@@ -582,29 +540,31 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                       <div className="fixed inset-0 z-40" onClick={() => setNotificationDropdownOpen(false)} />
                       <div className={cn("absolute right-0 mt-2 w-64 rounded-xl border p-3 shadow-2xl z-50 animate-scale-up backdrop-blur-xl max-h-[80vh] overflow-y-auto", isStaticLight ? "border-sb-hairline bg-sb-canvas text-sb-ink" : "border-border-subtle bg-surface-1 text-zinc-100")}>
                         <div className="flex items-center justify-between border-b border-border-subtle pb-2 mb-2">
-                          <span className={cn("text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5", isStaticLight ? "text-sb-ink-muted" : "text-zinc-400")}>
+                          <span className={cn("text-xs font-bold uppercase tracking-widest flex items-center gap-1.5", isStaticLight ? "text-sb-ink-muted" : "text-zinc-400")}>
                             <Bell className="h-3 w-3" /> Notifications
                           </span>
                           {notifications.length > 0 && (
                             <button
-                              onClick={() => setNotifications([])}
-                              className={cn("text-[8px] font-bold uppercase tracking-wider transition-colors cursor-pointer", isStaticLight ? "text-sb-primary hover:text-sb-primary-deep" : "text-zinc-500 hover:text-zinc-300")}
+                              onClick={handleClearNotifications}
+                              className={cn("text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer", isStaticLight ? "text-sb-primary hover:text-sb-primary-deep" : "text-zinc-500 hover:text-zinc-300")}
                             >
                               Clear
                             </button>
                           )}
                         </div>
                         {notifications.length === 0 ? (
-                          <p className="text-[10px] text-zinc-500 py-4 text-center font-medium">
+                          <p className="text-xs text-zinc-500 py-4 text-center font-medium">
                             No new notifications. All caught up!
                           </p>
                         ) : (
                           <div className="space-y-2">
-                            {notifications.map((n, idx) => (
-                              <div
-                                key={idx}
+                            {notifications.map((n) => (
+                              <Link
+                                key={n.key}
+                                to={n.href}
+                                onClick={() => setNotificationDropdownOpen(false)}
                                 className={cn(
-                                  "p-2.5 rounded-lg border text-[10px] leading-relaxed font-semibold transition-all",
+                                  "block p-2.5 rounded-lg border text-xs leading-relaxed font-semibold transition-all hover:opacity-85",
                                   n.type === 'danger'
                                     ? 'bg-[var(--status-danger-subtle)] border-[var(--status-danger-border)] text-[var(--status-danger-text)]'
                                     : n.type === 'warning'
@@ -613,7 +573,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                                 )}
                               >
                                 {n.message}
-                              </div>
+                              </Link>
                             ))}
                           </div>
                         )}
@@ -635,7 +595,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                 ) : profile?.subscription_status === 'active' ? (
                   profile?.subscription_plan_type === 'monthly' ? (
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider text-zinc-300 bg-surface-2 border border-border-subtle shrink-0 select-none">
+                      <span className="px-2.5 py-1 rounded-[6px] text-xs font-bold uppercase tracking-wider text-zinc-300 bg-surface-2 border border-border-subtle shrink-0 select-none">
                         Monthly Plan 👑
                       </span>
                       <Link
@@ -653,7 +613,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                             showToast(`Your Yearly Plan is active until ${new Date(profile.subscription_expires_at).toLocaleDateString('en-IN')}`, 'info')
                           }
                         }}
-                        className="px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] shrink-0 cursor-pointer hover:bg-[var(--status-positive-border)]/20 transition-all select-none"
+                        className="px-2.5 py-1 rounded-[6px] text-xs font-bold uppercase tracking-wider text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] shrink-0 cursor-pointer hover:bg-[var(--status-positive-border)]/20 transition-all select-none"
                         title="Click to view validity"
                       >
                         Yearly Plan 👑
@@ -683,13 +643,13 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                   <button
                     onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
                     className={cn(
-                      "flex items-center gap-1.5 transition-colors cursor-pointer",
+                      "flex items-center gap-1.5 h-11 px-1 transition-colors cursor-pointer",
                       isStaticLight ? "text-sb-ink hover:text-sb-ink" : "text-zinc-400 hover:text-white"
                     )}
                     aria-label="User profile menu"
                     aria-expanded={profileDropdownOpen}
                   >
-                    <div className="h-6 w-6 rounded-full bg-brand-500/10 flex items-center justify-center text-[10px] font-bold text-brand-500 overflow-hidden border border-brand-500/25 shrink-0">
+                    <div className="h-6 w-6 rounded-full bg-brand-500/10 flex items-center justify-center text-xs font-bold text-brand-500 overflow-hidden border border-brand-500/25 shrink-0">
                       {user?.user_metadata?.avatar_url ? (
                         <img src={user.user_metadata.avatar_url} alt="Avatar" className="h-full w-full object-cover" />
                       ) : (
@@ -697,7 +657,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                       )}
                     </div>
                     <span className="text-[11px] font-medium truncate max-w-[60px] hidden sm:inline">{getFirstName()}</span>
-                    <span className="text-[8px] opacity-60">▼</span>
+                    <ChevronDown className="h-3 w-3 opacity-60" />
                   </button>
 
                   {profileDropdownOpen && (
@@ -728,6 +688,15 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                         <button
                           onClick={() => {
                             setProfileDropdownOpen(false)
+                            setFeedbackOpen(true)
+                          }}
+                          className={cn("w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors cursor-pointer", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-400 hover:bg-surface-2 hover:text-zinc-100")}
+                        >
+                          <MessageSquare className="h-3.5 w-3.5 text-zinc-500 shrink-0" /> Send Feedback
+                        </button>
+                        <button
+                          onClick={() => {
+                            setProfileDropdownOpen(false)
                             signOut()
                           }}
                           className={cn("w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors border-t mt-1.5 pt-1.5 cursor-pointer", isStaticLight ? "border-sb-hairline text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)]" : "border-border-subtle text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)]")}
@@ -750,7 +719,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               {/* Hamburger Menu button for mobile */}
               <button
                 className={cn(
-                  "flex lg:hidden h-8 w-8 items-center justify-center rounded-lg transition-colors cursor-pointer shrink-0",
+                  "flex lg:hidden h-11 w-11 items-center justify-center rounded-lg transition-colors cursor-pointer shrink-0",
                   isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-400 hover:bg-white/5 hover:text-white"
                 )}
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -924,6 +893,17 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
         </div>
       )}
       <main className="mx-auto flex-1 max-w-7xl w-full px-4 py-6 sm:px-6" id="main-content">
+        {user && isAppRoute && showPrivacyNote && (
+          <div className="mb-6 rounded-2xl border border-border-subtle bg-surface-1 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start gap-3 shadow-[var(--shadow-sm)]">
+            <div className="flex-1 space-y-1.5 text-xs text-zinc-400 leading-relaxed">
+              <p className="text-sm font-semibold text-text-primary">How your data is handled</p>
+              <p>Bank alerts are read and parsed directly in your browser — nothing is uploaded. Your Google access is read-only, and we never ask for passwords, PINs, or OTPs.</p>
+            </div>
+            <Button variant="secondary" size="sm" onClick={handleDismissPrivacyNote} className="shrink-0 self-start sm:self-auto">
+              Got it
+            </Button>
+          </div>
+        )}
         {children}
       </main>
 
@@ -934,7 +914,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
             <p className={cn("font-semibold", isStaticLight ? "text-sb-ink" : "text-zinc-300")}>© 2026 Dhanrakshak · All Rights Reserved</p>
             <p className="mt-1">Version 1.0.0 (Production Build) · Proprietary Closed-Source License</p>
           </div>
-          <div className={cn("flex flex-wrap justify-center gap-6 font-medium md:pr-44", isStaticLight ? "text-sb-ink-muted" : "")}>
+          <div className={cn("flex flex-wrap justify-center gap-6 font-medium", isStaticLight ? "text-sb-ink-muted" : "")}>
             <Link to="/privacy" className="hover:text-brand-400 transition-colors">Privacy Policy</Link>
             <Link to="/terms" className="hover:text-brand-400 transition-colors">Terms of Service</Link>
             <Link to="/refund-policy" className="hover:text-brand-400 transition-colors">Refund Policy</Link>
@@ -944,60 +924,32 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
         </div>
       </footer>
 
-      {/* Floating Action Button (FAB) for Tester Feedback */}
-      <button
-        onClick={() => setFeedbackOpen(true)}
-        className="fixed bottom-6 right-6 z-[40] flex items-center gap-2 px-4 py-3 rounded-full bg-brand-500 hover:bg-brand-600 text-white font-bold text-[11px] tracking-wider uppercase shadow-[var(--shadow-md)] hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
-        title="Send Tester Feedback"
-        aria-label="Open tester feedback form"
+      {/* Feedback Modal — opened from the profile menu / Settings, not a FAB */}
+      <Modal
+        isOpen={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        title={feedbackSuccess ? 'Feedback submitted' : 'Send feedback'}
       >
-        <span className="text-sm" aria-hidden="true">💬</span> Give Feedback
-      </button>
-
-      {/* Tester Feedback Glassmorphic Modal */}
-      {feedbackOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-md animate-fade-in" role="dialog" aria-modal="true" aria-label="Tester Feedback">
-          {/* Modal Card */}
-          <div className="w-full max-w-md bg-surface-1/90 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col max-h-[90vh] overflow-y-auto animate-scale-up">
-            
             {/* Success screen */}
             {feedbackSuccess ? (
               <div className="flex flex-col items-center justify-center py-10 text-center space-y-4 animate-fade-in">
-                <div className="h-16 w-16 rounded-full bg-brand-500/10 border border-brand-500/30 flex items-center justify-center text-3xl animate-bounce">
+                <div className="h-16 w-16 rounded-full bg-brand-500/10 border border-brand-500/30 flex items-center justify-center text-3xl">
                   🎉
                 </div>
-                <h3 className="text-lg font-bold text-white">Feedback Submitted!</h3>
+                <h3 className="text-lg font-bold text-text-primary">Feedback submitted!</h3>
                 <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
-                  Thank you! Your suggestions help us refine and protect Dhanrakshak's visual and security standards.
+                  Thank you! Your feedback helps us make Dhanrakshak better.
                 </p>
-                <div className="w-10 h-1 bg-brand-500 rounded-full animate-pulse mt-2" />
+                <div className="w-10 h-1 bg-brand-500 rounded-full mt-2" />
               </div>
             ) : (
               <>
-                {/* Header */}
-                <div className="flex items-center justify-between pb-4 border-b border-border-subtle/50 mb-5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">💡</span>
-                    <div>
-                      <h3 className="text-sm font-bold text-white leading-none">Tester Feedback Engine</h3>
-                      <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-semibold mt-1">Help Us Improve</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setFeedbackOpen(false)}
-                    className="h-8 w-8 rounded-full border border-border-subtle/60 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-surface-2 transition-colors cursor-pointer"
-                    aria-label="Close feedback form"
-                  >
-                    <span aria-hidden="true">✕</span>
-                  </button>
-                </div>
-
                 {/* Form */}
                 <form onSubmit={handleFeedbackSubmit} className="space-y-4 flex-1">
                   
                   {/* Category Selection */}
                   <div>
-                    <label className="block text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-2">
+                    <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">
                       Feedback Type
                     </label>
                     <div className="grid grid-cols-2 gap-2">
@@ -1018,8 +970,8 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                               : 'bg-surface-2/40 border-border-subtle/50 text-zinc-400 hover:bg-surface-2/85 hover:text-white'
                           )}
                         >
-                          <p className="text-[10px] font-bold">{cat.label}</p>
-                          <p className="text-[8px] opacity-60 mt-0.5 leading-normal">{cat.desc}</p>
+                          <p className="text-xs font-bold">{cat.label}</p>
+                          <p className="text-xs opacity-60 mt-0.5 leading-normal">{cat.desc}</p>
                         </button>
                       ))}
                     </div>
@@ -1027,7 +979,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
 
                   {/* Rating Selector */}
                   <div>
-                    <label className="block text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-2">
+                    <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">
                       How was your experience?
                     </label>
                     <div className="flex items-center justify-between bg-surface-2/40 border border-border-subtle/40 rounded-2xl p-3">
@@ -1056,7 +1008,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                           </span>
                           <span
                             className={cn(
-                              'text-[8px] font-bold transition-colors duration-200',
+                              'text-xs font-bold transition-colors duration-200',
                               feedbackRating === rt.val ? 'text-amber-400' : 'text-zinc-500'
                             )}
                           >
@@ -1069,7 +1021,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
 
                   {/* Suggestion Text */}
                   <div>
-                    <label className="block text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-2">
+                    <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">
                       Suggestions or Issue details
                     </label>
                     <textarea
@@ -1082,20 +1034,15 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                       required
                       className="w-full bg-surface-2/60 border border-border-subtle rounded-2xl p-3.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400 transition-all resize-none leading-relaxed"
                     />
-                    <div className="flex justify-between items-center mt-1 text-[8px] text-zinc-500 font-semibold px-1">
+                    <div className="flex justify-between items-center mt-1 text-xs text-zinc-500 font-semibold px-1">
                       <span>Minimum 5 characters</span>
                       <span>{feedbackMessage.length}/500</span>
                     </div>
                   </div>
 
-                  {/* Submit Button */}
-                  <button
-                    type="submit"
-                    disabled={feedbackMessage.trim().length < 5 || feedbackLoading}
-                    className="w-full h-11 rounded-2xl bg-gradient-to-r from-brand-400 to-brand-600 hover:from-brand-300 hover:to-brand-500 text-static-white font-bold text-[11px] uppercase tracking-wider disabled:opacity-40 disabled:hover:from-brand-400 disabled:hover:to-brand-600 flex items-center justify-center gap-2 border border-brand-400/20 shadow-md shadow-brand-500/5 cursor-pointer transition-all duration-200"
-                  >
-                    {feedbackLoading ? 'Submitting...' : '🚀 Submit Suggestion'}
-                  </button>
+                  <Button type="submit" block loading={feedbackLoading} disabled={feedbackMessage.trim().length < 5}>
+                    Submit Feedback
+                  </Button>
                 </form>
 
                 {/* Expandable Submitted Feedback History Log */}
@@ -1104,10 +1051,10 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                     <button
                       type="button"
                       onClick={() => setShowLogs(!showLogs)}
-                      className="w-full flex items-center justify-between text-[9px] font-bold text-zinc-400 hover:text-zinc-200 uppercase tracking-wider transition-colors cursor-pointer"
+                      className="w-full flex items-center justify-between text-xs font-bold text-zinc-400 hover:text-zinc-200 uppercase tracking-wider transition-colors cursor-pointer"
                     >
-                      <span>📂 Your Submitted Logs ({feedbackLogs.length})</span>
-                      <span>{showLogs ? '▼' : '▲'}</span>
+                      <span>Your submitted feedback ({feedbackLogs.length})</span>
+                      {showLogs ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                     </button>
 
                     {showLogs && (
@@ -1115,11 +1062,11 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                         {feedbackLogs.map((log) => (
                           <div
                             key={log.id}
-                            className="p-2.5 rounded-xl bg-surface-2/40 border border-border-subtle/30 text-[10px] leading-relaxed space-y-1.5"
+                            className="p-2.5 rounded-xl bg-surface-2/40 border border-border-subtle/30 text-xs leading-relaxed space-y-1.5"
                           >
-                            <div className="flex justify-between items-center text-[8px] font-bold text-zinc-400">
+                            <div className="flex justify-between items-center text-xs font-bold text-zinc-400">
                               <span className={cn(
-                                "inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[8px] font-bold uppercase",
+                                "inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-bold uppercase",
                                 log.category === 'bug'
                                   ? 'bg-red-500/10 text-red-400 border-red-500/20'
                                   : log.category === 'feature_request'
@@ -1137,8 +1084,8 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                               <span>{new Date(log.created_at).toLocaleDateString()}</span>
                             </div>
                             <p className="text-zinc-200 break-words text-xs">{log.message}</p>
-                            <div className="flex items-center gap-1 text-amber-400 font-bold text-[8px]">
-                              <span>★</span>
+                            <div className="flex items-center gap-1 text-amber-400 font-bold text-xs">
+                              <Star className="h-3 w-3 fill-current" />
                               <span>Rating: {log.rating}/5</span>
                             </div>
                           </div>
@@ -1149,33 +1096,31 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                 )}
               </>
             )}
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* PWA Install Banner for Mobile Viewports */}
       {showInstallBanner && (
         <div className="fixed bottom-20 left-4 right-4 z-50 md:hidden animate-slide-up">
           <div className="bg-surface-1/95 border border-border-subtle/85 backdrop-blur-xl rounded-2xl p-4 shadow-2xl flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 shadow-md shadow-brand-500/10">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 shadow-[var(--shadow-sm)]">
                 <span className="text-base font-bold text-static-white">{currencySymbol}</span>
               </div>
               <div>
                 <h4 className="text-xs font-bold text-white leading-tight">Install Dhanrakshak PWA</h4>
-                <p className="text-[10px] text-zinc-400 mt-0.5 font-medium">Add to your home screen for quick secure access.</p>
+                <p className="text-xs text-zinc-400 mt-0.5 font-medium">Add to your home screen for quick secure access.</p>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={handleDismissBanner}
-                className="px-3 py-1.5 rounded-lg border border-border-subtle text-[10px] font-bold text-zinc-400 hover:text-white cursor-pointer transition-colors"
+                className="px-3 py-1.5 rounded-lg border border-border-subtle text-xs font-bold text-zinc-400 hover:text-white cursor-pointer transition-colors"
               >
                 Dismiss
               </button>
               <button
                 onClick={handleInstallClick}
-                className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-brand-600 text-static-white shadow-lg border border-brand-400/20 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                className="px-4 py-1.5 rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] shadow-[var(--shadow-sm)] cursor-pointer transition-colors hover:bg-[var(--btn-primary-bg-hover)] active:bg-[var(--btn-primary-bg-active)]"
               >
                 Install
               </button>
@@ -1203,8 +1148,8 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               )}
               aria-label="Dashboard"
             >
-              <span className={cn("text-xl leading-none", location.pathname === ROUTES.DASHBOARD && "text-brand-400")}>🏠</span>
-              <span className="text-[9px] font-semibold tracking-wide">Home</span>
+              <Home className="h-5 w-5" />
+              <span className="text-xs font-semibold tracking-wide">Home</span>
             </Link>
 
             {/* Expenses */}
@@ -1218,8 +1163,8 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               )}
               aria-label="Expenses"
             >
-              <span className={cn("text-xl leading-none", location.pathname === ROUTES.EXPENSES && "text-brand-400")}>💳</span>
-              <span className="text-[9px] font-semibold tracking-wide">Expenses</span>
+              <CreditCard className="h-5 w-5" />
+              <span className="text-xs font-semibold tracking-wide">Expenses</span>
             </Link>
 
             {/* Quick Add FAB — centre button */}
@@ -1230,7 +1175,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                 className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500 hover:bg-brand-600 shadow-[var(--shadow-md)] hover:scale-110 active:scale-95 transition-all duration-200"
                 aria-label="Quick add transaction"
               >
-                <span className="text-xl font-bold text-white leading-none">+</span>
+                <Plus className="h-6 w-6 text-white" strokeWidth={2.5} />
               </Link>
             </div>
 
@@ -1245,15 +1190,15 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               )}
               aria-label="Pending approvals"
             >
-              <span className={cn("text-xl leading-none relative", location.pathname === ROUTES.PENDING && "text-brand-400")}>
-                🔔
+              <span className="relative inline-flex">
+                <Bell className="h-5 w-5" />
                 {notifications.length > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-red-500 text-[7px] font-bold text-white">
+                  <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--status-danger-text)] px-0.5 text-[10px] font-bold text-white">
                     {notifications.length > 9 ? '9+' : notifications.length}
                   </span>
                 )}
               </span>
-              <span className="text-[9px] font-semibold tracking-wide">Pending</span>
+              <span className="text-xs font-semibold tracking-wide">Pending</span>
             </Link>
 
             {/* Insights */}
@@ -1267,8 +1212,8 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               )}
               aria-label="Insights"
             >
-              <span className={cn("text-xl leading-none", location.pathname === ROUTES.INSIGHTS && "text-brand-400")}>✦</span>
-              <span className="text-[9px] font-semibold tracking-wide">Insights</span>
+              <Sparkles className="h-5 w-5" />
+              <span className="text-xs font-semibold tracking-wide">Insights</span>
             </Link>
           </div>
         </nav>

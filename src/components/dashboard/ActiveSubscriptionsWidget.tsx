@@ -110,9 +110,9 @@ export default function ActiveSubscriptionsWidget({
               <span className="text-xl shrink-0">{cat.emoji}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-zinc-200 truncate">{sub.merchant}</p>
-                <p className="text-[10px] text-zinc-500 mt-0.5">{formatCurrency(sub.amount)}/mo</p>
+                <p className="text-xs text-zinc-500 mt-0.5">{formatCurrency(sub.amount)}/mo</p>
               </div>
-              <div className={`text-[10px] font-bold rounded-lg px-2 py-1 border shrink-0 ${renewsColor}`}>
+              <div className={`text-xs font-bold rounded-lg px-2 py-1 border shrink-0 ${renewsColor}`}>
                 {sub.daysToRenewal <= 0 ? 'Due!' : sub.daysToRenewal === 1 ? '1 day' : `${sub.daysToRenewal}d`}
               </div>
             </div>

@@ -100,7 +100,7 @@ export default function AuthModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in"
+      className="fixed inset-0 z-modal flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in"
       onClick={closeAuthModal}
     >
       <div
@@ -126,7 +126,7 @@ export default function AuthModal() {
           <h1 className="text-2xl font-black tracking-tight text-zinc-50 mb-1 flex items-center justify-center select-none">
             <span className="text-brand-400">Dhan</span><span>rakshak</span>
           </h1>
-          <p className="text-[10px] font-bold tracking-wider text-emerald-400 uppercase text-center">
+          <p className="text-xs font-bold tracking-wider text-emerald-400 uppercase text-center">
             Automated Spend Tracker
           </p>
         </div>
@@ -228,7 +228,7 @@ export default function AuthModal() {
         {/* Divider */}
         <div className="my-5 flex items-center gap-3">
           <div className="h-px flex-1 bg-border-subtle/50" />
-          <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">or</span>
+          <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider">or</span>
           <div className="h-px flex-1 bg-border-subtle/50" />
         </div>
 
@@ -283,7 +283,7 @@ export default function AuthModal() {
               <strong className="text-zinc-50">What you get:</strong> transactions tracked automatically, with zero manual entry.
             </p>
           </div>
-          <p className="text-[10px] text-zinc-500 leading-relaxed pt-1 border-t border-border-subtle/40">
+          <p className="text-xs text-zinc-500 leading-relaxed pt-1 border-t border-border-subtle/40">
             Prefer not to connect Gmail? Sign up with email/password instead — no external permissions requested, and you can link Gmail later from Settings. Since {APP_CONFIG.APP_NAME} is still completing Google's formal app verification, Google may show an "unverified app" screen with a developer key instead of our name — that's expected; click <span className="font-mono text-zinc-400">Advanced → Go to {APP_CONFIG.APP_NAME}</span> to continue safely.
           </p>
         </div>

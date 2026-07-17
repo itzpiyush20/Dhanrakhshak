@@ -75,7 +75,7 @@ export function ExpenseBreakdown({
               }}
             >
               <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-surface-1 flex flex-col items-center justify-center shadow-inner">
-                <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
                   Outflow
                 </p>
                 <p className="text-base font-bold text-white mt-0.5">
@@ -101,7 +101,7 @@ export function ExpenseBreakdown({
                     </div>
                     <div className="font-semibold text-zinc-200 shrink-0">
                       {formatCurrencyCompact(item.amount)}{' '}
-                      <span className="text-zinc-500 font-normal text-[10px]">
+                      <span className="text-zinc-500 font-normal text-xs">
                         ({item.percentage.toFixed(0)}%)
                       </span>
                     </div>
@@ -109,7 +109,7 @@ export function ExpenseBreakdown({
                 )
               })}
               {summary.category_breakdown.length > 5 && (
-                <div className="flex items-center justify-between text-[10px] text-zinc-500 font-semibold border-t border-border-subtle/30 pt-1.5">
+                <div className="flex items-center justify-between text-xs text-zinc-500 font-semibold border-t border-border-subtle/30 pt-1.5">
                   <span>Other categories</span>
                   <span>
                     {formatCurrencyCompact(

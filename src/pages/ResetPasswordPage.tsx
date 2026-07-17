@@ -147,7 +147,7 @@ export default function ResetPasswordPage() {
           disabled={loading || success}
         />
 
-        <Button type="submit" block loading={loading} disabled={loading || success} className="w-full py-2.5 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white transition-all">
+        <Button type="submit" block loading={loading} disabled={loading || success}>
           Update Password & Login
         </Button>
       </form>

@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
-import { Card, Button, Input, Select, Badge, EmptyState, Modal } from '@/components/ui'
+import { Card, Button, Input, Select, Badge, EmptyState, Modal, ConfirmDialog } from '@/components/ui'
 import {
   getTransactions,
   updateTransaction,
@@ -154,6 +154,7 @@ export default function PendingPage() {
     skipped: number
   } | null>(null)
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
+  const [confirmRejectId, setConfirmRejectId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const isGoogleConnected = hasGoogleToken
   const [totalPendingCount, setTotalPendingCount] = useState(0)
@@ -451,8 +452,6 @@ export default function PendingPage() {
   }
 
   const handleReject = async (id: string) => {
-    if (!confirm('Reject and delete this transaction alert?')) return
-
     setActionLoadingId(id)
     setError(null)
     try {
@@ -579,7 +578,7 @@ export default function PendingPage() {
 
         {/* ── Premium Gate ──────────────────────────────────── */}
         {isPremiumRequired && (
-          <div className="rounded-3xl bg-gradient-to-br from-brand-500/15 to-brand-600/5 border border-brand-500/30 p-6 flex flex-col items-center text-center gap-4 shadow-lg animate-fade-in">
+          <div className="rounded-3xl bg-brand-500/10 border border-brand-500/30 p-6 flex flex-col items-center text-center gap-4 shadow-[var(--shadow-md)] animate-fade-in">
             <div className="h-14 w-14 rounded-2xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-3xl">
               <Crown className="h-7 w-7 text-brand-400" />
             </div>
@@ -611,7 +610,7 @@ export default function PendingPage() {
               ].map((f) => (
                 <div key={f.label} className="rounded-xl bg-surface-2 border border-border-subtle p-2.5 text-center flex flex-col items-center justify-center">
                   <span className="block mb-1">{f.icon}</span>
-                  <span className="text-[10px] text-zinc-400 font-semibold block">{f.label}</span>
+                  <span className="text-xs text-zinc-400 font-semibold block">{f.label}</span>
                 </div>
               ))}
             </div>
@@ -639,7 +638,7 @@ export default function PendingPage() {
                 <Sparkles className="h-4 w-4 text-brand-300" /> Scan Bank Alerts
               </Button>
             </div>
-            <span className="text-[10px] font-semibold text-brand-300 font-mono bg-surface-2 border border-border-subtle/50 px-2 py-0.5 rounded-md flex items-center gap-1">
+            <span className="text-xs font-semibold text-brand-300 font-mono bg-surface-2 border border-border-subtle/50 px-2 py-0.5 rounded-md flex items-center gap-1">
               <Calendar className="h-3 w-3 text-brand-300 shrink-0" /> Next Refresh: {getNextRefreshTime(dailyScanTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
             </span>
           </div>
@@ -649,13 +648,13 @@ export default function PendingPage() {
         {lastScanLog && (
           <div className="grid gap-3 sm:grid-cols-3">
             <Card className="bg-surface-1 border-border-subtle p-4 space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Last Scan</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Last Scan</p>
               <p className="text-sm font-bold text-white">
                 {new Date(lastScanLog.scanned_at).toLocaleDateString('en-IN', {
                   day: '2-digit', month: 'short', year: 'numeric',
                 })}
               </p>
-              <p className="text-[10px] text-zinc-500">
+              <p className="text-xs text-zinc-500">
                 {new Date(lastScanLog.scanned_at).toLocaleTimeString('en-IN', {
                   hour: '2-digit', minute: '2-digit', hour12: true,
                 })}
@@ -663,24 +662,24 @@ export default function PendingPage() {
             </Card>
 
             <Card className="bg-surface-1 border-border-subtle p-4 space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Last Scan Stats</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Last Scan Stats</p>
               <p className="text-sm font-bold text-white">{lastScanLog.transactions_found} transactions</p>
-              <p className="text-[10px] text-zinc-500">{lastScanLog.emails_processed} emails processed</p>
+              <p className="text-xs text-zinc-500">{lastScanLog.emails_processed} emails processed</p>
             </Card>
 
             <Card className="bg-surface-1 border-border-subtle p-4 space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                 {nextScanCountdown ? 'Next Scan In' : 'Scan Status'}
               </p>
               {nextScanCountdown ? (
                 <>
                   <p className="text-sm font-bold text-brand-400 font-mono tracking-wider">{nextScanCountdown}</p>
-                  <p className="text-[10px] text-zinc-500">Cooldown active — HH:MM:SS</p>
+                  <p className="text-xs text-zinc-500">Cooldown active — HH:MM:SS</p>
                 </>
               ) : (
                 <>
                   <p className="text-sm font-bold text-[var(--status-positive-text)]">Ready to scan</p>
-                  <p className="text-[10px] text-zinc-500">Click "Scan Bank Alerts" above</p>
+                  <p className="text-xs text-zinc-500">Click "Scan Bank Alerts" above</p>
                 </>
               )}
             </Card>
@@ -861,7 +860,7 @@ export default function PendingPage() {
                 Not ready to connect your Gmail yet? You can try out every feature using pre-generated sample transactions.
               </p>
               <div className="flex items-center justify-between pt-2">
-                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wide">No credentials required</span>
+                <span className="text-xs text-zinc-500 font-bold uppercase tracking-wide">No credentials required</span>
                 <Link to="/profile">
                   <Button size="sm" variant="secondary" className="text-xs font-bold text-brand-400 border-brand-500/20 bg-brand-500/5 hover:bg-brand-500/10">
                     Go to Demo Setup
@@ -874,15 +873,15 @@ export default function PendingPage() {
 
         {/* Quick summary stats */}
         <div className="grid gap-4 sm:grid-cols-2">
-          <Card className="border-l-4 border-l-[var(--status-warning-text)]/80 hover:border-l-[var(--status-warning-text)] transition-all shadow-md">
+          <Card className="shadow-md">
             <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Pending Alerts</p>
-            <p className="mt-1.5 text-2xl font-bold text-white">{totalPendingCount}</p>
-            <p className="text-[10px] text-zinc-500 mt-1">Awaiting your approval</p>
+            <p className="mt-1.5 text-2xl font-bold text-text-primary">{totalPendingCount}</p>
+            <p className="text-xs text-zinc-500 mt-1">Awaiting your approval</p>
           </Card>
-          <Card className="border-l-4 border-l-brand-500/80 hover:border-l-brand-500 transition-all shadow-md">
+          <Card className="shadow-md">
             <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Cumulative Value</p>
             <p className="mt-1.5 text-2xl font-bold text-brand-400">{formatCurrency(totalPendingValue)}</p>
-            <p className="text-[10px] text-zinc-500 mt-1">Total pending cashflow impact</p>
+            <p className="text-xs text-zinc-500 mt-1">Total pending cashflow impact</p>
           </Card>
         </div>
 
@@ -945,11 +944,7 @@ export default function PendingPage() {
               return (
                 <Card
                   key={txn.id}
-                  className={`border-dashed border-zinc-700/60 bg-surface-1/90 group hover:border-zinc-500/80 transition-all flex flex-col gap-4 animate-slide-up border-l-4 ${
-                    isDebit
-                      ? 'border-l-[var(--status-danger-text)]/80'
-                      : 'border-l-[var(--status-positive-text)]/80'
-                  }`}
+                  className="border-dashed border-zinc-700/60 bg-surface-1/90 group hover:border-zinc-500/80 transition-all flex flex-col gap-4 animate-slide-up"
                   style={{ animationDelay: `${idx * 0.05}s` }}
                 >
                   {/* Header */}
@@ -962,7 +957,7 @@ export default function PendingPage() {
                           <span>{txn.merchant || parseShortDescription(txn.description || '', '', '')}</span>
                         </Badge>
                       </div>
-                      <span className="text-[10px] text-zinc-500 font-semibold">{formatDate(txn.date)}</span>
+                      <span className="text-xs text-zinc-500 font-semibold">{formatDate(txn.date)}</span>
                     </div>
                     <span
                       className={`text-base font-extrabold shrink-0 px-3 py-1 rounded-xl border transition-all ${
@@ -1009,7 +1004,7 @@ export default function PendingPage() {
                     <div>
                       <label
                         htmlFor={`cat-select-${txn.id}`}
-                        className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5"
+                        className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1.5"
                       >
                         Category Classification
                       </label>
@@ -1026,10 +1021,10 @@ export default function PendingPage() {
                         ))}
                       </Select>
                       <div className="flex flex-wrap items-center gap-2.5 mt-3 px-3 py-2 rounded-xl bg-surface-2/45 border border-border-subtle/30 shadow-inner">
-                        <span className={`text-[10px] font-bold px-2.5 py-0.5 border rounded-full ${confidenceColor}`}>
+                        <span className={`text-xs font-bold px-2.5 py-0.5 border rounded-full ${confidenceColor}`}>
                           {suggestion.confidence > 0 ? `${suggestion.confidence}% Confidence` : 'Low Confidence'}
                         </span>
-                        <span className="text-[10px] text-zinc-300 font-semibold flex items-center gap-1">
+                        <span className="text-xs text-zinc-300 font-semibold flex items-center gap-1">
                           <Brain className="h-3.5 w-3.5 text-brand-400 shrink-0" />
                           <span className="text-zinc-400">{suggestion.matchReason}</span>
                         </span>
@@ -1039,7 +1034,7 @@ export default function PendingPage() {
                     <div>
                       <label
                         htmlFor={`desc-input-${txn.id}`}
-                        className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5"
+                        className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1.5"
                       >
                         Edit Label / Description
                       </label>
@@ -1059,7 +1054,7 @@ export default function PendingPage() {
                       variant="secondary"
                       size="sm"
                       className="text-[var(--status-danger-text)] border-[var(--status-danger-border)] bg-[var(--status-danger-subtle)] hover:bg-[var(--status-danger-border)] hover:border-[var(--status-danger-text)]/40 w-full sm:w-auto justify-center gap-1.5"
-                      onClick={() => handleReject(txn.id)}
+                      onClick={() => setConfirmRejectId(txn.id)}
                       disabled={actionLoadingId === txn.id}
                     >
                       <Trash2 className="h-4 w-4" /> Reject Alert
@@ -1090,7 +1085,7 @@ export default function PendingPage() {
         className="sm:max-w-xl"
         footer={
           <div className="flex items-center justify-between w-full">
-            <span className="text-[10px] text-zinc-500 font-medium">
+            <span className="text-xs text-zinc-500 font-medium">
               Showing {autoCategorizedTxns.length} auto-approved entries
             </span>
             <Button
@@ -1123,7 +1118,7 @@ export default function PendingPage() {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-white">{txn.merchant || 'Unknown Vendor'}</span>
-                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700/30">
+                    <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700/30">
                       {formatDate(txn.date)}
                     </span>
                   </div>
@@ -1161,6 +1156,18 @@ export default function PendingPage() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={confirmRejectId !== null}
+        onClose={() => setConfirmRejectId(null)}
+        onConfirm={async () => {
+          if (confirmRejectId) await handleReject(confirmRejectId)
+          setConfirmRejectId(null)
+        }}
+        title="Reject alert"
+        message="This transaction alert will be deleted and won't appear in your ledger."
+        confirmLabel="Reject"
+      />
     </AppLayout>
   )
 }

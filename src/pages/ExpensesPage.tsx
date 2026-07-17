@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { AppLayout } from '@/layouts'
-import { Button } from '@/components/ui'
+import { Button, Modal, MonthPicker } from '@/components/ui'
 import ExpenseForm from '@/components/expenses/ExpenseForm'
 import ExpenseList from '@/components/expenses/ExpenseList'
 import { getTransactions } from '@/services/transactions'
@@ -24,7 +24,7 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(() => !!(location.state as any)?.openForm)
   const [editingTransaction, setEditingTransaction] = useState<TransactionRow | null>(null)
-  const [currentMonth] = useState(getCurrentMonth())
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
   const { showToast } = useToast()
   const [error, setError] = useState<string | null>(null)
 
@@ -38,7 +38,7 @@ export default function ExpensesPage() {
     setError(null)
     try {
       const { data } = await withTimeout(
-        getTransactions({ month: currentMonth }),
+        getTransactions({ month: selectedMonth }),
         45000,
         'Transactions fetch'
       )
@@ -49,7 +49,7 @@ export default function ExpensesPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentMonth])
+  }, [selectedMonth])
 
   useEffect(() => {
     document.title = 'Expenses | Dhanrakshak'
@@ -118,9 +118,12 @@ export default function ExpensesPage() {
               <h1 className="text-2xl font-semibold text-white">Expenses</h1>
               <p className="mt-1 text-sm text-zinc-400">Manage your income and expenses</p>
             </div>
-            <Button onClick={() => setShowForm(true)} className="whitespace-nowrap w-full sm:w-auto justify-center">
-              + Add Transaction
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
+              <Button onClick={() => setShowForm(true)} className="whitespace-nowrap w-full sm:w-auto justify-center">
+                + Add Transaction
+              </Button>
+            </div>
           </div>
 
           {/* Search + Filters row */}
@@ -130,7 +133,7 @@ export default function ExpensesPage() {
               placeholder="Search merchant, description, amount..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 bg-surface-2 border border-border-subtle/50 text-zinc-200 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all"
+              className="flex-1 bg-surface-2 border border-border-subtle/50 text-zinc-200 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all"
               aria-label="Search transactions"
             />
             <div className="flex gap-2">
@@ -182,46 +185,35 @@ export default function ExpensesPage() {
 
         {/* Quick stats */}
         <div className="grid gap-4 sm:grid-cols-3">
-          <Card className="border-l-4 border-l-[var(--status-positive-text)]/80 hover:border-l-[var(--status-positive-text)] transition-all shadow-md">
+          <Card className="shadow-md">
             <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Income</p>
-            <p className="mt-1 text-xl font-semibold text-[var(--status-positive-text)] aurora-gradient-text">{formatCurrency(totalIncome)}</p>
+            <p className="mt-1 text-xl font-semibold text-[var(--status-positive-text)]">{formatCurrency(totalIncome)}</p>
           </Card>
-          <Card className="border-l-4 border-l-[var(--status-danger-text)]/80 hover:border-l-[var(--status-danger-text)] transition-all shadow-md">
+          <Card className="shadow-md">
             <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Expenses</p>
             <p className="mt-1 text-xl font-semibold text-[var(--status-danger-text)]">{formatCurrency(totalExpenses)}</p>
           </Card>
-          <Card className={`border-l-4 transition-all shadow-md ${
-            totalIncome - totalExpenses >= 0 
-              ? 'border-l-[var(--status-positive-text)]/80 hover:border-l-[var(--status-positive-text)]' 
-              : 'border-l-[var(--status-danger-text)]/80 hover:border-l-[var(--status-danger-text)]'
-          }`}>
+          <Card className="shadow-md">
             <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Net</p>
-            <p className={`mt-1 text-xl font-semibold ${totalIncome - totalExpenses >= 0 ? 'text-[var(--status-positive-text)] aurora-gradient-text' : 'text-[var(--status-danger-text)]'}`}>
+            <p className={`mt-1 text-xl font-semibold ${totalIncome - totalExpenses >= 0 ? 'text-[var(--status-positive-text)]' : 'text-[var(--status-danger-text)]'}`}>
               {formatCurrency(totalIncome - totalExpenses)}
             </p>
           </Card>
         </div>
 
-        {/* Form Modal Popup */}
-        {showForm && (
-          <div
-            className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center sm:p-4 bg-zinc-950/70 backdrop-blur-md animate-fade-in overflow-y-auto"
-            role="dialog" aria-modal="true"
-            aria-label={editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
-            onClick={handleCancel}
-          >
-            <div
-              className="w-full sm:max-w-lg max-h-[92vh] sm:max-h-[90vh] overflow-y-auto animate-scale-up rounded-t-3xl sm:rounded-3xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <ExpenseForm
-                editingTransaction={editingTransaction}
-                onSaved={handleSaved}
-                onCancel={handleCancel}
-              />
-            </div>
-          </div>
-        )}
+        {/* Add/Edit Transaction Modal */}
+        <Modal
+          isOpen={showForm}
+          onClose={handleCancel}
+          title={editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
+          sheet
+        >
+          <ExpenseForm
+            editingTransaction={editingTransaction}
+            onSaved={handleSaved}
+            onCancel={handleCancel}
+          />
+        </Modal>
 
         {/* Transaction list */}
         <div>

@@ -25,7 +25,7 @@ export function ForecastPanel({ forecast }: ForecastPanelProps) {
           <h2 className="text-base font-bold text-white">3-Month Cash Flow Forecast</h2>
           <p className="text-xs text-zinc-500 mt-0.5">Based on your last 6 months of spending patterns</p>
         </div>
-        <Badge variant="info" className="ml-auto text-[10px]">Predictive</Badge>
+        <Badge variant="info" className="ml-auto text-xs">Predictive</Badge>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         {forecast.map((f, i) => (
@@ -36,7 +36,7 @@ export function ForecastPanel({ forecast }: ForecastPanelProps) {
           }`}>
             <div className="flex items-center justify-between mb-3 gap-2">
               <span className="text-sm font-bold text-white">{f.label}</span>
-              <span className="text-[10px] text-zinc-500 bg-zinc-800 rounded-full px-2 py-0.5 shrink-0">
+              <span className="text-xs text-zinc-500 bg-zinc-800 rounded-full px-2 py-0.5 shrink-0">
                 {f.confidence}% confidence
               </span>
             </div>
@@ -68,7 +68,7 @@ export function ForecastPanel({ forecast }: ForecastPanelProps) {
           </div>
         ))}
       </div>
-      <p className="text-[10px] text-zinc-400 mt-4 text-center">
+      <p className="text-xs text-zinc-400 mt-4 text-center">
         Forecast uses weighted moving average of your last 6 months. Confidence decreases for months further ahead.
       </p>
     </Card>

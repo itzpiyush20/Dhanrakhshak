@@ -224,6 +224,13 @@
   --color-static-zinc-800: #27272a;
   --color-static-zinc-900: #18181b;
   --color-static-zinc-950: #09090b;
+
+  /* Semantic z-index scale — no arbitrary z-[9999] values. */
+  --z-index-dropdown: 30;
+  --z-index-sticky:   40;
+  --z-index-overlay:  50;
+  --z-index-modal:    60;
+  --z-index-toast:    70;
 }
 
 /* ============================================
@@ -243,13 +250,17 @@ body {
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: "cv05" 1, "ss01" 1;
+  /* Tabular figures app-wide — a money app's numbers (amounts, dates, counts)
+     should never jitter in width as digits change. */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "cv05" 1, "ss01" 1, "tnum" 1;
   transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 p { text-wrap: pretty; }
 
-/* Tabular numbers for money — apply via .tnum where amounts render */
+/* Explicit opt-in, kept for call sites that want tabular figures inside an
+   otherwise proportional-figure ancestor (rare; body already sets this). */
 .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 
 html { scroll-behavior: smooth; }
@@ -371,55 +382,12 @@ html { scroll-behavior: smooth; }
 [data-delay="530"] { transition-delay: 530ms; }
 [data-delay="600"] { transition-delay: 600ms; }
 
-/* ── System 2: Hero gradient orbs ── */
-@keyframes orb-drift-1 {
-  0%   { transform: translate(0, 0) scale(1); }
-  33%  { transform: translate(40px, -30px) scale(1.08); }
-  66%  { transform: translate(-20px, 20px) scale(0.95); }
-  100% { transform: translate(0, 0) scale(1); }
-}
-@keyframes orb-drift-2 {
-  0%   { transform: translate(0, 0) scale(1); }
-  33%  { transform: translate(-50px, 20px) scale(0.92); }
-  66%  { transform: translate(30px, -40px) scale(1.06); }
-  100% { transform: translate(0, 0) scale(1); }
-}
-@keyframes orb-drift-3 {
-  0%   { transform: translate(0, 0) scale(1.02); }
-  50%  { transform: translate(25px, 35px) scale(0.96); }
-  100% { transform: translate(0, 0) scale(1.02); }
-}
-.hero-orb-1 { animation: orb-drift-1 18s ease-in-out infinite; }
-.hero-orb-2 { animation: orb-drift-2 22s ease-in-out infinite; }
-.hero-orb-3 { animation: orb-drift-3 15s ease-in-out infinite; }
-
-/* ── System 2: Hero card float ── */
-@keyframes card-float {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-10px); }
-}
-.hero-card-float { animation: card-float 6s ease-in-out infinite; }
-
-/* ── System 2: Page entry fade for page transitions ── */
+/* ── Page entry fade for page transitions ── */
 @keyframes page-enter {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .page-enter { animation: page-enter 0.40s cubic-bezier(0.16, 1, 0.3, 1) both; }
-
-/* ── System 5: Pop-in for stats ── */
-@keyframes pop-in {
-  0%   { opacity: 0; transform: scale(0.75); }
-  70%  { transform: scale(1.06); }
-  100% { opacity: 1; transform: scale(1); }
-}
-.animate-pop-in { animation: pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-
-/* ── Border grow animation for trust section ── */
-@keyframes border-grow-top {
-  from { background-size: 0% 4px, 100% 1px; }
-  to   { background-size: 100% 4px, 100% 1px; }
-}
 
 /* Stagger delays for list reveals */
 .stagger-1 { animation-delay: 0.03s; }
@@ -438,43 +406,8 @@ html { scroll-behavior: smooth; }
 .animate-slide-left { animation: slide-left 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .animate-spin-slow { animation: spin-slow 8s linear infinite; }
 
-/* Restored — now actually used */
-.animate-float { animation: card-float 6s ease-in-out infinite; }
 .animate-glow-pulse { animation: none; }
 .animate-aurora-drift { animation: none; }
-
-/* ── 3D Tilt card base ── */
-.tilt-card {
-  transform-style: preserve-3d;
-  transition: transform 0.1s ease-out, box-shadow 0.2s ease;
-  will-change: transform;
-}
-.tilt-card:hover {
-  box-shadow: var(--shadow-md);
-}
-
-/* ── CTA button magnetic base ── */
-.magnetic-btn {
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  will-change: transform;
-}
-
-/* ── Typewriter cursor ── */
-@keyframes blink-cursor {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0; }
-}
-.typewriter-cursor {
-  display: inline-block;
-  width: 3px;
-  height: 1em;
-  background: var(--brand-400);
-  margin-left: 2px;
-  vertical-align: text-bottom;
-  border-radius: 2px;
-  animation: blink-cursor 1s step-end infinite;
-}
-.typewriter-cursor.done { animation: none; opacity: 0; }
 
 /* ============================================
    Component utilities
@@ -561,24 +494,6 @@ html { scroll-behavior: smooth; }
   border: 1px solid var(--border-default);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.06);
 }
-
-/* Gradient heading/stat text */
-.aurora-gradient-text {
-  background: linear-gradient(135deg, var(--brand-400) 0%, #10b981 50%, var(--brand-300) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  display: inline-block;
-}
-
-/* Glow ring */
-.aurora-glow-ring {
-  box-shadow: 0 0 16px 2px rgba(47, 192, 154, 0.15), inset 0 0 0 1px rgba(47, 192, 154, 0.2);
-}
-
-/* Brand text glow */
-.glow-text-brand { text-shadow: 0 0 12px rgba(47, 192, 154, 0.25); }
 
 /* Hover gradient border → off */
 .gradient-border-card::after { display: none !important; }
@@ -814,34 +729,6 @@ html { scroll-behavior: smooth; }
    Modern Animation Additions
    ============================================ */
 
-/* 1. Heading Gradient Text Shimmer */
-@keyframes text-shimmer {
-  0% {
-    background-position: 200% center;
-  }
-  100% {
-    background-position: -200% center;
-  }
-}
-
-.shimmer-text {
-  background: linear-gradient(
-    90deg,
-    var(--brand-400) 0%,
-    #10b981 25%,
-    var(--brand-300) 50%,
-    #10b981 75%,
-    var(--brand-400) 100%
-  );
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-fill-color: transparent;
-  animation: text-shimmer 5s linear infinite;
-  display: inline-block;
-}
-
 /* 2. Infinite Horizontal Marquee Scroll */
 @keyframes marquee {
   0% {
@@ -906,61 +793,5 @@ html { scroll-behavior: smooth; }
   -webkit-backdrop-filter: none;
   border: 1px solid rgba(0, 0, 0, 0.06);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.06);
-}
-
-/* 2. Glow Hover Card Effect */
-.glow-hover {
-  transition: border-color 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.glow-hover:hover {
-  border-color: rgba(47, 192, 154, 0.45) !important;
-  box-shadow: 0 12px 40px -4px rgba(47, 192, 154, 0.12), 0 0 0 1px rgba(47, 192, 154, 0.2);
-  transform: translateY(-2px);
-}
-
-.light .glow-hover:hover {
-  border-color: rgba(44, 149, 118, 0.4) !important;
-  box-shadow: 0 12px 40px -4px rgba(44, 149, 118, 0.08), 0 0 0 1px rgba(44, 149, 118, 0.15);
-}
-
-/* 3. Cinematic Transition for Hover/Interaction States */
-.cinematic-transition {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* 4. Bento Grid Item */
-.bento-item {
-  border-radius: 20px;
-  padding: 24px;
-  background: var(--surface-1);
-  border: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-sm);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.bento-item:hover {
-  border-color: var(--border-hover);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
-}
-
-/* 5. Glowing Button Shadow Feedback */
-.glow-button {
-  box-shadow: 0 4px 14px 0 rgba(47, 192, 154, 0.3);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.glow-button:hover {
-  box-shadow: 0 6px 20px 0 rgba(47, 192, 154, 0.45);
-  transform: translateY(-1px);
-}
-
-.light .glow-button {
-  box-shadow: 0 4px 14px 0 rgba(14, 122, 93, 0.25);
-}
-
-.light .glow-button:hover {
-  box-shadow: 0 6px 20px 0 rgba(14, 122, 93, 0.4);
 }
 

@@ -126,7 +126,7 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             aria-label="Amount"
-            className="w-full sm:w-40 bg-surface-2 border border-border-subtle/50 text-zinc-200 text-sm rounded-xl px-3 py-2.5 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-brand-400"
+            className="w-full sm:w-40 bg-surface-2 border border-border-subtle/50 text-zinc-200 text-sm rounded-xl px-3 py-2.5 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400"
           />
           <input
             type="text"
@@ -134,7 +134,7 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             aria-label="Description"
-            className="flex-1 bg-surface-2 border border-border-subtle/50 text-zinc-200 text-sm rounded-xl px-3 py-2.5 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-brand-400"
+            className="flex-1 bg-surface-2 border border-border-subtle/50 text-zinc-200 text-sm rounded-xl px-3 py-2.5 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400"
           />
         </div>
 

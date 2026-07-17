@@ -21,7 +21,7 @@ export function AIInsights({
           <BrainCircuit className="w-5 h-5 text-brand-400 shrink-0" />
           <h2 className="text-base font-bold text-zinc-200">Wealth Advisory Recommendations</h2>
           {aiSource && (
-            <span className={`ml-auto text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full border ${
+            <span className={`ml-auto text-xs uppercase font-bold tracking-widest px-2 py-0.5 rounded-full border ${
               aiSource === 'gemini'
                 ? 'text-brand-400 border-brand-500/30 bg-brand-500/10'
                 : 'text-zinc-500 border-zinc-700 bg-zinc-800/50'

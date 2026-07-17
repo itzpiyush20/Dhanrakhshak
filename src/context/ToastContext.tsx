@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
+import { X } from 'lucide-react'
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info'
 
@@ -46,7 +47,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
 
       {/* Floating Toast Container */}
-      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+      <div className="fixed bottom-6 right-6 z-toast flex flex-col gap-2 max-w-sm w-full pointer-events-none">
         {toasts.map((toast) => {
           let bgColor = 'bg-surface-1/95 border-border-subtle'
           let textColor = 'text-zinc-200'
@@ -71,6 +72,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               key={toast.id}
               className={`flex items-center justify-between p-4 rounded-2xl border backdrop-blur-xl shadow-2xl pointer-events-auto animate-scale-up transition-all duration-300 ${bgColor}`}
               role="alert"
+              aria-atomic="true"
             >
               <div className="flex items-center gap-3">
                 <span className="text-base shrink-0 select-none" aria-hidden="true">
@@ -92,10 +94,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 )}
                 <button
                   onClick={() => removeToast(toast.id)}
-                  className="text-zinc-500 hover:text-zinc-300 font-bold text-xs transition-colors cursor-pointer"
+                  className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
                   aria-label="Dismiss toast"
                 >
-                  ✕
+                  <X className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
