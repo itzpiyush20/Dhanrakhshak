@@ -91,6 +91,11 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   email_message_id TEXT,
   event_type TEXT,
   tags TEXT[] DEFAULT '{}',
+  is_returnable BOOLEAN NOT NULL DEFAULT false,
+  counterparty TEXT,
+  expected_return_date DATE,
+  return_status TEXT CHECK (return_status IN ('pending', 'received')),
+  settled_by_transaction_id UUID REFERENCES public.transactions(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
@@ -109,6 +114,23 @@ CREATE TABLE IF NOT EXISTS public.budgets (
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   -- One budget per category per month per user
   UNIQUE(user_id, category, month)
+);
+
+-- ==========================================
+-- INSURANCE_POLICIES TABLE
+-- Life/health insurance premiums and due dates
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.insurance_policies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  policy_name TEXT NOT NULL,
+  policy_type TEXT NOT NULL CHECK (policy_type IN ('life', 'health')),
+  premium_amount DECIMAL(12, 2) NOT NULL CHECK (premium_amount > 0),
+  frequency TEXT NOT NULL CHECK (frequency IN ('monthly', 'quarterly', 'half_yearly', 'annual')),
+  next_due_date DATE NOT NULL,
+  remarks TEXT,
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 
 -- ==========================================
@@ -262,6 +284,26 @@ CREATE POLICY "Users can update own budgets"
 
 CREATE POLICY "Users can delete own budgets"
   ON public.budgets FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- INSURANCE_POLICIES policies
+ALTER TABLE public.insurance_policies ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own insurance policies"
+  ON public.insurance_policies FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own insurance policies"
+  ON public.insurance_policies FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own insurance policies"
+  ON public.insurance_policies FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own insurance policies"
+  ON public.insurance_policies FOR DELETE
   USING (auth.uid() = user_id);
 
 -- EMAIL_SCAN_LOGS policies

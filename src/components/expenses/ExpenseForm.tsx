@@ -45,6 +45,13 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
   const [date, setDate] = useState(
     editingTransaction?.date || new Date().toISOString().split('T')[0]
   )
+  const [isReturnable, setIsReturnable] = useState(editingTransaction?.is_returnable || false)
+  const [counterparty, setCounterparty] = useState(editingTransaction?.counterparty || '')
+  const [expectedReturnDate, setExpectedReturnDate] = useState(
+    editingTransaction?.expected_return_date ||
+    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  )
+  const [notes, setNotes] = useState(editingTransaction?.notes || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -56,6 +63,11 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
     const parsedAmount = parseFloat(amount)
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       setError('Please enter a valid amount')
+      return
+    }
+
+    if (isReturnable && (!counterparty.trim() || !expectedReturnDate)) {
+      setError('Please fill in who owes this and the expected return date')
       return
     }
 
@@ -74,6 +86,11 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
         description,
         date,
         tags,
+        is_returnable: type === 'debit' && isReturnable,
+        counterparty: type === 'debit' && isReturnable ? counterparty : null,
+        expected_return_date: type === 'debit' && isReturnable ? expectedReturnDate : null,
+        return_status: type === 'debit' && isReturnable ? (editingTransaction.return_status || 'pending') : null,
+        notes: notes || null,
       })
 
       if (error) {
@@ -105,6 +122,11 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
         source: 'manual',
         approval_status: 'approved',
         tags,
+        is_returnable: type === 'debit' && isReturnable,
+        counterparty: type === 'debit' && isReturnable ? counterparty : null,
+        expected_return_date: type === 'debit' && isReturnable ? expectedReturnDate : null,
+        return_status: type === 'debit' && isReturnable ? 'pending' : null,
+        notes: notes || null,
       })
 
       if (error) {
@@ -121,6 +143,10 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
       setTagsInput('')
       setCategory('other')
       setDate(new Date().toISOString().split('T')[0])
+      setIsReturnable(false)
+      setCounterparty('')
+      setExpectedReturnDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+      setNotes('')
     }
 
     // Learn manual categorization rules based on description / merchant entry
@@ -222,6 +248,49 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
             </div>
           )}
         </div>
+
+        {type === 'debit' && (
+          <div className="space-y-3 rounded-xl border border-border-subtle/50 bg-surface-2/30 p-3">
+            <label className="flex items-center gap-2 text-xs font-semibold text-zinc-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isReturnable}
+                onChange={(e) => setIsReturnable(e.target.checked)}
+                className="rounded border-zinc-700 bg-surface-2 text-brand-500 focus:ring-brand-500/25 h-4 w-4"
+              />
+              This is money I'll get back
+            </label>
+
+            {isReturnable && (
+              <div className="grid gap-3 sm:grid-cols-2 pt-1">
+                <Input
+                  label="Who owes this"
+                  placeholder="e.g. Rahul"
+                  value={counterparty}
+                  onChange={(e) => setCounterparty(e.target.value)}
+                  required={isReturnable}
+                />
+                <Input
+                  label="Expected return date"
+                  type="date"
+                  value={expectedReturnDate}
+                  onChange={(e) => setExpectedReturnDate(e.target.value)}
+                  min={date}
+                  required={isReturnable}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {(isReturnable || notes) && (
+          <Input
+            label="Remarks"
+            placeholder="Additional details..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        )}
 
         <div className="flex flex-col sm:flex-row gap-3 pt-2 w-full">
           <Button type="submit" loading={loading} className="w-full sm:w-auto justify-center">

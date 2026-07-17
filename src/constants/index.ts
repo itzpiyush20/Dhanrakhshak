@@ -17,6 +17,7 @@ export const CATEGORIES: Record<ExpenseCategory, { label: string; emoji: string;
   education:      { label: 'Education',         emoji: '📚', color: '#06b6d4' },
   travel:         { label: 'Travel',            emoji: '✈️', color: '#14b8a6' },
   subscriptions:  { label: 'Subscriptions',     emoji: '🔄', color: '#a855f7' },
+  insurance:      { label: 'Insurance',         emoji: '🛡️', color: '#0891b2' },
   transfers:      { label: 'Transfers',         emoji: '🔁', color: '#6b7280' },
   salary:         { label: 'Salary',            emoji: '💰', color: '#10b981' },
   freelance:      { label: 'Freelance',         emoji: '💻', color: '#0ea5e9' },

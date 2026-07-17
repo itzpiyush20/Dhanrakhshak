@@ -5,9 +5,9 @@
 
 import { useState, useEffect } from 'react'
 import { Card, Button, Input, Modal } from '@/components/ui'
-import { 
-  getMerchantRules, 
-  deleteMerchantRule, 
+import {
+  getMerchantRules,
+  deleteMerchantRule,
   saveMerchantRule,
   saveMerchantSetting,
   getTransactions,
@@ -16,7 +16,8 @@ import {
   saveMerchantRuleToDb,
   migrateLocalStorageRulesToDB
 } from '@/services'
-import { encryptText, decryptText, cn } from '@/utils'
+import { getInsurancePolicies, createInsurancePolicy, deleteInsurancePolicy } from '@/services/insurance'
+import { encryptText, decryptText, cn, formatCurrency, formatDate } from '@/utils'
 import { CATEGORIES } from '@/constants'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
@@ -40,7 +41,7 @@ import {
 } from 'lucide-react'
 
 export default function SettingsPage() {
-  const { user, activeYear, startNewFinancialYear, dailyScanTime, updateDailyScanTime } = useAuth()
+  const { user, activeYear, startNewFinancialYear, dailyScanTime, updateDailyScanTime, currencySymbol } = useAuth()
   const { showToast } = useToast()
 
   const [isLight, setIsLight] = useState(() => {
@@ -83,6 +84,16 @@ export default function SettingsPage() {
   const [newKeyword, setNewKeyword] = useState('')
   const [newCategory, setNewCategory] = useState('other')
   const [newAutoApprove, setNewAutoApprove] = useState(true)
+
+  // Insurance Policies State
+  const [policies, setPolicies] = useState<Array<{ id: string; policy_name: string; policy_type: string; premium_amount: number; frequency: string; next_due_date: string; remarks: string | null }>>([])
+  const [newPolicyName, setNewPolicyName] = useState('')
+  const [newPolicyType, setNewPolicyType] = useState<'life' | 'health'>('life')
+  const [newPremium, setNewPremium] = useState('')
+  const [newFrequency, setNewFrequency] = useState<'monthly' | 'quarterly' | 'half_yearly' | 'annual'>('annual')
+  const [newDueDate, setNewDueDate] = useState('')
+  const [newRemarks, setNewRemarks] = useState('')
+  const [policyError, setPolicyError] = useState('')
 
   // Encryption Backup / Restore States
   const [backupPassword, setBackupPassword] = useState('')
@@ -185,6 +196,56 @@ export default function SettingsPage() {
       loadRules()
     }
   }, [user])
+
+  useEffect(() => {
+    getInsurancePolicies().then(({ data }) => {
+      if (data) setPolicies(data)
+    })
+  }, [])
+
+  const handleAddPolicy = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPolicyError('')
+
+    const premiumNum = Number(newPremium)
+    if (!newPolicyName.trim()) {
+      setPolicyError('Enter a policy name')
+      return
+    }
+    if (isNaN(premiumNum) || premiumNum <= 0) {
+      setPolicyError('Enter a valid premium amount')
+      return
+    }
+    if (!newDueDate) {
+      setPolicyError('Pick a due date')
+      return
+    }
+
+    const { data, error } = await createInsurancePolicy({
+      policy_name: newPolicyName.trim(),
+      policy_type: newPolicyType,
+      premium_amount: premiumNum,
+      frequency: newFrequency,
+      next_due_date: newDueDate,
+      remarks: newRemarks || null,
+    })
+
+    if (error) {
+      setPolicyError(error.message)
+      return
+    }
+
+    if (data) setPolicies((prev) => [...prev, data].sort((a, b) => a.next_due_date.localeCompare(b.next_due_date)))
+    setNewPolicyName('')
+    setNewPremium('')
+    setNewDueDate('')
+    setNewRemarks('')
+  }
+
+  const handleDeletePolicy = async (id: string) => {
+    await deleteInsurancePolicy(id)
+    setPolicies((prev) => prev.filter((p) => p.id !== id))
+  }
 
   const handleDeleteRule = async (key: string) => {
     deleteMerchantRule(key)
@@ -732,6 +793,113 @@ export default function SettingsPage() {
                   <span className="font-bold text-zinc-300 font-mono">en-IN</span>
                 </div>
               </div>
+            </Card>
+
+            {/* Insurance Policies Card */}
+            <Card className="border-border-subtle bg-surface-1 shadow-md">
+              <h2 className="text-base font-bold text-zinc-200 mb-2 flex items-center gap-2">
+                <span>🛡️</span>
+                <span>Insurance Policies</span>
+              </h2>
+              <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
+                Track life and health insurance premiums. You'll get a reminder before each is due.
+              </p>
+
+              {policyError && (
+                <div className="text-xs p-2.5 mb-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl">
+                  {policyError}
+                </div>
+              )}
+
+              <form onSubmit={handleAddPolicy} className="grid gap-3 sm:grid-cols-2 mb-4">
+                <input
+                  type="text"
+                  placeholder="Policy name (e.g. LIC Term Plan)"
+                  value={newPolicyName}
+                  onChange={(e) => setNewPolicyName(e.target.value)}
+                  aria-label="Policy name"
+                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 sm:col-span-2"
+                />
+                <select
+                  value={newPolicyType}
+                  onChange={(e) => setNewPolicyType(e.target.value as 'life' | 'health')}
+                  aria-label="Policy type"
+                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                >
+                  <option value="life">🧬 Life</option>
+                  <option value="health">🏥 Health</option>
+                </select>
+                <select
+                  value={newFrequency}
+                  onChange={(e) => setNewFrequency(e.target.value as typeof newFrequency)}
+                  aria-label="Premium frequency"
+                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="half_yearly">Half-yearly</option>
+                  <option value="annual">Annual</option>
+                </select>
+                <input
+                  type="number"
+                  placeholder={`Premium (${currencySymbol})`}
+                  value={newPremium}
+                  onChange={(e) => setNewPremium(e.target.value)}
+                  min="1"
+                  step="0.01"
+                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                />
+                <input
+                  type="date"
+                  value={newDueDate}
+                  onChange={(e) => setNewDueDate(e.target.value)}
+                  aria-label="Next due date"
+                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                />
+                <input
+                  type="text"
+                  placeholder="Remarks (optional)"
+                  value={newRemarks}
+                  onChange={(e) => setNewRemarks(e.target.value)}
+                  aria-label="Remarks"
+                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 sm:col-span-2"
+                />
+                <Button size="sm" type="submit" className="sm:col-span-2 justify-center">
+                  Add Policy
+                </Button>
+              </form>
+
+              {policies.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-zinc-800 p-4 text-center text-xs text-zinc-500">
+                  No policies added yet.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {policies.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between gap-2 p-3 rounded-xl bg-surface-2/60 border border-border-subtle/30 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-semibold text-zinc-200 truncate block">
+                          {p.policy_type === 'life' ? '🧬' : '🏥'} {p.policy_name}
+                        </span>
+                        <span className="text-[10px] text-zinc-500">
+                          {formatCurrency(p.premium_amount)} · {p.frequency.replace('_', '-')} · due {formatDate(p.next_due_date)}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleDeletePolicy(p.id)}
+                        className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors flex items-center justify-center shrink-0"
+                        title="Delete policy"
+                        aria-label={`Delete ${p.policy_name}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
 
             {/* Financial Year Management Card */}

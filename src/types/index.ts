@@ -36,6 +36,7 @@ export type ExpenseCategory =
   | 'education'
   | 'travel'
   | 'subscriptions'
+  | 'insurance'
   | 'transfers'
   | 'salary'
   | 'freelance'

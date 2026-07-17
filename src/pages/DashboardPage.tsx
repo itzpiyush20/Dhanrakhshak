@@ -9,6 +9,8 @@ import { AppLayout } from '@/layouts'
 import { Card, Button, EmptyState, Modal } from '@/components/ui'
 import ActiveSubscriptionsWidget from '@/components/dashboard/ActiveSubscriptionsWidget'
 import QuickAddWidget from '@/components/dashboard/QuickAddWidget'
+import ReceivablesCard from '@/components/dashboard/ReceivablesCard'
+import InsurancePremiumCard from '@/components/dashboard/InsurancePremiumCard'
 import {
   ChevronLeft,
   ChevronRight,
@@ -787,6 +789,9 @@ export default function DashboardPage() {
                 Log an expense today to {streakInfo.streak > 0 ? 'keep' : 'start'} your streak.
               </p>
             )}
+
+            <ReceivablesCard onSettled={() => fetchDashboardData(selectedMonth)} />
+            <InsurancePremiumCard onPaid={() => fetchDashboardData(selectedMonth)} />
           </>
         )}
 
