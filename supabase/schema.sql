@@ -134,6 +134,20 @@ CREATE TABLE IF NOT EXISTS public.insurance_policies (
 );
 
 -- ==========================================
+-- GOOGLE_OAUTH_TOKENS TABLE
+-- Server-side refresh token storage for automatic Gmail sync
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.google_oauth_tokens (
+  user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  refresh_token TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+ALTER TABLE public.google_oauth_tokens ENABLE ROW LEVEL SECURITY;
+-- Intentionally no policies — service-role only, same pattern documented
+-- in migration 006_google_oauth_tokens.sql.
+
+-- ==========================================
 -- 4. EMAIL_SCAN_LOGS TABLE
 -- Tracks daily email scan jobs
 -- ==========================================
