@@ -52,3 +52,6 @@ scratch/
 .gemini/
 .claude/
 graphify-out/
+
+# Git worktrees
+.worktrees/
