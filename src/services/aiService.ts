@@ -360,7 +360,8 @@ export interface AITransactionResult {
 export async function analyzeTransactionEmailWithAI(
   subject: string,
   body: string,
-  emailDate: string
+  emailDate: string,
+  callGemini: (body: Record<string, unknown>) => Promise<any> = callGeminiProxy
 ): Promise<AITransactionResult | null> {
   try {
     const prompt = `
@@ -440,7 +441,7 @@ If NOT a completed transaction:
 }
 `
 
-    const data = await callGeminiProxy({
+    const data = await callGemini({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.1,
