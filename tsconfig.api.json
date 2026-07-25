@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
     "target": "es2020",
-    "module": "node16",
-    "lib": ["ES2020"],
-    "types": ["node"],
-    "moduleResolution": "node16",
+    "module": "esnext",
+    "lib": ["ES2020", "DOM"],
+    "types": ["node", "vite/client"],
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
@@ -12,7 +12,23 @@
     "outDir": ".vercel/output/functions",
     "rootDir": ".",
     "composite": true,
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.api.tsbuildinfo"
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.api.tsbuildinfo",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "ignoreDeprecations": "6.0"
   },
-  "include": ["api/**/*.ts"]
+  "include": [
+    "api/**/*.ts",
+    "src/services/emailScanner.ts",
+    "src/services/aiService.ts",
+    "src/services/learningEngine.ts",
+    "src/services/googleAuth.ts",
+    "src/services/supabase.ts",
+    "src/services/merchantNormalizer.ts",
+    "src/utils/index.ts",
+    "src/utils/crypto.ts",
+    "src/types/database.ts"
+  ]
 }

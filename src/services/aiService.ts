@@ -5,8 +5,8 @@
 // is absent or request fails
 // ============================================
 
-import { formatCurrency } from '@/utils'
-import { supabase } from '@/services/supabase'
+import { formatCurrency } from '../utils'
+import { supabase } from './supabase'
 
 const GEMINI_PROXY_URL = '/api/gemini-proxy'
 

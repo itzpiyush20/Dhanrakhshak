@@ -7,7 +7,7 @@
 import { supabase as defaultSupabase } from './supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
-import { extractBankName } from '@/utils'
+import { extractBankName } from '../utils'
 import { applyMerchantRulesFromDB } from './learningEngine'
 import { getGoogleToken, clearGoogleToken, tryRefreshGoogleToken } from './googleAuth'
 import { analyzeTransactionEmailWithAI } from './aiService'
@@ -773,7 +773,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
               .from('profiles')
               .update({ subscription_status: 'expired', updated_at: new Date().toISOString() })
               .eq('id', user.id)
-              .then(({ error }) => {
+              .then(({ error }: { error: any }) => {
                 if (error) console.warn('Failed to update expired status in email scanner:', error.message)
               })
           }
@@ -785,7 +785,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
               .from('profiles')
               .update({ subscription_status: 'expired', updated_at: new Date().toISOString() })
               .eq('id', user.id)
-              .then(({ error }) => {
+              .then(({ error }: { error: any }) => {
                 if (error) console.warn('Failed to update expired status in email scanner:', error.message)
               })
           }
@@ -821,7 +821,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
 
     const cardMap: Record<string, string> = {}
     if (registeredCards) {
-      registeredCards.forEach(c => {
+      registeredCards.forEach((c: any) => {
         if (c.last4 && c.issuer) cardMap[c.last4] = c.issuer
       })
     }
@@ -906,7 +906,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       }
       if (!listRes.ok) throw new Error(`Gmail API List failed: ${listRes.statusText}`)
 
-      const listData = await listRes.json()
+      const listData = await listRes.json() as any
       if (listData.messages) messages = messages.concat(listData.messages)
       const messageLimit = isOwner ? 200 : 100
       if (messages.length >= messageLimit) { messages = messages.slice(0, messageLimit); break }
@@ -966,10 +966,10 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     }
 
     const existingMessageIds = new Set<string>(
-      (existingTxns ?? []).map((t) => t.email_message_id).filter((id): id is string => !!id)
+      (existingTxns ?? []).map((t: any) => t.email_message_id).filter((id: any): id is string => !!id)
     )
     const existingRefIds = new Set<string>(
-      (existingTxns ?? []).map((t) => t.reference_id).filter((r): r is string => !!r)
+      (existingTxns ?? []).map((t: any) => t.reference_id).filter((r: any): r is string => !!r)
     )
 
     const transactionsToInsert: TransactionInsert[] = []
