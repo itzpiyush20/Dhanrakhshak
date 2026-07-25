@@ -32,6 +32,8 @@ describe('api/save-google-refresh-token', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     process.env.ALLOWED_ORIGIN = 'https://dhanrakshak-five.vercel.app'
+    process.env.VITE_SUPABASE_URL = 'https://example.supabase.co'
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
   })
 
   it('rejects requests with no Authorization header', async () => {

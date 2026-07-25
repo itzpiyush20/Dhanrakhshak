@@ -31,6 +31,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || 'unknown'
   if (isRateLimited(ip)) return res.status(429).json({ error: 'Too many requests' })
 
+  if (!process.env.VITE_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set in environment')
+    return res.status(500).json({ error: 'Server misconfiguration' })
+  }
+
   const authHeader = req.headers.authorization
   if (!authHeader?.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized' })
