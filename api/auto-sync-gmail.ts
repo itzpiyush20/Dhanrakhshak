@@ -72,14 +72,23 @@ async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: 
   return { accessToken: access_token }
 }
 
+const MAX_GEMINI_CALLS_PER_RUN = Number(process.env.AUTO_SYNC_MAX_GEMINI_CALLS_PER_RUN) || 500
+
 /** Direct Gemini call for the cron path — never runs in the browser, so it's safe to use GEMINI_API_KEY here. */
-async function callGeminiDirect(body: Record<string, unknown>): Promise<any> {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
-  )
-  if (!res.ok) throw new Error(`Gemini API error: ${res.status}`)
-  return res.json()
+function makeCallGeminiDirect() {
+  let callCount = 0
+  return async function callGeminiDirect(body: Record<string, unknown>): Promise<any> {
+    if (callCount >= MAX_GEMINI_CALLS_PER_RUN) {
+      throw new Error(`auto-sync-gmail: Gemini call cap (${MAX_GEMINI_CALLS_PER_RUN}) reached for this run`)
+    }
+    callCount++
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    )
+    if (!res.ok) throw new Error(`Gemini API error: ${res.status}`)
+    return res.json()
+  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -112,6 +121,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const profileById = new Map<string, Profile>((profiles || []).map((p) => [p.id, p as Profile]))
+
+  const callGeminiDirect = makeCallGeminiDirect()
 
   let succeeded = 0
   let failed = 0
@@ -149,7 +160,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         askAI: (subject, body, emailDate) => analyzeTransactionEmailWithAI(subject, body, emailDate, callGeminiDirect),
       })
 
-      if (error) throw error
+      if (error) {
+        // scanRealGmailInbox already logged its own failure row internally — don't log twice.
+        console.error(`auto-sync-gmail: scan returned an error for user ${row.user_id}`, error)
+        failed++
+        continue
+      }
 
       succeeded++
       transactionsFound += data?.transactions?.length || 0

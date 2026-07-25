@@ -131,4 +131,32 @@ describe('api/auto-sync-gmail', () => {
     expect(mockScanRealGmailInbox).not.toHaveBeenCalled()
     expect(getJson()).toMatchObject({ usersProcessed: 1, succeeded: 0, failed: 1 })
   })
+
+  it('counts a scan error as a failure without logging a duplicate row (scanRealGmailInbox already logged it)', async () => {
+    mockTokensSelect.mockResolvedValue({
+      data: [{ user_id: 'errored-user', refresh_token: 'rt-3' }],
+      error: null,
+    })
+    mockProfilesSelect.mockResolvedValue({
+      data: [{ id: 'errored-user', email: 'e@e.com', subscription_status: 'active', subscription_expires_at: null }],
+      error: null,
+    })
+    mockRefreshFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: 'access-tok', expires_in: 3600 }),
+    })
+    mockScanRealGmailInbox.mockResolvedValue({
+      data: null,
+      error: new Error('token expired mid-scan'),
+    })
+
+    const req = { method: 'POST', headers: { authorization: 'Bearer test-secret' } } as unknown as VercelRequest
+    const { res, getJson } = makeRes()
+
+    await handler(req, res)
+
+    expect(mockScanRealGmailInbox).toHaveBeenCalledTimes(1)
+    expect(mockLogInsert).not.toHaveBeenCalled()
+    expect(getJson()).toMatchObject({ usersProcessed: 1, succeeded: 0, failed: 1 })
+  })
 })
