@@ -71,6 +71,24 @@ export function getGoogleRefreshToken(): string | null {
   return localStorage.getItem(REFRESH_TOKEN_KEY)
 }
 
+/**
+ * Persist the Google refresh token server-side so the automatic daily sync
+ * cron can use it without a live browser session. Fire-and-forget — a
+ * failure here just means the user keeps manual-only sync until their next
+ * successful OAuth refresh/login re-attempts the save.
+ */
+export async function saveGoogleRefreshTokenServerSide(supabaseJwt: string, refreshToken: string): Promise<void> {
+  try {
+    await fetch('/api/save-google-refresh-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${supabaseJwt}` },
+      body: JSON.stringify({ refreshToken }),
+    })
+  } catch (e) {
+    console.warn('saveGoogleRefreshTokenServerSide error:', e)
+  }
+}
+
 // ── Silent refresh ────────────────────────────────────────────
 
 /**

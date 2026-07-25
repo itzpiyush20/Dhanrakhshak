@@ -15,7 +15,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase, readStoredSession } from '@/services/supabase'
-import { saveGoogleToken, clearGoogleToken, clearAllGoogleTokens, isGoogleConnected, purgeOldTokenKey, validateGoogleToken, saveGoogleRefreshToken, tryRefreshGoogleToken } from '@/services/googleAuth'
+import { saveGoogleToken, clearGoogleToken, clearAllGoogleTokens, isGoogleConnected, purgeOldTokenKey, validateGoogleToken, saveGoogleRefreshToken, saveGoogleRefreshTokenServerSide, tryRefreshGoogleToken } from '@/services/googleAuth'
 import { Button } from '@/components/ui'
 import { identifyUser, resetAnalytics, track, EVENTS } from '@/services/analytics'
 
@@ -510,6 +510,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (session?.provider_refresh_token) {
         saveGoogleRefreshToken(session.provider_refresh_token)
+        if (session.access_token) {
+          saveGoogleRefreshTokenServerSide(session.access_token, session.provider_refresh_token)
+        }
       }
 
       if (session?.provider_token) {
@@ -569,6 +572,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (session?.provider_refresh_token) {
           saveGoogleRefreshToken(session.provider_refresh_token)
+          if (session.access_token) {
+            saveGoogleRefreshTokenServerSide(session.access_token, session.provider_refresh_token)
+          }
         }
 
         if (session?.provider_token) {
