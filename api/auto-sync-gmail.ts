@@ -14,6 +14,13 @@
 //   - GEMINI_API_KEY (direct Gemini call — no per-user proxy quota
 //     applies here, since this path is already gated to eligible users)
 //   - VITE_OWNER_EMAILS (optional, comma-separated owner bypass list)
+//
+// Optional tuning (both have safe defaults, no action needed to deploy):
+//   - AUTO_SYNC_MAX_GEMINI_CALLS_PER_RUN (default 500) — global cap on
+//     Gemini calls per cron invocation, bounding worst-case AI cost as
+//     the eligible user base grows.
+//   - AUTO_SYNC_INTER_USER_DELAY_MS (default 500) — delay between users
+//     to stay under Gmail API rate limits during a run with many users.
 // ============================================================
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -129,10 +136,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let transactionsFound = 0
   let usersProcessed = 0
 
+  const INTER_USER_DELAY_MS = Number(process.env.AUTO_SYNC_INTER_USER_DELAY_MS) || 500
+
   for (const row of tokenRows) {
     const profile = profileById.get(row.user_id)
     if (!profile || !isEligible(profile)) continue
 
+    if (usersProcessed > 0) {
+      await new Promise((resolve) => setTimeout(resolve, INTER_USER_DELAY_MS))
+    }
     usersProcessed++
 
     try {
