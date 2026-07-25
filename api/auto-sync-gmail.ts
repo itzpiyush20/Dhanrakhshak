@@ -161,8 +161,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
 
       if (error) {
-        // scanRealGmailInbox already logged its own failure row internally — don't log twice.
-        console.error(`auto-sync-gmail: scan returned an error for user ${row.user_id}`, error)
+        await supabaseAdmin.from('email_scan_logs').insert({
+          user_id: row.user_id,
+          emails_processed: 0,
+          transactions_found: 0,
+          status: 'failed',
+          error_message: error.message || 'Automatic sync failed',
+        })
         failed++
         continue
       }

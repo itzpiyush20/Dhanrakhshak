@@ -132,7 +132,7 @@ describe('api/auto-sync-gmail', () => {
     expect(getJson()).toMatchObject({ usersProcessed: 1, succeeded: 0, failed: 1 })
   })
 
-  it('counts a scan error as a failure without logging a duplicate row (scanRealGmailInbox already logged it)', async () => {
+  it('logs a failure once when scanRealGmailInbox returns an error (e.g. no-token/cooldown/FY-ended paths that the scanner itself never logs when opts.userId is set)', async () => {
     mockTokensSelect.mockResolvedValue({
       data: [{ user_id: 'errored-user', refresh_token: 'rt-3' }],
       error: null,
@@ -156,7 +156,10 @@ describe('api/auto-sync-gmail', () => {
     await handler(req, res)
 
     expect(mockScanRealGmailInbox).toHaveBeenCalledTimes(1)
-    expect(mockLogInsert).not.toHaveBeenCalled()
+    expect(mockLogInsert).toHaveBeenCalledTimes(1)
+    expect(mockLogInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ user_id: 'errored-user', status: 'failed', error_message: 'token expired mid-scan' })
+    )
     expect(getJson()).toMatchObject({ usersProcessed: 1, succeeded: 0, failed: 1 })
   })
 })

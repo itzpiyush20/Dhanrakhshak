@@ -1333,13 +1333,15 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       errorMessage = err.message || 'Gmail scan failed. Please try again.'
     }
 
-    await supabase.from('email_scan_logs').insert({
-      user_id: user.id,
-      emails_processed: 0,
-      transactions_found: 0,
-      status: 'failed',
-      error_message: errorMessage,
-    })
+    if (!opts?.userId) {
+      await supabase.from('email_scan_logs').insert({
+        user_id: user.id,
+        emails_processed: 0,
+        transactions_found: 0,
+        status: 'failed',
+        error_message: errorMessage,
+      })
+    }
     return { data: null, error: new Error(errorMessage) }
   }
 }
