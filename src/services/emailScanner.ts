@@ -20,7 +20,11 @@ type TransactionInsert = Database['public']['Tables']['transactions']['Insert']
 // capped to 1 scan per 24 hours.
 // Set VITE_OWNER_EMAILS as a comma-separated list in your .env file.
 // ============================================================
-const OWNER_EMAILS = (import.meta.env.VITE_OWNER_EMAILS || '')
+const OWNER_EMAILS = (
+  (import.meta.env || {}).VITE_OWNER_EMAILS ||
+  (typeof process !== 'undefined' ? process.env.VITE_OWNER_EMAILS : '') ||
+  ''
+)
   .split(',')
   .map((e: string) => e.trim().toLowerCase())
   .filter(Boolean)
