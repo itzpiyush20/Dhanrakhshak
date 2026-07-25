@@ -48,12 +48,14 @@ export function isGoogleConnected(): boolean {
 
 // Clears only the access token — keeps the refresh token so silent refresh still works.
 export function clearGoogleToken(): void {
+  if (typeof localStorage === 'undefined') return
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(EXPIRY_KEY)
 }
 
 // Clears everything — call only on sign-out or when the refresh token is revoked.
 export function clearAllGoogleTokens(): void {
+  if (typeof localStorage === 'undefined') return
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(EXPIRY_KEY)
   localStorage.removeItem(REFRESH_TOKEN_KEY)
