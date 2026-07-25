@@ -848,15 +848,18 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     }
 
     let isFirstScan = true
+    let lastScanTime = 0
     try {
       const { data: logs } = await supabase
         .from('email_scan_logs')
-        .select('id')
+        .select('scanned_at')
         .eq('user_id', user.id)
         .eq('status', 'success')
+        .order('scanned_at', { ascending: false })
         .limit(1)
       if (logs && logs.length > 0) {
         isFirstScan = false
+        lastScanTime = new Date(logs[0].scanned_at).getTime()
       }
     } catch (e) {
       console.warn('Failed to query email scan logs, assuming first scan', e)
@@ -864,17 +867,26 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
 
     const EMAIL_KEYWORDS = '(debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)'
 
+    const MAX_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000 // never scan back further than 30 days
     let startLimitTime = 0
     let q = ''
     if (isFirstScan) {
       // First scan: look back 7 days
       startLimitTime = Date.now() - 7 * 24 * 60 * 60 * 1000
     } else {
-      // Subsequent scans: rolling 26-hour window so emails from the last 2-3 hours
-      // are always included. Gmail's date-only `after:YYYY/MM/DD` can miss same-day
-      // recent emails; Unix-second timestamps give precise sub-day boundaries.
-      // Already-processed emails are excluded via existingMessageIds deduplication.
-      startLimitTime = Date.now() - 26 * 60 * 60 * 1000
+      // Subsequent scans: cover everything since the last *successful* scan (with a
+      // small overlap buffer, since Gmail's date-only granularity and delayed bank
+      // emails can otherwise leave same-day messages just outside the window), but
+      // never less than a 26-hour window. Anchoring to "now - 26h" alone (instead of
+      // the last successful scan) silently drops days of transactions whenever the
+      // app isn't opened for more than 26 hours — or whenever the automatic daily
+      // cron is delayed/fails for more than 26 hours — since the Gmail query itself
+      // excludes anything before that cutoff; dedup can't recover emails that were
+      // never fetched.
+      const sinceLastScan = lastScanTime - 2 * 60 * 60 * 1000
+      const rolling26h = Date.now() - 26 * 60 * 60 * 1000
+      startLimitTime = Math.min(sinceLastScan, rolling26h)
+      startLimitTime = Math.max(startLimitTime, Date.now() - MAX_LOOKBACK_MS)
     }
     // Use Unix epoch (seconds) for precise filtering — Gmail supports this format
     const sinceSeconds = Math.floor(startLimitTime / 1000)
