@@ -8,6 +8,7 @@ import { supabase } from './supabase'
 import { cleanMerchantName, getMerchantWeights, getMerchantSettings, applyMerchantRules } from './emailScanner'
 import { normalizeMerchant, getMerchantKey } from './merchantNormalizer'
 import type { RuleMatchResult } from './emailScanner'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 type CardBrand = 'Visa' | 'Mastercard' | 'RuPay' | 'American Express' | 'Diners'
 
@@ -25,8 +26,8 @@ type MerchantRuleRow = {
   created_at: string
 }
 
-export async function getMerchantRulesFromDB(userId: string): Promise<MerchantRuleRow[]> {
-  const { data, error } = await supabase
+export async function getMerchantRulesFromDB(userId: string, db: SupabaseClient = supabase): Promise<MerchantRuleRow[]> {
+  const { data, error } = await db
     .from('merchant_rules')
     .select('*')
     .eq('user_id', userId)
@@ -152,7 +153,8 @@ export async function applyMerchantRulesFromDB(
   userId: string,
   merchant: string,
   snippet: string,
-  defaultCategory: string
+  defaultCategory: string,
+  db: SupabaseClient = supabase
 ): Promise<RuleMatchResult> {
   // Normalize the merchant to canonical form for consistent DB lookup
   const normalized = normalizeMerchant(merchant)
@@ -160,7 +162,7 @@ export async function applyMerchantRulesFromDB(
   const merchantKey = getMerchantKey(canonicalName) || cleanMerchantName(merchant).toLowerCase().trim()
 
   try {
-    const rules = await getMerchantRulesFromDB(userId)
+    const rules = await getMerchantRulesFromDB(userId, db)
 
     // Exact key match
     const exactMatch = rules.find((r) => r.merchant_key === merchantKey)
