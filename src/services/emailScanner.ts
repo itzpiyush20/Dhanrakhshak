@@ -4,7 +4,8 @@
 // Priority: Accuracy > Speed > Coverage
 // ============================================
 
-import { supabase } from './supabase'
+import { supabase as defaultSupabase } from './supabase'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 import { extractBankName } from '@/utils'
 import { applyMerchantRulesFromDB } from './learningEngine'
@@ -683,9 +684,9 @@ function extractEmailBody(mail: any): string {
 
 /** Fetch recent scan logs */
 export async function getScanLogs() {
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await defaultSupabase.auth.getUser()
   if (!user) return { data: null, error: new Error('User not authenticated') }
-  const { data, error } = await supabase
+  const { data, error } = await defaultSupabase
     .from('email_scan_logs')
     .select('*')
     .eq('user_id', user.id)
@@ -697,18 +698,46 @@ export async function getScanLogs() {
 // ============================================================
 // MAIN ENGINE — Scan Real Gmail Inbox (V2)
 // ============================================================
-export async function scanRealGmailInbox() {
-  const { data: { session } } = await supabase.auth.getSession()
-  const user = session?.user
+export interface ScanGmailOptions {
+  /** Supabase client to use for all DB reads/writes during this scan. Defaults to the browser singleton. */
+  db?: SupabaseClient
+  /** User id/email to scan for. When provided (with accessToken), the browser session lookup is skipped entirely — this is the server-side/cron path. */
+  userId?: string
+  userEmail?: string
+  /** Google API access token to use directly, bypassing localStorage/session lookup. */
+  accessToken?: string
+  /** Active financial year to scope the scan to. Defaults to the browser's localStorage value (or 2026). */
+  activeYear?: number
+  /** AI email analyzer to use. Defaults to the proxy-based `analyzeTransactionEmailWithAI`. */
+  askAI?: (subject: string, body: string, emailDate: string) => ReturnType<typeof analyzeTransactionEmailWithAI>
+}
 
-  let providerToken = getGoogleToken()
+export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
+  const supabase = opts?.db || defaultSupabase
+  const askAI = opts?.askAI || analyzeTransactionEmailWithAI
+
+  let user: { id: string; email?: string } | undefined
+  let providerToken: string | null = null
+
+  if (opts?.userId && opts?.accessToken) {
+    // Server-side path (cron): identity and token are supplied directly, no browser session exists.
+    user = { id: opts.userId, email: opts.userEmail }
+    providerToken = opts.accessToken
+  } else {
+    const { data: { session } } = await supabase.auth.getSession()
+    user = session?.user
+
+    providerToken = getGoogleToken()
+
+    if (!user) return { data: null, error: new Error('User not authenticated') }
+
+    // If access token is expired, silently refresh it before giving up
+    if (!providerToken && session?.access_token) {
+      providerToken = await tryRefreshGoogleToken(session.access_token)
+    }
+  }
 
   if (!user) return { data: null, error: new Error('User not authenticated') }
-
-  // If access token is expired, silently refresh it before giving up
-  if (!providerToken && session?.access_token) {
-    providerToken = await tryRefreshGoogleToken(session.access_token)
-  }
 
   if (!providerToken) {
     return {
@@ -793,14 +822,16 @@ export async function scanRealGmailInbox() {
       })
     }
 
-    let activeYear = 2026
-    try {
-      const storedYear = localStorage.getItem(`dhanrakshak_active_financial_year_${user.id}`)
-      if (storedYear) {
-        activeYear = parseInt(storedYear, 10)
+    let activeYear = opts?.activeYear ?? 2026
+    if (opts?.activeYear === undefined) {
+      try {
+        const storedYear = localStorage.getItem(`dhanrakshak_active_financial_year_${user.id}`)
+        if (storedYear) {
+          activeYear = parseInt(storedYear, 10)
+        }
+      } catch (e) {
+        console.warn('Failed to load active year from localStorage, using default 2026', e)
       }
-    } catch (e) {
-      console.warn('Failed to load active year from localStorage, using default 2026', e)
     }
 
     const today = new Date()
@@ -953,7 +984,7 @@ export async function scanRealGmailInbox() {
 
       {
         try {
-          const aiResult = await analyzeTransactionEmailWithAI(subject, bodyText, mailDate)
+          const aiResult = await askAI(subject, bodyText, mailDate)
           if (aiResult) {
             if (aiResult.is_transaction && aiResult.amount && aiResult.amount > 0) {
               if (aiResult.reference_id && existingRefIds.has(aiResult.reference_id)) {
@@ -963,7 +994,7 @@ export async function scanRealGmailInbox() {
               const resolvedMerchant = aiResult.merchant || 'Other'
               let ruleResult
               try {
-                ruleResult = await applyMerchantRulesFromDB(user.id, resolvedMerchant, bodyText, aiResult.category || 'other')
+                ruleResult = await applyMerchantRulesFromDB(user.id, resolvedMerchant, bodyText, aiResult.category || 'other', supabase)
               } catch {
                 ruleResult = { category: aiResult.category || 'other', approval_status: 'pending', confidence: aiResult.confidence_score }
               }
@@ -1180,7 +1211,7 @@ export async function scanRealGmailInbox() {
 
         let ruleResult: RuleMatchResult
         try {
-          ruleResult = await applyMerchantRulesFromDB(user.id, merchant, emailContentForParsing, category)
+          ruleResult = await applyMerchantRulesFromDB(user.id, merchant, emailContentForParsing, category, supabase)
         } catch {
           ruleResult = applyMerchantRules(merchant, emailContentForParsing, category)
         }
