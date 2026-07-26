@@ -4,13 +4,13 @@
 // Priority: Accuracy > Speed > Coverage
 // ============================================
 
-import { supabase as defaultSupabase } from './supabase'
+import { supabase as defaultSupabase } from './supabase.js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
-import { extractBankName } from '../utils'
-import { applyMerchantRulesFromDB } from './learningEngine'
-import { getGoogleToken, clearGoogleToken, tryRefreshGoogleToken } from './googleAuth'
-import { analyzeTransactionEmailWithAI } from './aiService'
+import { extractBankName } from '../utils/index.js'
+import { applyMerchantRulesFromDB } from './learningEngine.js'
+import { getGoogleToken, clearGoogleToken, tryRefreshGoogleToken } from './googleAuth.js'
+import { analyzeTransactionEmailWithAI } from './aiService.js'
 
 type EmailScanLog = Database['public']['Tables']['email_scan_logs']['Row']
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert']

@@ -4,10 +4,10 @@
 // Uses canonical merchant names for cross-variant learning.
 // ============================================
 
-import { supabase } from './supabase'
-import { cleanMerchantName, getMerchantWeights, getMerchantSettings, applyMerchantRules } from './emailScanner'
-import { normalizeMerchant, getMerchantKey } from './merchantNormalizer'
-import type { RuleMatchResult } from './emailScanner'
+import { supabase } from './supabase.js'
+import { cleanMerchantName, getMerchantWeights, getMerchantSettings, applyMerchantRules } from './emailScanner.js'
+import { normalizeMerchant, getMerchantKey } from './merchantNormalizer.js'
+import type { RuleMatchResult } from './emailScanner.js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 type CardBrand = 'Visa' | 'Mastercard' | 'RuPay' | 'American Express' | 'Diners'

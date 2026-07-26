@@ -366,4 +366,4 @@ export function formatPaymentSource(txn: {
   return label
 }
 
-export { encryptText, decryptText } from './crypto'
+export { encryptText, decryptText } from './crypto.js'
