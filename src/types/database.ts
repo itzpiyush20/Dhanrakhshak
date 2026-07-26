@@ -88,6 +88,7 @@ export interface Database {
           expected_return_date: string | null
           return_status: 'pending' | 'received' | null
           settled_by_transaction_id: string | null
+          category_confirmed_at: string | null
           created_at: string
           updated_at: string
         }
@@ -118,6 +119,7 @@ export interface Database {
           expected_return_date?: string | null
           return_status?: 'pending' | 'received' | null
           settled_by_transaction_id?: string | null
+          category_confirmed_at?: string | null
         }
         Update: {
           amount?: number
@@ -141,6 +143,7 @@ export interface Database {
           expected_return_date?: string | null
           return_status?: 'pending' | 'received' | null
           settled_by_transaction_id?: string | null
+          category_confirmed_at?: string | null
         }
       }
       budgets: {

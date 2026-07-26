@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   expected_return_date DATE,
   return_status TEXT CHECK (return_status IN ('pending', 'received')),
   settled_by_transaction_id UUID REFERENCES public.transactions(id) ON DELETE SET NULL,
+  category_confirmed_at TIMESTAMPTZ DEFAULT now(),
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
