@@ -47,7 +47,7 @@ vi.mock('./supabase', () => ({
   },
 }))
 
-import { getLoggingStreak, getActiveReceivables, settleReceivable, getMonthlySummary } from './transactions'
+import { getLoggingStreak, getActiveReceivables, settleReceivable, getMonthlySummary, getHistoricalAnalytics } from './transactions'
 
 function isoDaysAgo(n: number) {
   const d = new Date()
@@ -212,5 +212,22 @@ describe('getMonthlySummary', () => {
     })
     const { data } = await getMonthlySummary('2026-07')
     expect(data!.total_expenses).toBe(500)
+  })
+})
+
+describe('getHistoricalAnalytics', () => {
+  it('excludes credit_card_bill_payment transactions from each month\'s expenses total', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    const thisMonth = new Date().toISOString().substring(0, 7)
+    mockQueryResult.mockResolvedValue({
+      data: [
+        { amount: 500, type: 'debit', date: `${thisMonth}-05` },
+        { amount: 15000, type: 'debit', date: `${thisMonth}-10`, category: 'credit_card_bill_payment' },
+      ],
+      error: null,
+    })
+    const { data } = await getHistoricalAnalytics(1)
+    expect(data).toHaveLength(1)
+    expect(data![0].expenses).toBe(500)
   })
 })

@@ -170,7 +170,7 @@ export async function getHistoricalAnalytics(monthsCount = 6) {
 
   const { data, error } = await supabase
     .from('transactions')
-    .select('amount, type, date')
+    .select('amount, type, date, category')
     .eq('user_id', user.id)
     .eq('approval_status', 'approved')
     .gte('date', startDate)
@@ -190,8 +190,10 @@ export async function getHistoricalAnalytics(monthsCount = 6) {
       .filter((t) => t.type === 'credit')
       .reduce((sum, t) => sum + Number(t.amount), 0)
 
+    // Credit card bill payments are excluded — the purchases they cover were
+    // already counted as expenses when they happened.
     const expenses = monthTxns
-      .filter((t) => t.type === 'debit')
+      .filter((t) => t.type === 'debit' && t.category !== 'credit_card_bill_payment')
       .reduce((sum, t) => sum + Number(t.amount), 0)
 
     return {
