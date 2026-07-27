@@ -172,6 +172,7 @@ export default function PendingPage() {
   const [autoCategorizedTxns, setAutoCategorizedTxns] = useState<any[]>([])
   const [showAutoReviewModal, setShowAutoReviewModal] = useState(false)
   const [autoCategoryUpdatingId, setAutoCategoryUpdatingId] = useState<string | null>(null)
+  const [autoCategorySelections, setAutoCategorySelections] = useState<Record<string, string>>({})
 
   // Scan rate-limit / cooldown state
   const [scanCooldownMessage, setScanCooldownMessage] = useState<string | null>(null)
@@ -209,6 +210,9 @@ export default function PendingPage() {
         .order('date', { ascending: false })
       if (data && data.length > 0) {
         setAutoCategorizedTxns(data)
+        setAutoCategorySelections(
+          Object.fromEntries(data.map((t) => [t.id, t.category]))
+        )
         setShowAutoReviewModal(true)
       }
     } catch (e) {
@@ -486,24 +490,37 @@ export default function PendingPage() {
     }
   }
 
-  const handleAutoCategoryChange = async (txnId: string, merchant: string, newCategory: string) => {
-    setAutoCategoryUpdatingId(txnId)
+  const handleAutoCategorySelect = (txnId: string, newCategory: string) => {
+    setAutoCategorySelections((prev) => ({ ...prev, [txnId]: newCategory }))
+  }
+
+  const handleConfirmCategorization = async (txn: TransactionRow) => {
+    const selectedCategory = autoCategorySelections[txn.id] || txn.category
+    setAutoCategoryUpdatingId(txn.id)
     try {
-      if (merchant) saveMerchantRule(merchant, newCategory, true)
+      if (selectedCategory !== txn.category && txn.merchant) {
+        saveMerchantRule(txn.merchant, selectedCategory, true)
+        if (user?.id) {
+          saveMerchantRuleToDb(user.id, txn.merchant, selectedCategory, true).catch(console.warn)
+        }
+      }
 
       const { error: updateErr } = await supabase
         .from('transactions')
-        .update({ category: newCategory })
-        .eq('id', txnId)
+        .update({ category: selectedCategory, category_confirmed_at: new Date().toISOString() })
+        .eq('id', txn.id)
 
       if (updateErr) throw updateErr
 
-      setAutoCategorizedTxns((prev) =>
-        prev.map((t) => (t.id === txnId ? { ...t, category: newCategory } : t))
-      )
+      setAutoCategorizedTxns((prev) => prev.filter((t) => t.id !== txn.id))
+      setAutoCategorySelections((prev) => {
+        const next = { ...prev }
+        delete next[txn.id]
+        return next
+      })
     } catch (err) {
-      console.error('Failed to change auto-categorized transaction:', err)
-      showToast('Error updating category. Please try again.', 'error')
+      console.error('Failed to confirm categorization:', err)
+      showToast('Error confirming category. Please try again.', 'error')
     } finally {
       setAutoCategoryUpdatingId(null)
     }
@@ -1101,7 +1118,7 @@ export default function PendingPage() {
         footer={
           <div className="flex items-center justify-between w-full">
             <span className="text-xs text-zinc-500 font-medium">
-              Showing {autoCategorizedTxns.length} auto-approved entries
+              {autoCategorizedTxns.length} awaiting your confirmation
             </span>
             <Button
               variant="primary"
@@ -1111,7 +1128,7 @@ export default function PendingPage() {
               }}
               className="font-bold text-xs"
             >
-              Close & Save Rules
+              Review Later
             </Button>
           </div>
         }
@@ -1142,29 +1159,34 @@ export default function PendingPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0 justify-between sm:justify-end">
+                <div className="flex items-center gap-2 shrink-0 justify-between sm:justify-end">
                   <span className="text-sm font-bold text-[var(--status-positive-text)] font-mono pr-1">
                     {formatCurrency(Number(txn.amount))}
                   </span>
 
-                  <div className="flex items-center gap-1.5 relative">
-                    <select
-                      value={txn.category}
-                      disabled={autoCategoryUpdatingId === txn.id}
-                      onChange={(e) => handleAutoCategoryChange(txn.id, txn.merchant || '', e.target.value)}
-                      className="bg-surface-3 border border-border-subtle text-xs text-zinc-300 rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold"
-                      aria-label={`Change category for ${txn.merchant}`}
-                    >
-                      {Object.entries(CATEGORIES).map(([key, cat]) => (
-                        <option key={key} value={key}>
-                          {(cat as any).emoji} {(cat as any).label}
-                        </option>
-                      ))}
-                    </select>
-                    {autoCategoryUpdatingId === txn.id && (
-                      <div className="absolute right-2 top-2 h-4 w-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
-                    )}
-                  </div>
+                  <select
+                    value={autoCategorySelections[txn.id] || txn.category}
+                    disabled={autoCategoryUpdatingId === txn.id}
+                    onChange={(e) => handleAutoCategorySelect(txn.id, e.target.value)}
+                    className="bg-surface-3 border border-border-subtle text-xs text-zinc-300 rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold"
+                    aria-label={`Category for ${txn.merchant}`}
+                  >
+                    {Object.entries(CATEGORIES).map(([key, cat]) => (
+                      <option key={key} value={key}>
+                        {(cat as any).emoji} {(cat as any).label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <Button
+                    size="sm"
+                    onClick={() => handleConfirmCategorization(txn)}
+                    loading={autoCategoryUpdatingId === txn.id}
+                    disabled={autoCategoryUpdatingId === txn.id}
+                    className="text-xs font-bold shrink-0"
+                  >
+                    Confirm
+                  </Button>
                 </div>
               </div>
             ))}
