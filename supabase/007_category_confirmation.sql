@@ -11,11 +11,11 @@
 -- a timestamp here, since those never needed a silent-auto-approval
 -- confirmation in the first place.
 --
--- Backfill: every transaction that already exists is treated as already
--- confirmed, by explicit product decision — this feature only applies to
--- categorizations made from this point forward, not the historical backlog.
+-- Existing rows are automatically backfilled with the current timestamp
+-- by ADD COLUMN's own DEFAULT clause — no separate UPDATE needed. This is
+-- deliberate: a separate backfill UPDATE would be unsafe to accidentally
+-- re-run after go-live, since it would silently mass-confirm any
+-- transaction genuinely awaiting the user's review.
 -- ============================================================
 
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS category_confirmed_at TIMESTAMPTZ DEFAULT now();
-
-UPDATE public.transactions SET category_confirmed_at = now() WHERE category_confirmed_at IS NULL;

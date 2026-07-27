@@ -314,6 +314,7 @@ export default function PendingPage() {
               setShowInactivityBanner(false)
               fetchPendingData()
               fetchLastScanLog()
+              fetchUnconfirmedCategorizations()
             }
           } catch (e) {
             console.warn('Auto-sync failed:', e)
@@ -324,7 +325,7 @@ export default function PendingPage() {
     } catch (err) {
       console.error('Pending page auto-sync check error:', err)
     }
-  }, [fetchPendingData, fetchLastScanLog])
+  }, [fetchPendingData, fetchLastScanLog, fetchUnconfirmedCategorizations])
 
   useEffect(() => {
     document.title = 'Pending Alerts | Dhanrakshak'
