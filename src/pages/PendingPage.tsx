@@ -197,6 +197,25 @@ export default function PendingPage() {
     } catch {}
   }, [user])
 
+  // ── Fetch unconfirmed auto-categorized transactions ──────
+  const fetchUnconfirmedCategorizations = useCallback(async () => {
+    if (!user) return
+    try {
+      const { data } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .is('category_confirmed_at', null)
+        .order('date', { ascending: false })
+      if (data && data.length > 0) {
+        setAutoCategorizedTxns(data)
+        setShowAutoReviewModal(true)
+      }
+    } catch (e) {
+      console.warn('Failed to fetch unconfirmed categorizations:', e)
+    }
+  }, [user])
+
   // ── Live countdown timer ─────────────────────────────────
   useEffect(() => {
     if (!lastScanLog) return
@@ -307,7 +326,8 @@ export default function PendingPage() {
     document.title = 'Pending Alerts | Dhanrakshak'
     fetchPendingData()
     fetchLastScanLog()
-  }, [fetchPendingData, fetchLastScanLog])
+    fetchUnconfirmedCategorizations()
+  }, [fetchPendingData, fetchLastScanLog, fetchUnconfirmedCategorizations])
 
   useEffect(() => {
     checkInactivityAndAutoSync()
@@ -543,14 +563,9 @@ export default function PendingPage() {
       // modal below — this stays a short, glanceable summary, not a repeat dump.
       setScanSuccessMessage({ total: count, autoApproved, pendingReview: pendingCount, skipped })
 
-      const autoList = res.data?.transactions?.filter((t: any) => t.approval_status === 'approved') || []
-      if (autoList.length > 0) {
-        setAutoCategorizedTxns(autoList)
-        setShowAutoReviewModal(true)
-      }
-
       await fetchPendingData()
       await fetchLastScanLog()
+      await fetchUnconfirmedCategorizations()
     } catch (err: any) {
       console.error('Scan error:', err)
       setError(err.message || 'Scan failed. Please try again.')
