@@ -18,6 +18,7 @@ export const CATEGORIES: Record<ExpenseCategory, { label: string; emoji: string;
   travel:         { label: 'Travel',            emoji: '✈️', color: '#14b8a6' },
   subscriptions:  { label: 'Subscriptions',     emoji: '🔄', color: '#a855f7' },
   insurance:      { label: 'Insurance',         emoji: '🛡️', color: '#0891b2' },
+  credit_card_bill_payment: { label: 'Credit Card Bill Payment', emoji: '💳', color: '#475569' },
   transfers:      { label: 'Transfers',         emoji: '🔁', color: '#6b7280' },
   salary:         { label: 'Salary',            emoji: '💰', color: '#10b981' },
   freelance:      { label: 'Freelance',         emoji: '💻', color: '#0ea5e9' },

@@ -37,6 +37,7 @@ export type ExpenseCategory =
   | 'travel'
   | 'subscriptions'
   | 'insurance'
+  | 'credit_card_bill_payment'
   | 'transfers'
   | 'salary'
   | 'freelance'
