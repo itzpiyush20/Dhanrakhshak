@@ -85,12 +85,14 @@ export default function ExpensesPage() {
     setEditingTransaction(null)
   }
 
-  // Quick stats (from ALL transactions, not filtered)
+  // Quick stats (from ALL transactions, not filtered) — credit card bill
+  // payments are excluded from totalExpenses to avoid double-booking spend
+  // already counted when the underlying purchases happened.
   const totalIncome = transactions
     .filter((t) => t.type === 'credit')
     .reduce((sum, t) => sum + Number(t.amount), 0)
   const totalExpenses = transactions
-    .filter((t) => t.type === 'debit')
+    .filter((t) => t.type === 'debit' && t.category !== 'credit_card_bill_payment')
     .reduce((sum, t) => sum + Number(t.amount), 0)
 
   // Client-side search + filter
