@@ -83,8 +83,8 @@ const getRangeDates = (range: RangeType) => {
     start.setHours(0, 0, 0, 0)
     end.setHours(23, 59, 59, 999)
   } else if (range === 'last-6-months') {
-    start.setMonth(now.getMonth() - 5)
     start.setDate(1)
+    start.setMonth(now.getMonth() - 5)
     start.setHours(0, 0, 0, 0)
     end.setHours(23, 59, 59, 999)
   }
