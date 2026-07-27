@@ -4,6 +4,7 @@
 // ============================================
 
 import { useState, useEffect } from 'react'
+import { AppLayout } from '@/layouts'
 import { Card, Button, Input, Modal } from '@/components/ui'
 import {
   getMerchantRules,
@@ -464,7 +465,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <>
+    <AppLayout>
       <div className="space-y-8 animate-fade-in">
         {/* Header */}
         <div>
@@ -993,6 +994,6 @@ export default function SettingsPage() {
           </p>
         </div>
       </Modal>
-    </>
+    </AppLayout>
   )
 }
