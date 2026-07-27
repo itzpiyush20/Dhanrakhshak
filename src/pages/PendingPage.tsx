@@ -171,7 +171,7 @@ export default function PendingPage() {
 
   const [autoCategorizedTxns, setAutoCategorizedTxns] = useState<any[]>([])
   const [showAutoReviewModal, setShowAutoReviewModal] = useState(false)
-  const [autoCategoryUpdatingId, setAutoCategoryUpdatingId] = useState<string | null>(null)
+  const [confirmingIds, setConfirmingIds] = useState<Set<string>>(new Set())
   const [autoCategorySelections, setAutoCategorySelections] = useState<Record<string, string>>({})
 
   // Scan rate-limit / cooldown state
@@ -496,13 +496,10 @@ export default function PendingPage() {
 
   const handleConfirmCategorization = async (txn: TransactionRow) => {
     const selectedCategory = autoCategorySelections[txn.id] || txn.category
-    setAutoCategoryUpdatingId(txn.id)
+    setConfirmingIds((prev) => new Set(prev).add(txn.id))
     try {
-      if (selectedCategory !== txn.category && txn.merchant) {
-        saveMerchantRule(txn.merchant, selectedCategory, true)
-        if (user?.id) {
-          saveMerchantRuleToDb(user.id, txn.merchant, selectedCategory, true).catch(console.warn)
-        }
+      if (selectedCategory !== txn.category) {
+        learnMerchantRule(txn, selectedCategory)
       }
 
       const { error: updateErr } = await supabase
@@ -522,7 +519,11 @@ export default function PendingPage() {
       console.error('Failed to confirm categorization:', err)
       showToast('Error confirming category. Please try again.', 'error')
     } finally {
-      setAutoCategoryUpdatingId(null)
+      setConfirmingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(txn.id)
+        return next
+      })
     }
   }
 
@@ -1137,7 +1138,7 @@ export default function PendingPage() {
           <div className="bg-brand-500/5 border border-brand-500/10 rounded-xl p-3.5 text-xs text-brand-300 leading-relaxed flex items-start gap-2.5">
             <Brain className="h-4 w-4 text-brand-400 shrink-0 mt-0.5" />
             <span>
-              <strong>Self-Learning Engine Active:</strong> The following transactions were auto-approved. You can change their categories below to automatically update future classification rules.
+              <strong>Self-Learning Engine Active:</strong> These transactions were auto-categorized and need your confirmation. Change the category if it's wrong, then confirm each one below.
             </span>
           </div>
 
@@ -1166,7 +1167,7 @@ export default function PendingPage() {
 
                   <select
                     value={autoCategorySelections[txn.id] || txn.category}
-                    disabled={autoCategoryUpdatingId === txn.id}
+                    disabled={confirmingIds.has(txn.id)}
                     onChange={(e) => handleAutoCategorySelect(txn.id, e.target.value)}
                     className="bg-surface-3 border border-border-subtle text-xs text-zinc-300 rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold"
                     aria-label={`Category for ${txn.merchant}`}
@@ -1181,8 +1182,8 @@ export default function PendingPage() {
                   <Button
                     size="sm"
                     onClick={() => handleConfirmCategorization(txn)}
-                    loading={autoCategoryUpdatingId === txn.id}
-                    disabled={autoCategoryUpdatingId === txn.id}
+                    loading={confirmingIds.has(txn.id)}
+                    disabled={confirmingIds.has(txn.id)}
                     className="text-xs font-bold shrink-0"
                   >
                     Confirm
