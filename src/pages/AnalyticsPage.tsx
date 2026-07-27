@@ -21,6 +21,7 @@ import {
   ForecastPanel,
   TrendChart,
   ExpenseBreakdown,
+  CreditCardPaymentTrend,
   SmartWealthTips,
   PeriodSelector,
   type RangeType
@@ -358,6 +359,31 @@ export default function AnalyticsPage() {
     [transactions]
   )
 
+  const ccBillPaymentTrend = useMemo(() => {
+    const months: { monthKey: string; label: string; amount: number }[] = []
+    const temp = new Date()
+    temp.setDate(1)
+    temp.setMonth(temp.getMonth() - 5)
+    for (let i = 0; i < 6; i++) {
+      const year = temp.getFullYear()
+      const mon = temp.getMonth()
+      const monthKey = `${year}-${String(mon + 1).padStart(2, '0')}`
+      const label = temp.toLocaleDateString('en-IN', { month: 'short' }) + ' ' + String(year).substring(2)
+      months.push({ monthKey, label, amount: 0 })
+      temp.setMonth(temp.getMonth() + 1)
+    }
+
+    transactions
+      .filter((t) => t.category === 'credit_card_bill_payment' && t.date)
+      .forEach((t) => {
+        const tMonth = t.date.substring(0, 7)
+        const monthObj = months.find((m) => m.monthKey === tMonth)
+        if (monthObj) monthObj.amount += Number(t.amount)
+      })
+
+    return months.map(({ label, amount }) => ({ label, amount }))
+  }, [transactions])
+
   // 1. Cashflow Analytics Data (memoized to avoid recalculation on every render)
   const trendData = useMemo(() => getTrendData(expenseTransactions, range), [expenseTransactions, range])
   const summary = useMemo(() => getAllocationData(expenseTransactions, range), [expenseTransactions, range])
@@ -509,6 +535,8 @@ export default function AnalyticsPage() {
           loading={loading}
           hasTransactions={transactions.length > 0}
         />
+
+        <CreditCardPaymentTrend data={ccBillPaymentTrend} loading={loading} />
 
         <div className="grid gap-6 lg:grid-cols-12">
           <ExpenseBreakdown
