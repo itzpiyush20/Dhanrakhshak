@@ -113,21 +113,22 @@ export async function getMonthlySummary(month: string) {
     .filter((t) => t.type === 'credit')
     .reduce((sum, t) => sum + Number(t.amount), 0)
 
-  const total_expenses = data
-    .filter((t) => t.type === 'debit')
-    .reduce((sum, t) => sum + Number(t.amount), 0)
+  // Credit card bill payments are excluded from all expense totals — the
+  // purchases they cover were already counted as expenses when they happened,
+  // so counting the bill payment too would double-book that spend.
+  const expenseTxns = data.filter((t) => t.type === 'debit' && t.category !== 'credit_card_bill_payment')
+
+  const total_expenses = expenseTxns.reduce((sum, t) => sum + Number(t.amount), 0)
 
   // Category breakdown for debits
   const categoryMap = new Map<string, { amount: number; count: number }>()
-  data
-    .filter((t) => t.type === 'debit')
-    .forEach((t) => {
-      const existing = categoryMap.get(t.category) || { amount: 0, count: 0 }
-      categoryMap.set(t.category, {
-        amount: existing.amount + Number(t.amount),
-        count: existing.count + 1,
-      })
+  expenseTxns.forEach((t) => {
+    const existing = categoryMap.get(t.category) || { amount: 0, count: 0 }
+    categoryMap.set(t.category, {
+      amount: existing.amount + Number(t.amount),
+      count: existing.count + 1,
     })
+  })
 
   const category_breakdown = Array.from(categoryMap.entries())
     .map(([category, { amount, count }]) => ({

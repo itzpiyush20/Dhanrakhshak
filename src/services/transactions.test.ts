@@ -17,7 +17,14 @@ function makeChain() {
   const chain: any = {
     select: () => chain,
     eq: () => chain,
-    gte: (...args: any[]) => mockQueryResult(...args),
+    // .gte() is terminal on its own for callers like getLoggingStreak, but
+    // getMonthlySummary chains a further .lte() off it — so the resolved
+    // value also carries a .lte() that resolves the same way.
+    gte: (...args: any[]) => {
+      const result = mockQueryResult(...args)
+      result.lte = (...a: any[]) => mockQueryResult(...a)
+      return result
+    },
     lte: (...args: any[]) => mockQueryResult(...args),
     single: (...args: any[]) => mockSingle(...args),
   }
@@ -40,7 +47,7 @@ vi.mock('./supabase', () => ({
   },
 }))
 
-import { getLoggingStreak, getActiveReceivables, settleReceivable } from './transactions'
+import { getLoggingStreak, getActiveReceivables, settleReceivable, getMonthlySummary } from './transactions'
 
 function isoDaysAgo(n: number) {
   const d = new Date()
@@ -177,5 +184,33 @@ describe('settleReceivable', () => {
     const { data, error } = await settleReceivable('t1')
     expect(data).toBeNull()
     expect(error).toBe(updateError)
+  })
+})
+
+describe('getMonthlySummary', () => {
+  it('excludes credit_card_bill_payment transactions from total_expenses and the category breakdown', async () => {
+    mockQueryResult.mockResolvedValue({
+      data: [
+        { amount: 500, type: 'debit', category: 'food' },
+        { amount: 15000, type: 'debit', category: 'credit_card_bill_payment' },
+        { amount: 2000, type: 'credit', category: 'salary' },
+      ],
+      error: null,
+    })
+    const { data } = await getMonthlySummary('2026-07')
+    expect(data!.total_expenses).toBe(500)
+    expect(data!.category_breakdown.find((c) => c.category === 'credit_card_bill_payment')).toBeUndefined()
+  })
+
+  it('still totals ordinary debit transactions when there is no credit card bill payment', async () => {
+    mockQueryResult.mockResolvedValue({
+      data: [
+        { amount: 300, type: 'debit', category: 'food' },
+        { amount: 200, type: 'debit', category: 'transport' },
+      ],
+      error: null,
+    })
+    const { data } = await getMonthlySummary('2026-07')
+    expect(data!.total_expenses).toBe(500)
   })
 })
