@@ -348,14 +348,24 @@ export default function AnalyticsPage() {
     fetchAllData()
   }, [])
 
+  // Credit card bill payments are excluded from every total/trend/breakdown on
+  // this page — the purchases they cover were already counted as expenses when
+  // they happened, so counting the bill payment too would double-book that
+  // spend. The raw `transactions` array is still used, unfiltered, by the new
+  // dedicated credit-card-payment trend chart added in the next task.
+  const expenseTransactions = useMemo(
+    () => transactions.filter((t) => t.category !== 'credit_card_bill_payment'),
+    [transactions]
+  )
+
   // 1. Cashflow Analytics Data (memoized to avoid recalculation on every render)
-  const trendData = useMemo(() => getTrendData(transactions, range), [transactions, range])
-  const summary = useMemo(() => getAllocationData(transactions, range), [transactions, range])
-  const trend = useMemo(() => getMoMTrend(transactions), [transactions])
+  const trendData = useMemo(() => getTrendData(expenseTransactions, range), [expenseTransactions, range])
+  const summary = useMemo(() => getAllocationData(expenseTransactions, range), [expenseTransactions, range])
+  const trend = useMemo(() => getMoMTrend(expenseTransactions), [expenseTransactions])
 
   // 2. Anomaly detection & forecasting (memoized)
-  const anomalies = useMemo(() => detectAnomalies(transactions), [transactions])
-  const forecast = useMemo(() => generateForecast(transactions), [transactions])
+  const anomalies = useMemo(() => detectAnomalies(expenseTransactions), [expenseTransactions])
+  const forecast = useMemo(() => generateForecast(expenseTransactions), [expenseTransactions])
 
   const savingsRate =
     summary && summary.total_income > 0
@@ -363,7 +373,7 @@ export default function AnalyticsPage() {
       : 0
 
   // 2. CA Advisory Computations
-  const monthlyTxns = transactions.filter((t) => t.date && t.date.startsWith(selectedMonth))
+  const monthlyTxns = expenseTransactions.filter((t) => t.date && t.date.startsWith(selectedMonth))
   const incomeTxns = monthlyTxns.filter((t) => t.type === 'credit' && t.category === 'salary')
   const totalIncome = incomeTxns.reduce((sum, t) => sum + Number(t.amount), 0)
 
