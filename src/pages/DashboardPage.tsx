@@ -476,7 +476,7 @@ export default function DashboardPage() {
       const autoApproved = res.data?.autoApprovedCount || 0
       const categoryTotals = new Map<string, number>()
       txns
-        .filter((t: any) => t.type === 'debit')
+        .filter((t: any) => t.type === 'debit' && t.category !== 'credit_card_bill_payment')
         .forEach((t: any) => {
           categoryTotals.set(t.category, (categoryTotals.get(t.category) || 0) + Number(t.amount))
         })
