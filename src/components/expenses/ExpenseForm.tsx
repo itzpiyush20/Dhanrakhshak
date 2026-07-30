@@ -7,7 +7,7 @@ import { Button, Input } from '@/components/ui'
 import Select from '@/components/ui/Select'
 import { CATEGORIES } from '@/constants'
 import { useAuth } from '@/context/AuthContext'
-import { createTransaction, updateTransaction, saveMerchantRule, cleanMerchantName, supabase, saveMerchantRuleToDb } from '@/services'
+import { createTransaction, updateTransaction, saveMerchantRule, cleanMerchantName, saveMerchantRuleToDb } from '@/services'
 import type { Database } from '@/types/database'
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row']
@@ -100,21 +100,6 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
         setError(error.message)
         setLoading(false)
         return
-      }
-
-      // Automatically bulk-categorize every other transaction from the same merchant/vendor
-      // — only when the category was actually changed, so re-saving a transaction with its
-      // existing category doesn't churn every same-merchant row with a no-op write.
-      if (editingTransaction.merchant && category !== editingTransaction.category) {
-        const { error: bulkErr } = await supabase
-          .from('transactions')
-          .update({ category })
-          .eq('user_id', user.id)
-          .eq('merchant', editingTransaction.merchant)
-
-        if (bulkErr) {
-          console.error('Failed to bulk-categorize matching transactions:', bulkErr)
-        }
       }
     } else {
       const { error } = await createTransaction({
