@@ -5,10 +5,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { AppLayout } from '@/layouts'
-import { Card, Button, Input, Select, Badge, EmptyState, ConfirmDialog } from '@/components/ui'
+import { Card, Button, Input, Select, Badge, EmptyState, ConfirmDialog, DateFilterPicker } from '@/components/ui'
 import { getBudgets, upsertBudget, deleteBudget } from '@/services/budgets'
-import { getMonthlySummary } from '@/services/transactions'
-import { formatCurrency, getCurrentMonth, withTimeout } from '@/utils'
+import { getSummary } from '@/services/transactions'
+import { formatCurrency, getCurrentMonth, withTimeout, resolveDateFilter, getMonthsInRange, formatDateFilterLabel, type DateFilter } from '@/utils'
 import { CATEGORIES } from '@/constants'
 import type { Database } from '@/types/database'
 import { useToast, useAuth } from '@/context'
@@ -33,8 +33,9 @@ const BUDGET_ELIGIBLE_CATEGORIES = [
 
 export default function BudgetsPage() {
   const { currencySymbol } = useAuth()
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
-  const [budgets, setBudgets] = useState<BudgetRow[]>([])
+  const [dateFilter, setDateFilter] = useState<DateFilter>({ mode: 'month', month: getCurrentMonth() })
+  const targetMonth = dateFilter.mode === 'month' ? dateFilter.month : resolveDateFilter(dateFilter).dateTo.slice(0, 7)
+  const [budgets, setBudgets] = useState<(BudgetRow & { monthCount: number })[]>([])
   const [spentMap, setSpentMap] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
@@ -46,23 +47,43 @@ export default function BudgetsPage() {
   const [category, setCategory] = useState(BUDGET_ELIGIBLE_CATEGORIES[0].key)
   const [amount, setAmount] = useState('')
 
-  const fetchBudgetData = useCallback(async (month: string) => {
+  const fetchBudgetData = useCallback(async (filter: DateFilter) => {
     setLoading(true)
     setError(null)
     try {
-      const [budgetsRes, summaryRes] = await withTimeout(
+      const { dateFrom, dateTo } = resolveDateFilter(filter)
+      const months = filter.mode === 'month' ? [filter.month] : getMonthsInRange(dateFrom, dateTo)
+
+      const [budgetsResults, summaryRes] = await withTimeout(
         Promise.all([
-          getBudgets(month),
-          getMonthlySummary(month),
+          Promise.all(months.map((m) => getBudgets(m))),
+          getSummary({ dateFrom, dateTo }),
         ]),
         45000,
         'Budget data fetch'
       )
 
-      if (budgetsRes.error) throw budgetsRes.error
+      for (const r of budgetsResults) {
+        if (r.error) throw r.error
+      }
       if (summaryRes.error) throw summaryRes.error
 
-      setBudgets(budgetsRes.data || [])
+      // Merge same-category budgets across months (Custom mode can touch several).
+      // A merged row's id/month are only meaningful when it maps to a single
+      // month's row — the UI uses `monthCount` to decide whether delete applies.
+      const merged = new Map<string, BudgetRow & { monthCount: number }>()
+      budgetsResults.forEach((r) => {
+        (r.data || []).forEach((b) => {
+          const existing = merged.get(b.category)
+          if (existing) {
+            existing.amount += Number(b.amount)
+            existing.monthCount += 1
+          } else {
+            merged.set(b.category, { ...b, amount: Number(b.amount), monthCount: 1 })
+          }
+        })
+      })
+      setBudgets(Array.from(merged.values()))
 
       // Map category spent from summary breakdown
       const spent: Record<string, number> = {}
@@ -82,8 +103,8 @@ export default function BudgetsPage() {
 
   useEffect(() => {
     document.title = 'Budgets | Dhanrakshak'
-    fetchBudgetData(selectedMonth)
-  }, [selectedMonth, fetchBudgetData])
+    fetchBudgetData(dateFilter)
+  }, [dateFilter, fetchBudgetData])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -92,12 +113,12 @@ export default function BudgetsPage() {
     setActionLoading(true)
     setError(null)
     try {
-      const { error } = await upsertBudget(category, Number(amount), selectedMonth)
+      const { error } = await upsertBudget(category, Number(amount), targetMonth)
       if (error) throw error
 
       setAmount('')
       showToast('Limit set successfully')
-      await fetchBudgetData(selectedMonth)
+      await fetchBudgetData(dateFilter)
     } catch (err: any) {
       console.error('Error saving budget:', err)
       setError(err.message || 'Failed to save budget.')
@@ -113,37 +134,13 @@ export default function BudgetsPage() {
       const { error } = await deleteBudget(id)
       if (error) throw error
 
-      await fetchBudgetData(selectedMonth)
+      await fetchBudgetData(dateFilter)
     } catch (err: any) {
       console.error('Error deleting budget:', err)
       setError(err.message || 'Failed to delete budget.')
     } finally {
       setActionLoading(false)
     }
-  }
-
-  const handlePrevMonth = () => {
-    const [year, mon] = selectedMonth.split('-').map(Number)
-    const prevDate = new Date(year, mon - 2, 1)
-    setSelectedMonth(
-      `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
-    )
-  }
-
-  const handleNextMonth = () => {
-    const [year, mon] = selectedMonth.split('-').map(Number)
-    const nextDate = new Date(year, mon, 1)
-    setSelectedMonth(
-      `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`
-    )
-  }
-
-  const formatMonthName = (monthStr: string) => {
-    const [year, mon] = monthStr.split('-').map(Number)
-    return new Date(year, mon - 1, 1).toLocaleDateString('en-IN', {
-      month: 'long',
-      year: 'numeric',
-    })
   }
 
   // Calculate totals
@@ -158,13 +155,13 @@ export default function BudgetsPage() {
 
   // Under-budget deserves the same visual weight as a warning — an app that
   // only speaks up when you overspend trains people to avoid opening it.
-  const isCurrentMonth = selectedMonth === getCurrentMonth()
+  const isCurrentMonth = dateFilter.mode === 'month' && dateFilter.month === getCurrentMonth()
   const allOnTrack = budgets.length > 0 && warningBudgets.length === 0
 
   // Loss-framed pace projection: "at this rate, you'll end the month over
   // budget" lands harder mid-month than a static percentage-used bar.
   const today = new Date()
-  const [selYear, selMon] = selectedMonth.split('-').map(Number)
+  const [selYear, selMon] = targetMonth.split('-').map(Number)
   const daysInSelectedMonth = new Date(selYear, selMon, 0).getDate()
   const daysElapsed = isCurrentMonth ? today.getDate() : daysInSelectedMonth
   const projectPace = (spent: number) =>
@@ -182,31 +179,7 @@ export default function BudgetsPage() {
             </p>
           </div>
 
-          {/* Month Navigator */}
-          <div className="flex items-center gap-2 bg-surface-1 border border-border-subtle rounded-xl p-1 shrink-0 max-w-fit shadow-inner">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handlePrevMonth}
-              className="hover:bg-surface-2 h-9 w-9 p-0"
-              title="Previous Month"
-            >
-              ◀️
-            </Button>
-            <span className="px-4 text-sm font-semibold text-zinc-200 min-w-[120px] text-center">
-              {formatMonthName(selectedMonth)}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleNextMonth}
-              className="hover:bg-surface-2 h-9 w-9 p-0"
-              title="Next Month"
-              disabled={selectedMonth === getCurrentMonth()}
-            >
-              ▶️
-            </Button>
-          </div>
+          <DateFilterPicker value={dateFilter} onChange={setDateFilter} />
         </div>
 
         {error && (
@@ -384,16 +357,18 @@ export default function BudgetsPage() {
                                   : `${formatCurrency(Math.abs(remaining))} overspent!`}
                               </p>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-zinc-500 hover:text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] h-8 w-8 p-0"
-                              onClick={() => setConfirmDeleteId(budget.id)}
-                              disabled={actionLoading}
-                              title="Delete budget"
-                            >
-                              🗑️
-                            </Button>
+                            {budget.monthCount === 1 && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-zinc-500 hover:text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] h-8 w-8 p-0"
+                                onClick={() => setConfirmDeleteId(budget.id)}
+                                disabled={actionLoading}
+                                title="Delete budget"
+                              >
+                                🗑️
+                              </Button>
+                            )}
                           </div>
                         </div>
 
@@ -434,6 +409,11 @@ export default function BudgetsPage() {
           {/* Right column: Form to add/update */}
           <Card className="lg:col-span-4 self-start">
             <h2 className="text-lg font-bold text-white mb-6">Set Limit Target</h2>
+            {dateFilter.mode === 'custom' && (
+              <p className="text-xs text-zinc-500 -mt-4 mb-5">
+                Setting a limit for <span className="text-zinc-300 font-semibold">{formatDateFilterLabel({ mode: 'month', month: targetMonth })}</span>
+              </p>
+            )}
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
