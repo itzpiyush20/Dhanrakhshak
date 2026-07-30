@@ -171,6 +171,8 @@ export default function DashboardPage() {
   const [selectedCategoryCode, setSelectedCategoryCode] = useState<string | null>(null)
   const [categoryTransactions, setCategoryTransactions] = useState<TransactionRow[]>([])
   const [loadingCategoryTxns, setLoadingCategoryTxns] = useState(false)
+  const [showAllCategories, setShowAllCategories] = useState(false)
+  const CATEGORY_BREAKDOWN_PREVIEW_COUNT = 5
 
   const handleCategoryClick = async (categoryCode: string) => {
     setSelectedCategoryCode(categoryCode)
@@ -893,6 +895,16 @@ export default function DashboardPage() {
                     <h2 className="text-lg font-bold text-text-primary">Monthly Spending Breakdown</h2>
                     <p className="text-xs text-zinc-500 mt-0.5">Where your money went this month</p>
                   </div>
+                  {summary && summary.category_breakdown.length > CATEGORY_BREAKDOWN_PREVIEW_COUNT && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-brand-400 hover:text-brand-300 font-semibold pr-0"
+                      onClick={() => setShowAllCategories((prev) => !prev)}
+                    >
+                      {showAllCategories ? 'Show Less' : 'View All'}
+                    </Button>
+                  )}
                 </div>
 
                 <div className="flex-1 flex flex-col justify-center">
@@ -917,7 +929,10 @@ export default function DashboardPage() {
                     />
                   ) : (
                     <div className="space-y-5 py-2">
-                      {summary.category_breakdown.map((item, idx) => {
+                      {(showAllCategories
+                        ? summary.category_breakdown
+                        : summary.category_breakdown.slice(0, CATEGORY_BREAKDOWN_PREVIEW_COUNT)
+                      ).map((item, idx) => {
                         const cat =
                           CATEGORIES[item.category as keyof typeof CATEGORIES] || CATEGORIES.other
                         return (
