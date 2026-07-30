@@ -91,6 +91,9 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
         expected_return_date: type === 'debit' && isReturnable ? expectedReturnDate : null,
         return_status: type === 'debit' && isReturnable ? (editingTransaction.return_status || 'pending') : null,
         notes: notes || null,
+        // A manual edit is an explicit human confirmation — mark it so this transaction
+        // stops resurfacing in the Auto-Categorization Review modal on Pending.
+        category_confirmed_at: new Date().toISOString(),
       })
 
       if (error) {
@@ -100,13 +103,15 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
       }
 
       // Automatically bulk-categorize every other transaction from the same merchant/vendor
-      if (editingTransaction.merchant) {
+      // — only when the category was actually changed, so re-saving a transaction with its
+      // existing category doesn't churn every same-merchant row with a no-op write.
+      if (editingTransaction.merchant && category !== editingTransaction.category) {
         const { error: bulkErr } = await supabase
           .from('transactions')
           .update({ category })
           .eq('user_id', user.id)
           .eq('merchant', editingTransaction.merchant)
-        
+
         if (bulkErr) {
           console.error('Failed to bulk-categorize matching transactions:', bulkErr)
         }

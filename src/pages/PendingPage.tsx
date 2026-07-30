@@ -369,7 +369,11 @@ export default function PendingPage() {
   // below so the write can be delayed a few seconds for the undo window.
   const commitApproval = async (txn: TransactionRow, fields: { category: string; description: string }) => {
     try {
-      if (txn.merchant) {
+      // Only propagate to other same-merchant transactions when the user actually
+      // changed the category during review — otherwise this silently overwrites
+      // previously-corrected transactions with the AI's unreviewed default category
+      // every time an unrelated pending transaction for the same merchant is approved.
+      if (txn.merchant && fields.category !== txn.category) {
         await supabase
           .from('transactions')
           .update({ category: fields.category })
