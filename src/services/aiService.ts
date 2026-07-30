@@ -398,6 +398,9 @@ If TRUE, extract:
 - amount: exact transaction amount in INR as a number. Do NOT use balance or limit amounts.
 - merchant: clean merchant/vendor name (e.g. 'Swiggy', 'Amazon', 'Airtel'). Strip suffixes like 'Ltd', 'Pvt', 'Private Limited'.
 - category: one of 'food', 'groceries', 'transport', 'utilities', 'shopping', 'entertainment', 'subscriptions', 'salary', 'travel', 'health', 'investments', 'other'
+  - 'transport' = day-to-day local commute: cabs/auto (Uber, Ola, Rapido), metro, bus, fuel/petrol/diesel, tolls (FASTag), parking, train tickets (IRCTC) for regular travel
+  - 'travel' = trip bookings and stays: flight tickets, hotels/OYO, travel agents (MakeMyTrip, Goibibo, Cleartrip, Yatra, EaseMyTrip), Airbnb, vacation packages
+  - Do NOT default ambiguous mobility spend to 'travel' — only use 'travel' for flights, hotels, or trip-booking platforms; everyday transit and fuel are always 'transport'
 - description: short clear description (e.g. 'Swiggy food order', 'Airtel bill payment')
 - payment_mode: one of 'upi', 'credit_card', 'debit_card', 'net_banking', 'wallet', 'neft', 'imps', 'rtgs', 'atm', 'nach', 'cheque', 'unknown'
 - card_issuer: issuing bank name only if clearly stated (e.g. 'HDFC', 'SBI', 'ICICI', 'Axis'). null if not found. Do NOT include account numbers or card numbers.
