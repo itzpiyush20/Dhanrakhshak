@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
-import { Card, Button, EmptyState, Modal, MonthPicker } from '@/components/ui'
+import { Card, Button, EmptyState, Modal, DateFilterPicker } from '@/components/ui'
 import ActiveSubscriptionsWidget from '@/components/dashboard/ActiveSubscriptionsWidget'
 import QuickAddWidget from '@/components/dashboard/QuickAddWidget'
 import ReceivablesCard from '@/components/dashboard/ReceivablesCard'
@@ -33,7 +33,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
-import { getTransactions, getMonthlySummary, getLoggingStreak } from '@/services/transactions'
+import { getTransactions, getMonthlySummary, getSummary, getLoggingStreak } from '@/services/transactions'
 import { getBudgets } from '@/services/budgets'
 import {
   supabase,
@@ -44,7 +44,7 @@ import {
   seedSandboxData,
 } from '@/services'
 import { migrateLocalStorageRulesToDB } from '@/services/learningEngine'
-import { formatCurrency, formatCurrencyCompact, getCurrentMonth, formatDate, withTimeout } from '@/utils'
+import { formatCurrency, formatCurrencyCompact, getCurrentMonth, formatDate, withTimeout, resolveDateFilter, formatDateFilterLabel, getMonthsInRange, type DateFilter } from '@/utils'
 import { CATEGORIES } from '@/constants'
 import type { Database } from '@/types/database'
 
@@ -87,7 +87,7 @@ export default function DashboardPage() {
     return result
   }
 
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
+  const [dateFilter, setDateFilter] = useState<DateFilter>({ mode: 'month', month: getCurrentMonth() })
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const [recentTransactions, setRecentTransactions] = useState<TransactionRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -180,7 +180,7 @@ export default function DashboardPage() {
     setLoadingCategoryTxns(true)
     try {
       const { data } = await getTransactions({
-        month: selectedMonth,
+        ...resolveDateFilter(dateFilter),
         category: categoryCode,
         type: 'debit',
         limit: 100,
@@ -193,17 +193,23 @@ export default function DashboardPage() {
     }
   }
 
-  const fetchDashboardData = useCallback(async (month: string, silent = false) => {
+  const fetchDashboardData = useCallback(async (filter: DateFilter, silent = false) => {
     if (!silent) {
       setLoading(true)
       setError(null)
     }
     try {
+      const { dateFrom, dateTo } = resolveDateFilter(filter)
       const [summaryRes, transactionsRes, budgetsRes] = await withTimeout(
         Promise.all([
-          getMonthlySummary(month),
+          getSummary({ dateFrom, dateTo }),
           getTransactions({ limit: 5 }), // Show global recent transactions
-          getBudgets(month),
+          filter.mode === 'month'
+            ? getBudgets(filter.month)
+            : Promise.all(getMonthsInRange(dateFrom, dateTo).map((m) => getBudgets(m))).then((results) => ({
+                data: results.flatMap((r) => r.data || []),
+                error: results.find((r) => r.error)?.error || null,
+              })),
         ]),
         45000, // 45-second timeout to handle Supabase cold starts
         'Dashboard data fetch'
@@ -288,7 +294,7 @@ export default function DashboardPage() {
                   setLastScanTime(new Date(newLogs[0].scanned_at))
                   setShowInactivityBanner(false)
                 }
-                fetchDashboardData(selectedMonth, true)
+                fetchDashboardData(dateFilter, true)
               } else if (res?.error) {
                 // If token expired, notify AuthContext so UI updates everywhere
                 if (res.error.message?.includes('expired') || res.error.message?.includes('TOKEN_EXPIRED')) {
@@ -309,16 +315,16 @@ export default function DashboardPage() {
     } catch (err) {
       console.error('Error running scheduler check:', err)
     }
-  }, [user, selectedMonth, fetchDashboardData])
+  }, [user, dateFilter, fetchDashboardData])
 
   useEffect(() => {
     document.title = 'Dashboard | Dhanrakshak'
-    fetchDashboardData(selectedMonth)
+    fetchDashboardData(dateFilter)
     // One-time migration of localStorage merchant rules to Supabase DB
     if (user && !sessionStorage.getItem('dhanrakshak_ls_migration_done')) {
       migrateLocalStorageRulesToDB(user.id).catch(console.warn)
     }
-  }, [selectedMonth, fetchDashboardData])
+  }, [dateFilter, fetchDashboardData])
 
   useEffect(() => {
     if (user) {
@@ -395,7 +401,7 @@ export default function DashboardPage() {
       .then(({ error }) => {
         if (error) throw error
         showToast('Demo data loaded — explore freely. Clear it anytime from Settings.', 'success')
-        fetchDashboardData(selectedMonth)
+        fetchDashboardData(dateFilter)
       })
       .catch((err: any) => {
         showToast(err.message || 'Could not load demo data.', 'error')
@@ -495,7 +501,7 @@ export default function DashboardPage() {
         pendingReview: txns.length - autoApproved,
         topCategory,
       })
-      fetchDashboardData(selectedMonth)
+      fetchDashboardData(dateFilter)
     } catch (e: any) {
       setSyncError(e.message || 'Sync failed. Please try again.')
     } finally {
@@ -520,7 +526,7 @@ export default function DashboardPage() {
   // "Safe to spend" — the one glanceable number that answers "am I okay?"
   // without the user having to do the income/expense/savings math themselves.
   // Only meaningful for the current month (there's no "days left" in a past one).
-  const isCurrentMonth = selectedMonth === getCurrentMonth()
+  const isCurrentMonth = dateFilter.mode === 'month' && dateFilter.month === getCurrentMonth()
   const today = new Date()
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
   const daysLeftInMonth = Math.max(1, daysInMonth - today.getDate() + 1)
@@ -546,7 +552,7 @@ export default function DashboardPage() {
             </h1>
             <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-2">
               <p className="text-sm text-zinc-400">
-                Here is your wealth overview for this month.
+                Here is your wealth overview{dateFilter.mode === 'month' ? ' for this month' : ''}.
               </p>
               <span className="text-zinc-700 hidden sm:inline">•</span>
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-surface-2 border border-border-subtle/50 text-xs font-semibold text-brand-300 font-mono">
@@ -572,7 +578,7 @@ export default function DashboardPage() {
               <Settings className="h-3.5 w-3.5" /> Customize
             </Button>
 
-            <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
+            <DateFilterPicker value={dateFilter} onChange={setDateFilter} />
           </div>
         </div>
 
@@ -740,7 +746,7 @@ export default function DashboardPage() {
             <QuickAddWidget
               topCategories={topCategories}
               onAdded={() => {
-                fetchDashboardData(selectedMonth)
+                fetchDashboardData(dateFilter)
                 refreshStreak()
               }}
             />
@@ -751,8 +757,8 @@ export default function DashboardPage() {
               </p>
             )}
 
-            <ReceivablesCard onSettled={() => fetchDashboardData(selectedMonth)} />
-            <InsurancePremiumCard onPaid={() => fetchDashboardData(selectedMonth)} />
+            <ReceivablesCard onSettled={() => fetchDashboardData(dateFilter)} />
+            <InsurancePremiumCard onPaid={() => fetchDashboardData(dateFilter)} />
           </>
         )}
 
@@ -796,7 +802,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-zinc-500 mt-0.5">
                     {safeToSpendPerDay >= 0
                       ? `${formatCurrency(budgetRemaining)} left across ${daysLeftInMonth} day${daysLeftInMonth === 1 ? '' : 's'}`
-                      : `for the rest of ${formatMonthName(selectedMonth)}`}
+                      : `for the rest of ${formatDateFilterLabel(dateFilter)}`}
                   </p>
                 </div>
               </div>
@@ -893,7 +899,9 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <h2 className="text-lg font-bold text-text-primary">Monthly Spending Breakdown</h2>
-                    <p className="text-xs text-zinc-500 mt-0.5">Where your money went this month</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Where your money went{dateFilter.mode === 'month' ? ' this month' : ' in this period'}
+                    </p>
                   </div>
                   {summary && summary.category_breakdown.length > CATEGORY_BREAKDOWN_PREVIEW_COUNT && (
                     <Button
@@ -925,7 +933,9 @@ export default function DashboardPage() {
                     <EmptyState
                       icon={<BarChart2 className="h-8 w-8 text-zinc-500" />}
                       title="No expenses tracked"
-                      description="Add an expense in the selected month to see your breakdown chart."
+                      description={dateFilter.mode === 'month'
+                        ? 'Add an expense in the selected month to see your breakdown chart.'
+                        : 'No expenses fall in this date range yet.'}
                     />
                   ) : (
                     <div className="space-y-5 py-2">
@@ -1155,9 +1165,7 @@ export default function DashboardPage() {
           const totalAmount = matchedSummaryItem?.amount || 0
           const totalCount = matchedSummaryItem?.count || 0
           
-          const [yearStr, monStr] = selectedMonth.split('-')
-          const monthDate = new Date(parseInt(yearStr, 10), parseInt(monStr, 10) - 1, 1)
-          const monthLabel = monthDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+          const monthLabel = formatDateFilterLabel(dateFilter)
           
           return (
             <Modal
