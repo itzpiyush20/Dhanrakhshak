@@ -28,6 +28,27 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: { componentStack: string }) {
     // Log to console in dev; send to Sentry in production
     console.error('[Dhanrakshak] Unhandled render error:', error, info.componentStack)
+
+    // Stale chunk after a new deploy: React.lazy()'s dynamic import() rejects because the
+    // old hashed chunk filename no longer exists on the server. A plain "Try Again" re-render
+    // reuses the same rejected import promise and fails again, so force a hard reload instead
+    // (guarded against loops, same pattern as AutoUpdateChecker's asset-error handler).
+    const isStaleChunkError =
+      /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed/i.test(
+        error.message
+      )
+    if (isStaleChunkError) {
+      try {
+        const now = Date.now()
+        const lastReload = sessionStorage.getItem('dhanrakshak_last_auto_reload')
+        if (!lastReload || now - Number(lastReload) > 15000) {
+          sessionStorage.setItem('dhanrakshak_last_auto_reload', String(now))
+          window.location.reload()
+        }
+      } catch {
+        // sessionStorage unavailable — safe to skip the loop guard
+      }
+    }
   }
 
   handleReset = () => {
