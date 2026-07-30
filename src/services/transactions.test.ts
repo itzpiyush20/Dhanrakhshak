@@ -47,7 +47,7 @@ vi.mock('./supabase', () => ({
   },
 }))
 
-import { getLoggingStreak, getActiveReceivables, settleReceivable, getMonthlySummary, getHistoricalAnalytics } from './transactions'
+import { getLoggingStreak, getActiveReceivables, settleReceivable, getMonthlySummary, getHistoricalAnalytics, getSummary } from './transactions'
 
 function isoDaysAgo(n: number) {
   const d = new Date()
@@ -211,6 +211,35 @@ describe('getMonthlySummary', () => {
       error: null,
     })
     const { data } = await getMonthlySummary('2026-07')
+    expect(data!.total_expenses).toBe(500)
+  })
+})
+
+describe('getSummary', () => {
+  it('aggregates income, expenses and category breakdown for an explicit range', async () => {
+    mockQueryResult.mockResolvedValue({
+      data: [
+        { amount: 500, type: 'debit', category: 'food' },
+        { amount: 300, type: 'debit', category: 'transport' },
+        { amount: 2000, type: 'credit', category: 'salary' },
+      ],
+      error: null,
+    })
+    const { data } = await getSummary({ dateFrom: '2026-06-20', dateTo: '2026-07-05' })
+    expect(data!.total_income).toBe(2000)
+    expect(data!.total_expenses).toBe(800)
+    expect(data!.category_breakdown).toHaveLength(2)
+  })
+
+  it('excludes credit_card_bill_payment from totals, same as getMonthlySummary', async () => {
+    mockQueryResult.mockResolvedValue({
+      data: [
+        { amount: 500, type: 'debit', category: 'food' },
+        { amount: 15000, type: 'debit', category: 'credit_card_bill_payment' },
+      ],
+      error: null,
+    })
+    const { data } = await getSummary({ dateFrom: '2026-07-01', dateTo: '2026-07-31' })
     expect(data!.total_expenses).toBe(500)
   })
 })

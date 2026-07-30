@@ -100,18 +100,14 @@ export async function deleteTransaction(id: string) {
   return { error }
 }
 
-/** Get monthly summary (income, expenses, savings) */
-export async function getMonthlySummary(month: string) {
-  const startDate = `${month}-01`
-  const [year, mon] = month.split('-').map(Number)
-  const endDate = new Date(year, mon, 0).toISOString().split('T')[0]
-
+/** Get summary (income, expenses, savings, category breakdown) for an explicit date range */
+export async function getSummary(range: { dateFrom: string; dateTo: string }) {
   const { data, error } = await supabase
     .from('transactions')
     .select('amount, type, category')
     .eq('approval_status', 'approved')
-    .gte('date', startDate)
-    .lte('date', endDate)
+    .gte('date', range.dateFrom)
+    .lte('date', range.dateTo)
 
   if (error || !data) return { data: null, error }
 
@@ -154,6 +150,14 @@ export async function getMonthlySummary(month: string) {
     },
     error: null,
   }
+}
+
+/** Get monthly summary (income, expenses, savings) — thin wrapper around getSummary */
+export async function getMonthlySummary(month: string) {
+  const startDate = `${month}-01`
+  const [year, mon] = month.split('-').map(Number)
+  const endDate = toISODateLocal(new Date(year, mon, 0))
+  return getSummary({ dateFrom: startDate, dateTo: endDate })
 }
 
 /** Get historical monthly comparison for the last N months */
