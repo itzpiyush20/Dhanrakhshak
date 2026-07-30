@@ -5,6 +5,7 @@
 
 import { supabase } from './supabase'
 import type { Database } from '@/types/database'
+import { toISODateLocal } from '@/utils/dateFilter'
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row']
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert']
@@ -12,7 +13,9 @@ type TransactionUpdate = Database['public']['Tables']['transactions']['Update']
 
 /** Fetch transactions for current user with filters */
 export async function getTransactions(options?: {
-  month?: string        // YYYY-MM
+  month?: string        // YYYY-MM — ignored if dateFrom/dateTo are given
+  dateFrom?: string      // YYYY-MM-DD
+  dateTo?: string        // YYYY-MM-DD
   type?: 'debit' | 'credit'
   category?: string
   status?: string
@@ -33,10 +36,13 @@ export async function getTransactions(options?: {
     .order('date', { ascending: false })
     .order('created_at', { ascending: false })
 
-  if (options?.month) {
+  if (options?.dateFrom || options?.dateTo) {
+    if (options.dateFrom) query = query.gte('date', options.dateFrom)
+    if (options.dateTo) query = query.lte('date', options.dateTo)
+  } else if (options?.month) {
     const startDate = `${options.month}-01`
     const [year, mon] = options.month.split('-').map(Number)
-    const endDate = new Date(year, mon, 0).toISOString().split('T')[0]
+    const endDate = toISODateLocal(new Date(year, mon, 0))
     query = query.gte('date', startDate).lte('date', endDate)
   }
 
