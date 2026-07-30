@@ -5,11 +5,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { AppLayout } from '@/layouts'
-import { Button, Modal, MonthPicker } from '@/components/ui'
+import { Button, Modal, DateFilterPicker } from '@/components/ui'
 import ExpenseForm from '@/components/expenses/ExpenseForm'
 import ExpenseList from '@/components/expenses/ExpenseList'
 import { getTransactions } from '@/services/transactions'
-import { formatCurrency, getCurrentMonth, withTimeout } from '@/utils'
+import { formatCurrency, getCurrentMonth, withTimeout, resolveDateFilter, type DateFilter } from '@/utils'
 import type { Database } from '@/types/database'
 import { Card } from '@/components/ui'
 import { useToast } from '@/context'
@@ -24,7 +24,7 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(() => !!(location.state as any)?.openForm)
   const [editingTransaction, setEditingTransaction] = useState<TransactionRow | null>(null)
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
+  const [dateFilter, setDateFilter] = useState<DateFilter>({ mode: 'month', month: getCurrentMonth() })
   const { showToast } = useToast()
   const [error, setError] = useState<string | null>(null)
 
@@ -38,7 +38,7 @@ export default function ExpensesPage() {
     setError(null)
     try {
       const { data } = await withTimeout(
-        getTransactions({ month: selectedMonth }),
+        getTransactions(resolveDateFilter(dateFilter)),
         45000,
         'Transactions fetch'
       )
@@ -49,7 +49,7 @@ export default function ExpensesPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedMonth])
+  }, [dateFilter])
 
   useEffect(() => {
     document.title = 'Expenses | Dhanrakshak'
@@ -121,7 +121,7 @@ export default function ExpensesPage() {
               <p className="mt-1 text-sm text-zinc-400">Manage your income and expenses</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap shrink-0">
-              <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
+              <DateFilterPicker value={dateFilter} onChange={setDateFilter} />
               <Button onClick={() => setShowForm(true)} className="whitespace-nowrap w-full sm:w-auto justify-center">
                 + Add Transaction
               </Button>
