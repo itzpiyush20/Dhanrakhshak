@@ -29,6 +29,7 @@
     "src/services/merchantNormalizer.ts",
     "src/utils/index.ts",
     "src/utils/crypto.ts",
+    "src/utils/dateFilter.ts",
     "src/types/database.ts"
   ]
 }
