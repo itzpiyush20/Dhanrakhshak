@@ -5,10 +5,11 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import AppLayout from '@/layouts/AppLayout'
-import { Card } from '@/components/ui'
+import { Card, DateFilterPicker } from '@/components/ui'
 import { supabase } from '@/services/supabase'
 import { useAuth } from '@/context/AuthContext'
-import { getCurrentMonth, withTimeout } from '@/utils'
+import { getCurrentMonth, withTimeout, resolveDateFilter, formatDateFilterLabel, type DateFilter } from '@/utils'
+import { toISODateLocal } from '@/utils/dateFilter'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { detectAnomalies, generateForecast, generateAIInsights } from '@/services/aiService'
 import type { FinancialContext } from '@/services/aiService'
@@ -98,7 +99,7 @@ const getTrendData = (txns: any[], range: RangeType): TrendItem[] => {
     const days: TrendItem[] = []
     const temp = new Date(start)
     for (let i = 0; i < 7; i++) {
-      const dateStr = temp.toISOString().split('T')[0]
+      const dateStr = toISODateLocal(temp)
       const label = temp.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' })
       days.push({ dateStr, label, income: 0, expenses: 0, savings: 0 })
       temp.setDate(temp.getDate() + 1)
@@ -122,7 +123,7 @@ const getTrendData = (txns: any[], range: RangeType): TrendItem[] => {
     const days: TrendItem[] = []
     const temp = new Date(start)
     for (let i = 0; i < 15; i++) {
-      const dateStr = temp.toISOString().split('T')[0]
+      const dateStr = toISODateLocal(temp)
       const label = temp.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
       days.push({ dateStr, label, income: 0, expenses: 0, savings: 0 })
       temp.setDate(temp.getDate() + 1)
@@ -157,8 +158,8 @@ const getTrendData = (txns: any[], range: RangeType): TrendItem[] => {
       wEnd.setDate(start.getDate() + w.endOffset)
       return {
         label: w.label,
-        startStr: wStart.toISOString().split('T')[0],
-        endStr: wEnd.toISOString().split('T')[0],
+        startStr: toISODateLocal(wStart),
+        endStr: toISODateLocal(wEnd),
         income: 0,
         expenses: 0,
         savings: 0,
@@ -216,8 +217,8 @@ const getTrendData = (txns: any[], range: RangeType): TrendItem[] => {
 
 const getAllocationData = (txns: any[], range: RangeType): SummaryData => {
   const { start, end } = getRangeDates(range)
-  const startStr = start.toISOString().split('T')[0]
-  const endStr = end.toISOString().split('T')[0]
+  const startStr = toISODateLocal(start)
+  const endStr = toISODateLocal(end)
   
   const filtered = txns.filter((t) => t.date && t.date >= startStr && t.date <= endStr)
   
@@ -304,7 +305,7 @@ export default function AnalyticsPage() {
   const [aiLoading, setAiLoading] = useState(false)
 
   // Advisory Month Picker & Simulator State
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
+  const [dateFilter, setDateFilter] = useState<DateFilter>({ mode: 'month', month: getCurrentMonth() })
   const [simSalary, setSimSalary] = useState<number>(0)
   const [simWants, setSimWants] = useState<number>(0)
 
@@ -329,7 +330,7 @@ export default function AnalyticsPage() {
               .select('id, amount, type, category, date, merchant, description')
               .eq('user_id', user.id)
               .eq('approval_status', 'approved')
-              .gte('date', (() => { const d = new Date(); d.setMonth(d.getMonth() - 6); return d.toISOString().split('T')[0] })())
+              .gte('date', (() => { const d = new Date(); d.setMonth(d.getMonth() - 6); return toISODateLocal(d) })())
               .order('date', { ascending: true })
           ) as Promise<any>,
           45000,
@@ -399,7 +400,8 @@ export default function AnalyticsPage() {
       : 0
 
   // 2. CA Advisory Computations
-  const monthlyTxns = expenseTransactions.filter((t) => t.date && t.date.startsWith(selectedMonth))
+  const { dateFrom: advisoryFrom, dateTo: advisoryTo } = resolveDateFilter(dateFilter)
+  const monthlyTxns = expenseTransactions.filter((t) => t.date && t.date >= advisoryFrom && t.date <= advisoryTo)
   const incomeTxns = monthlyTxns.filter((t) => t.type === 'credit' && t.category === 'salary')
   const totalIncome = incomeTxns.reduce((sum, t) => sum + Number(t.amount), 0)
 
@@ -460,7 +462,7 @@ export default function AnalyticsPage() {
     if (totalIncome === 0 && totalDebit === 0) return
 
     const ctx: FinancialContext = {
-      month: selectedMonth,
+      month: dateFilter.mode === 'month' ? dateFilter.month : formatDateFilterLabel(dateFilter),
       totalIncome,
       totalExpenses: totalDebit,
       savings: totalIncome - totalDebit,
@@ -492,7 +494,7 @@ export default function AnalyticsPage() {
         setAiAlerts([])
       })
       .finally(() => setAiLoading(false))
-  }, [loading, transactions.length, selectedMonth, showAdvanced])
+  }, [loading, transactions.length, dateFilter, showAdvanced])
 
   return (
     <AppLayout>
@@ -511,13 +513,8 @@ export default function AnalyticsPage() {
               <PeriodSelector value={range} onChange={setRange} id="insights-range" />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-zinc-500">Advisory month:</span>
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-surface-1 border border-border-subtle rounded-xl px-3 py-1.5 text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
-              />
+              <span className="text-xs text-zinc-500">Advisory period:</span>
+              <DateFilterPicker value={dateFilter} onChange={setDateFilter} />
             </div>
           </div>
         </div>
