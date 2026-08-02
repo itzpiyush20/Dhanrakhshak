@@ -518,7 +518,7 @@ export default function SubscriptionsPage() {
                               onClick={() => hideSubscription(sub.merchant)}
                               title="Not a subscription — hide from this list (keeps the expense)"
                               aria-label={`Remove ${sub.merchant} from subscriptions`}
-                              className="shrink-0 h-10 w-10 flex items-center justify-center rounded-lg border border-border-subtle/50 bg-surface-1 text-zinc-500 hover:text-[var(--status-danger-text)] hover:border-[var(--status-danger-border)] hover:bg-[var(--status-danger-subtle)] transition-colors cursor-pointer text-sm leading-none"
+                              className="shrink-0 ml-auto sm:ml-0 h-10 w-10 flex items-center justify-center rounded-lg border border-border-subtle/50 bg-surface-1 text-zinc-500 hover:text-[var(--status-danger-text)] hover:border-[var(--status-danger-border)] hover:bg-[var(--status-danger-subtle)] transition-colors cursor-pointer text-sm leading-none"
                             >
                               ✕
                             </button>

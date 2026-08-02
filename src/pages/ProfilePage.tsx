@@ -247,7 +247,7 @@ export default function ProfilePage() {
                   ) : (
                     <div />
                   )}
-                  <Button type="submit" loading={profileLoading} disabled={profileLoading} className="w-full sm:w-auto justify-center">
+                  <Button type="submit" loading={profileLoading} disabled={profileLoading} className="w-full sm:w-auto">
                     Save Profile Changes
                   </Button>
                 </div>
