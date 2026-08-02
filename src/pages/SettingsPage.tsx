@@ -495,7 +495,7 @@ export default function SettingsPage() {
                     placeholder="Keyword (e.g. Swiggy)"
                     value={newKeyword}
                     onChange={(e) => setNewKeyword(e.target.value)}
-                    className="text-xs py-1.5 h-9"
+                    className="text-xs h-11"
                     aria-label="Merchant Name Keyword"
                     required
                   />
@@ -505,7 +505,7 @@ export default function SettingsPage() {
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value)}
                     aria-label="Merchant Category"
-                    className="w-full bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                    className="w-full bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-11 px-3 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-brand-400"
                   >
                     {Object.entries(CATEGORIES).map(([key, cat]) => (
                       <option key={key} value={key}>{cat.emoji} {cat.label}</option>
@@ -522,7 +522,7 @@ export default function SettingsPage() {
                     />
                     Auto-Approve
                   </label>
-                  <Button size="sm" type="submit" className="py-1 px-3 text-xs h-8 gap-1.5">
+                  <Button size="md" type="submit" className="px-3 text-xs gap-1.5">
                     <Plus className="h-3.5 w-3.5" /> Add Rule
                   </Button>
                 </div>
@@ -564,7 +564,7 @@ export default function SettingsPage() {
                           </select>
                           <button
                             onClick={() => handleDeleteRule(key)}
-                            className="p-1.5 rounded text-zinc-500 hover:text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] transition-colors flex items-center justify-center"
+                            className="h-10 w-10 rounded text-zinc-500 hover:text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] transition-colors flex items-center justify-center shrink-0"
                             title="Delete Rule"
                             aria-label={`Delete rule for ${key}`}
                           >
@@ -640,7 +640,7 @@ export default function SettingsPage() {
                         id="restore-file-input"
                         type="file"
                         accept=".drbak"
-                        className="w-full text-xs text-zinc-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-surface-2 file:text-zinc-300 hover:file:bg-surface-3 cursor-pointer"
+                        className="w-full text-xs text-zinc-400 file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-surface-2 file:text-zinc-300 hover:file:bg-surface-3 cursor-pointer"
                       />
                     </div>
                     <Input
@@ -785,7 +785,7 @@ export default function SettingsPage() {
                       }
                     }}
                     aria-label="Daily Scan Schedule Time"
-                    className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold font-mono"
+                    className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-11 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold font-mono"
                   />
                 </div>
 
@@ -819,13 +819,13 @@ export default function SettingsPage() {
                   value={newPolicyName}
                   onChange={(e) => setNewPolicyName(e.target.value)}
                   aria-label="Policy name"
-                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 sm:col-span-2"
+                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-11 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 sm:col-span-2"
                 />
                 <select
                   value={newPolicyType}
                   onChange={(e) => setNewPolicyType(e.target.value as 'life' | 'health')}
                   aria-label="Policy type"
-                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-11 px-3 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-brand-400"
                 >
                   <option value="life">🧬 Life</option>
                   <option value="health">🏥 Health</option>
@@ -834,7 +834,7 @@ export default function SettingsPage() {
                   value={newFrequency}
                   onChange={(e) => setNewFrequency(e.target.value as typeof newFrequency)}
                   aria-label="Premium frequency"
-                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-11 px-3 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-brand-400"
                 >
                   <option value="monthly">Monthly</option>
                   <option value="quarterly">Quarterly</option>
@@ -848,14 +848,14 @@ export default function SettingsPage() {
                   onChange={(e) => setNewPremium(e.target.value)}
                   min="1"
                   step="0.01"
-                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-11 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400"
                 />
                 <input
                   type="date"
                   value={newDueDate}
                   onChange={(e) => setNewDueDate(e.target.value)}
                   aria-label="Next due date"
-                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-11 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400"
                 />
                 <input
                   type="text"
@@ -863,7 +863,7 @@ export default function SettingsPage() {
                   value={newRemarks}
                   onChange={(e) => setNewRemarks(e.target.value)}
                   aria-label="Remarks"
-                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-9 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 sm:col-span-2"
+                  className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-11 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 sm:col-span-2"
                 />
                 <Button size="sm" type="submit" className="sm:col-span-2 justify-center">
                   Add Policy
@@ -891,7 +891,7 @@ export default function SettingsPage() {
                       </div>
                       <button
                         onClick={() => handleDeletePolicy(p.id)}
-                        className="p-1.5 rounded text-zinc-500 hover:text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] transition-colors flex items-center justify-center shrink-0"
+                        className="h-10 w-10 rounded text-zinc-500 hover:text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] transition-colors flex items-center justify-center shrink-0"
                         title="Delete policy"
                         aria-label={`Delete ${p.policy_name}`}
                       >

@@ -241,13 +241,13 @@ export default function ProfilePage() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between pt-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
                   {profileSuccess ? (
                     <Badge variant="success">✔️ Changes updated successfully</Badge>
                   ) : (
                     <div />
                   )}
-                  <Button type="submit" loading={profileLoading} disabled={profileLoading}>
+                  <Button type="submit" loading={profileLoading} disabled={profileLoading} className="w-full sm:w-auto justify-center">
                     Save Profile Changes
                   </Button>
                 </div>
@@ -338,7 +338,7 @@ export default function ProfilePage() {
               <form onSubmit={handleDeleteAccount} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1.5">
-                    Confirm Deletion by Typing: <span className="text-zinc-300 font-mono lowercase select-all">{user?.email}</span>
+                    Confirm Deletion by Typing: <span className="text-zinc-300 font-mono lowercase select-all break-all">{user?.email}</span>
                   </label>
                   <Input
                     type="email"
