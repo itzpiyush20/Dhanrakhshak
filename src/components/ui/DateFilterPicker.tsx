@@ -66,7 +66,7 @@ export default function DateFilterPicker({ value, onChange, maxMonth, className 
           aria-selected={value.mode === 'month'}
           onClick={switchToMonth}
           className={cn(
-            'px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer',
+            'px-2.5 py-2.5 min-h-9 rounded-md text-xs font-semibold transition-colors cursor-pointer',
             value.mode === 'month' ? 'bg-surface-1 text-zinc-100 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
           )}
         >
@@ -78,7 +78,7 @@ export default function DateFilterPicker({ value, onChange, maxMonth, className 
           aria-selected={value.mode === 'custom'}
           onClick={switchToCustom}
           className={cn(
-            'px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer',
+            'px-2.5 py-2.5 min-h-9 rounded-md text-xs font-semibold transition-colors cursor-pointer',
             value.mode === 'custom' ? 'bg-surface-1 text-zinc-100 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
           )}
         >
@@ -120,7 +120,7 @@ export default function DateFilterPicker({ value, onChange, maxMonth, className 
             value={value.from}
             max={value.to}
             onChange={(e) => handleFromChange(e.target.value)}
-            className="bg-surface-2 border border-border-subtle/50 text-zinc-200 text-xs rounded-lg px-2 py-2 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
+            className="h-10 bg-surface-2 border border-border-subtle/50 text-zinc-200 text-xs rounded-lg px-2 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
             aria-label="From date"
           />
           <span className="text-zinc-600 text-xs" aria-hidden="true">–</span>
@@ -130,7 +130,7 @@ export default function DateFilterPicker({ value, onChange, maxMonth, className 
             min={value.from}
             max={todayStr()}
             onChange={(e) => handleToChange(e.target.value)}
-            className="bg-surface-2 border border-border-subtle/50 text-zinc-200 text-xs rounded-lg px-2 py-2 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
+            className="h-10 bg-surface-2 border border-border-subtle/50 text-zinc-200 text-xs rounded-lg px-2 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
             aria-label="To date"
           />
         </div>

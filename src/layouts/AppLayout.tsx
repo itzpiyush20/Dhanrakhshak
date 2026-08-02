@@ -733,7 +733,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
 
         {/* Mobile/Tablet Horizontal Scrollable Sub-Nav Row (Only visible if logged in and below lg viewport) */}
         {user && isAppRoute && (
-          <div className={cn("h-9 border-t flex items-center lg:hidden overflow-hidden select-none", isStaticLight ? "border-sb-hairline bg-sb-canvas-soft" : "border-border-subtle bg-surface-1/40")}>
+          <div className={cn("h-11 border-t flex items-center lg:hidden overflow-hidden select-none", isStaticLight ? "border-sb-hairline bg-sb-canvas-soft" : "border-border-subtle bg-surface-1/40")}>
             <div className="mx-auto max-w-7xl w-full flex items-center px-4 sm:px-6 overflow-x-auto scrollbar-none flex-nowrap py-1 gap-2">
               {navItems
                 .filter(item => item.path !== ROUTES.PRICING)
@@ -744,7 +744,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                     key={item.path}
                     to={item.path}
                     className={cn(
-                      "transition-colors py-1 px-2.5 rounded-lg text-xs font-semibold shrink-0",
+                      "transition-colors py-2 px-2.5 rounded-lg text-xs font-semibold shrink-0",
                       isActive 
                         ? (isStaticLight ? "bg-sb-canvas text-sb-ink font-bold border border-sb-hairline" : "bg-white/10 text-white font-bold") 
                         : (isStaticLight ? "text-sb-ink-muted hover:text-sb-ink" : "text-zinc-400 hover:text-white")
@@ -899,7 +899,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
               <p className="text-sm font-semibold text-text-primary">How your data is handled</p>
               <p>Bank alerts are read and parsed directly in your browser — nothing is uploaded. Your Google access is read-only, and we never ask for passwords, PINs, or OTPs.</p>
             </div>
-            <Button variant="secondary" size="sm" onClick={handleDismissPrivacyNote} className="shrink-0 self-start sm:self-auto">
+            <Button variant="secondary" size="md" onClick={handleDismissPrivacyNote} className="shrink-0 self-start sm:self-auto">
               Got it
             </Button>
           </div>
@@ -1100,7 +1100,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
 
       {/* PWA Install Banner for Mobile Viewports */}
       {showInstallBanner && (
-        <div className="fixed bottom-20 left-4 right-4 z-50 md:hidden animate-slide-up">
+        <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom)+0.75rem)] left-4 right-4 z-40 md:hidden animate-slide-up">
           <div className="bg-surface-1/95 border border-border-subtle/85 backdrop-blur-xl rounded-2xl p-4 shadow-2xl flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 shadow-[var(--shadow-sm)]">
@@ -1114,13 +1114,13 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={handleDismissBanner}
-                className="px-3 py-1.5 rounded-lg border border-border-subtle text-xs font-bold text-zinc-400 hover:text-white cursor-pointer transition-colors"
+                className="min-h-11 px-3 py-1.5 rounded-lg border border-border-subtle text-xs font-bold text-zinc-400 hover:text-white cursor-pointer transition-colors"
               >
                 Dismiss
               </button>
               <button
                 onClick={handleInstallClick}
-                className="px-4 py-1.5 rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] shadow-[var(--shadow-sm)] cursor-pointer transition-colors hover:bg-[var(--btn-primary-bg-hover)] active:bg-[var(--btn-primary-bg-active)]"
+                className="min-h-11 px-4 py-1.5 rounded-lg bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] shadow-[var(--shadow-sm)] cursor-pointer transition-colors hover:bg-[var(--btn-primary-bg-hover)] active:bg-[var(--btn-primary-bg-active)]"
               >
                 Install
               </button>
