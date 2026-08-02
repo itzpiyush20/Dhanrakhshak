@@ -112,7 +112,7 @@ export default function AuthModal() {
         {/* Close Button */}
         <button
           onClick={closeAuthModal}
-          className="absolute top-3 right-3 text-zinc-500 hover:text-zinc-50 p-2.5 rounded-xl hover:bg-surface-2 border-0 bg-transparent transition-colors cursor-pointer text-lg leading-none h-10 w-10 flex items-center justify-center"
+          className="absolute top-3 right-3 text-zinc-500 hover:text-zinc-50 rounded-xl hover:bg-surface-2 border-0 bg-transparent transition-colors cursor-pointer text-lg leading-none h-11 w-11 flex items-center justify-center"
           aria-label="Close authentication modal"
         >
           ✕
