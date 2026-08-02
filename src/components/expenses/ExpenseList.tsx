@@ -120,13 +120,15 @@ export default function ExpenseList({
       {/* Bulk Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-surface-2 border-b border-border-subtle/50 rounded-t-2xl">
         <div className="flex items-center gap-3">
-          <input
-            type="checkbox"
-            className="h-4 w-4 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
-            checked={transactions.length > 0 && selectedIds.length === transactions.length}
-            onChange={handleToggleAll}
-            aria-label="Select all transactions"
-          />
+          <label className="flex items-center h-11 -my-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
+              checked={transactions.length > 0 && selectedIds.length === transactions.length}
+              onChange={handleToggleAll}
+              aria-label="Select all transactions"
+            />
+          </label>
           <span className="text-xs font-semibold text-zinc-400">
             {selectedIds.length > 0 ? `${selectedIds.length} selected` : 'Select all'}
           </span>
@@ -135,7 +137,7 @@ export default function ExpenseList({
         {selectedIds.length > 0 && (
           <div className="flex items-center gap-2">
             <select
-              className="bg-surface-1 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
+              className="bg-surface-1 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-2.5 h-11 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
               onChange={(e) => {
                 handleBulkCategoryUpdate(e.target.value)
                 e.target.value = '' // Reset
@@ -176,13 +178,15 @@ export default function ExpenseList({
             >
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 {/* Row Checkbox */}
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 shrink-0 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
-                  checked={selectedIds.includes(txn.id)}
-                  onChange={() => handleToggleSelect(txn.id)}
-                  aria-label={`Select transaction ${txn.description || cat.label}`}
-                />
+                <label className="flex items-center justify-center h-11 w-11 -m-3 cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 shrink-0 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
+                    checked={selectedIds.includes(txn.id)}
+                    onChange={() => handleToggleSelect(txn.id)}
+                    aria-label={`Select transaction ${txn.description || cat.label}`}
+                  />
+                </label>
 
                 {/* Category icon */}
                 <div
@@ -224,11 +228,11 @@ export default function ExpenseList({
                   </p>
                 </div>
 
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0 flex items-center justify-center cursor-pointer"
+                    className="h-11 w-11 p-0 flex items-center justify-center cursor-pointer"
                     onClick={() => onEdit(txn)}
                     aria-label={`Edit ${txn.description || cat.label}`}
                     title="Edit"
@@ -238,7 +242,7 @@ export default function ExpenseList({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0 flex items-center justify-center text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] cursor-pointer"
+                    className="h-11 w-11 p-0 flex items-center justify-center text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] cursor-pointer"
                     onClick={() => setConfirmDeleteId(txn.id)}
                     loading={deletingId === txn.id}
                     aria-label={`Delete ${txn.description || cat.label}`}

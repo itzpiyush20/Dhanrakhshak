@@ -88,7 +88,7 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
               type="button"
               onClick={() => setType('debit')}
               aria-pressed={type === 'debit'}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
+              className={`px-3 py-2.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
                 type === 'debit'
                   ? 'bg-[var(--status-danger-subtle)] text-[var(--status-danger-text)]'
                   : 'text-zinc-500'
@@ -100,7 +100,7 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
               type="button"
               onClick={() => setType('credit')}
               aria-pressed={type === 'credit'}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
+              className={`px-3 py-2.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
                 type === 'credit'
                   ? 'bg-[var(--status-positive-subtle)] text-[var(--status-positive-text)]'
                   : 'text-zinc-500'
@@ -148,7 +148,7 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
                 type="button"
                 onClick={() => { setCategory(code); setShowMore(false) }}
                 aria-pressed={category === code}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                className={`px-3 py-2.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
                   category === code
                     ? 'bg-brand-500/15 border-brand-500/40 text-brand-300'
                     : 'bg-surface-2 border-border-subtle/50 text-zinc-400 hover:text-zinc-200'
@@ -162,7 +162,7 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
             type="button"
             onClick={() => setShowMore((v) => !v)}
             aria-pressed={showMore || (category !== '' && !chips.includes(category))}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+            className={`px-3 py-2.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
               showMore || (category && !chips.includes(category))
                 ? 'bg-brand-500/15 border-brand-500/40 text-brand-300'
                 : 'bg-surface-2 border-border-subtle/50 text-zinc-400 hover:text-zinc-200'
@@ -170,7 +170,7 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
           >
             More
           </button>
-          <Button type="submit" size="sm" loading={saving} className="ml-auto">
+          <Button type="submit" size="md" loading={saving} className="ml-auto">
             <Plus className="h-3.5 w-3.5" /> Add
           </Button>
         </div>

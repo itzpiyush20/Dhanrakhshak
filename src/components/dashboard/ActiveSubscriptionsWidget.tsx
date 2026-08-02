@@ -88,7 +88,7 @@ export default function ActiveSubscriptionsWidget({
         </div>
         <Link
           to="/subscriptions"
-          className="text-xs text-brand-400 hover:text-brand-300 font-semibold transition-colors"
+          className="shrink-0 -m-2 p-2 text-xs text-brand-400 hover:text-brand-300 font-semibold transition-colors"
         >
           Manage →
         </Link>
@@ -109,7 +109,7 @@ export default function ActiveSubscriptionsWidget({
             >
               <span className="text-xl shrink-0">{cat.emoji}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-zinc-200 truncate">{sub.merchant}</p>
+                <p className="text-xs font-semibold text-zinc-200 truncate" title={sub.merchant}>{sub.merchant}</p>
                 <p className="text-xs text-zinc-500 mt-0.5">{formatCurrency(sub.amount)}/mo</p>
               </div>
               <div className={`text-xs font-bold rounded-lg px-2 py-1 border shrink-0 ${renewsColor}`}>

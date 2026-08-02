@@ -617,7 +617,7 @@ export default function DashboardPage() {
             </div>
             <button
               onClick={() => setSyncSummary(null)}
-              className="shrink-0 opacity-70 hover:opacity-100 transition-opacity"
+              className="shrink-0 h-10 w-10 flex items-center justify-center -m-2 rounded-lg opacity-70 hover:opacity-100 hover:bg-surface-2/60 transition-all"
               aria-label="Dismiss sync summary"
             >
               <X className="h-4 w-4" />
@@ -629,7 +629,7 @@ export default function DashboardPage() {
           <Card className="relative overflow-hidden shadow-md animate-fade-in">
             <button
               onClick={dismissChecklist}
-              className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="absolute top-2 right-2 h-10 w-10 flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-surface-2/60 transition-colors"
               aria-label="Dismiss checklist"
             >
               <X className="h-4 w-4" />
@@ -671,7 +671,7 @@ export default function DashboardPage() {
                   </div>
                   {step.to && (
                     <Link to={step.to}>
-                      <Button size="sm" variant="secondary" className="shrink-0 text-xs">
+                      <Button size="md" variant="secondary" className="shrink-0 text-xs">
                         Go
                       </Button>
                     </Link>
@@ -907,7 +907,7 @@ export default function DashboardPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-brand-400 hover:text-brand-300 font-semibold pr-0"
+                      className="text-brand-400 hover:text-brand-300 font-semibold h-10 px-2"
                       onClick={() => setShowAllCategories((prev) => !prev)}
                     >
                       {showAllCategories ? 'Show Less' : 'View All'}
@@ -1005,7 +1005,7 @@ export default function DashboardPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-brand-400 hover:text-brand-300 font-semibold pr-0"
+                    className="text-brand-400 hover:text-brand-300 font-semibold h-10 px-2"
                     onClick={handleOpenRecentModal}
                   >
                     View All
@@ -1062,7 +1062,7 @@ export default function DashboardPage() {
 
                               {/* Details */}
                               <div className="flex-1 min-w-0">
-                                <p className="text-xs font-semibold text-zinc-200 truncate">
+                                <p className="text-xs font-semibold text-zinc-200 truncate" title={txn.description || cat.label}>
                                   {txn.description || cat.label}
                                 </p>
                                 <span className="text-xs text-zinc-500 block mt-0.5">
@@ -1133,7 +1133,7 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="text-xl shrink-0">{cat.emoji}</span>
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-zinc-200 truncate">{txn.description || cat.label}</p>
+                          <p className="text-xs font-bold text-zinc-200 truncate" title={txn.description || cat.label}>{txn.description || cat.label}</p>
                           <span className="text-xs text-zinc-500">
                             {new Date(txn.date).toLocaleDateString('en-IN', {
                               day: '2-digit',
@@ -1214,7 +1214,7 @@ export default function DashboardPage() {
                     {categoryTransactions.map((txn) => (
                       <div key={txn.id} className="flex items-center justify-between py-3">
                         <div className="flex flex-col min-w-0 pr-3">
-                          <p className="text-xs font-bold text-zinc-200 truncate">
+                          <p className="text-xs font-bold text-zinc-200 truncate" title={txn.merchant || txn.description || 'Transaction'}>
                             {txn.merchant || txn.description || 'Transaction'}
                           </p>
                           {txn.description && txn.description !== `${txn.merchant} Transaction` && (
@@ -1394,7 +1394,7 @@ export default function DashboardPage() {
         >
           {monthEndRecap && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-xl bg-surface-2/40 border border-border-subtle/30 p-3.5">
                   <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Total spent</p>
                   <p className="text-xl font-bold text-text-primary mt-1">{formatCurrency(monthEndRecap.totalExpenses)}</p>

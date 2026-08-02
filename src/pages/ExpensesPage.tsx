@@ -135,14 +135,14 @@ export default function ExpensesPage() {
               placeholder="Search merchant, description, amount..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 bg-surface-2 border border-border-subtle/50 text-zinc-200 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all"
+              className="flex-1 h-11 bg-surface-2 border border-border-subtle/50 text-zinc-200 text-xs rounded-xl px-3 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all"
               aria-label="Search transactions"
             />
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value as any)}
-                className="bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
+                className="flex-1 min-w-[45%] h-11 bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
                 aria-label="Filter by type"
               >
                 <option value="all">All Types</option>
@@ -152,7 +152,7 @@ export default function ExpensesPage() {
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
-                className="bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
+                className="flex-1 min-w-[45%] h-11 bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
                 aria-label="Filter by category"
               >
                 <option value="all">All Categories</option>

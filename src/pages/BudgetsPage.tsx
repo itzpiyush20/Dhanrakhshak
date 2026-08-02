@@ -314,7 +314,7 @@ export default function BudgetsPage() {
                         style={{ animationDelay: `${idx * 0.05}s` }}
                       >
                         {/* Upper row: Emoji + Category details */}
-                        <div className="flex items-start justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                           <div className="flex items-center gap-3">
                             <div
                               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg"
@@ -342,7 +342,7 @@ export default function BudgetsPage() {
                           </div>
 
                           {/* Spent & delete action */}
-                          <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-4 w-full sm:w-auto sm:justify-end">
                             <div className="text-right">
                               <p className="text-sm font-bold text-zinc-200">
                                 {formatCurrency(spent)} <span className="text-xs font-normal text-zinc-500">spent</span>
@@ -361,7 +361,7 @@ export default function BudgetsPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="text-zinc-500 hover:text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] h-8 w-8 p-0"
+                                className="text-zinc-500 hover:text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] h-11 w-11 p-0"
                                 onClick={() => setConfirmDeleteId(budget.id)}
                                 disabled={actionLoading}
                                 title="Delete budget"
