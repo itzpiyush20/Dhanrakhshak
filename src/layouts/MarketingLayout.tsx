@@ -31,7 +31,7 @@ export default function MarketingLayout({ children, title }: MarketingLayoutProp
           ) : (
             <button 
               onClick={() => openAuthModal()} 
-              className="text-xs font-semibold text-brand-400 hover:text-brand-500 bg-transparent border-0 cursor-pointer transition-colors"
+              className="text-xs font-semibold text-brand-400 hover:text-brand-500 bg-transparent border-0 cursor-pointer transition-colors px-2 py-2 -my-2"
             >
               Sign in
             </button>
@@ -45,9 +45,9 @@ export default function MarketingLayout({ children, title }: MarketingLayoutProp
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-sb-hairline bg-sb-canvas-soft py-8 text-center text-xs text-sb-ink-muted shrink-0">
+      <footer className="border-t border-sb-hairline bg-sb-canvas-soft py-8 px-4 text-center text-xs text-sb-ink-muted shrink-0">
         <p>© 2026 Dhanrakshak. Your Personal CFO.</p>
-        <div className="flex justify-center gap-6 mt-3">
+        <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-3">
           <Link to={ROUTES.PRIVACY} className="no-underline hover:underline text-sb-ink-muted">Privacy Policy</Link>
           <Link to={ROUTES.TERMS} className="no-underline hover:underline text-sb-ink-muted">Terms of Service</Link>
           <Link to={ROUTES.REFUND} className="no-underline hover:underline text-sb-ink-muted">Refund Policy</Link>

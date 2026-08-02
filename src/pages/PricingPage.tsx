@@ -309,7 +309,7 @@ export default function PricingPage() {
             >
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-bold text-sb-ink">Monthly</h2>
-                <input type="radio" readOnly checked={selectedPlan === 'monthly'} className="h-4 w-4 cursor-pointer accent-[#3ecf8e]" />
+                <input type="radio" readOnly checked={selectedPlan === 'monthly'} className="h-5 w-5 cursor-pointer accent-[#3ecf8e]" />
               </div>
 
               <div className="mb-6">
@@ -367,7 +367,7 @@ export default function PricingPage() {
 
               <div className="flex items-center justify-between mb-6 mt-2">
                 <h2 className="text-lg font-bold text-sb-ink">Yearly</h2>
-                <input type="radio" readOnly checked={selectedPlan === 'annual'} className="h-4 w-4 cursor-pointer accent-[#3ecf8e]" />
+                <input type="radio" readOnly checked={selectedPlan === 'annual'} className="h-5 w-5 cursor-pointer accent-[#3ecf8e]" />
               </div>
 
               <div className="mb-6">
@@ -530,7 +530,7 @@ export default function PricingPage() {
                           <button
                             key={plan}
                             onClick={() => setSelectedPlan(plan)}
-                            className="flex-1 py-3 rounded-xl text-xs cursor-pointer transition-all bg-transparent border font-bold"
+                            className="flex-1 py-3.5 rounded-xl text-xs cursor-pointer transition-all bg-transparent border font-bold"
                             style={{
                               color: selectedPlan === plan ? 'var(--sb-primary)' : 'var(--text-zinc-400)',
                               borderColor: selectedPlan === plan ? 'var(--sb-primary)' : 'var(--border-subtle)',

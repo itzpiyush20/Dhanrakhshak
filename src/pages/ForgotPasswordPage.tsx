@@ -51,7 +51,7 @@ export default function ForgotPasswordPage() {
           </p>
           <Link
             to="/?auth=login"
-            className="inline-block text-sm text-brand-400 hover:text-brand-300 font-medium transition-colors"
+            className="inline-block text-sm text-brand-400 hover:text-brand-300 font-medium transition-colors py-2"
           >
             Back to login
           </Link>

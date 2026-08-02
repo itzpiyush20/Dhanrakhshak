@@ -93,13 +93,13 @@ export default function ResetPasswordPage() {
           <div className="pt-2 flex flex-col gap-3">
             <Link
               to="/forgot-password"
-              className="sb-btn-primary py-2 px-4 text-xs font-bold rounded-xl no-underline inline-block text-white"
+              className="sb-btn-primary py-3.5 px-4 text-xs font-bold rounded-xl no-underline inline-block text-white"
             >
               Request New Link
             </Link>
             <Link
               to="/?auth=login"
-              className="text-xs text-zinc-500 hover:text-zinc-300 font-semibold transition-colors"
+              className="text-xs text-zinc-500 hover:text-zinc-300 font-semibold transition-colors py-2 inline-block"
             >
               Back to Home
             </Link>
