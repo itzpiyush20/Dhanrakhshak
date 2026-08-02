@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Card, EmptyState } from '@/components/ui'
 import { formatCurrencyCompact } from '@/utils'
 import type { RangeType } from './PeriodSelector'
@@ -47,6 +48,8 @@ export function TrendChart({
     ? Math.max(...trendData.map((h) => Math.max(h.income, h.expenses)))
     : 0
 
+  const [tappedIndex, setTappedIndex] = useState<number | null>(null)
+
   return (
     <Card className="flex flex-col min-h-[300px] p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -93,9 +96,10 @@ export function TrendChart({
                   return (
                     <div
                       key={index}
-                      className="flex-1 flex flex-col items-center h-full justify-end group relative"
+                      className="flex-1 flex flex-col items-center h-full justify-end group relative cursor-pointer"
+                      onClick={() => setTappedIndex(tappedIndex === index ? null : index)}
                     >
-                      <div className="absolute bottom-full mb-2 bg-zinc-950 border border-zinc-800 text-xs p-2.5 rounded-xl shadow-xl space-y-1 opacity-0 pointer-events-none group-hover:opacity-100 group-active:opacity-100 transition-opacity z-10 min-w-[120px] text-left">
+                      <div className={`absolute bottom-full mb-2 bg-zinc-950 border border-zinc-800 text-xs p-2.5 rounded-xl shadow-xl space-y-1 pointer-events-none transition-opacity z-10 min-w-[120px] text-left group-hover:opacity-100 ${tappedIndex === index ? 'opacity-100' : 'opacity-0'}`}>
                         <p className="font-semibold text-zinc-300 border-b border-border-subtle/50 pb-1 mb-1">
                           {h.label}
                         </p>
