@@ -142,7 +142,7 @@ export default function ExpensesPage() {
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value as any)}
-                className="flex-1 min-w-[45%] h-11 bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
+                className="flex-1 min-w-[140px] h-11 bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
                 aria-label="Filter by type"
               >
                 <option value="all">All Types</option>
@@ -152,7 +152,7 @@ export default function ExpensesPage() {
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
-                className="flex-1 min-w-[45%] h-11 bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
+                className="flex-1 min-w-[140px] h-11 bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
                 aria-label="Filter by category"
               >
                 <option value="all">All Categories</option>
@@ -168,7 +168,7 @@ export default function ExpensesPage() {
               {(searchQuery || filterType !== 'all' || filterCategory !== 'all') && (
                 <button
                   onClick={() => { setSearchQuery(''); setFilterType('all'); setFilterCategory('all') }}
-                  className="px-3 py-2 rounded-xl border border-zinc-700 text-xs text-zinc-400 hover:text-white hover:border-zinc-500 transition-colors cursor-pointer"
+                  className="shrink-0 h-11 px-3 rounded-xl border border-zinc-700 text-xs text-zinc-400 hover:text-white hover:border-zinc-500 transition-colors cursor-pointer"
                   aria-label="Clear filters"
                 >
                   ✕ Clear
