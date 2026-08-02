@@ -46,7 +46,7 @@ export function CreditCardPaymentTrend({ data, loading }: CreditCardPaymentTrend
           />
         ) : (
           <div className="overflow-x-auto scrollbar-none w-full pb-2">
-            <div className="flex items-end justify-between gap-2.5 sm:gap-6 md:gap-8 h-40 pt-4 relative select-none min-w-[400px] md:min-w-0">
+            <div className="flex items-end justify-between gap-2.5 sm:gap-6 md:gap-8 h-40 pt-4 relative select-none min-w-full sm:min-w-[400px] md:min-w-0">
               <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-10">
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} className="w-full border-t border-dashed border-zinc-400 h-0" />
@@ -60,7 +60,7 @@ export function CreditCardPaymentTrend({ data, loading }: CreditCardPaymentTrend
                     key={index}
                     className="flex-1 flex flex-col items-center h-full justify-end group relative"
                   >
-                    <div className="absolute bottom-full mb-2 bg-zinc-950 border border-zinc-800 text-xs p-2.5 rounded-xl shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-10 min-w-[110px] text-left">
+                    <div className="absolute bottom-full mb-2 bg-zinc-950 border border-zinc-800 text-xs p-2.5 rounded-xl shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 group-active:opacity-100 transition-opacity z-10 min-w-[110px] text-left">
                       <p className="font-semibold text-zinc-300">{d.label}</p>
                       <p className="text-zinc-400 font-bold">{formatCurrencyCompact(d.amount)}</p>
                     </div>

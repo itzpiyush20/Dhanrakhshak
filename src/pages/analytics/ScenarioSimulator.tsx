@@ -48,7 +48,7 @@ export function ScenarioSimulator({
               step={5000}
               value={simSalary}
               onChange={(e) => setSimSalary(Number(e.target.value))}
-              className="w-full accent-brand-400 h-1 bg-zinc-800 rounded-lg cursor-pointer"
+              className="w-full accent-brand-400 h-1 bg-zinc-800 rounded-lg cursor-pointer [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6"
             />
           </div>
 
@@ -64,7 +64,7 @@ export function ScenarioSimulator({
               step={1000}
               value={simWants}
               onChange={(e) => setSimWants(Number(e.target.value))}
-              className="w-full accent-brand-400 h-1 bg-zinc-800 rounded-lg cursor-pointer"
+              className="w-full accent-brand-400 h-1 bg-zinc-800 rounded-lg cursor-pointer [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6"
             />
           </div>
         </div>

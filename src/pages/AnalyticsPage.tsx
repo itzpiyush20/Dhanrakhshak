@@ -507,7 +507,7 @@ export default function AnalyticsPage() {
               CA-verified budget diagnostics, cashflow trend analytics, and smart wealth advisors unified.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-4 self-start sm:self-center shrink-0 bg-surface-2/40 border border-border-subtle/30 rounded-xl px-3 py-2">
+          <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-4 self-start sm:self-center shrink-0 bg-surface-2/40 border border-border-subtle/30 rounded-xl px-3 py-2">
             <div className="flex items-center gap-2">
               <span className="text-xs text-zinc-500">Range:</span>
               <PeriodSelector value={range} onChange={setRange} id="insights-range" />
