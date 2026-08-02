@@ -66,7 +66,7 @@ export default function DateFilterPicker({ value, onChange, maxMonth, className 
           aria-selected={value.mode === 'month'}
           onClick={switchToMonth}
           className={cn(
-            'px-2.5 py-2.5 min-h-9 rounded-md text-xs font-semibold transition-colors cursor-pointer',
+            'px-2.5 py-2.5 min-h-10 rounded-md text-xs font-semibold transition-colors cursor-pointer',
             value.mode === 'month' ? 'bg-surface-1 text-zinc-100 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
           )}
         >
@@ -78,7 +78,7 @@ export default function DateFilterPicker({ value, onChange, maxMonth, className 
           aria-selected={value.mode === 'custom'}
           onClick={switchToCustom}
           className={cn(
-            'px-2.5 py-2.5 min-h-9 rounded-md text-xs font-semibold transition-colors cursor-pointer',
+            'px-2.5 py-2.5 min-h-10 rounded-md text-xs font-semibold transition-colors cursor-pointer',
             value.mode === 'custom' ? 'bg-surface-1 text-zinc-100 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
           )}
         >

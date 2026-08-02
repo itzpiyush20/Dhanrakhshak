@@ -102,7 +102,7 @@ export default function UserMenu({ className }: UserMenuProps) {
                 signOut()
               }}
               role="menuitem"
-              className="w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-[var(--status-danger-text)] border-t border-sb-hairline mt-1.5 pt-1.5 cursor-pointer transition-colors hover:bg-[var(--status-danger-subtle)]"
+              className="w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 min-h-11 text-xs font-medium text-[var(--status-danger-text)] border-t border-sb-hairline mt-1.5 pt-1.5 cursor-pointer transition-colors hover:bg-[var(--status-danger-subtle)]"
             >
               🚪 Sign Out
             </button>
