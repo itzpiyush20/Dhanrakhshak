@@ -11,6 +11,7 @@ import { RefreshCw } from 'lucide-react'
 import Select from '@/components/ui/Select'
 import { getTransactions, createTransaction } from '@/services'
 import { formatCurrency, formatDate } from '@/utils'
+import { toISODateLocal } from '@/utils/dateFilter'
 import { CATEGORIES } from '@/constants'
 import type { Database } from '@/types/database'
 import { useAuth } from '@/context/AuthContext'
@@ -242,7 +243,7 @@ export default function SubscriptionsPage() {
       // Create a date in this month with the selected renewal day
       const targetDate = new Date(now.getFullYear(), now.getMonth(), subRenewalDay)
       // If target date is in the past, default to last month or this month transaction
-      const dateStr = targetDate.toISOString().split('T')[0]
+      const dateStr = toISODateLocal(targetDate)
 
       if (!user) throw new Error('User not logged in')
 
