@@ -1164,7 +1164,7 @@ export default function PendingPage() {
                     value={autoCategorySelections[txn.id] || txn.category}
                     disabled={confirmingIds.has(txn.id)}
                     onChange={(e) => handleAutoCategorySelect(txn.id, e.target.value)}
-                    className="bg-surface-3 border border-border-subtle text-xs text-zinc-300 rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold"
+                    className="bg-surface-3 border border-border-subtle text-xs text-zinc-300 rounded-xl px-2.5 h-11 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold"
                     aria-label={`Category for ${txn.merchant}`}
                   >
                     {Object.entries(CATEGORIES).map(([key, cat]) => (

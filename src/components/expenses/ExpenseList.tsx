@@ -158,7 +158,7 @@ export default function ExpenseList({
             <button
               onClick={() => setConfirmBulkDelete(true)}
               disabled={isBulkDeleting}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] text-xs text-[var(--status-danger-text)] hover:bg-[var(--status-danger-border)] transition-all font-semibold cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 h-11 rounded-xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] text-xs text-[var(--status-danger-text)] hover:bg-[var(--status-danger-border)] transition-all font-semibold cursor-pointer disabled:opacity-50"
             >
               <Trash2 className="h-3.5 w-3.5" /> {isBulkDeleting ? 'Deleting...' : 'Delete'}
             </button>
