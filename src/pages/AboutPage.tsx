@@ -138,7 +138,7 @@ export default function AboutPage() {
         <Link
           to={ROUTES.DASHBOARD}
           className="sb-btn-primary"
-          style={{ padding: '10px 24px' }}
+          style={{ padding: '13px 24px' }}
         >
           Open Dashboard →
         </Link>

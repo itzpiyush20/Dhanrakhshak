@@ -144,7 +144,7 @@ export default function LandingPage() {
               <UserMenu />
             ) : (
               <>
-                <button onClick={() => openAuthModal()} className="text-sm text-sb-ink-muted hover:text-sb-ink transition-colors bg-transparent border-0 cursor-pointer">Sign in</button>
+                <button onClick={() => openAuthModal()} className="text-sm text-sb-ink-muted hover:text-sb-ink transition-colors bg-transparent border-0 cursor-pointer px-2 py-2 -my-2">Sign in</button>
                 <button onClick={() => openAuthModal()} className="sb-btn-primary border-0 cursor-pointer">Get started</button>
               </>
             )}
@@ -232,7 +232,7 @@ export default function LandingPage() {
 
               {/* Stats */}
               <motion.div
-                className="flex gap-10 pt-2 border-t border-sb-hairline"
+                className="flex flex-wrap gap-x-6 gap-y-3 pt-2 border-t border-sb-hairline"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
@@ -662,7 +662,7 @@ export default function LandingPage() {
                   Go to Dashboard →
                 </Link>
               ) : (
-                <button onClick={() => openAuthModal()} className="sb-btn-primary border-0 cursor-pointer text-base px-7 py-3">
+                <button onClick={() => openAuthModal()} className="sb-btn-primary border-0 cursor-pointer text-base px-7 py-3.5">
                   Start free — no card needed →
                 </button>
               )}

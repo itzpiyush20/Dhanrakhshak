@@ -89,7 +89,7 @@ export default function ReceivablesCard({ onSettled }: ReceivablesCardProps) {
                 </p>
               </div>
               <Button
-                size="sm"
+                size="md"
                 variant="secondary"
                 loading={settlingId === r.id}
                 onClick={() => handleSettle(r.id)}

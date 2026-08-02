@@ -85,7 +85,7 @@ export default function InsurancePremiumCard({ onPaid }: InsurancePremiumCardPro
                 </p>
               </div>
               <Button
-                size="sm"
+                size="md"
                 variant="secondary"
                 loading={payingId === p.id}
                 onClick={() => handleMarkPaid(p.id)}

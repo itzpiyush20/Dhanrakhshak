@@ -112,7 +112,7 @@ export default function AuthModal() {
         {/* Close Button */}
         <button
           onClick={closeAuthModal}
-          className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-50 p-1.5 rounded-xl hover:bg-surface-2 border-0 bg-transparent transition-colors cursor-pointer text-lg leading-none"
+          className="absolute top-3 right-3 text-zinc-500 hover:text-zinc-50 rounded-xl hover:bg-surface-2 border-0 bg-transparent transition-colors cursor-pointer text-lg leading-none h-11 w-11 flex items-center justify-center"
           aria-label="Close authentication modal"
         >
           ✕
@@ -136,7 +136,7 @@ export default function AuthModal() {
           <button
             type="button"
             onClick={() => { setIsSignUp(false); setError(''); setAgreeToTerms(false) }}
-            className={`flex-1 py-2 text-xs font-semibold rounded-lg border-0 cursor-pointer transition-all ${
+            className={`flex-1 py-2.5 text-xs font-semibold rounded-lg border-0 cursor-pointer transition-all ${
               !isSignUp
                 ? 'bg-surface-1 text-zinc-50 shadow-md border border-border-subtle/30'
                 : 'bg-transparent text-zinc-400 hover:text-zinc-50'
@@ -147,7 +147,7 @@ export default function AuthModal() {
           <button
             type="button"
             onClick={() => { setIsSignUp(true); setError(''); setAgreeToTerms(false) }}
-            className={`flex-1 py-2 text-xs font-semibold rounded-lg border-0 cursor-pointer transition-all ${
+            className={`flex-1 py-2.5 text-xs font-semibold rounded-lg border-0 cursor-pointer transition-all ${
               isSignUp
                 ? 'bg-surface-1 text-zinc-50 shadow-md border border-border-subtle/30'
                 : 'bg-transparent text-zinc-400 hover:text-zinc-50'
@@ -213,7 +213,7 @@ export default function AuthModal() {
               <Link
                 to="/forgot-password"
                 onClick={closeAuthModal}
-                className="text-[11px] text-brand-400 hover:text-brand-300 font-medium transition-colors"
+                className="text-xs text-brand-400 hover:text-brand-300 font-medium transition-colors py-1.5 -my-1.5"
               >
                 Forgot password?
               </Link>
@@ -267,19 +267,19 @@ export default function AuthModal() {
         <div className="mt-5 p-3.5 rounded-2xl bg-surface-2 border border-border-subtle/50 space-y-2.5">
           <div className="flex items-start gap-2.5">
             <span className="text-sm shrink-0 mt-0.5" aria-hidden="true">📩</span>
-            <p className="text-[11px] text-zinc-300 leading-relaxed">
+            <p className="text-xs text-zinc-300 leading-relaxed">
               <strong className="text-zinc-50">What's read:</strong> only bank alert emails, to detect transactions.
             </p>
           </div>
           <div className="flex items-start gap-2.5">
             <span className="text-sm shrink-0 mt-0.5" aria-hidden="true">🔒</span>
-            <p className="text-[11px] text-zinc-300 leading-relaxed">
+            <p className="text-xs text-zinc-300 leading-relaxed">
               <strong className="text-zinc-50">Stays on your device:</strong> parsing happens in your browser — raw emails are never uploaded or stored on our servers.
             </p>
           </div>
           <div className="flex items-start gap-2.5">
             <span className="text-sm shrink-0 mt-0.5" aria-hidden="true">✅</span>
-            <p className="text-[11px] text-zinc-300 leading-relaxed">
+            <p className="text-xs text-zinc-300 leading-relaxed">
               <strong className="text-zinc-50">What you get:</strong> transactions tracked automatically, with zero manual entry.
             </p>
           </div>

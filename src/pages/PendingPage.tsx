@@ -630,7 +630,7 @@ export default function PendingPage() {
                 Maybe later
               </Button>
             </div>
-            <div className="grid grid-cols-3 gap-3 w-full max-w-sm mt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-sm mt-2">
               {[
                 { icon: <Zap className="h-5 w-5 text-brand-400" />, label: 'Auto-scan inbox' },
                 { icon: <Brain className="h-5 w-5 text-brand-400" />, label: 'AI categorization' },
@@ -783,7 +783,7 @@ export default function PendingPage() {
             </div>
             <button
               onClick={() => setScanSuccessMessage(null)}
-              className="text-[var(--status-positive-text)] hover:opacity-85 font-bold ml-2 text-xs transition-colors shrink-0 pt-0.5"
+              className="text-[var(--status-positive-text)] hover:opacity-85 font-bold ml-2 text-xs transition-colors shrink-0 py-2 px-2 -my-2 -mr-2 min-h-[40px] flex items-center"
               aria-label="Dismiss success message"
             >
               Dismiss
@@ -808,7 +808,7 @@ export default function PendingPage() {
             </div>
             <button
               onClick={() => { setScanCooldownMessage(null) }}
-              className="text-brand-500 hover:text-brand-600 font-bold ml-2 text-xs transition-colors shrink-0 pt-0.5"
+              className="text-brand-500 hover:text-brand-600 font-bold ml-2 text-xs transition-colors shrink-0 py-2 px-2 -my-2 -mr-2 min-h-[40px] flex items-center"
               aria-label="Dismiss scan limit message"
             >
               Dismiss
@@ -1164,7 +1164,7 @@ export default function PendingPage() {
                     value={autoCategorySelections[txn.id] || txn.category}
                     disabled={confirmingIds.has(txn.id)}
                     onChange={(e) => handleAutoCategorySelect(txn.id, e.target.value)}
-                    className="bg-surface-3 border border-border-subtle text-xs text-zinc-300 rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold"
+                    className="bg-surface-3 border border-border-subtle text-xs text-zinc-300 rounded-xl px-2.5 h-11 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold"
                     aria-label={`Category for ${txn.merchant}`}
                   >
                     {Object.entries(CATEGORIES).map(([key, cat]) => (

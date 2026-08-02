@@ -41,12 +41,12 @@ export default function ConfirmDialog({
       title={title}
       footer={
         <>
-          <Button variant="secondary" size="sm" onClick={onClose} disabled={loading}>
+          <Button variant="secondary" size="md" onClick={onClose} disabled={loading}>
             {cancelLabel}
           </Button>
           <Button
             variant={danger ? 'danger' : 'primary'}
-            size="sm"
+            size="md"
             onClick={handleConfirm}
             loading={loading}
           >

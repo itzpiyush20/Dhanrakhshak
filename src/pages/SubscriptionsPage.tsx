@@ -408,13 +408,13 @@ export default function SubscriptionsPage() {
                     placeholder="Search subscriptions..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1 bg-surface-2 border border-border-subtle/50 text-zinc-200 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                    className="flex-1 bg-surface-2 border border-border-subtle/50 text-zinc-200 text-xs rounded-xl px-3 h-11 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400"
                     aria-label="Search subscriptions"
                   />
                   <select
                     value={filterCategory}
                     onChange={(e) => setFilterCategory(e.target.value)}
-                    className="bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
+                    className="bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 h-11 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
                     aria-label="Filter by category"
                   >
                     <option value="all">All Categories</option>
@@ -430,7 +430,7 @@ export default function SubscriptionsPage() {
                   <select
                     value={renewalWindow}
                     onChange={(e) => setRenewalWindow(e.target.value as typeof renewalWindow)}
-                    className="bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
+                    className="bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 h-11 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
                     aria-label="Filter by renewal window"
                   >
                     <option value="all">Any time</option>
@@ -501,7 +501,7 @@ export default function SubscriptionsPage() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-4 justify-between sm:justify-end">
+                          <div className="flex items-center flex-wrap gap-2 sm:gap-4 justify-between sm:justify-end">
                             <div className="flex flex-col items-end">
                               <span className="font-extrabold text-zinc-100">{formatCurrency(sub.amount)}</span>
                               <span className="text-xs text-zinc-500">{freqLabel.toLowerCase()}</span>
@@ -519,7 +519,7 @@ export default function SubscriptionsPage() {
                               onClick={() => hideSubscription(sub.merchant)}
                               title="Not a subscription — hide from this list (keeps the expense)"
                               aria-label={`Remove ${sub.merchant} from subscriptions`}
-                              className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-border-subtle/50 bg-surface-1 text-zinc-500 hover:text-[var(--status-danger-text)] hover:border-[var(--status-danger-border)] hover:bg-[var(--status-danger-subtle)] transition-colors cursor-pointer text-sm leading-none"
+                              className="shrink-0 ml-auto sm:ml-0 h-10 w-10 flex items-center justify-center rounded-lg border border-border-subtle/50 bg-surface-1 text-zinc-500 hover:text-[var(--status-danger-text)] hover:border-[var(--status-danger-border)] hover:bg-[var(--status-danger-subtle)] transition-colors cursor-pointer text-sm leading-none"
                             >
                               ✕
                             </button>

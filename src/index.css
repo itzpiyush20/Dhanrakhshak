@@ -633,7 +633,7 @@ html { scroll-behavior: smooth; }
 .sb-btn-primary {
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--sb-primary-deep); color: var(--sb-on-primary);
-  padding: 10px 18px; border-radius: 10px;
+  padding: 13px 18px; border-radius: 10px;
   font-family: var(--font-sans); font-size: 14px; font-weight: 560; line-height: 1.0;
   border: none; cursor: pointer;
   transition: background 0.18s ease, transform 0.12s ease;
@@ -646,7 +646,7 @@ html { scroll-behavior: smooth; }
 .sb-btn-secondary {
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--sb-canvas-soft); color: var(--sb-ink);
-  padding: 10px 18px; border-radius: 10px;
+  padding: 13px 18px; border-radius: 10px;
   font-family: var(--font-sans); font-size: 14px; font-weight: 560; line-height: 1.0;
   border: 1px solid var(--sb-hairline-strong); cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;

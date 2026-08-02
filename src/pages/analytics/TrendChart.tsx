@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Card, EmptyState } from '@/components/ui'
 import { formatCurrencyCompact } from '@/utils'
 import type { RangeType } from './PeriodSelector'
@@ -47,6 +48,8 @@ export function TrendChart({
     ? Math.max(...trendData.map((h) => Math.max(h.income, h.expenses)))
     : 0
 
+  const [tappedIndex, setTappedIndex] = useState<number | null>(null)
+
   return (
     <Card className="flex flex-col min-h-[300px] p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -79,7 +82,7 @@ export function TrendChart({
           <div className="space-y-4">
             {/* Pure CSS Bar chart */}
             <div className="overflow-x-auto scrollbar-none w-full pb-2">
-              <div className="flex items-end justify-between gap-2.5 sm:gap-6 md:gap-8 h-48 pt-4 relative select-none min-w-[500px] md:min-w-0">
+              <div className="flex items-end justify-between gap-2.5 sm:gap-6 md:gap-8 h-48 pt-4 relative select-none min-w-full sm:min-w-[500px] md:min-w-0">
                 <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-10">
                   {[1, 2, 3, 4].map((i) => (
                     <div key={i} className="w-full border-t border-dashed border-zinc-400 h-0" />
@@ -93,9 +96,10 @@ export function TrendChart({
                   return (
                     <div
                       key={index}
-                      className="flex-1 flex flex-col items-center h-full justify-end group relative"
+                      className="flex-1 flex flex-col items-center h-full justify-end group relative cursor-pointer"
+                      onClick={() => setTappedIndex(tappedIndex === index ? null : index)}
                     >
-                      <div className="absolute bottom-full mb-2 bg-zinc-950 border border-zinc-800 text-xs p-2.5 rounded-xl shadow-xl space-y-1 opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-10 min-w-[120px] text-left">
+                      <div className={`absolute bottom-full mb-2 bg-zinc-950 border border-zinc-800 text-xs p-2.5 rounded-xl shadow-xl space-y-1 pointer-events-none transition-opacity z-10 min-w-[120px] text-left group-hover:opacity-100 ${tappedIndex === index ? 'opacity-100' : 'opacity-0'}`}>
                         <p className="font-semibold text-zinc-300 border-b border-border-subtle/50 pb-1 mb-1">
                           {h.label}
                         </p>
@@ -115,7 +119,7 @@ export function TrendChart({
                         </div>
                       </div>
 
-                      <div className="flex gap-1 sm:gap-2 items-end h-full w-full max-w-[64px] justify-center px-1">
+                      <div className="flex gap-1 sm:gap-2 items-end h-full w-full max-w-[64px] justify-center px-1 min-h-11">
                         <div
                           className="w-2.5 sm:w-4 bg-[var(--status-positive-text)]/80 rounded-t-md hover:bg-[var(--status-positive-text)] transition-all duration-500 ease-out"
                           style={{ height: `${Math.max(3, incHeight)}%` }}

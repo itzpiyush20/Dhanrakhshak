@@ -208,7 +208,7 @@ export default function SupportPage() {
                   <button
                     key={tab.id}
                     onClick={() => handleTabChange(tab.id)}
-                    className={`flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition-all shrink-0 cursor-pointer border ${
+                    className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-bold rounded-xl whitespace-nowrap transition-all shrink-0 cursor-pointer border ${
                       isActive
                         ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 bg-transparent'
                         : 'bg-surface-1 text-zinc-400 border-border-subtle'
@@ -363,7 +363,7 @@ export default function SupportPage() {
                     {tickets.length > 0 && (
                       <button
                         onClick={() => setConfirmClearTickets(true)}
-                        className="text-xs text-[var(--status-danger-text)] hover:opacity-80 bg-transparent border-none cursor-pointer font-semibold"
+                        className="text-xs text-[var(--status-danger-text)] hover:opacity-80 bg-transparent border-none cursor-pointer font-semibold px-2 py-2 -m-2"
                       >
                         Clear History
                       </button>
@@ -432,7 +432,7 @@ export default function SupportPage() {
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="w-full justify-center py-2.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 text-sb-ink font-bold text-xs tracking-wide transition-all active:scale-98 shadow-md cursor-pointer border-0"
+                      className="w-full justify-center py-3.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 text-sb-ink font-bold text-xs tracking-wide transition-all active:scale-98 shadow-md cursor-pointer border-0"
                     >
                       {submitting ? 'Logging ticket…' : 'Submit Ticket'}
                     </button>

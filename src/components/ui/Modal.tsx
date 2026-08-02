@@ -86,7 +86,7 @@ export default function Modal({
               <Button
                 variant="ghost"
                 onClick={onClose}
-                className="h-8 w-8 !p-0 rounded-lg flex items-center justify-center text-zinc-400 hover:text-text-primary hover:bg-surface-2"
+                className="h-11 w-11 !p-0 rounded-lg flex items-center justify-center text-zinc-400 hover:text-text-primary hover:bg-surface-2"
                 aria-label="Close dialog"
               >
                 <X className="h-4 w-4" />

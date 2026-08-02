@@ -55,13 +55,13 @@ export default function UserMenu({ className }: UserMenuProps) {
       .toUpperCase()
 
   const menuLink =
-    'flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-sb-ink no-underline transition-colors hover:bg-sb-canvas-soft'
+    'flex items-center gap-2 rounded-lg px-3 py-2.5 min-h-11 text-xs font-medium text-sb-ink no-underline transition-colors hover:bg-sb-canvas-soft'
 
   return (
     <div className={cn('relative shrink-0', className)}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-sb-ink transition-colors cursor-pointer"
+        className="flex items-center gap-1.5 h-11 px-1 text-sb-ink transition-colors cursor-pointer"
         aria-label="User profile menu"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -102,7 +102,7 @@ export default function UserMenu({ className }: UserMenuProps) {
                 signOut()
               }}
               role="menuitem"
-              className="w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-[var(--status-danger-text)] border-t border-sb-hairline mt-1.5 pt-1.5 cursor-pointer transition-colors hover:bg-[var(--status-danger-subtle)]"
+              className="w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 min-h-11 text-xs font-medium text-[var(--status-danger-text)] border-t border-sb-hairline mt-1.5 pt-1.5 cursor-pointer transition-colors hover:bg-[var(--status-danger-subtle)]"
             >
               🚪 Sign Out
             </button>
