@@ -367,7 +367,7 @@ export async function analyzeTransactionEmailWithAI(
   try {
     const categoryListText = categoryNames && categoryNames.length > 0
       ? categoryNames.map((c) => `'${c}'`).join(', ')
-      : `'food', 'groceries', 'transport', 'utilities', 'shopping', 'entertainment', 'subscriptions', 'salary', 'travel', 'health', 'investments', 'other'`
+      : `'Food & Dining', 'Groceries', 'Transport', 'Utilities & Bills', 'Shopping', 'Entertainment', 'Subscriptions', 'Salary', 'Travel', 'Health', 'Investments', 'Other'`
 
     const prompt = `
 Analyze the following bank/payment email to determine if it describes a COMPLETED financial transaction.
