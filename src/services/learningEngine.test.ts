@@ -29,6 +29,29 @@ describe('applyMerchantRulesFromDB', () => {
     expect(result.approval_status).toBe('pending')
     expect(result.category).toBe('food')
   })
+
+  it('never returns approval_status "approved" for a partial match either, even past the old auto-approve threshold', async () => {
+    const order = vi.fn().mockResolvedValue({
+      data: [{
+        id: 'r2', user_id: 'u1', merchant_key: 'quickmart', canonical_name: 'Quickmart',
+        preferred_category: 'shopping', card_brand: null,
+        // Old threshold for partial-match auto-approve was confidence >= 80 && times_confirmed >= 2
+        auto_approve: true, confidence: 90, times_confirmed: 5,
+        last_updated: '2026-07-01', created_at: '2026-07-01',
+      }],
+      error: null,
+    })
+    const db: any = {
+      from: () => ({ select: () => ({ eq: () => ({ order }) }) }),
+    }
+
+    // "quickmart junction" doesn't exactly equal the rule's merchant_key ("quickmart"),
+    // so this only matches via the partial-match branch (merchantKey.includes(rule.merchant_key)).
+    const result = await applyMerchantRulesFromDB('u1', 'quickmart junction', 'unrelated snippet text', 'other', db)
+
+    expect(result.approval_status).toBe('pending')
+    expect(result.category).toBe('shopping')
+  })
 })
 
 describe('getMerchantRulesFromDB', () => {

@@ -171,6 +171,7 @@ export default function PendingPage() {
   const { showToast } = useToast()
 
   const [ruleSuggestion, setRuleSuggestion] = useState<{ merchant: string; category: string } | null>(null)
+  const [creatingRule, setCreatingRule] = useState(false)
 
   const [autoCategorizedTxns, setAutoCategorizedTxns] = useState<any[]>([])
   const [showAutoReviewModal, setShowAutoReviewModal] = useState(false)
@@ -376,6 +377,14 @@ export default function PendingPage() {
         approval_status: 'approved',
       })
       if (error) throw error
+
+      // Only offer the rule-creation suggestion once the approval has actually
+      // committed — otherwise a user who hits Undo could still create a rule
+      // for a categorization that was never saved.
+      const suggestedMerchant = getMerchantRuleSuggestion(txn)
+      if (suggestedMerchant) {
+        setRuleSuggestion({ merchant: suggestedMerchant, category: fields.category })
+      }
     } catch (err: any) {
       console.error('Error approving transaction:', err)
       showToast(err.message || 'Failed to approve transaction.', 'error')
@@ -396,11 +405,6 @@ export default function PendingPage() {
     setPendingTxns((prev) => prev.filter((t) => t.id !== txn.id))
     setTotalPendingCount((prev) => Math.max(0, prev - 1))
     setTotalPendingValue((prev) => Math.max(0, prev - Number(txn.amount)))
-
-    const suggestedMerchant = getMerchantRuleSuggestion(txn)
-    if (suggestedMerchant) {
-      setRuleSuggestion({ merchant: suggestedMerchant, category: fields.category })
-    }
 
     const timer = setTimeout(() => {
       pendingCommitTimers.delete(txn.id)
@@ -929,13 +933,21 @@ export default function PendingPage() {
             </span>
             <Button
               size="sm"
+              loading={creatingRule}
+              disabled={creatingRule}
               onClick={async () => {
-                if (user?.id) {
-                  await saveMerchantRuleToDb(user.id, ruleSuggestion.merchant, ruleSuggestion.category, true)
-                  saveMerchantRule(ruleSuggestion.merchant, ruleSuggestion.category, true)
+                if (creatingRule) return
+                setCreatingRule(true)
+                try {
+                  if (user?.id) {
+                    await saveMerchantRuleToDb(user.id, ruleSuggestion.merchant, ruleSuggestion.category, true)
+                    saveMerchantRule(ruleSuggestion.merchant, ruleSuggestion.category, true)
+                  }
+                  showToast(`Rule saved: ${ruleSuggestion.merchant} → ${getStyle(ruleSuggestion.category).label}`, 'success')
+                  setRuleSuggestion(null)
+                } finally {
+                  setCreatingRule(false)
                 }
-                showToast(`Rule saved: ${ruleSuggestion.merchant} → ${getStyle(ruleSuggestion.category).label}`, 'success')
-                setRuleSuggestion(null)
               }}
               className="shrink-0"
             >
