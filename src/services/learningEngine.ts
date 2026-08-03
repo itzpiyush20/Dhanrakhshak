@@ -24,6 +24,7 @@ type MerchantRuleRow = {
   times_confirmed: number
   last_updated: string
   created_at: string
+  rule_type: string
 }
 
 export async function getMerchantRulesFromDB(userId: string, db: SupabaseClient = supabase): Promise<MerchantRuleRow[]> {
@@ -45,7 +46,8 @@ export async function saveMerchantRuleToDb(
   merchant: string,
   category: string,
   autoApprove = true,
-  cardBrand?: CardBrand | null
+  cardBrand?: CardBrand | null,
+  ruleType: 'income' | 'expense' = 'expense'
 ): Promise<void> {
   const normalized = normalizeMerchant(merchant)
   const canonicalName = normalized.canonical || cleanMerchantName(merchant)
@@ -68,6 +70,7 @@ export async function saveMerchantRuleToDb(
       confidence: 100,
       canonical_name: canonicalName,
       last_updated: new Date().toISOString(),
+      rule_type: ruleType,
     }
     // Only update card_brand if a new value is explicitly provided
     if (cardBrand !== undefined) {
@@ -85,6 +88,7 @@ export async function saveMerchantRuleToDb(
       auto_approve: autoApprove,
       confidence: 100,
       times_confirmed: 1,
+      rule_type: ruleType,
     })
   }
 }

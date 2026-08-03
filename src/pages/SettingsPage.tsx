@@ -19,9 +19,9 @@ import {
 } from '@/services'
 import { getInsurancePolicies, createInsurancePolicy, deleteInsurancePolicy } from '@/services/insurance'
 import { encryptText, decryptText, cn, formatCurrency, formatDate } from '@/utils'
-import { CATEGORIES } from '@/constants'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
+import { useCategories } from '@/context/CategoriesContext'
 import CategoryManager from '@/components/settings/CategoryManager'
 import {
   Brain,
@@ -45,6 +45,7 @@ import {
 export default function SettingsPage() {
   const { user, activeYear, startNewFinancialYear, dailyScanTime, updateDailyScanTime, currencySymbol } = useAuth()
   const { showToast } = useToast()
+  const { categories, fallbackCategory } = useCategories()
 
   const [isLight, setIsLight] = useState(() => {
     try {
@@ -82,10 +83,17 @@ export default function SettingsPage() {
   }
 
   // Merchant Rules State
-  const [merchantRules, setMerchantRules] = useState<Record<string, { category: string; autoApprove: boolean }>>({})
+  const [merchantRules, setMerchantRules] = useState<Record<string, { category: string; autoApprove: boolean; ruleType: string }>>({})
   const [newKeyword, setNewKeyword] = useState('')
-  const [newCategory, setNewCategory] = useState('other')
+  const [newCategory, setNewCategory] = useState('')
   const [newAutoApprove, setNewAutoApprove] = useState(true)
+  const [newRuleType, setNewRuleType] = useState<'income' | 'expense'>('expense')
+
+  useEffect(() => {
+    if (!newCategory && categories.length > 0) {
+      setNewCategory(fallbackCategory?.name ?? categories[0].name)
+    }
+  }, [categories, fallbackCategory, newCategory])
 
   // Insurance Policies State
   const [policies, setPolicies] = useState<Array<{ id: string; policy_name: string; policy_type: string; premium_amount: number; frequency: string; next_due_date: string; remarks: string | null }>>([])
@@ -172,9 +180,9 @@ export default function SettingsPage() {
       try {
         const data = await getMerchantRulesFromDB(user.id)
         if (data && data.length > 0) {
-          const dbRules: Record<string, { category: string; autoApprove: boolean }> = {}
+          const dbRules: Record<string, { category: string; autoApprove: boolean; ruleType: string }> = {}
           data.forEach(r => {
-            dbRules[r.merchant_key] = { category: r.preferred_category, autoApprove: r.auto_approve }
+            dbRules[r.merchant_key] = { category: r.preferred_category, autoApprove: r.auto_approve, ruleType: r.rule_type }
           })
           setMerchantRules(dbRules)
           return
@@ -184,7 +192,12 @@ export default function SettingsPage() {
       }
     }
     // Fallback to localStorage
-    setMerchantRules(getMerchantRules())
+    const localRules = getMerchantRules()
+    const withType: Record<string, { category: string; autoApprove: boolean; ruleType: string }> = {}
+    Object.entries(localRules).forEach(([key, rule]) => {
+      withType[key] = { ...rule, ruleType: 'expense' }
+    })
+    setMerchantRules(withType)
   }
 
   useEffect(() => {
@@ -293,6 +306,20 @@ export default function SettingsPage() {
     loadRules()
   }
 
+  const handleUpdateRuleType = async (key: string, ruleType: string) => {
+    if (user) {
+      try {
+        await supabase.from('merchant_rules').update({
+          rule_type: ruleType,
+          last_updated: new Date().toISOString(),
+        }).eq('user_id', user.id).eq('merchant_key', key)
+      } catch (err) {
+        console.error('Failed to update rule type in DB:', err)
+      }
+    }
+    loadRules()
+  }
+
   const handleAddCustomRule = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newKeyword.trim()) return
@@ -300,15 +327,16 @@ export default function SettingsPage() {
     saveMerchantRule(newKeyword, newCategory, newAutoApprove)
     if (user) {
       try {
-        await saveMerchantRuleToDb(user.id, newKeyword, newCategory, newAutoApprove)
+        await saveMerchantRuleToDb(user.id, newKeyword, newCategory, newAutoApprove, undefined, newRuleType)
       } catch (err) {
         console.error('Failed to save rule to DB:', err)
       }
     }
 
     setNewKeyword('')
-    setNewCategory('other')
+    setNewCategory(fallbackCategory?.name ?? categories[0]?.name ?? '')
     setNewAutoApprove(true)
+    setNewRuleType('expense')
     loadRules()
   }
 
@@ -493,7 +521,7 @@ export default function SettingsPage() {
               </p>
 
               {/* Inline Rule Creator Form */}
-              <form onSubmit={handleAddCustomRule} className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4 p-3 bg-surface-2/40 border border-border-subtle/30 rounded-xl">
+              <form onSubmit={handleAddCustomRule} className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-4 p-3 bg-surface-2/40 border border-border-subtle/30 rounded-xl">
                 <div>
                   <Input
                     placeholder="Keyword (e.g. Swiggy)"
@@ -511,9 +539,20 @@ export default function SettingsPage() {
                     aria-label="Merchant Category"
                     className="w-full bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-11 px-3 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-brand-400"
                   >
-                    {Object.entries(CATEGORIES).map(([key, cat]) => (
-                      <option key={key} value={key}>{cat.emoji} {cat.label}</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.name}>{cat.emoji} {cat.name}</option>
                     ))}
+                  </select>
+                </div>
+                <div>
+                  <select
+                    value={newRuleType}
+                    onChange={(e) => setNewRuleType(e.target.value as 'income' | 'expense')}
+                    aria-label="Merchant Rule Type"
+                    className="w-full bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-11 px-3 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                  >
+                    <option value="expense">🔴 Expense</option>
+                    <option value="income">🟢 Income</option>
                   </select>
                 </div>
                 <div className="flex items-center justify-between gap-2">
@@ -562,9 +601,18 @@ export default function SettingsPage() {
                             onChange={(e) => handleUpdateRuleCategory(key, e.target.value)}
                             className="bg-surface-0 border border-border-subtle/50 text-xs rounded-xl p-1 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-brand-400"
                           >
-                            {Object.entries(CATEGORIES).map(([catKey, cat]) => (
-                              <option key={catKey} value={catKey}>{cat.emoji} {cat.label}</option>
+                            {categories.map((cat) => (
+                              <option key={cat.id} value={cat.name}>{cat.emoji} {cat.name}</option>
                             ))}
+                          </select>
+                          <select
+                            value={rule.ruleType}
+                            onChange={(e) => handleUpdateRuleType(key, e.target.value)}
+                            aria-label={`Rule type for ${key}`}
+                            className="bg-surface-0 border border-border-subtle/50 text-xs rounded-xl p-1 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                          >
+                            <option value="expense">🔴 Expense</option>
+                            <option value="income">🟢 Income</option>
                           </select>
                           <button
                             onClick={() => handleDeleteRule(key)}
