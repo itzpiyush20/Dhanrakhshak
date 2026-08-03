@@ -47,22 +47,24 @@ export default function CategoryManager() {
 
   const requestDelete = async (category: Category) => {
     setDeleteChecking(true)
-    setDeleteTarget(category)
-    try {
-      const { data } = await getCategoryUsage(category.name)
-      const transactions = data?.transactions ?? 0
-      const budgets = data?.budgets ?? 0
-      if (transactions + budgets > 0) {
-        setDeleteMessage(
-          `${transactions} transaction(s) will be moved to the fallback category` +
-            (budgets > 0 ? ` and ${budgets} budget(s) will be removed.` : '.')
-        )
-      } else {
-        setDeleteMessage('This category is not used by any transactions or budgets.')
-      }
-    } finally {
-      setDeleteChecking(false)
+    const { data, error } = await getCategoryUsage(category.name)
+    setDeleteChecking(false)
+
+    if (error) {
+      showToast(error.message || 'Failed to check category usage.', 'error')
+      return
     }
+
+    const transactions = data?.transactions ?? 0
+    const budgets = data?.budgets ?? 0
+    const message =
+      transactions + budgets > 0
+        ? `${transactions} transaction(s) will be moved to the fallback category` +
+          (budgets > 0 ? ` and ${budgets} budget(s) will be removed.` : '.')
+        : 'This category is not used by any transactions or budgets.'
+
+    setDeleteMessage(message)
+    setDeleteTarget(category) // only NOW does the dialog open, with accurate data already in hand
   }
 
   const handleConfirmDelete = async () => {
