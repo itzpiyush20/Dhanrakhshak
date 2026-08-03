@@ -24,27 +24,28 @@ export type SourceType =
 /** Credit card network brand */
 export type CardBrand = 'Visa' | 'Mastercard' | 'RuPay' | 'American Express' | 'Diners'
 
-export type ExpenseCategory =
-  | 'food'
-  | 'groceries'
-  | 'transport'
-  | 'shopping'
-  | 'utilities'
-  | 'rent'
-  | 'health'
-  | 'entertainment'
-  | 'education'
-  | 'travel'
-  | 'subscriptions'
-  | 'insurance'
-  | 'credit_card_bill_payment'
-  | 'transfers'
-  | 'salary'
-  | 'freelance'
-  | 'investments'
-  | 'refund'
-  | 'cashback'
-  | 'other'
+/**
+ * Category identity is now the user-defined display name (dynamic, per-user).
+ * Kept as a type alias so existing annotations keep compiling.
+ */
+export type ExpenseCategory = string
+
+export type CategoryType = 'income' | 'expense'
+
+/** A user-defined category row */
+export interface Category {
+  id: string
+  user_id: string
+  name: string
+  emoji: string
+  color: string
+  type: CategoryType
+  budget_eligible: boolean
+  is_default: boolean
+  is_permanent: boolean
+  sort_order: number
+  created_at: string
+}
 
 /** A single expense/income transaction */
 export interface Transaction {

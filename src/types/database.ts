@@ -232,6 +232,7 @@ export interface Database {
           auto_approve: boolean
           confidence: number
           times_confirmed: number
+          rule_type: string
           last_updated: string
           created_at: string
         }
@@ -242,12 +243,14 @@ export interface Database {
           auto_approve?: boolean
           confidence?: number
           times_confirmed?: number
+          rule_type?: string
         }
         Update: {
           preferred_category?: string
           auto_approve?: boolean
           confidence?: number
           times_confirmed?: number
+          rule_type?: string
           last_updated?: string
         }
       }
@@ -274,6 +277,42 @@ export interface Database {
         Update: {
           card_name?: string | null
           is_primary?: boolean
+        }
+      }
+      categories: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          emoji: string
+          color: string
+          type: 'income' | 'expense'
+          budget_eligible: boolean
+          is_default: boolean
+          is_permanent: boolean
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+          name: string
+          emoji: string
+          color: string
+          type: 'income' | 'expense'
+          budget_eligible?: boolean
+          is_default?: boolean
+          is_permanent?: boolean
+          sort_order?: number
+        }
+        Update: {
+          name?: string
+          emoji?: string
+          color?: string
+          type?: 'income' | 'expense'
+          budget_eligible?: boolean
+          is_default?: boolean
+          is_permanent?: boolean
+          sort_order?: number
         }
       }
     }
