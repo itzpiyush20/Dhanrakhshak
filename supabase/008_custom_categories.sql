@@ -130,6 +130,7 @@ UPDATE public.merchant_rules m SET preferred_category = l.new_name
 FROM legacy l WHERE m.preferred_category = l.old_key;
 
 ALTER TABLE public.transactions ALTER COLUMN category SET DEFAULT 'Other';
+ALTER TABLE public.merchant_rules ALTER COLUMN preferred_category SET DEFAULT 'Other';
 
 -- 5. merchant_rules: income/expense type
 ALTER TABLE public.merchant_rules
