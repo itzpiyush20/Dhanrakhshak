@@ -50,9 +50,9 @@ interface SummaryData {
 }
 
 // Group default categories into 50/30/20 definitions
-const NEEDS_CATEGORIES = ['groceries', 'utilities', 'transport', 'rent', 'health', 'education', 'insurance']
-const WANTS_CATEGORIES = ['food', 'shopping', 'entertainment', 'subscriptions', 'travel', 'other', 'transfers']
-const SAVINGS_CATEGORIES = ['investments']
+const NEEDS_CATEGORIES = ['Groceries', 'Utilities & Bills', 'Transport', 'Rent', 'Health', 'Education', 'Insurance']
+const WANTS_CATEGORIES = ['Food & Dining', 'Shopping', 'Entertainment', 'Subscriptions', 'Travel', 'Other', 'Transfers']
+const SAVINGS_CATEGORIES = ['Investments']
 
 const getRangeDates = (range: RangeType) => {
   const now = new Date()
@@ -375,7 +375,7 @@ export default function AnalyticsPage() {
     }
 
     transactions
-      .filter((t) => t.category === 'credit_card_bill_payment' && t.date)
+      .filter((t) => t.category === 'Credit Card Bill Payment' && t.date)
       .forEach((t) => {
         const tMonth = t.date.substring(0, 7)
         const monthObj = months.find((m) => m.monthKey === tMonth)
@@ -402,7 +402,7 @@ export default function AnalyticsPage() {
   // 2. CA Advisory Computations
   const { dateFrom: advisoryFrom, dateTo: advisoryTo } = resolveDateFilter(dateFilter)
   const monthlyTxns = expenseTransactions.filter((t) => t.date && t.date >= advisoryFrom && t.date <= advisoryTo)
-  const incomeTxns = monthlyTxns.filter((t) => t.type === 'credit' && t.category === 'salary')
+  const incomeTxns = monthlyTxns.filter((t) => t.type === 'credit' && t.category === 'Salary')
   const totalIncome = incomeTxns.reduce((sum, t) => sum + Number(t.amount), 0)
 
   const debitTxns = monthlyTxns.filter((t) => t.type === 'debit')
@@ -437,7 +437,7 @@ export default function AnalyticsPage() {
 
   const avgMonthlyNeeds = needsSpent || 15000
   const totalInvestments = transactions
-    .filter((t) => t.category === 'investments')
+    .filter((t) => t.category === 'Investments')
     .reduce((sum, t) => sum + Number(t.amount), 0)
 
   const emergencyMonths = Number((totalInvestments / avgMonthlyNeeds).toFixed(1))
@@ -476,7 +476,7 @@ export default function AnalyticsPage() {
       topCategoryPct: summary?.category_breakdown?.[0]?.percentage || 0,
       momTrend: trend,
       subscriptionBurn: transactions
-        .filter((t) => t.category === 'subscriptions' && t.type === 'debit')
+        .filter((t) => t.category === 'Subscriptions' && t.type === 'debit')
         .reduce((sum: number, t: any) => sum + Number(t.amount), 0),
       emergencyMonths,
       categoryBreakdown: summary?.category_breakdown || [],
