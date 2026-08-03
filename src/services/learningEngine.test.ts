@@ -7,7 +7,29 @@ vi.mock('./supabase', () => ({
   },
 }))
 
-import { getMerchantRulesFromDB } from './learningEngine'
+import { getMerchantRulesFromDB, applyMerchantRulesFromDB } from './learningEngine'
+
+describe('applyMerchantRulesFromDB', () => {
+  it('never returns approval_status "approved", even for a high-confidence, auto_approve, many-times-confirmed exact match', async () => {
+    const order = vi.fn().mockResolvedValue({
+      data: [{
+        id: 'r1', user_id: 'u1', merchant_key: 'swiggy', canonical_name: 'Swiggy',
+        preferred_category: 'food', card_brand: null,
+        auto_approve: true, confidence: 100, times_confirmed: 10,
+        last_updated: '2026-07-01', created_at: '2026-07-01',
+      }],
+      error: null,
+    })
+    const db: any = {
+      from: () => ({ select: () => ({ eq: () => ({ order }) }) }),
+    }
+
+    const result = await applyMerchantRulesFromDB('u1', 'swiggy', 'Swiggy order snippet', 'other', db)
+
+    expect(result.approval_status).toBe('pending')
+    expect(result.category).toBe('food')
+  })
+})
 
 describe('getMerchantRulesFromDB', () => {
   beforeEach(() => {

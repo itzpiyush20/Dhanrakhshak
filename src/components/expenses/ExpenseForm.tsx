@@ -7,7 +7,7 @@ import { Button, Input } from '@/components/ui'
 import Select from '@/components/ui/Select'
 import { useCategories } from '@/context/CategoriesContext'
 import { useAuth } from '@/context/AuthContext'
-import { createTransaction, updateTransaction, saveMerchantRule, cleanMerchantName, saveMerchantRuleToDb } from '@/services'
+import { createTransaction, updateTransaction } from '@/services'
 import type { Database } from '@/types/database'
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row']
@@ -139,17 +139,6 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
       setCounterparty('')
       setExpectedReturnDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
       setNotes('')
-    }
-
-    // Learn manual categorization rules based on description / merchant entry
-    if (description && category) {
-      const cleanDesc = cleanMerchantName(description)
-      if (cleanDesc && cleanDesc.length > 2) {
-        saveMerchantRule(cleanDesc, category, true)
-        saveMerchantRuleToDb(user.id, cleanDesc, category, true).catch(err => {
-          console.warn('Failed to sync manual rule to DB:', err)
-        })
-      }
     }
 
     setLoading(false)

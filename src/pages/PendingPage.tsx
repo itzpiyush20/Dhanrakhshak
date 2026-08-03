@@ -170,6 +170,8 @@ export default function PendingPage() {
 
   const { showToast } = useToast()
 
+  const [ruleSuggestion, setRuleSuggestion] = useState<{ merchant: string; category: string } | null>(null)
+
   const [autoCategorizedTxns, setAutoCategorizedTxns] = useState<any[]>([])
   const [showAutoReviewModal, setShowAutoReviewModal] = useState(false)
   const [confirmingIds, setConfirmingIds] = useState<Set<string>>(new Set())
@@ -346,10 +348,11 @@ export default function PendingPage() {
     }))
   }
 
-  // Learns the merchant → category rule immediately (cheap, low-stakes, and
-  // useful even if the approval itself is later undone) and surfaces that
-  // learning to the user — previously this happened silently.
-  const learnMerchantRule = (txn: TransactionRow, category: string): string | null => {
+  // Checks whether this merchant is eligible for a "create a rule?" suggestion.
+  // Does NOT save anything — rule creation is explicit-only now. Returns the
+  // merchant name if eligible (caller decides whether/how to surface it), or
+  // null if not eligible.
+  const getMerchantRuleSuggestion = (txn: TransactionRow): string | null => {
     const merchant = txn.merchant || ''
     if (
       !merchant ||
@@ -358,12 +361,7 @@ export default function PendingPage() {
     ) {
       return null
     }
-    saveMerchantRule(merchant, category, true)
-    if (user?.id) {
-      saveMerchantRuleToDb(user.id, merchant, category, true).catch(console.warn)
-    }
-    const categoryLabel = getStyle(category).label
-    return `Got it — ${merchant} → ${categoryLabel} from now on.`
+    return merchant
   }
 
   // Writes the actual approval to the database. Split from the tap handler
@@ -399,7 +397,10 @@ export default function PendingPage() {
     setTotalPendingCount((prev) => Math.max(0, prev - 1))
     setTotalPendingValue((prev) => Math.max(0, prev - Number(txn.amount)))
 
-    const learnedMsg = learnMerchantRule(txn, fields.category)
+    const suggestedMerchant = getMerchantRuleSuggestion(txn)
+    if (suggestedMerchant) {
+      setRuleSuggestion({ merchant: suggestedMerchant, category: fields.category })
+    }
 
     const timer = setTimeout(() => {
       pendingCommitTimers.delete(txn.id)
@@ -407,7 +408,7 @@ export default function PendingPage() {
     }, 5000)
     pendingCommitTimers.set(txn.id, timer)
 
-    showToast(learnedMsg ? `Approved. ${learnedMsg}` : 'Transaction approved.', 'success', {
+    showToast('Transaction approved.', 'success', {
       duration: 5000,
       action: {
         label: 'Undo',
@@ -443,7 +444,9 @@ export default function PendingPage() {
       txn,
       fields: editingFields[txn.id] || { category: txn.category, description: txn.description || '' },
     }))
-    snapshot.forEach(({ txn, fields }) => learnMerchantRule(txn, fields.category))
+    // Bulk approve intentionally never offers a rule-creation suggestion —
+    // showing one banner per merchant across many transactions would be spammy.
+    // Rule creation stays a single-transaction, explicit opt-in action.
 
     const timer = setTimeout(() => {
       snapshot.forEach(({ txn }) => pendingCommitTimers.delete(txn.id))
@@ -494,16 +497,19 @@ export default function PendingPage() {
     const selectedCategory = autoCategorySelections[txn.id] || txn.category
     setConfirmingIds((prev) => new Set(prev).add(txn.id))
     try {
-      if (selectedCategory !== txn.category) {
-        learnMerchantRule(txn, selectedCategory)
-      }
-
       const { error: updateErr } = await supabase
         .from('transactions')
         .update({ category: selectedCategory, category_confirmed_at: new Date().toISOString() })
         .eq('id', txn.id)
 
       if (updateErr) throw updateErr
+
+      if (selectedCategory !== txn.category) {
+        const suggestedMerchant = getMerchantRuleSuggestion(txn)
+        if (suggestedMerchant) {
+          setRuleSuggestion({ merchant: suggestedMerchant, category: selectedCategory })
+        }
+      }
 
       setAutoCategorizedTxns((prev) => prev.filter((t) => t.id !== txn.id))
       setAutoCategorySelections((prev) => {
@@ -913,6 +919,37 @@ export default function PendingPage() {
             <p className="text-xs text-zinc-500 mt-1">Total pending cashflow impact</p>
           </Card>
         </div>
+
+        {/* Opt-in merchant rule suggestion — rule creation is explicit-only */}
+        {ruleSuggestion && (
+          <div className="flex items-center gap-3 rounded-xl border border-brand-500/25 bg-brand-500/10 p-3 text-sm">
+            <span className="flex-1 text-zinc-300">
+              Always categorize <strong className="text-white">{ruleSuggestion.merchant}</strong> as{' '}
+              <strong className="text-white">{getStyle(ruleSuggestion.category).label}</strong>?
+            </span>
+            <Button
+              size="sm"
+              onClick={async () => {
+                if (user?.id) {
+                  await saveMerchantRuleToDb(user.id, ruleSuggestion.merchant, ruleSuggestion.category, true)
+                  saveMerchantRule(ruleSuggestion.merchant, ruleSuggestion.category, true)
+                }
+                showToast(`Rule saved: ${ruleSuggestion.merchant} → ${getStyle(ruleSuggestion.category).label}`, 'success')
+                setRuleSuggestion(null)
+              }}
+              className="shrink-0"
+            >
+              Create rule
+            </Button>
+            <button
+              aria-label="Dismiss rule suggestion"
+              onClick={() => setRuleSuggestion(null)}
+              className="text-zinc-400 hover:text-zinc-200 shrink-0 py-2 px-2 -my-2 -mr-2 min-h-[40px] flex items-center"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Transaction review list */}
         <div className="w-full space-y-5">

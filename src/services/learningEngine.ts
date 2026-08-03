@@ -167,12 +167,11 @@ export async function applyMerchantRulesFromDB(
     // Exact key match
     const exactMatch = rules.find((r) => r.merchant_key === merchantKey)
     if (exactMatch) {
-      const isAutoApprove =
-        exactMatch.auto_approve && exactMatch.confidence >= 80 && exactMatch.times_confirmed >= 1
-
+      // Rule confidence never auto-approves — approval always requires explicit
+      // human review, regardless of confidence/auto_approve/times_confirmed.
       return {
         category: exactMatch.preferred_category,
-        approval_status: isAutoApprove ? 'approved' : 'pending',
+        approval_status: 'pending',
         confidence: exactMatch.confidence,
         matchReason: `DB rule: '${exactMatch.merchant_key}' (${exactMatch.confidence}% confidence, ${exactMatch.times_confirmed} confirmations)`,
       }
@@ -184,12 +183,10 @@ export async function applyMerchantRulesFromDB(
     for (const rule of rules) {
       if (rule.merchant_key.length < 5) continue
       if (merchantKey.includes(rule.merchant_key) || lowerSnippet.includes(rule.merchant_key)) {
-        const isAutoApprove =
-          rule.auto_approve && rule.confidence >= 80 && rule.times_confirmed >= 2
-
+        // Same as exact match above — never auto-approve, always pending review.
         return {
           category: rule.preferred_category,
-          approval_status: isAutoApprove ? 'approved' : 'pending',
+          approval_status: 'pending',
           confidence: Math.round(rule.confidence * 0.8),
           matchReason: `DB partial rule: '${rule.merchant_key}' (partial match)`,
         }
