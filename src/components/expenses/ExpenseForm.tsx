@@ -5,7 +5,7 @@
 import { useState, type FormEvent } from 'react'
 import { Button, Input } from '@/components/ui'
 import Select from '@/components/ui/Select'
-import { CATEGORIES } from '@/constants'
+import { useCategories } from '@/context/CategoriesContext'
 import { useAuth } from '@/context/AuthContext'
 import { createTransaction, updateTransaction, saveMerchantRule, cleanMerchantName, saveMerchantRuleToDb } from '@/services'
 import type { Database } from '@/types/database'
@@ -21,11 +21,6 @@ interface ExpenseFormProps {
   onCancel?: () => void
 }
 
-const categoryOptions = Object.entries(CATEGORIES).map(([value, cat]) => ({
-  value,
-  label: `${cat.emoji} ${cat.label}`,
-}))
-
 const typeOptions = [
   { value: 'debit', label: '🔴 Expense (Debit)' },
   { value: 'credit', label: '🟢 Income (Credit)' },
@@ -33,11 +28,18 @@ const typeOptions = [
 
 export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: ExpenseFormProps) {
   const { user, currencySymbol } = useAuth()
+  const { categories, fallbackCategory } = useCategories()
   const isEditing = !!editingTransaction
+  const defaultCategory = fallbackCategory?.name || 'Other'
+
+  const categoryOptions = categories.map((c) => ({
+    value: c.name,
+    label: `${c.emoji} ${c.name}`,
+  }))
 
   const [type, setType] = useState<string>(editingTransaction?.type || 'debit')
   const [amount, setAmount] = useState(editingTransaction?.amount?.toString() || '')
-  const [category, setCategory] = useState(editingTransaction?.category || 'other')
+  const [category, setCategory] = useState(editingTransaction?.category || defaultCategory)
   const [description, setDescription] = useState(editingTransaction?.description || '')
   const [tagsInput, setTagsInput] = useState(
     editingTransaction?.tags?.join(', ') || ''
@@ -131,7 +133,7 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
       setAmount('')
       setDescription('')
       setTagsInput('')
-      setCategory('other')
+      setCategory(defaultCategory)
       setDate(new Date().toISOString().split('T')[0])
       setIsReturnable(false)
       setCounterparty('')

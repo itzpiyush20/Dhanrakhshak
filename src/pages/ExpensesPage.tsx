@@ -14,12 +14,13 @@ import type { Database } from '@/types/database'
 import { Card } from '@/components/ui'
 import { useToast } from '@/context'
 import { useLocation } from 'react-router-dom'
-import { CATEGORIES } from '@/constants'
+import { useCategories } from '@/context/CategoriesContext'
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row']
 
 export default function ExpensesPage() {
   const location = useLocation()
+  const { getStyle } = useCategories()
   const [transactions, setTransactions] = useState<TransactionRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(() => !!(location.state as any)?.openForm)
@@ -157,10 +158,10 @@ export default function ExpensesPage() {
               >
                 <option value="all">All Categories</option>
                 {uniqueCategories.map((cat) => {
-                  const meta = CATEGORIES[cat as keyof typeof CATEGORIES]
+                  const meta = getStyle(cat)
                   return (
                     <option key={cat} value={cat}>
-                      {meta ? `${meta.emoji} ${meta.label}` : cat}
+                      {`${meta.emoji} ${meta.label}`}
                     </option>
                   )
                 })}

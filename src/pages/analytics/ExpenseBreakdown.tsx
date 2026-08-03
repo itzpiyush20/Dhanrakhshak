@@ -1,6 +1,6 @@
 import { Card, EmptyState } from '@/components/ui'
 import { formatCurrencyCompact } from '@/utils'
-import { CATEGORIES } from '@/constants'
+import { useCategories } from '@/context/CategoriesContext'
 import { PieChart } from 'lucide-react'
 
 interface CategoryBreakdownItem {
@@ -26,6 +26,7 @@ export function ExpenseBreakdown({
   summary,
   loading,
 }: ExpenseBreakdownProps) {
+  const { getStyle } = useCategories()
   // Conic Gradient for doughnut
   const getConicGradientString = () => {
     if (!summary || summary.category_breakdown.length === 0) {
@@ -33,7 +34,7 @@ export function ExpenseBreakdown({
     }
     let currentAngle = 0
     const slices = summary.category_breakdown.map((item) => {
-      const cat = CATEGORIES[item.category as keyof typeof CATEGORIES] || CATEGORIES.other
+      const cat = getStyle(item.category)
       const start = currentAngle
       const end = currentAngle + item.percentage
       currentAngle = end
@@ -86,8 +87,7 @@ export function ExpenseBreakdown({
 
             <div className="flex-1 max-w-xs space-y-2 text-xs w-full">
               {summary.category_breakdown.slice(0, 5).map((item) => {
-                const cat =
-                  CATEGORIES[item.category as keyof typeof CATEGORIES] || CATEGORIES.other
+                const cat = getStyle(item.category)
                 return (
                   <div key={item.category} className="flex items-center justify-between">
                     <div className="flex items-center gap-2 truncate mr-2">

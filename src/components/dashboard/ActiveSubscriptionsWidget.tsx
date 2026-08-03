@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Card } from '@/components/ui'
-import { CATEGORIES } from '@/constants'
+import { useCategories } from '@/context/CategoriesContext'
 import { formatCurrency } from '@/utils'
 import { RefreshCw } from 'lucide-react'
 import type { Database } from '@/types/database'
@@ -18,6 +18,7 @@ export default function ActiveSubscriptionsWidget({
   loading,
   isVisible,
 }: ActiveSubscriptionsWidgetProps) {
+  const { getStyle } = useCategories()
   if (!isVisible || loading || recentTransactions.length === 0) return null
 
   const now = new Date()
@@ -101,7 +102,7 @@ export default function ActiveSubscriptionsWidget({
               : sub.daysToRenewal <= 7
               ? 'text-[var(--status-warning-text)] bg-[var(--status-warning-subtle)] border-[var(--status-warning-border)]'
               : 'text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border-[var(--status-positive-border)]'
-          const cat = CATEGORIES[sub.category as keyof typeof CATEGORIES] || CATEGORIES.subscriptions
+          const cat = getStyle(sub.category)
           return (
             <div
               key={idx}

@@ -12,9 +12,9 @@ import Select from '@/components/ui/Select'
 import { getTransactions, createTransaction } from '@/services'
 import { formatCurrency, formatDate } from '@/utils'
 import { toISODateLocal } from '@/utils/dateFilter'
-import { CATEGORIES } from '@/constants'
 import type { Database } from '@/types/database'
 import { useAuth } from '@/context/AuthContext'
+import { useCategories } from '@/context/CategoriesContext'
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row']
 
@@ -33,6 +33,7 @@ interface Subscription {
 
 export default function SubscriptionsPage() {
   const { user, currencySymbol } = useAuth()
+  const { getStyle } = useCategories()
   const [transactions, setTransactions] = useState<TransactionRow[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -419,10 +420,10 @@ export default function SubscriptionsPage() {
                   >
                     <option value="all">All Categories</option>
                     {uniqueSubCategories.map((code) => {
-                      const meta = CATEGORIES[code as keyof typeof CATEGORIES]
+                      const meta = getStyle(code)
                       return (
                         <option key={code} value={code}>
-                          {meta ? `${meta.emoji} ${meta.label}` : code}
+                          {`${meta.emoji} ${meta.label}`}
                         </option>
                       )
                     })}
@@ -458,8 +459,8 @@ export default function SubscriptionsPage() {
                 ) : (
                   <div className="space-y-3">
                     {visibleSubs.map((sub, idx) => {
-                      const categoryMeta = CATEGORIES[sub.category as keyof typeof CATEGORIES]
-                      
+                      const categoryMeta = getStyle(sub.category)
+
                       let badgeVariant: 'success' | 'warning' | 'danger' = 'success'
                       if (sub.daysToRenewal <= 2) badgeVariant = 'danger'
                       else if (sub.daysToRenewal <= 7) badgeVariant = 'warning'
@@ -476,7 +477,7 @@ export default function SubscriptionsPage() {
                         >
                           <div className="flex items-center gap-3">
                             <div className="h-10 w-10 rounded-xl bg-surface-1 flex items-center justify-center text-lg border border-border-subtle/60 shrink-0">
-                              {categoryMeta?.emoji || '🔄'}
+                              {categoryMeta.emoji}
                             </div>
                             <div className="flex flex-col min-w-0">
                               <div className="flex items-center gap-2">

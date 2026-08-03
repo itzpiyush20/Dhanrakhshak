@@ -4,7 +4,7 @@
 // ============================================
 
 import { Card, Badge, Button, EmptyState, ConfirmDialog } from '@/components/ui'
-import { CATEGORIES } from '@/constants'
+import { useCategories } from '@/context/CategoriesContext'
 import { formatCurrency, formatDate } from '@/utils'
 import { deleteTransaction, bulkDeleteTransactions, bulkUpdateTransactionsCategory } from '@/services/transactions'
 import type { Database } from '@/types/database'
@@ -26,6 +26,7 @@ export default function ExpenseList({
   onEdit,
   onRefresh,
 }: ExpenseListProps) {
+  const { categories, getStyle } = useCategories()
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
@@ -148,9 +149,9 @@ export default function ExpenseList({
               <option value="" disabled hidden>
                 📂 Edit Category
               </option>
-              {Object.entries(CATEGORIES).map(([value, cat]) => (
-                <option key={value} value={value}>
-                  {cat.emoji} {cat.label}
+              {categories.map((cat) => (
+                <option key={cat.name} value={cat.name}>
+                  {cat.emoji} {cat.name}
                 </option>
               ))}
             </select>
@@ -168,7 +169,7 @@ export default function ExpenseList({
 
       <div className="divide-y divide-border-subtle">
         {transactions.map((txn) => {
-          const cat = CATEGORIES[txn.category as keyof typeof CATEGORIES] || CATEGORIES.other
+          const cat = getStyle(txn.category)
           const isDebit = txn.type === 'debit'
 
           return (

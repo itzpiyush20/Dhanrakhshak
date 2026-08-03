@@ -1,6 +1,6 @@
 import { Card, EmptyState } from '@/components/ui'
 import { formatCurrency } from '@/utils'
-import { CATEGORIES } from '@/constants'
+import { useCategories } from '@/context/CategoriesContext'
 import { CategoryIcon } from './CategoryIcon'
 import {
   Lightbulb,
@@ -45,6 +45,7 @@ export function SmartWealthTips({
   trend,
   savingsRate,
 }: SmartWealthTipsProps) {
+  const { getStyle } = useCategories()
   return (
     <Card className="lg:col-span-6 flex flex-col min-h-[400px] p-5">
       <div>
@@ -156,9 +157,7 @@ export function SmartWealthTips({
                   <p className="text-zinc-400 mt-1">
                     {(() => {
                       const top = summary.category_breakdown[0]
-                      const cat =
-                        CATEGORIES[top.category as keyof typeof CATEGORIES] ||
-                        CATEGORIES.other
+                      const cat = getStyle(top.category)
                       const savingsTarget = top.amount * 0.15
                       return (
                         <span className="flex items-center flex-wrap gap-x-1 gap-y-0.5">

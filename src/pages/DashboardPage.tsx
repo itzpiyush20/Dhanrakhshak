@@ -45,7 +45,7 @@ import {
 } from '@/services'
 import { migrateLocalStorageRulesToDB } from '@/services/learningEngine'
 import { formatCurrency, formatCurrencyCompact, getCurrentMonth, formatDate, withTimeout, resolveDateFilter, formatDateFilterLabel, getMonthsInRange, type DateFilter } from '@/utils'
-import { CATEGORIES } from '@/constants'
+import { useCategories } from '@/context/CategoriesContext'
 import type { Database } from '@/types/database'
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row']
@@ -71,6 +71,7 @@ interface SyncSummary {
 
 export default function DashboardPage() {
   const { user, profile, hasGoogleToken, notifyGoogleTokenCleared, dailyScanTime } = useAuth()
+  const { getStyle } = useCategories()
   const { showToast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
@@ -371,7 +372,7 @@ export default function DashboardPage() {
             month: lastSeen,
             totalExpenses: recapRes.data.total_expenses,
             totalIncome: recapRes.data.total_income,
-            topCategory: top ? { label: CATEGORIES[top.category as keyof typeof CATEGORIES]?.label || top.category, amount: top.amount } : undefined,
+            topCategory: top ? { label: getStyle(top.category).label, amount: top.amount } : undefined,
             priorExpenses: priorRes.data ? priorRes.data.total_expenses : null,
           })
         })
@@ -491,7 +492,7 @@ export default function DashboardPage() {
       let topCategory: SyncSummary['topCategory']
       if (categoryTotals.size > 0) {
         const [code, amount] = [...categoryTotals.entries()].sort((a, b) => b[1] - a[1])[0]
-        const label = CATEGORIES[code as keyof typeof CATEGORIES]?.label || code
+        const label = getStyle(code).label
         topCategory = { label, amount }
       }
 
@@ -943,8 +944,7 @@ export default function DashboardPage() {
                         ? summary.category_breakdown
                         : summary.category_breakdown.slice(0, CATEGORY_BREAKDOWN_PREVIEW_COUNT)
                       ).map((item, idx) => {
-                        const cat =
-                          CATEGORIES[item.category as keyof typeof CATEGORIES] || CATEGORIES.other
+                        const cat = getStyle(item.category)
                         return (
                           <button
                             key={item.category}
@@ -1042,8 +1042,7 @@ export default function DashboardPage() {
                     <div className="divide-y divide-border-subtle flex-1 flex flex-col justify-between">
                       <div>
                         {recentTransactions.map((txn, idx) => {
-                          const cat =
-                            CATEGORIES[txn.category as keyof typeof CATEGORIES] || CATEGORIES.other
+                          const cat = getStyle(txn.category)
                           const isDebit = txn.type === 'debit'
 
                           return (
@@ -1126,7 +1125,7 @@ export default function DashboardPage() {
             ) : (
               <div className="divide-y divide-border-subtle/40">
                 {allRecentTransactions.map((txn) => {
-                  const cat = CATEGORIES[txn.category as keyof typeof CATEGORIES] || CATEGORIES.other
+                  const cat = getStyle(txn.category)
                   const isDebit = txn.type === 'debit'
                   return (
                     <div key={txn.id} className="flex items-center justify-between py-3">
@@ -1160,7 +1159,7 @@ export default function DashboardPage() {
 
         {/* 📊 Category Spending Breakdown Details Modal */}
         {showCategoryModal && selectedCategoryCode && (() => {
-          const cat = CATEGORIES[selectedCategoryCode as keyof typeof CATEGORIES] || CATEGORIES.other
+          const cat = getStyle(selectedCategoryCode)
           const matchedSummaryItem = summary?.category_breakdown.find(item => item.category === selectedCategoryCode)
           const totalAmount = matchedSummaryItem?.amount || 0
           const totalCount = matchedSummaryItem?.count || 0

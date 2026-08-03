@@ -21,9 +21,9 @@ import {
 import { saveMerchantRuleToDb } from '@/services/learningEngine'
 import { useAuth } from '@/context/AuthContext'
 import { formatCurrency, formatDate, parsePaymentSource, formatPaymentSource, isCardPayment, withTimeout } from '@/utils'
-import { CATEGORIES } from '@/constants'
 import type { Database } from '@/types/database'
 import { useToast } from '@/context'
+import { useCategories } from '@/context/CategoriesContext'
 import {
   Crown,
   Zap,
@@ -144,6 +144,7 @@ function msToCountdown(ms: number): string {
 
 export default function PendingPage() {
   const { user, signInWithGoogle, hasGoogleToken, notifyGoogleTokenCleared, profile, dailyScanTime } = useAuth()
+  const { categories, getStyle } = useCategories()
   const [pendingTxns, setPendingTxns] = useState<TransactionRow[]>([])
   const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
@@ -361,7 +362,7 @@ export default function PendingPage() {
     if (user?.id) {
       saveMerchantRuleToDb(user.id, merchant, category, true).catch(console.warn)
     }
-    const categoryLabel = CATEGORIES[category as keyof typeof CATEGORIES]?.label || category
+    const categoryLabel = getStyle(category).label
     return `Got it — ${merchant} → ${categoryLabel} from now on.`
   }
 
@@ -1042,9 +1043,9 @@ export default function PendingPage() {
                         onChange={(e) => handleFieldChange(txn.id, 'category', e.target.value)}
                         disabled={actionLoadingId === txn.id}
                       >
-                        {Object.entries(CATEGORIES).map(([key, cat]) => (
-                          <option key={key} value={key}>
-                            {cat.emoji} {cat.label}
+                        {categories.map((cat) => (
+                          <option key={cat.name} value={cat.name}>
+                            {cat.emoji} {cat.name}
                           </option>
                         ))}
                       </Select>
@@ -1167,9 +1168,9 @@ export default function PendingPage() {
                     className="bg-surface-3 border border-border-subtle text-xs text-zinc-300 rounded-xl px-2.5 h-11 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold"
                     aria-label={`Category for ${txn.merchant}`}
                   >
-                    {Object.entries(CATEGORIES).map(([key, cat]) => (
-                      <option key={key} value={key}>
-                        {(cat as any).emoji} {(cat as any).label}
+                    {categories.map((cat) => (
+                      <option key={cat.name} value={cat.name}>
+                        {cat.emoji} {cat.name}
                       </option>
                     ))}
                   </select>

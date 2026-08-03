@@ -9,30 +9,16 @@ import { Card, Button, Input, Select, Badge, EmptyState, ConfirmDialog, DateFilt
 import { getBudgets, upsertBudget, deleteBudget } from '@/services/budgets'
 import { getSummary } from '@/services/transactions'
 import { formatCurrency, getCurrentMonth, withTimeout, resolveDateFilter, getMonthsInRange, formatDateFilterLabel, type DateFilter } from '@/utils'
-import { CATEGORIES } from '@/constants'
+import { useCategories } from '@/context/CategoriesContext'
 import type { Database } from '@/types/database'
 import { useToast, useAuth } from '@/context'
 
 type BudgetRow = Database['public']['Tables']['budgets']['Row']
 
-// Exclude income categories from budget targeting
-const BUDGET_ELIGIBLE_CATEGORIES = [
-  { key: 'food', label: 'Food & Dining', emoji: '🍔' },
-  { key: 'groceries', label: 'Groceries', emoji: '🛒' },
-  { key: 'transport', label: 'Transport', emoji: '🚗' },
-  { key: 'shopping', label: 'Shopping', emoji: '🛍️' },
-  { key: 'utilities', label: 'Utilities & Bills', emoji: '💡' },
-  { key: 'rent', label: 'Rent', emoji: '🏠' },
-  { key: 'health', label: 'Health', emoji: '🏥' },
-  { key: 'entertainment', label: 'Entertainment', emoji: '🎬' },
-  { key: 'education', label: 'Education', emoji: '📚' },
-  { key: 'travel', label: 'Travel', emoji: '✈️' },
-  { key: 'subscriptions', label: 'Subscriptions', emoji: '🔄' },
-  { key: 'other', label: 'Other Expenses', emoji: '📌' },
-]
-
 export default function BudgetsPage() {
   const { currencySymbol } = useAuth()
+  const { categories, getStyle } = useCategories()
+  const budgetEligible = categories.filter((c) => c.type === 'expense' && c.budget_eligible)
   const [dateFilter, setDateFilter] = useState<DateFilter>({ mode: 'month', month: getCurrentMonth() })
   const targetMonth = dateFilter.mode === 'month' ? dateFilter.month : resolveDateFilter(dateFilter).dateTo.slice(0, 7)
   const [budgets, setBudgets] = useState<(BudgetRow & { monthCount: number })[]>([])
@@ -44,8 +30,16 @@ export default function BudgetsPage() {
   const { showToast } = useToast()
 
   // Form states
-  const [category, setCategory] = useState(BUDGET_ELIGIBLE_CATEGORIES[0].key)
+  const [category, setCategory] = useState(budgetEligible[0]?.name ?? '')
   const [amount, setAmount] = useState('')
+
+  // Categories load asynchronously — once the eligible list arrives, default
+  // the picker to its first entry if nothing has been selected yet.
+  useEffect(() => {
+    if (!category && budgetEligible.length > 0) {
+      setCategory(budgetEligible[0].name)
+    }
+  }, [budgetEligible, category])
 
   const fetchBudgetData = useCallback(async (filter: DateFilter) => {
     setLoading(true)
@@ -205,7 +199,7 @@ export default function BudgetsPage() {
             {warningBudgets.map((b) => {
               const spent = spentMap[b.category] || 0
               const isExceeded = spent >= b.amount
-              const cat = CATEGORIES[b.category as keyof typeof CATEGORIES] || CATEGORIES.other
+              const cat = getStyle(b.category)
               return (
                 <div
                   key={b.id}
@@ -293,8 +287,7 @@ export default function BudgetsPage() {
               ) : (
                 <div className="space-y-6">
                   {budgets.map((budget, idx) => {
-                    const cat =
-                      CATEGORIES[budget.category as keyof typeof CATEGORIES] || CATEGORIES.other
+                    const cat = getStyle(budget.category)
                     const spent = spentMap[budget.category] || 0
                     const remaining = budget.amount - spent
                     const pct = budget.amount > 0 ? (spent / budget.amount) * 100 : 0
@@ -425,9 +418,9 @@ export default function BudgetsPage() {
                   disabled={actionLoading}
                   required
                 >
-                  {BUDGET_ELIGIBLE_CATEGORIES.map((c) => (
-                    <option key={c.key} value={c.key}>
-                      {c.emoji} {c.label}
+                  {budgetEligible.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.emoji} {c.name}
                     </option>
                   ))}
                 </Select>

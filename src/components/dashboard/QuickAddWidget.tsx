@@ -6,7 +6,7 @@
 import { useState, useRef, type FormEvent } from 'react'
 import { Button, Card } from '@/components/ui'
 import Select from '@/components/ui/Select'
-import { CATEGORIES } from '@/constants'
+import { useCategories } from '@/context/CategoriesContext'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
 import { createTransaction } from '@/services/transactions'
@@ -23,6 +23,7 @@ interface QuickAddWidgetProps {
 
 export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidgetProps) {
   const { user, currencySymbol } = useAuth()
+  const { categories, getStyle } = useCategories()
   const { showToast } = useToast()
   const amountRef = useRef<HTMLInputElement>(null)
 
@@ -57,7 +58,7 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
       type,
       amount: parsedAmount,
       category,
-      description: description || CATEGORIES[category as keyof typeof CATEGORIES]?.label || 'Transaction',
+      description: description || getStyle(category).label || 'Transaction',
       date: new Date().toISOString().split('T')[0],
       source: 'manual',
       approval_status: 'approved',
@@ -140,7 +141,7 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
 
         <div className="flex flex-wrap items-center gap-2">
           {chips.map((code) => {
-            const cat = CATEGORIES[code as keyof typeof CATEGORIES]
+            const cat = categories.find((c) => c.name === code)
             if (!cat) return null
             return (
               <button
@@ -154,7 +155,7 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
                     : 'bg-surface-2 border-border-subtle/50 text-zinc-400 hover:text-zinc-200'
                 }`}
               >
-                {cat.emoji} {cat.label}
+                {cat.emoji} {cat.name}
               </button>
             )
           })}
@@ -181,9 +182,9 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
             onChange={(e) => setCategory(e.target.value)}
             aria-label="Category"
             placeholder="Choose a category"
-            options={Object.entries(CATEGORIES).map(([value, cat]) => ({
-              value,
-              label: `${cat.emoji} ${cat.label}`,
+            options={categories.map((cat) => ({
+              value: cat.name,
+              label: `${cat.emoji} ${cat.name}`,
             }))}
           />
         )}

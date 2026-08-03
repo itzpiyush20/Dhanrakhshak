@@ -1,6 +1,6 @@
 import { Card, Badge } from '@/components/ui'
 import { formatCurrency } from '@/utils'
-import { CATEGORIES } from '@/constants'
+import { useCategories } from '@/context/CategoriesContext'
 import { CategoryIcon } from './CategoryIcon'
 import { Flame } from 'lucide-react'
 
@@ -16,6 +16,7 @@ interface AnomalyAlertsProps {
 }
 
 export function AnomalyAlerts({ anomalies }: AnomalyAlertsProps) {
+  const { getStyle } = useCategories()
   if (anomalies.length === 0) return null
 
   return (
@@ -27,7 +28,7 @@ export function AnomalyAlerts({ anomalies }: AnomalyAlertsProps) {
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {anomalies.map((anomaly, i) => {
-          const cat = CATEGORIES[anomaly.category as keyof typeof CATEGORIES] || CATEGORIES.other
+          const cat = getStyle(anomaly.category)
           return (
             <div key={i} className="rounded-xl bg-[var(--status-warning-subtle)] border border-[var(--status-warning-border)] p-4">
               <div className="flex items-center justify-between mb-2 gap-2">
