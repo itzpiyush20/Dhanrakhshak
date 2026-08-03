@@ -471,7 +471,7 @@ export default function AnalyticsPage() {
       wantsPct,
       savingsPct: finalSavingsPct,
       healthScore,
-      topCategory: summary?.category_breakdown?.[0]?.category || 'other',
+      topCategory: summary?.category_breakdown?.[0]?.category || 'Other',
       topCategoryAmount: summary?.category_breakdown?.[0]?.amount || 0,
       topCategoryPct: summary?.category_breakdown?.[0]?.percentage || 0,
       momTrend: trend,

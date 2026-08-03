@@ -2,32 +2,6 @@
 // App Constants & Category Configuration
 // ============================================
 
-import type { ExpenseCategory } from '../types'
-
-/** Category metadata — label, icon emoji, and color class for charts/badges */
-export const CATEGORIES: Record<ExpenseCategory, { label: string; emoji: string; color: string }> = {
-  food:           { label: 'Food & Dining',    emoji: '🍔', color: '#f97316' },
-  groceries:      { label: 'Groceries',        emoji: '🛒', color: '#84cc16' },
-  transport:      { label: 'Transport',         emoji: '🚗', color: '#3b82f6' },
-  shopping:       { label: 'Shopping',          emoji: '🛍️', color: '#ec4899' },
-  utilities:      { label: 'Utilities & Bills', emoji: '💡', color: '#eab308' },
-  rent:           { label: 'Rent',              emoji: '🏠', color: '#8b5cf6' },
-  health:         { label: 'Health',            emoji: '🏥', color: '#ef4444' },
-  entertainment:  { label: 'Entertainment',     emoji: '🎬', color: '#f43f5e' },
-  education:      { label: 'Education',         emoji: '📚', color: '#06b6d4' },
-  travel:         { label: 'Travel',            emoji: '✈️', color: '#14b8a6' },
-  subscriptions:  { label: 'Subscriptions',     emoji: '🔄', color: '#a855f7' },
-  insurance:      { label: 'Insurance',         emoji: '🛡️', color: '#0891b2' },
-  credit_card_bill_payment: { label: 'Credit Card Bill Payment', emoji: '💳', color: '#475569' },
-  transfers:      { label: 'Transfers',         emoji: '🔁', color: '#6b7280' },
-  salary:         { label: 'Salary',            emoji: '💰', color: '#10b981' },
-  freelance:      { label: 'Freelance',         emoji: '💻', color: '#0ea5e9' },
-  investments:    { label: 'Investments',        emoji: '📈', color: '#22c55e' },
-  refund:         { label: 'Refund',            emoji: '↩️', color: '#64748b' },
-  cashback:       { label: 'Cashback',          emoji: '🎁', color: '#f59e0b' },
-  other:          { label: 'Other',             emoji: '📌', color: '#94a3b8' },
-}
-
 /** Neutral style for transactions whose category no longer exists */
 export const CATEGORY_STYLE_FALLBACK = { emoji: '📌', color: '#94a3b8' }
 

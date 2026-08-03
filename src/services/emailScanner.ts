@@ -1023,9 +1023,9 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
               const resolvedMerchant = aiResult.merchant || 'Other'
               let ruleResult
               try {
-                ruleResult = await applyMerchantRulesFromDB(user.id, resolvedMerchant, bodyText, aiResult.category || 'other', supabase)
+                ruleResult = await applyMerchantRulesFromDB(user.id, resolvedMerchant, bodyText, aiResult.category || fallbackCategoryName, supabase)
               } catch {
-                ruleResult = { category: aiResult.category || 'other', approval_status: 'pending', confidence: aiResult.confidence_score }
+                ruleResult = { category: aiResult.category || fallbackCategoryName, approval_status: 'pending', confidence: aiResult.confidence_score }
               }
 
               const approval_status = ruleResult.approval_status
@@ -1186,7 +1186,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         const subjectMerchant = subject ? extractDynamicMerchant(subject) : ''
 
         let merchant = ''
-        let category = 'other'
+        let category = fallbackCategoryName
         let description = ''
 
         if (knownMerchant) {
