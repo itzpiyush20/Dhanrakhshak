@@ -6,7 +6,7 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
-import { AuthProvider, ToastProvider } from '@/context'
+import { AuthProvider, ToastProvider, CategoriesProvider } from '@/context'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import AutoUpdateChecker from '@/components/AutoUpdateChecker'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -167,19 +167,21 @@ function App() {
         <AutoUpdateChecker />
         <CookieConsent />
         <AuthProvider>
-          <ToastProvider>
-            <ErrorBoundary>
-              <Suspense fallback={<PageLoader />}>
-                <ErrorBoundary fallback={null}>
-                  <URLAuthTrigger />
-                </ErrorBoundary>
-                <AuthModal />
-                <MarketingScrollProgress />
+          <CategoriesProvider>
+            <ToastProvider>
+              <ErrorBoundary>
+                <Suspense fallback={<PageLoader />}>
+                  <ErrorBoundary fallback={null}>
+                    <URLAuthTrigger />
+                  </ErrorBoundary>
+                  <AuthModal />
+                  <MarketingScrollProgress />
 
-                <AnimatedRoutes />
-              </Suspense>
-            </ErrorBoundary>
-          </ToastProvider>
+                  <AnimatedRoutes />
+                </Suspense>
+              </ErrorBoundary>
+            </ToastProvider>
+          </CategoriesProvider>
         </AuthProvider>
       </MotionConfig>
     </BrowserRouter>

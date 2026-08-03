@@ -28,6 +28,25 @@ export const CATEGORIES: Record<ExpenseCategory, { label: string; emoji: string;
   other:          { label: 'Other',             emoji: '📌', color: '#94a3b8' },
 }
 
+/** Neutral style for transactions whose category no longer exists */
+export const CATEGORY_STYLE_FALLBACK = { emoji: '📌', color: '#94a3b8' }
+
+/** Curated emoji choices for the category form */
+export const CATEGORY_EMOJI_CHOICES = [
+  '🍔','🛒','🚗','🛍️','💡','🏠','🏥','🎬','📚','✈️',
+  '🔄','🛡️','💳','🔁','💰','💻','📈','↩️','🎁','📌',
+  '🎮','🐾','👶','🏋️','🎓','🎵','☕','🍺','💊','🧾',
+  '🎂','🌱','🔧','📱','👔','💇','🏦','🙏','🎗️','🚌',
+]
+
+/** Curated color swatches for the category form */
+export const CATEGORY_COLOR_CHOICES = [
+  '#f97316','#84cc16','#3b82f6','#ec4899','#eab308','#8b5cf6',
+  '#ef4444','#f43f5e','#06b6d4','#14b8a6','#a855f7','#0891b2',
+  '#475569','#6b7280','#10b981','#0ea5e9','#22c55e','#64748b',
+  '#f59e0b','#94a3b8','#d946ef','#7c3aed','#059669','#b91c1c',
+]
+
 /** Navigation routes */
 export const ROUTES = {
   HOME: '/',
