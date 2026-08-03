@@ -22,6 +22,7 @@ import { encryptText, decryptText, cn, formatCurrency, formatDate } from '@/util
 import { CATEGORIES } from '@/constants'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
+import CategoryManager from '@/components/settings/CategoryManager'
 import {
   Brain,
   Trash2,
@@ -478,6 +479,9 @@ export default function SettingsPage() {
         <div className="grid gap-6 md:grid-cols-12">
           {/* Left panel: Smart Merchant Rules */}
           <div className="md:col-span-7 space-y-6">
+            {/* Manage Categories Card */}
+            <CategoryManager />
+
             {/* Smart Merchant Rules Card */}
             <Card className="border-border-subtle bg-surface-1 shadow-md">
               <h2 className="text-base font-bold text-zinc-200 mb-2 flex items-center gap-2">
