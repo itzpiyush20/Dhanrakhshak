@@ -361,9 +361,14 @@ export async function analyzeTransactionEmailWithAI(
   subject: string,
   body: string,
   emailDate: string,
-  callGemini: (body: Record<string, unknown>) => Promise<any> = callGeminiProxy
+  callGemini: (body: Record<string, unknown>) => Promise<any> = callGeminiProxy,
+  categoryNames?: string[]
 ): Promise<AITransactionResult | null> {
   try {
+    const categoryListText = categoryNames && categoryNames.length > 0
+      ? categoryNames.map((c) => `'${c}'`).join(', ')
+      : `'food', 'groceries', 'transport', 'utilities', 'shopping', 'entertainment', 'subscriptions', 'salary', 'travel', 'health', 'investments', 'other'`
+
     const prompt = `
 Analyze the following bank/payment email to determine if it describes a COMPLETED financial transaction.
 
@@ -397,7 +402,7 @@ If TRUE, extract:
 - transaction_type: 'debit' (money out) or 'credit' (money in)
 - amount: exact transaction amount in INR as a number. Do NOT use balance or limit amounts.
 - merchant: clean merchant/vendor name (e.g. 'Swiggy', 'Amazon', 'Airtel'). Strip suffixes like 'Ltd', 'Pvt', 'Private Limited'.
-- category: one of 'food', 'groceries', 'transport', 'utilities', 'shopping', 'entertainment', 'subscriptions', 'salary', 'travel', 'health', 'investments', 'other'
+- category: one of ${categoryListText}
   - 'transport' = day-to-day local commute: cabs/auto (Uber, Ola, Rapido), metro, bus, fuel/petrol/diesel, tolls (FASTag), parking, train tickets (IRCTC) for regular travel
   - 'travel' = trip bookings and stays: flight tickets, hotels/OYO, travel agents (MakeMyTrip, Goibibo, Cleartrip, Yatra, EaseMyTrip), Airbnb, vacation packages
   - Do NOT default ambiguous mobility spend to 'travel' — only use 'travel' for flights, hotels, or trip-booking platforms; everyday transit and fuel are always 'transport'

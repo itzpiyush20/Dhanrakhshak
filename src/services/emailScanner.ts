@@ -713,12 +713,14 @@ export interface ScanGmailOptions {
   /** Active financial year to scope the scan to. Defaults to the browser's localStorage value (or 2026). */
   activeYear?: number
   /** AI email analyzer to use. Defaults to the proxy-based `analyzeTransactionEmailWithAI`. */
-  askAI?: (subject: string, body: string, emailDate: string) => ReturnType<typeof analyzeTransactionEmailWithAI>
+  askAI?: (subject: string, body: string, emailDate: string, categoryNames?: string[]) => ReturnType<typeof analyzeTransactionEmailWithAI>
 }
 
 export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
   const supabase = opts?.db || defaultSupabase
-  const askAI = opts?.askAI || analyzeTransactionEmailWithAI
+  const askAI = opts?.askAI ||
+    ((subject: string, body: string, emailDate: string, categoryNames?: string[]) =>
+      analyzeTransactionEmailWithAI(subject, body, emailDate, undefined, categoryNames))
 
   let user: { id: string; email?: string } | undefined
   let providerToken: string | null = null
@@ -972,6 +974,17 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       (existingTxns ?? []).map((t: any) => t.reference_id).filter((r: any): r is string => !!r)
     )
 
+    // Fetch the user's real categories once per scan (not once per email) — used to
+    // (1) feed the AI prompt the user's actual category names instead of the old
+    // hardcoded/legacy list, and (2) validate merchant-rule/AI category suggestions
+    // against what actually exists, falling back to the permanent category if not.
+    const { data: userCategories } = await supabase
+      .from('categories')
+      .select('name, is_permanent')
+      .eq('user_id', user.id)
+    const categoryNames = (userCategories || []).map((c: any) => c.name)
+    const fallbackCategoryName = (userCategories || []).find((c: any) => c.is_permanent)?.name || 'Other'
+
     const transactionsToInsert: TransactionInsert[] = []
     let skippedConfidence = 0
     const skippedEmailsDetails: string[] = []
@@ -1000,7 +1013,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
 
       {
         try {
-          const aiResult = await askAI(subject, bodyText, mailDate)
+          const aiResult = await askAI(subject, bodyText, mailDate, categoryNames)
           if (aiResult) {
             if (aiResult.is_transaction && aiResult.amount && aiResult.amount > 0) {
               if (aiResult.reference_id && existingRefIds.has(aiResult.reference_id)) {
@@ -1015,16 +1028,17 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
                 ruleResult = { category: aiResult.category || 'other', approval_status: 'pending', confidence: aiResult.confidence_score }
               }
 
-              let approval_status = ruleResult.approval_status
-              if (ruleResult.confidence >= 70 && ruleResult.matchReason?.startsWith('DB rule:')) {
-                approval_status = 'approved'
-              }
+              const approval_status = ruleResult.approval_status
+
+              const resolvedCategory = (categoryNames.length > 0 && !categoryNames.includes(ruleResult.category))
+                ? fallbackCategoryName
+                : ruleResult.category
 
               parsedTxn = {
                 user_id: user.id,
                 amount: aiResult.amount,
                 type: aiResult.transaction_type || 'debit',
-                category: ruleResult.category,
+                category: resolvedCategory,
                 merchant: resolvedMerchant,
                 description: aiResult.description || `${resolvedMerchant} Transaction`,
                 date: aiResult.date || mailDate,
@@ -1233,12 +1247,11 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           ruleResult = applyMerchantRules(merchant, emailContentForParsing, category)
         }
 
-        let finalApprovalStatus = ruleResult.approval_status
-        if (ruleResult.confidence >= 70 && ruleResult.matchReason.startsWith('DB rule:')) {
-          finalApprovalStatus = 'approved'
-        }
+        const finalApprovalStatus = ruleResult.approval_status
 
-        const { category: finalCategory } = ruleResult
+        const finalCategory = (categoryNames.length > 0 && !categoryNames.includes(ruleResult.category))
+          ? fallbackCategoryName
+          : ruleResult.category
         const approval_status = finalApprovalStatus
         const eventType = classifyEventType(emailContentForParsing, txType, finalCategory)
 
