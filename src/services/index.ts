@@ -13,6 +13,14 @@ export {
   deleteBudget,
 } from './budgets'
 export {
+  getCategories,
+  createCategory,
+  updateCategoryStyle,
+  renameCategory,
+  deleteCategory,
+  getCategoryUsage,
+} from './categories'
+export {
   getScanLogs,
   scanRealGmailInbox,
   getMerchantRules,
