@@ -192,14 +192,14 @@ describe('getMonthlySummary', () => {
     mockQueryResult.mockResolvedValue({
       data: [
         { amount: 500, type: 'debit', category: 'food' },
-        { amount: 15000, type: 'debit', category: 'credit_card_bill_payment' },
+        { amount: 15000, type: 'debit', category: 'Credit Card Bill Payment' },
         { amount: 2000, type: 'credit', category: 'salary' },
       ],
       error: null,
     })
     const { data } = await getMonthlySummary('2026-07')
     expect(data!.total_expenses).toBe(500)
-    expect(data!.category_breakdown.find((c) => c.category === 'credit_card_bill_payment')).toBeUndefined()
+    expect(data!.category_breakdown.find((c) => c.category === 'Credit Card Bill Payment')).toBeUndefined()
   })
 
   it('still totals ordinary debit transactions when there is no credit card bill payment', async () => {
@@ -235,7 +235,7 @@ describe('getSummary', () => {
     mockQueryResult.mockResolvedValue({
       data: [
         { amount: 500, type: 'debit', category: 'food' },
-        { amount: 15000, type: 'debit', category: 'credit_card_bill_payment' },
+        { amount: 15000, type: 'debit', category: 'Credit Card Bill Payment' },
       ],
       error: null,
     })
@@ -251,7 +251,7 @@ describe('getHistoricalAnalytics', () => {
     mockQueryResult.mockResolvedValue({
       data: [
         { amount: 500, type: 'debit', date: `${thisMonth}-05` },
-        { amount: 15000, type: 'debit', date: `${thisMonth}-10`, category: 'credit_card_bill_payment' },
+        { amount: 15000, type: 'debit', date: `${thisMonth}-10`, category: 'Credit Card Bill Payment' },
       ],
       error: null,
     })

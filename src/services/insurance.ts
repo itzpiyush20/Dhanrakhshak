@@ -86,7 +86,7 @@ export async function markPremiumPaid(policyId: string) {
       user_id: user.id,
       type: 'debit',
       amount: policy.premium_amount,
-      category: 'insurance',
+      category: 'Insurance',
       description: `${policy.policy_name} premium`,
       date: new Date().toISOString().split('T')[0],
       source: 'manual',

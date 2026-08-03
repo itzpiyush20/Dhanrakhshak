@@ -93,7 +93,7 @@ export default function ExpensesPage() {
     .filter((t) => t.type === 'credit')
     .reduce((sum, t) => sum + Number(t.amount), 0)
   const totalExpenses = transactions
-    .filter((t) => t.type === 'debit' && t.category !== 'credit_card_bill_payment')
+    .filter((t) => t.type === 'debit' && t.category !== 'Credit Card Bill Payment')
     .reduce((sum, t) => sum + Number(t.amount), 0)
 
   // Client-side search + filter

@@ -356,7 +356,7 @@ export default function AnalyticsPage() {
   // spend. The raw `transactions` array is still used, unfiltered, by the new
   // dedicated credit-card-payment trend chart added in the next task.
   const expenseTransactions = useMemo(
-    () => transactions.filter((t) => t.category !== 'credit_card_bill_payment'),
+    () => transactions.filter((t) => t.category !== 'Credit Card Bill Payment'),
     [transactions]
   )
 

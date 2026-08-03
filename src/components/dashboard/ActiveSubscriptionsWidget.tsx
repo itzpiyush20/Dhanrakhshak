@@ -40,7 +40,7 @@ export default function ActiveSubscriptionsWidget({
     if (seen.has(key)) continue
     txns.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     const latest = txns[0]
-    const isSubCat = ['subscriptions', 'utilities'].includes(latest.category)
+    const isSubCat = ['Subscriptions', 'Utilities & Bills'].includes(latest.category)
     let isRecurring = isSubCat
 
     if (!isRecurring && txns.length >= 2) {

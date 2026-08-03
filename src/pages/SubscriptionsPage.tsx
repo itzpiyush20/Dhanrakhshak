@@ -86,7 +86,7 @@ export default function SubscriptionsPage() {
   // Manual Subscription Form States
   const [subName, setSubName] = useState('')
   const [subAmount, setSubAmount] = useState('')
-  const [subCategory, setSubCategory] = useState('subscriptions')
+  const [subCategory, setSubCategory] = useState('Subscriptions')
   const [subRenewalDay, setSubRenewalDay] = useState(1)
   const [formError, setFormError] = useState('')
   const [formSuccess, setFormSuccess] = useState(false)
@@ -132,7 +132,7 @@ export default function SubscriptionsPage() {
 
       txns.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       const latest = txns[0]
-      const isSubCategory = latest.category === 'subscriptions' || latest.category === 'utilities'
+      const isSubCategory = latest.category === 'Subscriptions' || latest.category === 'Utilities & Bills'
 
       let isRecurring = false
       let frequency: Subscription['frequency'] = 'unknown'
@@ -265,7 +265,7 @@ export default function SubscriptionsPage() {
       setFormSuccess(true)
       setSubName('')
       setSubAmount('')
-      setSubCategory('subscriptions')
+      setSubCategory('Subscriptions')
       setSubRenewalDay(1)
       
       // Reload list
@@ -371,8 +371,8 @@ export default function SubscriptionsPage() {
                         value={subCategory}
                         onChange={(e) => setSubCategory(e.target.value)}
                       >
-                        <option value="subscriptions">🔄 Subscriptions</option>
-                        <option value="utilities">💡 Utilities</option>
+                        <option value="Subscriptions">🔄 Subscriptions</option>
+                        <option value="Utilities & Bills">💡 Utilities</option>
                       </Select>
                     </div>
                     <div>

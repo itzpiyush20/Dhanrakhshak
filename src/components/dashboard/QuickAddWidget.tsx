@@ -12,7 +12,7 @@ import { useToast } from '@/context'
 import { createTransaction } from '@/services/transactions'
 import { Plus, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 
-const FALLBACK_CATEGORIES = ['food', 'transport', 'shopping', 'utilities']
+const FALLBACK_CATEGORIES = ['Food & Dining', 'Transport', 'Shopping', 'Utilities & Bills']
 
 interface QuickAddWidgetProps {
   /** Category codes to show as one-tap chips, most-used first. */

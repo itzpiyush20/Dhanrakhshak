@@ -11,89 +11,89 @@ interface NormalizedMerchant {
 
 const CANONICAL_MAP: Array<{ patterns: RegExp[]; canonical: string; category: string }> = [
   // Food delivery
-  { patterns: [/swiggy/i], canonical: 'Swiggy', category: 'food' },
-  { patterns: [/zomato/i], canonical: 'Zomato', category: 'food' },
-  { patterns: [/uber\s*eats/i], canonical: 'Uber Eats', category: 'food' },
-  { patterns: [/dunzo/i], canonical: 'Dunzo', category: 'food' },
+  { patterns: [/swiggy/i], canonical: 'Swiggy', category: 'Food & Dining' },
+  { patterns: [/zomato/i], canonical: 'Zomato', category: 'Food & Dining' },
+  { patterns: [/uber\s*eats/i], canonical: 'Uber Eats', category: 'Food & Dining' },
+  { patterns: [/dunzo/i], canonical: 'Dunzo', category: 'Food & Dining' },
 
   // Quick commerce
-  { patterns: [/blinkit|grofers/i], canonical: 'Blinkit', category: 'groceries' },
-  { patterns: [/bigbasket/i], canonical: 'BigBasket', category: 'groceries' },
-  { patterns: [/zepto/i], canonical: 'Zepto', category: 'groceries' },
-  { patterns: [/jiomart/i], canonical: 'JioMart', category: 'groceries' },
-  { patterns: [/\bdmart\b|d-?mart/i], canonical: 'DMart', category: 'groceries' },
+  { patterns: [/blinkit|grofers/i], canonical: 'Blinkit', category: 'Groceries' },
+  { patterns: [/bigbasket/i], canonical: 'BigBasket', category: 'Groceries' },
+  { patterns: [/zepto/i], canonical: 'Zepto', category: 'Groceries' },
+  { patterns: [/jiomart/i], canonical: 'JioMart', category: 'Groceries' },
+  { patterns: [/\bdmart\b|d-?mart/i], canonical: 'DMart', category: 'Groceries' },
 
   // E-commerce
-  { patterns: [/\bamzn\b|amazon\s*seller|amazon/i], canonical: 'Amazon', category: 'shopping' },
-  { patterns: [/flipkart/i], canonical: 'Flipkart', category: 'shopping' },
-  { patterns: [/myntra/i], canonical: 'Myntra', category: 'shopping' },
-  { patterns: [/meesho/i], canonical: 'Meesho', category: 'shopping' },
-  { patterns: [/\bajio\b/i], canonical: 'AJIO', category: 'shopping' },
-  { patterns: [/nykaa/i], canonical: 'Nykaa', category: 'shopping' },
-  { patterns: [/croma/i], canonical: 'Croma', category: 'shopping' },
-  { patterns: [/reliance\s*digital/i], canonical: 'Reliance Digital', category: 'shopping' },
-  { patterns: [/tata\s*cliq|tatacliq/i], canonical: 'Tata CLiQ', category: 'shopping' },
-  { patterns: [/lenskart/i], canonical: 'Lenskart', category: 'health' },
+  { patterns: [/\bamzn\b|amazon\s*seller|amazon/i], canonical: 'Amazon', category: 'Shopping' },
+  { patterns: [/flipkart/i], canonical: 'Flipkart', category: 'Shopping' },
+  { patterns: [/myntra/i], canonical: 'Myntra', category: 'Shopping' },
+  { patterns: [/meesho/i], canonical: 'Meesho', category: 'Shopping' },
+  { patterns: [/\bajio\b/i], canonical: 'AJIO', category: 'Shopping' },
+  { patterns: [/nykaa/i], canonical: 'Nykaa', category: 'Shopping' },
+  { patterns: [/croma/i], canonical: 'Croma', category: 'Shopping' },
+  { patterns: [/reliance\s*digital/i], canonical: 'Reliance Digital', category: 'Shopping' },
+  { patterns: [/tata\s*cliq|tatacliq/i], canonical: 'Tata CLiQ', category: 'Shopping' },
+  { patterns: [/lenskart/i], canonical: 'Lenskart', category: 'Health' },
 
   // Transport
-  { patterns: [/ola\s*electric|olaev/i], canonical: 'Ola Electric', category: 'transport' },
-  { patterns: [/\bola\b(?!\s*electric)/i], canonical: 'Ola', category: 'transport' },
-  { patterns: [/\buber\b(?!\s*eats)/i], canonical: 'Uber', category: 'transport' },
-  { patterns: [/rapido/i], canonical: 'Rapido', category: 'transport' },
-  { patterns: [/irctc/i], canonical: 'IRCTC', category: 'transport' },
-  { patterns: [/fastag|netc/i], canonical: 'FASTag', category: 'transport' },
-  { patterns: [/swiggy\s*genie/i], canonical: 'Swiggy Genie', category: 'transport' },
+  { patterns: [/ola\s*electric|olaev/i], canonical: 'Ola Electric', category: 'Transport' },
+  { patterns: [/\bola\b(?!\s*electric)/i], canonical: 'Ola', category: 'Transport' },
+  { patterns: [/\buber\b(?!\s*eats)/i], canonical: 'Uber', category: 'Transport' },
+  { patterns: [/rapido/i], canonical: 'Rapido', category: 'Transport' },
+  { patterns: [/irctc/i], canonical: 'IRCTC', category: 'Transport' },
+  { patterns: [/fastag|netc/i], canonical: 'FASTag', category: 'Transport' },
+  { patterns: [/swiggy\s*genie/i], canonical: 'Swiggy Genie', category: 'Transport' },
 
   // Travel
-  { patterns: [/makemytrip|\bmmt\b/i], canonical: 'MakeMyTrip', category: 'travel' },
-  { patterns: [/goibibo/i], canonical: 'Goibibo', category: 'travel' },
-  { patterns: [/cleartrip/i], canonical: 'Cleartrip', category: 'travel' },
-  { patterns: [/easemytrip/i], canonical: 'EaseMyTrip', category: 'travel' },
-  { patterns: [/\byatra\.com|\byatra\b/i], canonical: 'Yatra', category: 'travel' },
-  { patterns: [/\boyo\b/i], canonical: 'OYO', category: 'travel' },
+  { patterns: [/makemytrip|\bmmt\b/i], canonical: 'MakeMyTrip', category: 'Travel' },
+  { patterns: [/goibibo/i], canonical: 'Goibibo', category: 'Travel' },
+  { patterns: [/cleartrip/i], canonical: 'Cleartrip', category: 'Travel' },
+  { patterns: [/easemytrip/i], canonical: 'EaseMyTrip', category: 'Travel' },
+  { patterns: [/\byatra\.com|\byatra\b/i], canonical: 'Yatra', category: 'Travel' },
+  { patterns: [/\boyo\b/i], canonical: 'OYO', category: 'Travel' },
 
   // Streaming subscriptions
-  { patterns: [/netflix/i], canonical: 'Netflix', category: 'subscriptions' },
-  { patterns: [/spotify/i], canonical: 'Spotify', category: 'subscriptions' },
-  { patterns: [/hotstar|disney\+|disneyplus/i], canonical: 'Disney+ Hotstar', category: 'subscriptions' },
-  { patterns: [/amazon\s*prime/i], canonical: 'Amazon Prime', category: 'subscriptions' },
-  { patterns: [/youtube\s*premium/i], canonical: 'YouTube Premium', category: 'subscriptions' },
-  { patterns: [/jiocinema/i], canonical: 'JioCinema', category: 'subscriptions' },
-  { patterns: [/sonyliv/i], canonical: 'SonyLIV', category: 'subscriptions' },
-  { patterns: [/\bzee5\b/i], canonical: 'ZEE5', category: 'subscriptions' },
-  { patterns: [/apple\s*(tv|music|icloud|one)/i], canonical: 'Apple Subscription', category: 'subscriptions' },
-  { patterns: [/google\s*one/i], canonical: 'Google One', category: 'subscriptions' },
+  { patterns: [/netflix/i], canonical: 'Netflix', category: 'Subscriptions' },
+  { patterns: [/spotify/i], canonical: 'Spotify', category: 'Subscriptions' },
+  { patterns: [/hotstar|disney\+|disneyplus/i], canonical: 'Disney+ Hotstar', category: 'Subscriptions' },
+  { patterns: [/amazon\s*prime/i], canonical: 'Amazon Prime', category: 'Subscriptions' },
+  { patterns: [/youtube\s*premium/i], canonical: 'YouTube Premium', category: 'Subscriptions' },
+  { patterns: [/jiocinema/i], canonical: 'JioCinema', category: 'Subscriptions' },
+  { patterns: [/sonyliv/i], canonical: 'SonyLIV', category: 'Subscriptions' },
+  { patterns: [/\bzee5\b/i], canonical: 'ZEE5', category: 'Subscriptions' },
+  { patterns: [/apple\s*(tv|music|icloud|one)/i], canonical: 'Apple Subscription', category: 'Subscriptions' },
+  { patterns: [/google\s*one/i], canonical: 'Google One', category: 'Subscriptions' },
 
   // Utilities / Telecom
-  { patterns: [/airtel/i], canonical: 'Airtel', category: 'utilities' },
-  { patterns: [/\bjio\b(?!\s*(cinema|mart))/i], canonical: 'Jio', category: 'utilities' },
-  { patterns: [/vodafone|idea|\bvi\b/i], canonical: 'Vi (Vodafone Idea)', category: 'utilities' },
-  { patterns: [/\bbsnl\b/i], canonical: 'BSNL', category: 'utilities' },
-  { patterns: [/bescom|msedcl|tneb|adani\s*electricity|tata\s*power/i], canonical: 'Electricity Provider', category: 'utilities' },
-  { patterns: [/indane|bharat\s*gas|hp\s*gas/i], canonical: 'Gas Provider', category: 'utilities' },
+  { patterns: [/airtel/i], canonical: 'Airtel', category: 'Utilities & Bills' },
+  { patterns: [/\bjio\b(?!\s*(cinema|mart))/i], canonical: 'Jio', category: 'Utilities & Bills' },
+  { patterns: [/vodafone|idea|\bvi\b/i], canonical: 'Vi (Vodafone Idea)', category: 'Utilities & Bills' },
+  { patterns: [/\bbsnl\b/i], canonical: 'BSNL', category: 'Utilities & Bills' },
+  { patterns: [/bescom|msedcl|tneb|adani\s*electricity|tata\s*power/i], canonical: 'Electricity Provider', category: 'Utilities & Bills' },
+  { patterns: [/indane|bharat\s*gas|hp\s*gas/i], canonical: 'Gas Provider', category: 'Utilities & Bills' },
 
   // Entertainment
-  { patterns: [/bookmyshow|\bbms\b/i], canonical: 'BookMyShow', category: 'entertainment' },
-  { patterns: [/pvr|inox/i], canonical: 'PVR INOX', category: 'entertainment' },
+  { patterns: [/bookmyshow|\bbms\b/i], canonical: 'BookMyShow', category: 'Entertainment' },
+  { patterns: [/pvr|inox/i], canonical: 'PVR INOX', category: 'Entertainment' },
 
   // Health / Pharma
-  { patterns: [/apollo\s*pharmacy/i], canonical: 'Apollo Pharmacy', category: 'health' },
-  { patterns: [/netmeds/i], canonical: 'Netmeds', category: 'health' },
-  { patterns: [/medplus/i], canonical: 'MedPlus', category: 'health' },
-  { patterns: [/\b1mg\b/i], canonical: '1mg', category: 'health' },
-  { patterns: [/apollo\s*(hospital|clinic)/i], canonical: 'Apollo Hospital', category: 'health' },
+  { patterns: [/apollo\s*pharmacy/i], canonical: 'Apollo Pharmacy', category: 'Health' },
+  { patterns: [/netmeds/i], canonical: 'Netmeds', category: 'Health' },
+  { patterns: [/medplus/i], canonical: 'MedPlus', category: 'Health' },
+  { patterns: [/\b1mg\b/i], canonical: '1mg', category: 'Health' },
+  { patterns: [/apollo\s*(hospital|clinic)/i], canonical: 'Apollo Hospital', category: 'Health' },
 
   // Investments
-  { patterns: [/groww/i], canonical: 'Groww', category: 'investments' },
-  { patterns: [/zerodha/i], canonical: 'Zerodha', category: 'investments' },
-  { patterns: [/upstox/i], canonical: 'Upstox', category: 'investments' },
-  { patterns: [/kuvera/i], canonical: 'Kuvera', category: 'investments' },
+  { patterns: [/groww/i], canonical: 'Groww', category: 'Investments' },
+  { patterns: [/zerodha/i], canonical: 'Zerodha', category: 'Investments' },
+  { patterns: [/upstox/i], canonical: 'Upstox', category: 'Investments' },
+  { patterns: [/kuvera/i], canonical: 'Kuvera', category: 'Investments' },
 
   // Payment platforms
-  { patterns: [/paytm/i], canonical: 'Paytm', category: 'other' },
-  { patterns: [/phonepe|phone\s*pe/i], canonical: 'PhonePe', category: 'other' },
-  { patterns: [/\bbharatpe\b/i], canonical: 'BharatPe', category: 'other' },
-  { patterns: [/\bcred\b/i], canonical: 'CRED', category: 'other' },
+  { patterns: [/paytm/i], canonical: 'Paytm', category: 'Other' },
+  { patterns: [/phonepe|phone\s*pe/i], canonical: 'PhonePe', category: 'Other' },
+  { patterns: [/\bbharatpe\b/i], canonical: 'BharatPe', category: 'Other' },
+  { patterns: [/\bcred\b/i], canonical: 'CRED', category: 'Other' },
 ]
 
 /**
@@ -101,7 +101,7 @@ const CANONICAL_MAP: Array<{ patterns: RegExp[]; canonical: string; category: st
  * Applies alias matching first, then applies generic cleanup.
  */
 export function normalizeMerchant(raw: string): NormalizedMerchant {
-  if (!raw) return { canonical: '', category: 'other', isKnown: false }
+  if (!raw) return { canonical: '', category: 'Other', isKnown: false }
 
   for (const entry of CANONICAL_MAP) {
     for (const pattern of entry.patterns) {
@@ -123,7 +123,7 @@ export function normalizeMerchant(raw: string): NormalizedMerchant {
     .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(' ')
 
-  return { canonical: cleaned || raw, category: 'other', isKnown: false }
+  return { canonical: cleaned || raw, category: 'Other', isKnown: false }
 }
 
 /**
