@@ -33,7 +33,7 @@ export function AnomalyAlerts({ anomalies }: AnomalyAlertsProps) {
             <div key={i} className="rounded-xl bg-[var(--status-warning-subtle)] border border-[var(--status-warning-border)] p-4">
               <div className="flex items-center justify-between mb-2 gap-2">
                 <span className="text-sm font-bold text-[var(--status-warning-text)] flex items-center gap-1.5 truncate">
-                  <CategoryIcon name={anomaly.category} className="w-4 h-4 text-[var(--status-warning-icon)] shrink-0" />
+                  <CategoryIcon name={anomaly.category} className="text-sm shrink-0" />
                   {cat.label}
                 </span>
                 <Badge variant="warning" className="shrink-0">+{anomaly.spike.toFixed(0)}%</Badge>

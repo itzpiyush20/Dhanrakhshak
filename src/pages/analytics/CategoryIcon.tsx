@@ -1,46 +1,4 @@
-import React from 'react'
-import {
-  Utensils,
-  ShoppingCart,
-  Car,
-  ShoppingBag,
-  Lightbulb,
-  Home,
-  Activity,
-  Film,
-  GraduationCap,
-  Plane,
-  RefreshCw,
-  ArrowLeftRight,
-  Coins,
-  Laptop,
-  TrendingUp,
-  Undo2,
-  Gift,
-  Pin,
-  HelpCircle
-} from 'lucide-react'
-
-export const CategoryIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  food: Utensils,
-  groceries: ShoppingCart,
-  transport: Car,
-  shopping: ShoppingBag,
-  utilities: Lightbulb,
-  rent: Home,
-  health: Activity,
-  entertainment: Film,
-  education: GraduationCap,
-  travel: Plane,
-  subscriptions: RefreshCw,
-  transfers: ArrowLeftRight,
-  salary: Coins,
-  freelance: Laptop,
-  investments: TrendingUp,
-  refund: Undo2,
-  cashback: Gift,
-  other: Pin,
-}
+import { useCategories } from '@/context'
 
 interface CategoryIconProps {
   name: string
@@ -48,8 +6,8 @@ interface CategoryIconProps {
 }
 
 export function CategoryIcon({ name, className }: CategoryIconProps) {
-  const IconComponent = CategoryIconMap[name] || HelpCircle
-  return <IconComponent className={className} />
+  const { getStyle } = useCategories()
+  return <span className={className}>{getStyle(name).emoji}</span>
 }
 
 export default CategoryIcon

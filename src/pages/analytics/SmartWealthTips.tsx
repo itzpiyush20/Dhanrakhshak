@@ -161,7 +161,7 @@ export function SmartWealthTips({
                       const savingsTarget = top.amount * 0.15
                       return (
                         <span className="flex items-center flex-wrap gap-x-1 gap-y-0.5">
-                          <CategoryIcon name={top.category} className="w-4 h-4 text-brand-400 shrink-0 inline" />
+                          <CategoryIcon name={top.category} className="text-sm shrink-0 inline" />
                           <strong>{cat.label}</strong>
                           <span>was your largest outflow absorb, eating</span>
                           <strong>{top.percentage.toFixed(0)}%</strong>
