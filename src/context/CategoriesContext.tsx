@@ -30,7 +30,9 @@ export function CategoriesProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (!user) { setCategories([]); setLoading(false); return }
-    const { data } = await getCategories()
+    setLoading(true)
+    const { data, error } = await getCategories()
+    if (error) console.warn('[CategoriesContext] Failed to load categories:', error.message)
     setCategories(data ?? [])
     setLoading(false)
   }, [user])
