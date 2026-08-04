@@ -14,6 +14,7 @@ import { toISODateLocal } from '@/utils/dateFilter'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { detectAnomalies, generateForecast, generateAIInsights } from '@/services/aiService'
 import type { FinancialContext } from '@/services/aiService'
+import { getBudgets } from '@/services/budgets'
 import {
   AdherenceDiagnostic,
   BudgetVisualizer,
@@ -26,7 +27,13 @@ import {
   CreditCardPaymentTrend,
   SmartWealthTips,
   PeriodSelector,
-  type RangeType
+  MerchantLeaderboard,
+  CategoryTrendChart,
+  BudgetBurndown,
+  type RangeType,
+  type MerchantLeaderboardItem,
+  type CategoryTrendMonth,
+  type BudgetBurndownItem
 } from './analytics'
 
 interface TrendItem {
@@ -399,6 +406,74 @@ export default function AnalyticsPage() {
     return months.map(({ label, amount }) => ({ label, amount }))
   }, [transactions, categoryMap])
 
+  // Top merchants by spend for the selected range — falls back to the raw
+  // description when a transaction has no merchant name so nothing gets
+  // silently dropped from the ranking.
+  const merchantLeaderboard = useMemo<MerchantLeaderboardItem[]>(() => {
+    const { start, end } = getRangeDates(range)
+    const startStr = toISODateLocal(start)
+    const endStr = toISODateLocal(end)
+
+    const merchantMap = new Map<string, { amount: number; count: number }>()
+    expenseTransactions
+      .filter((t) => t.type === 'debit' && t.date && t.date >= startStr && t.date <= endStr)
+      .forEach((t) => {
+        const merchant = (t.merchant && t.merchant.trim()) || (t.description && t.description.trim()) || 'Unknown'
+        const existing = merchantMap.get(merchant) || { amount: 0, count: 0 }
+        merchantMap.set(merchant, { amount: existing.amount + Number(t.amount), count: existing.count + 1 })
+      })
+
+    return Array.from(merchantMap.entries())
+      .map(([merchant, { amount, count }]) => ({ merchant, amount, count }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 8)
+  }, [expenseTransactions, range])
+
+  // Top-5 category spend per month over the trailing 6 months — independent
+  // of the range selector, since the point is to see the multi-month shape.
+  const categoryTrendData = useMemo<CategoryTrendMonth[]>(() => {
+    const monthKeys: string[] = []
+    const monthMeta = new Map<string, { label: string; catTotals: Map<string, number> }>()
+    const temp = new Date()
+    temp.setDate(1)
+    temp.setMonth(temp.getMonth() - 5)
+    for (let i = 0; i < 6; i++) {
+      const year = temp.getFullYear()
+      const mon = temp.getMonth()
+      const monthKey = `${year}-${String(mon + 1).padStart(2, '0')}`
+      const label = temp.toLocaleDateString('en-IN', { month: 'short' }) + ' ' + String(year).substring(2)
+      monthKeys.push(monthKey)
+      monthMeta.set(monthKey, { label, catTotals: new Map() })
+      temp.setMonth(temp.getMonth() + 1)
+    }
+
+    expenseTransactions.forEach((t) => {
+      if (t.type !== 'debit' || !t.date) return
+      const bucket = monthMeta.get(t.date.substring(0, 7))
+      if (!bucket) return
+      bucket.catTotals.set(t.category, (bucket.catTotals.get(t.category) || 0) + Number(t.amount))
+    })
+
+    const overallTotals = new Map<string, number>()
+    monthMeta.forEach(({ catTotals }) => {
+      catTotals.forEach((amt, cat) => overallTotals.set(cat, (overallTotals.get(cat) || 0) + amt))
+    })
+    const topCategories = Array.from(overallTotals.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([cat]) => cat)
+
+    return monthKeys.map((monthKey) => {
+      const { label, catTotals } = monthMeta.get(monthKey)!
+      const segments = topCategories.map((category) => ({ category, amount: catTotals.get(category) || 0 }))
+      const topSum = segments.reduce((sum, s) => sum + s.amount, 0)
+      const total = Array.from(catTotals.values()).reduce((sum, v) => sum + v, 0)
+      const otherAmount = total - topSum
+      if (otherAmount > 0.01) segments.push({ category: '__other__', amount: otherAmount })
+      return { monthKey, label, total, segments }
+    })
+  }, [expenseTransactions])
+
   // 1. Cashflow Analytics Data (memoized to avoid recalculation on every render)
   const trendData = useMemo(() => getTrendData(expenseTransactions, range), [expenseTransactions, range])
   const summary = useMemo(() => getAllocationData(expenseTransactions, range), [expenseTransactions, range])
@@ -413,9 +488,78 @@ export default function AnalyticsPage() {
       ? (summary.savings / summary.total_income) * 100
       : 0
 
+  // Budgets for the burn-down chart — fetched separately since the summary
+  // query above doesn't carry limit amounts, only actuals.
+  const [budgets, setBudgets] = useState<Array<{ category: string; amount: number }>>([])
+  useEffect(() => {
+    let cancelled = false
+    const targetMonth = dateFilter.mode === 'month' ? dateFilter.month : resolveDateFilter(dateFilter).dateTo.slice(0, 7)
+    getBudgets(targetMonth).then(({ data }) => {
+      if (!cancelled) setBudgets((data || []).map((b) => ({ category: b.category, amount: Number(b.amount) })))
+    })
+    return () => { cancelled = true }
+  }, [dateFilter])
+
   // 2. CA Advisory Computations
   const { dateFrom: advisoryFrom, dateTo: advisoryTo } = resolveDateFilter(dateFilter)
   const monthlyTxns = expenseTransactions.filter((t) => t.date && t.date >= advisoryFrom && t.date <= advisoryTo)
+
+  // Budget burn-down — cumulative actual spend per budgeted category against
+  // an even daily pace, projected forward at the current run-rate.
+  const budgetBurndownData = useMemo<BudgetBurndownItem[]>(() => {
+    if (budgets.length === 0) return []
+
+    const targetMonth = dateFilter.mode === 'month' ? dateFilter.month : resolveDateFilter(dateFilter).dateTo.slice(0, 7)
+    const [y, m] = targetMonth.split('-').map(Number)
+    const daysInMonth = new Date(y, m, 0).getDate()
+    const isCurrentMonth = targetMonth === getCurrentMonth()
+    const daysElapsed = isCurrentMonth ? Math.min(new Date().getDate(), daysInMonth) : daysInMonth
+
+    return budgets
+      .filter((b) => b.amount > 0)
+      .map((b) => {
+        const dailyTotals = new Array(daysInMonth).fill(0)
+        monthlyTxns
+          .filter((t) => t.type === 'debit' && t.category === b.category && t.date)
+          .forEach((t) => {
+            const day = Number(t.date.slice(8, 10))
+            if (day >= 1 && day <= daysInMonth) dailyTotals[day - 1] += Number(t.amount)
+          })
+
+        const cumulative: number[] = []
+        let running = 0
+        dailyTotals.forEach((v) => {
+          running += v
+          cumulative.push(running)
+        })
+
+        const spentSoFar = cumulative[daysElapsed - 1] ?? running
+        const dailyPace = daysElapsed > 0 ? spentSoFar / daysElapsed : 0
+        const projectedTotal = dailyPace * daysInMonth
+        const projectedOverBy = projectedTotal - b.amount
+
+        let projectedOverDate: string | null = null
+        if (dailyPace > 0 && projectedOverBy > 0) {
+          const dayOfOvershoot = Math.min(daysInMonth, Math.ceil(b.amount / dailyPace))
+          const d = new Date(y, m - 1, dayOfOvershoot)
+          projectedOverDate = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+        }
+
+        return {
+          category: b.category,
+          budgetAmount: b.amount,
+          cumulative,
+          daysInMonth,
+          daysElapsed,
+          spentSoFar,
+          projectedTotal,
+          projectedOverBy,
+          projectedOverDate,
+        }
+      })
+      .sort((a, b) => b.spentSoFar / b.budgetAmount - a.spentSoFar / a.budgetAmount)
+  }, [budgets, monthlyTxns, dateFilter])
+
   const incomeTxns = monthlyTxns.filter((t) => t.type === 'credit' && hasTag(t.category, 'income'))
   const totalIncome = incomeTxns.reduce((sum, t) => sum + Number(t.amount), 0)
 
@@ -562,6 +706,18 @@ export default function AnalyticsPage() {
           />
         </div>
 
+        <div className="grid gap-6 lg:grid-cols-12">
+          <CategoryTrendChart
+            data={categoryTrendData}
+            loading={loading}
+            hasTransactions={transactions.length > 0}
+          />
+          <MerchantLeaderboard
+            data={merchantLeaderboard}
+            loading={loading}
+          />
+        </div>
+
         {/* Progressive disclosure toggle */}
         {!loading && (
           <button
@@ -603,6 +759,10 @@ export default function AnalyticsPage() {
                   isEmergencyFundReady={isEmergencyFundReady}
                 />
               </div>
+            )}
+
+            {!loading && (
+              <BudgetBurndown data={budgetBurndownData} loading={loading} />
             )}
 
             {/* AI Wealth Advisory + Anomalies + Scenario Simulator */}
