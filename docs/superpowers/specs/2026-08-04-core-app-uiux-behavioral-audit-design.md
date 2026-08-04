@@ -35,7 +35,11 @@ to change would be wasted work. Tracked as follow-up, not designed here.
 ## Findings
 
 Ranked by behavioral impact. Each includes the concrete failure mode, not just the heuristic
-name.
+name. Numbering follows discovery order from the audit session, so it is not sequential within
+tiers; F9 (no first-login orientation — the only onboarding artifact is a one-time privacy
+card at `AppLayout.tsx:896-906` that explains data handling but nothing about navigation or
+features) is intentionally absent from the tiers below: it is the confirmed gap that motivates
+the deferred onboarding-tour spec, not a fix in this document's scope.
 
 ### Critical — breaks the daily habit loop or the user's mental model of the app
 
@@ -48,11 +52,15 @@ Expenses, +Add, Pending, Insights — 5 items, no Budgets, no Subscriptions). Bo
 mobile viewport at once. Fitts's Law: the bottom bar is the thumb-zone, highest-frequency-access
 surface — and it excludes Budgets, arguably the single most habit-forming screen in a finance
 app. Two simultaneous nav systems for the same route set also breaks "one source of truth" for
-wayfinding.
-*Fix direction:* pick one nav system as canonical for mobile. If bottom-bar capacity is the
-constraint (5 slots), the sub-nav strip should be removed, not run in parallel — either fold
-Budgets into the bottom bar (swap out a lower-frequency item) or move it behind a "More" affordance
-that doesn't duplicate items already reachable from the bar.
+wayfinding. Worse: the mobile hamburger menu (`AppLayout.tsx:762-881`) *also* lists all six
+sections — so the sub-nav strip is a third, fully redundant surface for routes already reachable
+from two others.
+*Fix direction (recommended):* delete the sub-nav strip entirely. Bottom bar stays the canonical
+mobile nav (Home, Expenses, +Add, Pending, Insights — Pending keeps its slot because approving
+auto-detected transactions is the app's highest-frequency loop); Budgets and Subscriptions remain
+reachable via the hamburger menu, which already lists them. If usage data later shows Budgets
+deserves a thumb-zone slot, swap it in for a lower-frequency item then — don't add a third nav
+surface now.
 
 **F2. "Where do I check my budget?" has two unrelated answers.**
 [`BudgetsPage.tsx`](../../../src/pages/BudgetsPage.tsx) = per-category ₹ limits with pace
@@ -60,9 +68,13 @@ projection. [`AnalyticsPage.tsx`](../../../src/pages/AnalyticsPage.tsx) (nav lab
 50/30/20 buckets, health score, burn-down. Same underlying concept — "am I spending too much" —
 lives in two places under two different names, with nothing in either page's copy or nav
 acknowledging the other exists.
-*Fix direction:* either merge the two into one mental model (per-category limits AND 50/30/20
-both under "Budgets"), or clearly differentiate the nav labels/subtitles so a user picks the
-right one on first read instead of by trial and error.
+*Fix direction (recommended):* differentiate rather than merge — merging would blow up page
+scope for marginal gain. Concretely: (a) sharpen each page's subtitle to state its distinct job
+("Set per-category monthly limits and get overspend warnings" vs. "Understand where your money
+went and whether the split is healthy"), and (b) add a one-line cross-link card on each page
+pointing at the other ("Want spending limits with alerts? → Budgets" / "Want the full picture of
+this month's spending? → Insights"). Full merge stays a possible later evolution, out of scope
+here.
 
 **F3. Insights page has two live time-filters with no visible scoping.**
 [`AnalyticsPage.tsx:668-677`](../../../src/pages/AnalyticsPage.tsx) — "Range" selector and
@@ -194,5 +206,5 @@ sufficient on its own.
 ## Deferred to later specs
 
 - Marketing/legal pages (Landing, Pricing, Support, About, legal) — not audited in this pass.
-- First-login onboarding tour — separate spec, built after the fixes above land, so it teaches
-  the final layout rather than one about to change.
+- First-login onboarding tour (finding F9) — separate spec, built after the fixes above land, so
+  it teaches the final layout rather than one about to change.
