@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
-import { Card, Button, Input, Select, Badge, EmptyState, Modal, ConfirmDialog } from '@/components/ui'
+import { Card, Button, Input, Select, Badge, EmptyState, Modal } from '@/components/ui'
 import {
   getTransactions,
   updateTransaction,
@@ -155,7 +155,6 @@ export default function PendingPage() {
     skipped: number
   } | null>(null)
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
-  const [confirmRejectId, setConfirmRejectId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const isGoogleConnected = hasGoogleToken
   const [totalPendingCount, setTotalPendingCount] = useState(0)
@@ -478,19 +477,53 @@ export default function PendingPage() {
     })
   }
 
+  // Writes the actual rejection to the database. Split from the tap handler
+  // below so the write can be delayed a few seconds for the undo window —
+  // mirrors commitApproval's split for the same reason.
   const handleReject = async (id: string) => {
-    setActionLoadingId(id)
-    setError(null)
     try {
       const { error } = await deleteTransaction(id)
       if (error) throw error
       await fetchPendingData()
     } catch (err: any) {
       console.error('Error rejecting transaction:', err)
-      setError(err.message || 'Failed to reject transaction.')
-    } finally {
-      setActionLoadingId(null)
+      showToast(err.message || 'Failed to reject transaction.', 'error')
+      // Put it back in view so the user isn't left wondering where it went.
+      await fetchPendingData()
     }
+  }
+
+  // One-tap reject: removes the row immediately, commits the delete a few
+  // seconds later, and gives a real Undo window — same friction-reduction
+  // pattern as handleApproveWithUndo, since a blocking confirm modal here
+  // was an arbitrary extra step for a comparably reversible action.
+  const handleRejectWithUndo = (txn: TransactionRow) => {
+    setPendingTxns((prev) => prev.filter((t) => t.id !== txn.id))
+    setTotalPendingCount((prev) => Math.max(0, prev - 1))
+    setTotalPendingValue((prev) => Math.max(0, prev - Number(txn.amount)))
+
+    const timer = setTimeout(() => {
+      pendingCommitTimers.delete(txn.id)
+      handleReject(txn.id)
+    }, 5000)
+    pendingCommitTimers.set(txn.id, timer)
+
+    showToast('Alert rejected.', 'success', {
+      duration: 5000,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          const pending = pendingCommitTimers.get(txn.id)
+          if (pending) {
+            clearTimeout(pending)
+            pendingCommitTimers.delete(txn.id)
+          }
+          setPendingTxns((prev) => [txn, ...prev])
+          setTotalPendingCount((prev) => prev + 1)
+          setTotalPendingValue((prev) => prev + Number(txn.amount))
+        },
+      },
+    })
   }
 
   const handleAutoCategorySelect = (txnId: string, newCategory: string) => {
@@ -1147,8 +1180,7 @@ export default function PendingPage() {
                       variant="secondary"
                       size="sm"
                       className="text-[var(--status-danger-text)] border-[var(--status-danger-border)] bg-[var(--status-danger-subtle)] hover:bg-[var(--status-danger-border)] hover:border-[var(--status-danger-text)]/40 w-full sm:w-auto justify-center gap-1.5"
-                      onClick={() => setConfirmRejectId(txn.id)}
-                      disabled={actionLoadingId === txn.id}
+                      onClick={() => handleRejectWithUndo(txn)}
                     >
                       <Trash2 className="h-4 w-4" /> Reject Alert
                     </Button>
@@ -1255,17 +1287,6 @@ export default function PendingPage() {
         </div>
       </Modal>
 
-      <ConfirmDialog
-        isOpen={confirmRejectId !== null}
-        onClose={() => setConfirmRejectId(null)}
-        onConfirm={async () => {
-          if (confirmRejectId) await handleReject(confirmRejectId)
-          setConfirmRejectId(null)
-        }}
-        title="Reject alert"
-        message="This transaction alert will be deleted and won't appear in your ledger."
-        confirmLabel="Reject"
-      />
     </AppLayout>
   )
 }
