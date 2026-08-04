@@ -215,6 +215,7 @@ export default function CategoryFormModal({ editing, onClose, onSaved }: Categor
           <label className="block text-sm font-medium text-zinc-300 mb-1">Analytics tags (optional)</label>
           <p className="text-xs text-zinc-500 mb-2">
             Controls how this category counts toward the Insights page — the 50/30/20 breakdown, income total, and subscription/credit-card-bill tracking.
+            Pick only one of Needs, Wants, or Savings per category — Subscription can be added alongside Wants if it's also a recurring bill.
           </p>
           <div className="flex flex-wrap gap-1.5">
             {ANALYTICS_TAG_CHOICES.map(({ value, label }) => (

@@ -508,7 +508,7 @@ export default function AnalyticsPage() {
         setAiAlerts([])
       })
       .finally(() => setAiLoading(false))
-  }, [loading, transactions.length, dateFilter, showAdvanced])
+  }, [loading, transactions.length, dateFilter, showAdvanced, categoryMap])
 
   return (
     <AppLayout>
