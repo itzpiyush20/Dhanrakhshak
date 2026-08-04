@@ -885,6 +885,8 @@ export default function PendingPage() {
           </div>
         )}
 
+        {/* NOT gated by activeBanner — this explainer should always show
+            alongside the connect banner above, regardless of banner priority. */}
         {!isGoogleConnected && (
           <div className="grid gap-6 md:grid-cols-2 animate-fade-in">
             <Card className="bg-surface-1 border-border-subtle p-6 space-y-4 shadow-md">
