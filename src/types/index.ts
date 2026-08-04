@@ -32,6 +32,14 @@ export type ExpenseCategory = string
 
 export type CategoryType = 'income' | 'expense'
 
+/**
+ * Analytics classification tags — a category can carry any combination.
+ * Drives the 50/30/20 breakdown, income total, investments/emergency-fund
+ * calc, and subscription-burn/credit-card-bill tracking on the Insights
+ * page, without hardcoding display names there.
+ */
+export type AnalyticsTag = 'needs' | 'wants' | 'savings' | 'income' | 'subscription' | 'credit_card_bill'
+
 /** A user-defined category row */
 export interface Category {
   id: string
@@ -44,6 +52,7 @@ export interface Category {
   is_default: boolean
   is_permanent: boolean
   sort_order: number
+  analytics_tags: AnalyticsTag[]
   created_at: string
 }
 

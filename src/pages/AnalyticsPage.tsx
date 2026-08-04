@@ -8,6 +8,7 @@ import AppLayout from '@/layouts/AppLayout'
 import { Card, DateFilterPicker } from '@/components/ui'
 import { supabase } from '@/services/supabase'
 import { useAuth } from '@/context/AuthContext'
+import { useCategories } from '@/context/CategoriesContext'
 import { getCurrentMonth, withTimeout, resolveDateFilter, formatDateFilterLabel, type DateFilter } from '@/utils'
 import { toISODateLocal } from '@/utils/dateFilter'
 import { ChevronDown, ChevronUp } from 'lucide-react'
@@ -48,11 +49,6 @@ interface SummaryData {
     percentage: number
   }>
 }
-
-// Group default categories into 50/30/20 definitions
-const NEEDS_CATEGORIES = ['Groceries', 'Utilities & Bills', 'Transport', 'Rent', 'Health', 'Education', 'Insurance']
-const WANTS_CATEGORIES = ['Food & Dining', 'Shopping', 'Entertainment', 'Subscriptions', 'Travel', 'Other', 'Transfers']
-const SAVINGS_CATEGORIES = ['Investments']
 
 const getRangeDates = (range: RangeType) => {
   const now = new Date()
@@ -279,6 +275,24 @@ const getMoMTrend = (allTxns: any[]) => {
 
 export default function AnalyticsPage() {
   const { user } = useAuth()
+  const { categories, categoryMap } = useCategories()
+
+  // 50/30/20 buckets — derived from each category's analytics_tags rather
+  // than hardcoded display names, so a rename doesn't silently break these.
+  const needsCategoryNames = useMemo(
+    () => categories.filter((c) => c.analytics_tags?.includes('needs')).map((c) => c.name),
+    [categories]
+  )
+  const wantsCategoryNames = useMemo(
+    () => categories.filter((c) => c.analytics_tags?.includes('wants')).map((c) => c.name),
+    [categories]
+  )
+  const savingsCategoryNames = useMemo(
+    () => categories.filter((c) => c.analytics_tags?.includes('savings')).map((c) => c.name),
+    [categories]
+  )
+  const hasTag = (categoryName: string, tag: 'income' | 'subscription' | 'credit_card_bill') =>
+    categoryMap[categoryName]?.analytics_tags?.includes(tag) ?? false
   const [range, setRange] = useState<RangeType>('this-week')
   const [transactions, setTransactions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -356,8 +370,8 @@ export default function AnalyticsPage() {
   // spend. The raw `transactions` array is still used, unfiltered, by the new
   // dedicated credit-card-payment trend chart added in the next task.
   const expenseTransactions = useMemo(
-    () => transactions.filter((t) => t.category !== 'Credit Card Bill Payment'),
-    [transactions]
+    () => transactions.filter((t) => !hasTag(t.category, 'credit_card_bill')),
+    [transactions, categoryMap]
   )
 
   const ccBillPaymentTrend = useMemo(() => {
@@ -375,7 +389,7 @@ export default function AnalyticsPage() {
     }
 
     transactions
-      .filter((t) => t.category === 'Credit Card Bill Payment' && t.date)
+      .filter((t) => hasTag(t.category, 'credit_card_bill') && t.date)
       .forEach((t) => {
         const tMonth = t.date.substring(0, 7)
         const monthObj = months.find((m) => m.monthKey === tMonth)
@@ -383,7 +397,7 @@ export default function AnalyticsPage() {
       })
 
     return months.map(({ label, amount }) => ({ label, amount }))
-  }, [transactions])
+  }, [transactions, categoryMap])
 
   // 1. Cashflow Analytics Data (memoized to avoid recalculation on every render)
   const trendData = useMemo(() => getTrendData(expenseTransactions, range), [expenseTransactions, range])
@@ -402,22 +416,22 @@ export default function AnalyticsPage() {
   // 2. CA Advisory Computations
   const { dateFrom: advisoryFrom, dateTo: advisoryTo } = resolveDateFilter(dateFilter)
   const monthlyTxns = expenseTransactions.filter((t) => t.date && t.date >= advisoryFrom && t.date <= advisoryTo)
-  const incomeTxns = monthlyTxns.filter((t) => t.type === 'credit' && t.category === 'Salary')
+  const incomeTxns = monthlyTxns.filter((t) => t.type === 'credit' && hasTag(t.category, 'income'))
   const totalIncome = incomeTxns.reduce((sum, t) => sum + Number(t.amount), 0)
 
   const debitTxns = monthlyTxns.filter((t) => t.type === 'debit')
   const totalDebit = debitTxns.reduce((sum, t) => sum + Number(t.amount), 0)
 
   const needsSpent = debitTxns
-    .filter((t) => NEEDS_CATEGORIES.includes(t.category))
+    .filter((t) => needsCategoryNames.includes(t.category))
     .reduce((sum, t) => sum + Number(t.amount), 0)
 
   const wantsSpent = debitTxns
-    .filter((t) => WANTS_CATEGORIES.includes(t.category))
+    .filter((t) => wantsCategoryNames.includes(t.category))
     .reduce((sum, t) => sum + Number(t.amount), 0)
 
   const savingsSpent = debitTxns
-    .filter((t) => SAVINGS_CATEGORIES.includes(t.category))
+    .filter((t) => savingsCategoryNames.includes(t.category))
     .reduce((sum, t) => sum + Number(t.amount), 0)
 
   const denominator = totalIncome > 0 ? totalIncome : totalDebit || 1
@@ -437,7 +451,7 @@ export default function AnalyticsPage() {
 
   const avgMonthlyNeeds = needsSpent || 15000
   const totalInvestments = transactions
-    .filter((t) => t.category === 'Investments')
+    .filter((t) => savingsCategoryNames.includes(t.category))
     .reduce((sum, t) => sum + Number(t.amount), 0)
 
   const emergencyMonths = Number((totalInvestments / avgMonthlyNeeds).toFixed(1))
@@ -476,7 +490,7 @@ export default function AnalyticsPage() {
       topCategoryPct: summary?.category_breakdown?.[0]?.percentage || 0,
       momTrend: trend,
       subscriptionBurn: transactions
-        .filter((t) => t.category === 'Subscriptions' && t.type === 'debit')
+        .filter((t) => hasTag(t.category, 'subscription') && t.type === 'debit')
         .reduce((sum: number, t: any) => sum + Number(t.amount), 0),
       emergencyMonths,
       categoryBreakdown: summary?.category_breakdown || [],

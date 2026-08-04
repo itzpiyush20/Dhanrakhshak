@@ -21,6 +21,16 @@ export const CATEGORY_COLOR_CHOICES = [
   '#f59e0b','#94a3b8','#d946ef','#7c3aed','#059669','#b91c1c',
 ]
 
+/** Analytics tag choices offered in the category form — drives Insights classification */
+export const ANALYTICS_TAG_CHOICES: { value: import('@/types').AnalyticsTag; label: string }[] = [
+  { value: 'needs', label: 'Needs' },
+  { value: 'wants', label: 'Wants' },
+  { value: 'savings', label: 'Savings' },
+  { value: 'income', label: 'Primary income' },
+  { value: 'subscription', label: 'Subscription' },
+  { value: 'credit_card_bill', label: 'Credit card bill' },
+]
+
 /** Navigation routes */
 export const ROUTES = {
   HOME: '/',

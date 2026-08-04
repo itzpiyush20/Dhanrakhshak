@@ -291,6 +291,7 @@ export interface Database {
           is_default: boolean
           is_permanent: boolean
           sort_order: number
+          analytics_tags: string[]
           created_at: string
         }
         Insert: {
@@ -303,6 +304,7 @@ export interface Database {
           is_default?: boolean
           is_permanent?: boolean
           sort_order?: number
+          analytics_tags?: string[]
         }
         Update: {
           name?: string
@@ -313,6 +315,7 @@ export interface Database {
           is_default?: boolean
           is_permanent?: boolean
           sort_order?: number
+          analytics_tags?: string[]
         }
       }
     }

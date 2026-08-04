@@ -4,11 +4,11 @@
 
 import { useState, type FormEvent } from 'react'
 import { Modal, Button, Input } from '@/components/ui'
-import { CATEGORY_EMOJI_CHOICES, CATEGORY_COLOR_CHOICES } from '@/constants'
+import { CATEGORY_EMOJI_CHOICES, CATEGORY_COLOR_CHOICES, ANALYTICS_TAG_CHOICES } from '@/constants'
 import { useCategories } from '@/context'
 import { createCategory, renameCategory, updateCategoryStyle } from '@/services/categories'
 import { cn } from '@/utils'
-import type { Category, CategoryType } from '@/types'
+import type { AnalyticsTag, Category, CategoryType } from '@/types'
 
 interface CategoryFormModalProps {
   editing: Category | null
@@ -25,8 +25,13 @@ export default function CategoryFormModal({ editing, onClose, onSaved }: Categor
   const [color, setColor] = useState(editing?.color || CATEGORY_COLOR_CHOICES[0])
   const [type, setType] = useState<CategoryType>(editing?.type || 'expense')
   const [budgetEligible, setBudgetEligible] = useState(editing?.budget_eligible ?? true)
+  const [analyticsTags, setAnalyticsTags] = useState<AnalyticsTag[]>(editing?.analytics_tags ?? [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const toggleTag = (tag: AnalyticsTag) => {
+    setAnalyticsTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -63,6 +68,7 @@ export default function CategoryFormModal({ editing, onClose, onSaved }: Categor
         color,
         type,
         budget_eligible: type === 'expense' ? budgetEligible : false,
+        analytics_tags: analyticsTags,
       })
       if (styleError) {
         setError(styleError.message)
@@ -76,6 +82,7 @@ export default function CategoryFormModal({ editing, onClose, onSaved }: Categor
         color,
         type,
         budget_eligible: type === 'expense' ? budgetEligible : false,
+        analytics_tags: analyticsTags,
       })
       if (createError) {
         setError(createError.message)
@@ -203,6 +210,31 @@ export default function CategoryFormModal({ editing, onClose, onSaved }: Categor
             Allow budget limits for this category
           </label>
         )}
+
+        <div>
+          <label className="block text-sm font-medium text-zinc-300 mb-1">Analytics tags (optional)</label>
+          <p className="text-xs text-zinc-500 mb-2">
+            Controls how this category counts toward the Insights page — the 50/30/20 breakdown, income total, and subscription/credit-card-bill tracking.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {ANALYTICS_TAG_CHOICES.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => toggleTag(value)}
+                aria-pressed={analyticsTags.includes(value)}
+                className={cn(
+                  'px-3 h-8 rounded-full border text-xs font-semibold transition-colors',
+                  analyticsTags.includes(value)
+                    ? 'border-brand-500 bg-brand-500/10 text-brand-400'
+                    : 'border-border-default text-zinc-400 hover:border-border-hover'
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
       </form>
     </Modal>
   )

@@ -4,7 +4,7 @@
 // ============================================
 
 import { supabase } from './supabase'
-import type { Category, CategoryType } from '@/types'
+import type { AnalyticsTag, Category, CategoryType } from '@/types'
 
 export async function getCategories() {
   const { data: { user } } = await supabase.auth.getUser()
@@ -25,6 +25,7 @@ export async function createCategory(input: {
   color: string
   type: CategoryType
   budget_eligible: boolean
+  analytics_tags?: AnalyticsTag[]
 }) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { data: null, error: new Error('User not authenticated') }
@@ -38,10 +39,10 @@ export async function createCategory(input: {
   return { data: data as Category | null, error }
 }
 
-/** Update emoji/color/type/budget_eligible — everything except the name. */
+/** Update emoji/color/type/budget_eligible/analytics_tags — everything except the name. */
 export async function updateCategoryStyle(
   id: string,
-  patch: Partial<Pick<Category, 'emoji' | 'color' | 'type' | 'budget_eligible'>>
+  patch: Partial<Pick<Category, 'emoji' | 'color' | 'type' | 'budget_eligible' | 'analytics_tags'>>
 ) {
   const { data, error } = await supabase
     .from('categories')
