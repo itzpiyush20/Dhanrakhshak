@@ -278,7 +278,6 @@ export interface RuleMatchResult {
 
 export function applyMerchantRules(merchant: string, snippet: string, defaultCategory: string): RuleMatchResult {
   const weights = getMerchantWeights()
-  const settings = getMerchantSettings()
   const cleanMerchantText = cleanMerchantName(merchant).toLowerCase()
   const normalizedSnippet = snippet.toLowerCase()
   const normalizedMerchant = merchant.toLowerCase()
@@ -311,11 +310,11 @@ export function applyMerchantRules(merchant: string, snippet: string, defaultCat
 
   if (maxWeight > 0) {
     const confidence = Math.round((maxWeight / totalKeyWeight) * 100)
-    const isAutoApproveDisabled = settings[matchedKey]?.autoApprove === false
-    const isHighConfidence = confidence >= 80 && totalKeyWeight >= 2 && !isAutoApproveDisabled
     return {
       category: bestCategory,
-      approval_status: isHighConfidence ? 'approved' : 'pending',
+      // Never auto-approve — every scanned/matched transaction must land in
+      // Pending for explicit human review, regardless of confidence.
+      approval_status: 'pending',
       confidence,
       matchReason: `Matched learned rule for '${matchedKey}' (${confidence}% confidence)`,
     }
