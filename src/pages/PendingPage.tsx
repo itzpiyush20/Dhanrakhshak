@@ -611,12 +611,25 @@ export default function PendingPage() {
   }
 
 
+  // Only one banner shows at a time — a first-time or trial user hitting this
+  // page could otherwise see up to six stacked alerts before a single
+  // transaction. Priority: blocking error > premium gate > connect prompt >
+  // inactivity > cooldown > success.
+  const activeBanner: 'error' | 'premium' | 'connect' | 'inactivity' | 'cooldown' | 'success' | null =
+    error ? 'error'
+    : isPremiumRequired ? 'premium'
+    : !isGoogleConnected ? 'connect'
+    : showInactivityBanner ? 'inactivity'
+    : scanCooldownMessage ? 'cooldown'
+    : scanSuccessMessage ? 'success'
+    : null
+
   return (
     <AppLayout>
       <div className="space-y-8 animate-fade-in">
 
         {/* ── Premium Gate ──────────────────────────────────── */}
-        {isPremiumRequired && (
+        {activeBanner === 'premium' && (
           <div className="rounded-3xl bg-brand-500/10 border border-brand-500/30 p-6 flex flex-col items-center text-center gap-4 shadow-[var(--shadow-md)] animate-fade-in">
             <div className="h-14 w-14 rounded-2xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-3xl">
               <Crown className="h-7 w-7 text-brand-400" />
@@ -726,7 +739,7 @@ export default function PendingPage() {
         )}
 
         {/* Error banner */}
-        {error && (
+        {activeBanner === 'error' && (
           <div role="alert" className="rounded-2xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-4 text-sm text-[var(--status-danger-text)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-md">
             <div className="flex items-start gap-2.5">
               <AlertCircle className="h-5 w-5 text-[var(--status-danger-text)] shrink-0 mt-0.5" />
@@ -748,7 +761,7 @@ export default function PendingPage() {
         )}
 
         {/* Inactivity banner */}
-        {showInactivityBanner && (
+        {activeBanner === 'inactivity' && (
           <div role="alert" className="rounded-2xl bg-[var(--status-warning-subtle)] border border-[var(--status-warning-border)] p-4 text-sm text-[var(--status-warning-text)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 animate-fade-in shadow-md">
             <div className="flex items-start gap-2.5">
               <AlertTriangle className="h-5 w-5 text-[var(--status-warning-text)] shrink-0 mt-0.5" />
@@ -773,7 +786,7 @@ export default function PendingPage() {
         )}
 
         {/* Success message */}
-        {scanSuccessMessage && (
+        {activeBanner === 'success' && (
           <div role="status" className="rounded-2xl bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] p-4 text-sm text-[var(--status-positive-text)] flex items-start justify-between gap-3 animate-fade-in shadow-md">
             <div className="flex items-start gap-2.5">
               <CheckCircle2 className="h-5 w-5 text-[var(--status-positive-text)] shrink-0 mt-0.5" />
@@ -803,7 +816,7 @@ export default function PendingPage() {
         )}
 
         {/* Cooldown banner with live countdown */}
-        {scanCooldownMessage && (
+        {activeBanner === 'cooldown' && (
           <div role="status" className="rounded-2xl bg-brand-500/10 border border-brand-500/20 p-4 text-sm text-brand-500 flex items-start justify-between gap-3 animate-fade-in shadow-md">
             <div className="flex items-start gap-2.5">
               <Clock className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
@@ -828,7 +841,7 @@ export default function PendingPage() {
         )}
 
         {/* Gmail connect prompt */}
-        {!isGoogleConnected && (
+        {activeBanner === 'connect' && (
           <div role="status" className="rounded-2xl bg-brand-500/10 border border-brand-500/20 p-4 text-sm text-brand-500 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 animate-fade-in shadow-md">
             <div className="flex items-start gap-2.5">
               <Link2 className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
