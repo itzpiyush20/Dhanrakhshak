@@ -4,6 +4,7 @@
 // ============================================
 
 import { useState, useEffect, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import AppLayout from '@/layouts/AppLayout'
 import { Card, DateFilterPicker } from '@/components/ui'
 import { supabase } from '@/services/supabase'
@@ -662,7 +663,7 @@ export default function AnalyticsPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">Insights</h1>
             <p className="mt-1 text-xs text-zinc-400">
-              CA-verified budget diagnostics, cashflow trend analytics, and smart wealth advisors unified.
+              Understand where your money went this period and whether your spending split is healthy.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-4 self-start sm:self-center shrink-0 bg-surface-2/40 border border-border-subtle/30 rounded-xl px-3 py-2">
@@ -676,6 +677,14 @@ export default function AnalyticsPage() {
             </div>
           </div>
         </div>
+
+        <Link
+          to="/budgets"
+          className="flex items-center justify-between gap-3 rounded-xl border border-border-subtle/40 bg-surface-2/30 px-4 py-2.5 text-xs text-zinc-400 hover:bg-surface-2/60 hover:text-zinc-200 transition-colors"
+        >
+          <span>Want spending limits with overspend alerts instead?</span>
+          <span className="font-semibold text-brand-400 shrink-0">Budgets →</span>
+        </Link>
 
         {error && (
           <div className="rounded-xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-4 text-xs text-[var(--status-danger-text)]">

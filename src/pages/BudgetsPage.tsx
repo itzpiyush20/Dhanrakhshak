@@ -4,6 +4,7 @@
 // ============================================
 
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
 import { Card, Button, Input, Select, Badge, EmptyState, ConfirmDialog, DateFilterPicker } from '@/components/ui'
 import { getBudgets, upsertBudget, deleteBudget } from '@/services/budgets'
@@ -169,12 +170,20 @@ export default function BudgetsPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">Budget Limits</h1>
             <p className="mt-1 text-sm text-zinc-400">
-              Establish monthly limits per category and monitor your limits.
+              Set per-category monthly limits and get overspend warnings before they happen.
             </p>
           </div>
 
           <DateFilterPicker value={dateFilter} onChange={setDateFilter} />
         </div>
+
+        <Link
+          to="/insights"
+          className="flex items-center justify-between gap-3 rounded-xl border border-border-subtle/40 bg-surface-2/30 px-4 py-2.5 text-xs text-zinc-400 hover:bg-surface-2/60 hover:text-zinc-200 transition-colors"
+        >
+          <span>Want the full picture of this month's spending, not just limits?</span>
+          <span className="font-semibold text-brand-400 shrink-0">Insights →</span>
+        </Link>
 
         {error && (
           <div className="rounded-2xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-4 text-sm text-[var(--status-danger-text)]">
