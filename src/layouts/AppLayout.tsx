@@ -731,33 +731,6 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
             </div>
           </div>
 
-        {/* Mobile/Tablet Horizontal Scrollable Sub-Nav Row (Only visible if logged in and below lg viewport) */}
-        {user && isAppRoute && (
-          <div className={cn("h-11 border-t flex items-center lg:hidden overflow-hidden select-none", isStaticLight ? "border-sb-hairline bg-sb-canvas-soft" : "border-border-subtle bg-surface-1/40")}>
-            <div className="mx-auto max-w-7xl w-full flex items-center px-4 sm:px-6 overflow-x-auto scrollbar-none flex-nowrap py-1 gap-2">
-              {navItems
-                .filter(item => item.path !== ROUTES.PRICING)
-                .map((item) => {
-                  const isActive = location.pathname === item.path
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={cn(
-                      "transition-colors py-2 px-2.5 rounded-lg text-xs font-semibold shrink-0",
-                      isActive 
-                        ? (isStaticLight ? "bg-sb-canvas text-sb-ink font-bold border border-sb-hairline" : "bg-white/10 text-white font-bold") 
-                        : (isStaticLight ? "text-sb-ink-muted hover:text-sb-ink" : "text-zinc-400 hover:text-white")
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
         {/* Mobile menu dropdown */}
         {mobileMenuOpen && (
           <nav className={cn("border-b px-4 py-3 space-y-1 lg:hidden animate-fade-in", isStaticLight ? "border-sb-hairline bg-sb-canvas text-sb-ink" : "border-static-white/10 bg-black text-static-white")} aria-label="Mobile navigation">
