@@ -853,7 +853,7 @@ export default function SettingsPage() {
             </Card>
 
             {/* Insurance Policies Card */}
-            <Card className="border-border-subtle bg-surface-1 shadow-md">
+            <Card id="insurance-policies" className="border-border-subtle bg-surface-1 shadow-md">
               <h2 className="text-base font-bold text-zinc-200 mb-2 flex items-center gap-2">
                 <span>🛡️</span>
                 <span>Insurance Policies</span>
