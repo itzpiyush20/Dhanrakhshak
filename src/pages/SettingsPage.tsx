@@ -960,9 +960,9 @@ export default function SettingsPage() {
             </Card>
 
             {/* Financial Year Management Card */}
-            <Card className="border-border-subtle bg-surface-1 shadow-md">
+            <Card className="border-[var(--status-warning-border)]/50 bg-[var(--status-warning-subtle)]/10 shadow-md">
               <h2 className="text-base font-bold text-zinc-200 mb-2 flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-brand-400 shrink-0" />
+                <Calendar className="h-5 w-5 text-[var(--status-warning-text)] shrink-0" />
                 <span>Financial Year Management</span>
               </h2>
               <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
@@ -979,6 +979,9 @@ export default function SettingsPage() {
                   <div className="flex flex-col">
                     <span className="text-zinc-400 font-medium">Start New Financial Year</span>
                     <span className="text-xs text-zinc-500">Enable scanning for the next calendar year ({activeYear + 1})</span>
+                    <span className="text-xs text-[var(--status-warning-text)] font-medium mt-1">
+                      ⚠️ Scanning for {activeYear} stops once you do this — it can't be reversed.
+                    </span>
                   </div>
                   <Button
                     onClick={() => setShowFYConfirmModal(true)}
