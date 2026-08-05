@@ -63,7 +63,7 @@ export function InteractionSimulation() {
 
       <div className="flex flex-col gap-2">
         <span className="text-[11px] font-semibold tracking-widest text-sb-ink-muted uppercase">1 · Incoming Bank Alert</span>
-        <div className="relative min-h-[76px] bg-sb-canvas rounded-xl border border-sb-hairline p-3 overflow-hidden flex flex-col justify-center">
+        <div className="relative min-h-[92px] bg-sb-canvas rounded-xl border border-sb-hairline p-3 pb-7 overflow-hidden flex flex-col justify-center">
           {step === 2 && <div className="laser-glow laser-glow-active" />}
           {step === 0 ? (
             <div className="text-center text-xs text-sb-ink-muted font-mono italic">Waiting for transaction alert…</div>
@@ -82,7 +82,7 @@ export function InteractionSimulation() {
           {step >= 3 && (
             <div className="absolute right-2 bottom-2 bg-brand-500/10 text-brand-400 border border-brand-500/25 px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1 animate-scale-up">
               <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-              Parsed Automatically ✔
+              Auto-Parsed ✔
             </div>
           )}
         </div>
