@@ -20,6 +20,7 @@ export default function ProfilePage() {
   const { user, resetPassword, signOut, refreshProfile } = useAuth()
   const { showToast } = useToast()
   const [confirmWipeOpen, setConfirmWipeOpen] = useState(false)
+  const [showDangerZone, setShowDangerZone] = useState(false)
 
   // Profile Form States
   const [fullName, setFullName] = useState(user?.user_metadata?.full_name || '')
@@ -305,6 +306,16 @@ export default function ProfilePage() {
               </div>
             </Card>
 
+            {!showDangerZone ? (
+              <button
+                type="button"
+                onClick={() => setShowDangerZone(true)}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-[var(--status-danger-border)]/40 bg-[var(--status-danger-subtle)]/5 text-xs font-semibold text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)]/15 transition-colors"
+              >
+                ⚠️ Show danger zone (reset data / delete account)
+              </button>
+            ) : (
+              <>
             {/* Account Data Reset zone */}
             <Card className="border-[var(--status-danger-border)]/50 bg-[var(--status-danger-subtle)]/10">
               <h2 className="text-base font-bold text-[var(--status-danger-text)] mb-2">Danger Zone: Data Reset</h2>
@@ -366,6 +377,8 @@ export default function ProfilePage() {
                 </Button>
               </form>
             </Card>
+              </>
+            )}
           </div>
         </div>
       </div>
