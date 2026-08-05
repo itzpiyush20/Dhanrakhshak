@@ -257,8 +257,12 @@ export default function ProfilePage() {
             {/* Security Reset Card */}
             <Card>
               <h2 className="text-base font-bold text-white mb-4">Credential Safety</h2>
-              <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
+              <p className="text-xs text-zinc-400 mb-2 leading-relaxed">
                 Trigger a secure password reset link. We will send guidelines directly to <strong className="text-zinc-200">{user?.email}</strong>.
+              </p>
+              <p className="text-xs text-zinc-500 mb-6 leading-relaxed italic">
+                Already logged in and know your current password? Change it directly from
+                Settings instead — faster, no email required.
               </p>
 
               <form onSubmit={handlePasswordReset} className="space-y-4">

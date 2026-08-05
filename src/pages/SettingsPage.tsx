@@ -746,8 +746,12 @@ export default function SettingsPage() {
                 <Key className="h-5 w-5 text-brand-400 shrink-0" />
                 <span>Change Account Password</span>
               </h2>
-              <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
+              <p className="text-xs text-zinc-400 mb-2 leading-relaxed">
                 Update your account password. Passwords must be at least 6 characters.
+              </p>
+              <p className="text-xs text-zinc-500 mb-4 leading-relaxed italic">
+                Forgotten your password entirely? Use "Reset My Password" on your Profile page
+                instead — it emails you a reset link.
               </p>
               <form onSubmit={handleChangePassword} className="space-y-3">
                 {changePasswordError && (
