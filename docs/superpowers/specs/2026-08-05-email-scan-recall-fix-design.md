@@ -39,6 +39,15 @@ There is currently **no test coverage** for `emailScanner.ts` (1,409 lines, the
 core ingestion path for the product), which is why a regression like this can
 ship and persist silently.
 
+A second, independent defect breaks the app's own scan contract. The intended
+behavior (confirmed by the user) is: **the time window defines what gets
+scanned, never a message count** — first scan covers the last 7 days,
+subsequent scans cover everything since the last successful scan, no matter
+how many emails that is. `emailScanner.ts:913` violates this by hard-capping
+the message list at 100 (200 for the app owner) and silently discarding
+anything past that cap — most likely to bite exactly when completeness matters
+most: a first scan covering 7 days of email, or a scan after a gap.
+
 ## Goals
 
 - Genuine settled-transaction emails are no longer rejected because of
@@ -50,9 +59,11 @@ ship and persist silently.
 - When a scan rejects an email, the reason is recorded and visible, so the
   next recall gap is diagnosable in minutes instead of requiring a manual
   trace.
-- Transactions missed by this bug before the fix can be recovered via an
-  explicit, user-triggered deep rescan, without creating duplicates and
-  without being silently truncated by the existing 100-message page cap.
+- Every normal scan (first-scan-7-days or since-last-successful-scan) processes
+  **every** matching message in its window — no message-count cap, ever.
+- Transactions missed by this bug (or the message-cap bug) before the fix can
+  be recovered via an explicit, user-triggered deep rescan, without creating
+  duplicates.
 - The parsing/gating logic gets test coverage so this class of regression is
   caught before it ships again.
 
@@ -175,7 +186,30 @@ CREATE POLICY "Users can view own scan rejections"
   `scan_log_id`. Read-only list, reusing existing list/table patterns already
   on that page — no new interaction model.
 
-### 4. Deep Rescan (recovery of already-missed transactions)
+### 4. Remove the message cap from the normal scan
+
+The intended scan contract (confirmed by the user) is: **the time window
+defines the scan, never a message count** — first scan covers the last 7 days,
+subsequent scans cover everything since the last successful scan (26h floor,
+30-day cap), regardless of how many emails that is.
+
+The current code violates this: `emailScanner.ts:913` hard-truncates the
+message list at 100 (200 for owner), silently discarding the oldest messages
+whenever a window has more matches — most likely exactly on a first scan
+(7 days of email) or after a gap, i.e. when completeness matters most.
+
+Fix: the normal scan's `messages.list` pagination loop pages through the full
+result set for its window. The `maxResults` page size stays (it's just a page
+size), but the early-break/slice is removed. Detail fetches remain batched
+(15 at a time) as today. The since-last-scan window anchoring (stronger than a
+flat 24h window — it self-heals over cron gaps) is kept unchanged.
+
+Note: each processed email still attempts one Gemini call first; larger
+windows will exhaust the daily AI quota sooner and fall back to the (now
+fixed) regex path for the remainder. That is the accepted trade-off per the
+quota non-goal above.
+
+### 5. Deep Rescan (recovery of already-missed transactions)
 
 The normal scan window (`emailScanner.ts:887`) only ever looks back ~26 hours
 on a routine scan, so fixing the gates recovers nothing retroactively on its
@@ -184,13 +218,16 @@ own — emails from before the fix need an explicit wider pass.
 - Parsing/gating logic is factored out of `scanRealGmailInbox()` into a shared
   internal `processMessages()` helper, so there is exactly one code path for
   turning a Gmail message into a transaction (or a logged rejection). Both the
-  normal scan and the deep rescan call it — no forked/duplicated gate logic.
+  normal scan and the deep rescan call it — no forked/duplicated gate logic;
+  both are already fully paginated per section 4, so completeness within a
+  window is identical between them.
 - New exported function `deepRescanGmailInbox(opts: ScanGmailOptions &
-  { lookbackDays: number })`. Difference from the normal scan: the Gmail
-  `messages.list` pagination loop is not early-broken at the 100-message cap
-  (`emailScanner.ts:913`) — it pages through the full result set for the
-  requested window, batching detail fetches the same way (batches of 15) the
-  normal scan already does.
+  { lookbackDays: number })`. The only difference from the normal scan is the
+  **window**: it ignores the since-last-scan anchor and scans back
+  `lookbackDays` from now, so it can reach transactions from before this fix
+  shipped (or before any future gate bug is fixed) that the normal scan's
+  rolling window will never look at again. Detail fetches are batched the same
+  way (batches of 15) the normal scan already does.
 - `lookbackDays` is user-selectable, capped at 30 to match the existing
   `MAX_LOOKBACK_MS` guarantee already relied on elsewhere in the file.
 - Existing dedup (`email_message_id`, `reference_id`) is untouched and is what
@@ -202,7 +239,7 @@ own — emails from before the fix need an explicit wider pass.
   check already in the file — but rate-limited client-side to once per hour to
   prevent accidental repeated runs over the same window.
 
-### 5. Testing
+### 6. Testing
 
 - `src/services/emailBoilerplate.test.ts` — unit tests for
   `stripBoilerplate()`, using the real Axis email as a fixture: asserts the
