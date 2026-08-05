@@ -32,6 +32,9 @@ import {
   CreditCard,
   Plus,
   Sparkles,
+  Wallet,
+  HandCoins,
+  ShieldAlert,
 } from 'lucide-react'
 
 interface AppLayoutProps {
@@ -417,6 +420,16 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
     setShowInstallBanner(false)
   }
 
+  // Maps a notification's key prefix (set when the item was pushed in
+  // fetchNotifications above) to its source concern, so the dropdown reads
+  // at a glance instead of requiring every line to be read individually.
+  const getNotificationIcon = (key: string) => {
+    if (key.startsWith('budget_')) return Wallet
+    if (key.startsWith('receivable_')) return HandCoins
+    if (key.startsWith('insurance_')) return ShieldAlert
+    return Bell
+  }
+
   return (
     <div className={cn("min-h-screen flex flex-col", isStaticLight ? "bg-sb-canvas text-sb-ink" : "aurora-bg bg-surface-0 text-zinc-100")}>
       <a href="#main-content" className="skip-to-content">
@@ -558,23 +571,27 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                           </p>
                         ) : (
                           <div className="space-y-2">
-                            {notifications.map((n) => (
-                              <Link
-                                key={n.key}
-                                to={n.href}
-                                onClick={() => setNotificationDropdownOpen(false)}
-                                className={cn(
-                                  "block p-2.5 rounded-lg border text-xs leading-relaxed font-semibold transition-all hover:opacity-85",
-                                  n.type === 'danger'
-                                    ? 'bg-[var(--status-danger-subtle)] border-[var(--status-danger-border)] text-[var(--status-danger-text)]'
-                                    : n.type === 'warning'
-                                    ? 'bg-[var(--status-warning-subtle)] border-[var(--status-warning-border)] text-[var(--status-warning-text)]'
-                                    : (isStaticLight ? 'bg-sb-canvas-soft border-sb-hairline text-sb-ink' : 'bg-surface-2 border-border-subtle text-zinc-300')
-                                )}
-                              >
-                                {n.message}
-                              </Link>
-                            ))}
+                            {notifications.map((n) => {
+                              const NotifIcon = getNotificationIcon(n.key)
+                              return (
+                                <Link
+                                  key={n.key}
+                                  to={n.href}
+                                  onClick={() => setNotificationDropdownOpen(false)}
+                                  className={cn(
+                                    "flex items-start gap-2 p-2.5 rounded-lg border text-xs leading-relaxed font-semibold transition-all hover:opacity-85",
+                                    n.type === 'danger'
+                                      ? 'bg-[var(--status-danger-subtle)] border-[var(--status-danger-border)] text-[var(--status-danger-text)]'
+                                      : n.type === 'warning'
+                                      ? 'bg-[var(--status-warning-subtle)] border-[var(--status-warning-border)] text-[var(--status-warning-text)]'
+                                      : (isStaticLight ? 'bg-sb-canvas-soft border-sb-hairline text-sb-ink' : 'bg-surface-2 border-border-subtle text-zinc-300')
+                                  )}
+                                >
+                                  <NotifIcon className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                  <span>{n.message}</span>
+                                </Link>
+                              )
+                            })}
                           </div>
                         )}
                       </div>
