@@ -15,9 +15,6 @@ export default function LandingPage() {
   const navigate = useNavigate()
   const [downloadTab, setDownloadTab] = useState<'android' | 'ios'>('android')
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null)
-  const [mockSms, setMockSms] = useState('Alert: UPI debit of INR 649.00 on ICICI Bank Card XX9008 at NETFLIX is successful. Ref: 98127301.')
-  const [parsedResult, setParsedResult] = useState<{ merchant: string; amount: number; bank: string; category: string } | null>(null)
-  const [parsing, setParsing] = useState(false)
 
   // Rotating words for Hero sub-headline
   const rotatingWords = ['transactions', 'expenses', 'budgets', 'subscriptions']
@@ -58,35 +55,13 @@ export default function LandingPage() {
   }, [user, loading, navigate, openAuthModal])
 
   useEffect(() => {
-    document.title = 'Dhanrakshak | Paste a bank alert, get an expense.'
+    document.title = 'Dhanrakshak | Expenses that track themselves.'
     window.scrollTo(0, 0)
   }, [])
 
-  const handleTestParse = () => {
-    setParsing(true)
-    setTimeout(() => {
-      const t = mockSms.toLowerCase()
-      let amount = 0, merchant = 'Unknown Merchant', bank = 'Unknown Bank', category = 'Others'
-      const m = t.match(/(?:inr|rs\.?|₹)\s*([\d,]+(?:\.\d+)?)/i)
-      if (m) amount = parseFloat(m[1].replace(/,/g, ''))
-      if (t.includes('netflix')) { merchant = 'Netflix'; category = 'Subscriptions 🔄' }
-      else if (t.includes('zomato')) { merchant = 'Zomato'; category = 'Food & Dining 🍔' }
-      else if (t.includes('starbucks')) { merchant = 'Starbucks Coffee'; category = 'Food & Dining 🍔' }
-      else if (t.includes('uber') || t.includes('ola')) { merchant = 'Uber'; category = 'Transport 🚗' }
-      else if (t.includes('swiggy')) { merchant = 'Swiggy'; category = 'Food & Dining 🍔' }
-      else if (t.includes('amazon')) { merchant = 'Amazon'; category = 'Shopping 🛍️' }
-      if (t.includes('icici')) bank = 'ICICI Bank'
-      else if (t.includes('sbi') || t.includes('state bank')) bank = 'SBI'
-      else if (t.includes('hdfc')) bank = 'HDFC Bank'
-      else if (t.includes('axis')) bank = 'Axis Bank'
-      setParsedResult({ merchant, amount: amount || 649, bank, category })
-      setParsing(false)
-    }, 700)
-  }
-
   const features = [
-    { icon: Zap, title: 'No typing amounts', desc: 'Paste a bank alert text and the parser fills in merchant, amount, and category for you.' },
-    { icon: Shield, title: 'Complete privacy', desc: 'All parsing happens on your device. Your data never touches our servers.' },
+    { icon: Zap, title: 'Automatic detection', desc: 'Connect Gmail once and bank alert emails are parsed into transactions for you to approve — no typing amounts.' },
+    { icon: Shield, title: 'Privacy-respecting', desc: 'Manual entries never leave your device. Automatic parsing sends only the relevant alert text to a secure AI parser — nothing is stored or sold.' },
     { icon: Landmark, title: 'All Indian banks', desc: 'Works with ICICI, HDFC, SBI, Axis, Kotak and every UPI-enabled bank.' },
     { icon: Wallet, title: 'Smart budgets', desc: 'Set monthly limits per category. Get alerted before you overspend.' },
     { icon: Smartphone, title: 'Install like an app', desc: 'Add to your home screen in seconds. No App Store, no APK needed.' },
@@ -94,16 +69,16 @@ export default function LandingPage() {
   ]
 
   const steps = [
-    { num: '01', title: 'You transact normally', desc: 'Pay via UPI, debit or credit card. Your bank sends a transaction alert by SMS or email as usual.' },
-    { num: '02', title: 'Paste it in, parsed locally', desc: 'Paste the alert text into Dhanrakshak. Our client-side engine extracts merchant, amount, and category instantly.' },
-    { num: '03', title: 'Budgets updated live', desc: 'The expense is logged to your dashboard and the relevant budget category is updated automatically.' },
+    { num: '01', title: 'Connect Gmail, or add manually', desc: 'Link your Gmail inbox once, or just add an expense yourself in seconds — whichever you prefer, whenever you prefer.' },
+    { num: '02', title: 'Alerts detected automatically', desc: 'When your bank emails a transaction alert, our AI parser extracts the merchant, amount, and category for you.' },
+    { num: '03', title: 'You approve, budgets update', desc: 'Detected transactions land in Pending for a quick review — approve them and the matching budget updates instantly.' },
   ]
 
   const faqItems = [
-    { q: 'How does the app detect what I spent?', a: 'When you pay with UPI, debit card, or credit card, your bank sends a transaction alert by SMS or email. Paste that alert text into Dhanrakshak and it detects the amount and merchant — so you never have to type anything manually. You can also connect Gmail to have alerts read automatically from your inbox.' },
+    { q: 'How does the app detect what I spent?', a: 'Connect your Gmail inbox and Dhanrakshak automatically reads transaction alert emails from your bank, extracting the amount and merchant with AI — no typing required. You can also add any expense manually in seconds.' },
     { q: 'Can the app see my bank passwords or move money?', a: 'Absolutely not. Dhanrakshak is completely read-only. We never ask for your net-banking credentials, PINs, card numbers, CVV, or OTPs. We cannot touch your money in any way.' },
-    { q: 'Does Dhanrakshak read my SMSes?', a: 'No. Dhanrakshak never accesses your SMS inbox. You can optionally connect Gmail for automatic email scanning, or paste bank SMS/email text in manually — either way, all parsing happens locally in your browser.' },
-    { q: 'Do I have to connect my email?', a: 'No — it is entirely optional. You can also paste bank SMS or email texts manually, import a spreadsheet, or enter expenses by hand. The app works well either way.' },
+    { q: 'Does Dhanrakshak read my SMSes?', a: 'No. Dhanrakshak never accesses your SMS inbox. Automatic detection works through an optional Gmail connection — nothing is read outside of what you explicitly authorize.' },
+    { q: 'Do I have to connect my email?', a: 'No — it is entirely optional. You can add every expense manually instead. Connecting Gmail just saves you the typing by detecting alerts automatically.' },
     { q: 'What happens after the free trial ends?', a: 'During the 14-day free trial you get full access to all features. After that, automatic scanning pauses until you upgrade. Manual entry always remains free.' },
   ]
 
@@ -165,7 +140,7 @@ export default function LandingPage() {
                 className="inline-flex items-center gap-2 bg-brand-500/10 border border-brand-500/20 rounded-full px-4 py-1.5 text-xs font-semibold text-brand-400"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />
-                100% local parsing · Zero bank access required
+                Read-only, always · Zero bank access required
               </motion.div>
 
               <motion.div
@@ -174,7 +149,7 @@ export default function LandingPage() {
                 transition={{ duration: 0.4, delay: 0.2 }}
               >
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight text-sb-ink mb-4">
-                  Your expenses,<br />tracked automatically.
+                  Connect Gmail.<br />Expenses track themselves.
                 </h1>
                 <motion.p
                   initial={{ opacity: 0, y: 10 }}
@@ -182,7 +157,7 @@ export default function LandingPage() {
                   transition={{ duration: 0.5, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
                   className="text-lg text-sb-ink-secondary leading-relaxed max-w-md min-h-[3.5rem]"
                 >
-                  Paste your bank SMS or email alert and Dhanrakshak logs all your{" "}
+                  Dhanrakshak reads your bank's transaction emails automatically and logs all your{" "}
                   <span className="inline-flex relative min-w-[110px] overflow-hidden align-baseline font-semibold text-brand-400">
                     <AnimatePresence mode="wait">
                       <motion.span
@@ -197,7 +172,7 @@ export default function LandingPage() {
                       </motion.span>
                     </AnimatePresence>
                   </span>{" "}
-                  in seconds — no typing amounts or categories. Your data stays on your device.
+                  automatically. Add anything else by hand in seconds.
                 </motion.p>
               </motion.div>
 
@@ -238,8 +213,8 @@ export default function LandingPage() {
                 transition={{ duration: 0.6, delay: 0.2 }}
               >
                 {[
-                  { val: 'Zero', label: 'manual entries' },
-                  { val: '100%', label: 'local parsing', accent: true },
+                  { val: 'Auto', label: 'via Gmail', accent: true },
+                  { val: 'Read-only', label: 'always' },
                   { val: 'All', label: 'Indian banks & UPI' },
                 ].map((m, i) => (
                   <motion.div
@@ -348,7 +323,7 @@ export default function LandingPage() {
           <div className="mx-auto max-w-6xl px-6">
             <div className="text-center mb-16">
               <div data-reveal className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-sb-ink-muted mb-4">Features</div>
-              <h2 data-reveal data-delay="80" className="text-4xl font-bold tracking-tight text-sb-ink mb-4">Smart, simple, and <span className="text-sb-primary">100% private.</span></h2>
+              <h2 data-reveal data-delay="80" className="text-4xl font-bold tracking-tight text-sb-ink mb-4">Smart, simple, and <span className="text-sb-primary">privacy-respecting.</span></h2>
               <p data-reveal data-delay="150" className="text-sb-ink-secondary text-lg max-w-lg mx-auto">Everything you need to manage your money — without handing over your data.</p>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -367,114 +342,19 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── LIVE PARSER DEMO ────────────────────────────── */}
-        <section className="py-12 md:py-24 bg-sb-canvas-soft border-b border-sb-hairline">
-          <div className="mx-auto max-w-6xl px-6 grid lg:grid-cols-2 gap-16 items-start">
-            <div className="space-y-6 pt-4" data-reveal="from-left">
-              <div className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-sb-ink-muted">Try it live</div>
-              <h2 className="text-4xl font-bold tracking-tight text-sb-ink leading-tight">
-                Paste any bank SMS.<br /><span className="text-sb-primary">Watch it parse.</span>
-              </h2>
-              <p className="text-sb-ink-secondary leading-relaxed">
-                This is exactly how Dhanrakshak works — paste in a bank alert and it extracts the merchant, amount, and category for you. Your real alerts are parsed on-device, never uploaded.
-              </p>
-              <div className="space-y-3">
-                {[
-                  'Works with ICICI, HDFC, SBI, Axis, Kotak & more',
-                  'Detects UPI, debit card, credit card transactions',
-                  'Auto-categorizes into Food, Transport, Shopping etc.',
-                ].map((item, i) => (
-                  <motion.div
-                    key={item}
-                    className="flex items-start gap-3"
-                    initial={{ opacity: 0, x: -16 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.4, delay: i * 0.1 }}
-                  >
-                    <div className="h-5 w-5 rounded-full bg-brand-500/15 border border-brand-500/25 flex items-center justify-center shrink-0 mt-0.5">
-                      <svg className="w-2.5 h-2.5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                    </div>
-                    <p className="text-sm text-sb-ink-secondary">{item}</p>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-
-            <div className="sb-card-light p-8 space-y-5" data-reveal="from-right">
-              <div>
-                <label className="text-xs font-semibold text-sb-ink-muted uppercase tracking-widest block mb-2">Bank alert text</label>
-                <textarea
-                  value={mockSms}
-                  onChange={(e) => { setMockSms(e.target.value); setParsedResult(null) }}
-                  rows={4}
-                  className="w-full bg-sb-canvas border border-sb-hairline rounded-xl px-4 py-3 text-sm text-sb-ink font-mono resize-none focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/50 transition-all placeholder-sb-ink-muted"
-                  placeholder="Paste your bank SMS here…"
-                />
-              </div>
-              <button
-                onClick={handleTestParse}
-                className={cn('sb-btn-primary w-full border-0 cursor-pointer', (parsing || !mockSms.trim()) && 'opacity-40 pointer-events-none')}
-              >
-                {parsing ? 'Reading alert…' : 'Auto-detect transaction'}
-              </button>
-
-              <AnimatePresence>
-                {parsedResult && (
-                  <motion.div
-                    key="result"
-                    initial={{ opacity: 0, y: 10, scale: 0.97 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.97 }}
-                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                    className="bg-sb-canvas border border-sb-hairline rounded-xl p-4 space-y-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-sb-ink-muted uppercase tracking-widest">Parse result</span>
-                      <span className="text-xs font-semibold text-brand-400 flex items-center gap-1">
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                        Scanned securely
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      {[
-                        { label: 'Merchant', val: parsedResult.merchant },
-                        { label: 'Amount', val: `₹${parsedResult.amount.toLocaleString('en-IN')}`, accent: true },
-                        { label: 'Bank', val: parsedResult.bank },
-                        { label: 'Category', val: parsedResult.category },
-                      ].map(({ label, val, accent }, i) => (
-                        <motion.div
-                          key={label}
-                          className="bg-sb-canvas-soft rounded-lg p-3"
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.25, delay: i * 0.06 }}
-                        >
-                          <p className="text-xs text-sb-ink-muted uppercase tracking-widest mb-1">{label}</p>
-                          <p className={cn('text-sm font-semibold', accent ? 'text-brand-400' : 'text-sb-ink')}>{val}</p>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-        </section>
-
         {/* ── TRUST / PRIVACY ─────────────────────────────── */}
         <section className="py-10 md:py-20 border-b border-sb-hairline">
           <div className="mx-auto max-w-6xl px-6">
             <div data-reveal className="sb-card-light p-10 md:p-12 flex flex-col md:flex-row items-center gap-10 justify-between">
               <div className="max-w-lg">
-                <h2 className="text-2xl font-bold text-sb-ink mb-4">Your money, your data. Always local.</h2>
+                <h2 className="text-2xl font-bold text-sb-ink mb-4">Your money, your data. Your control.</h2>
                 <p className="text-sb-ink-secondary leading-relaxed text-sm">
-                  Dhanrakshak never uploads your bank alerts or emails to any server. The entire parser runs inside your browser. We cannot see, store, or sell your financial data — because we never receive it.
+                  Manual entries never leave your device. Automatic detection sends only the relevant alert text to a secure AI parser to extract merchant, amount, and category — nothing is stored or sold. We never ask for your net-banking credentials, PINs, or OTPs, and we can't touch your money.
                 </p>
               </div>
               <div className="flex gap-12 shrink-0">
                 {[
-                  { val: '0', label: 'Cloud uploads', sub: 'Device-only parsing' },
+                  { val: 'Read-only', label: 'access', sub: 'Never touches your money' },
                   { val: '256-bit', label: 'SSL encryption', sub: 'Bank-grade security' },
                 ].map((s) => (
                   <div key={s.label} className="text-center">

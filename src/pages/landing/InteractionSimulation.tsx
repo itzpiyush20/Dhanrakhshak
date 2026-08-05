@@ -72,7 +72,7 @@ export function InteractionSimulation() {
               <div className="h-8 w-8 rounded-lg bg-brand-500/10 border border-brand-500/20 flex items-center justify-center shrink-0 text-brand-400 font-mono text-sm font-bold">₹</div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-semibold text-sb-ink">SMS · ICICI Bank</span>
+                  <span className="text-xs font-semibold text-sb-ink">Email · ICICI Bank</span>
                   <span className="text-[11px] text-sb-ink-muted">Just now</span>
                 </div>
                 <p className="text-xs text-sb-ink-secondary leading-normal font-mono">UPI debit INR 250.00 at Starbucks. Ref: 290812.</p>
@@ -82,14 +82,14 @@ export function InteractionSimulation() {
           {step >= 3 && (
             <div className="absolute right-2 bottom-2 bg-brand-500/10 text-brand-400 border border-brand-500/25 px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1 animate-scale-up">
               <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-              Parsed Locally ✔
+              Parsed Automatically ✔
             </div>
           )}
         </div>
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className="text-[11px] font-semibold tracking-widest text-sb-ink-muted uppercase">2 · Device-Only Log</span>
+        <span className="text-[11px] font-semibold tracking-widest text-sb-ink-muted uppercase">2 · Logged Automatically</span>
         <div className="border border-sb-hairline rounded-xl overflow-hidden bg-sb-canvas">
           <div className="grid grid-cols-4 bg-sb-canvas border-b border-sb-hairline px-3 py-2 text-[11px] font-semibold text-sb-ink-muted tracking-widest uppercase">
             <div>Date</div><div className="col-span-2">Merchant</div><div className="text-right">Amount</div>
