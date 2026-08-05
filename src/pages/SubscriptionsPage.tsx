@@ -7,7 +7,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import AppLayout from '@/layouts/AppLayout'
 import { Card, Button, Badge, Input, EmptyState } from '@/components/ui'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, FileText } from 'lucide-react'
 import Select from '@/components/ui/Select'
 import { getTransactions, createTransaction } from '@/services'
 import { formatCurrency, formatDate } from '@/utils'
@@ -332,7 +332,10 @@ export default function SubscriptionsPage() {
 
               {/* Creator Form */}
               <Card className="border border-border-subtle bg-surface-1 shadow-md">
-                <h2 className="text-sm font-bold text-zinc-200 mb-4">📝 Add Manual Subscription</h2>
+                <h2 className="text-sm font-bold text-zinc-200 mb-4 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-brand-400 shrink-0" />
+                  Add Manual Subscription
+                </h2>
                 
                 <form onSubmit={handleAddManualSub} className="space-y-4">
                   {formError && (
@@ -402,7 +405,10 @@ export default function SubscriptionsPage() {
             {/* Right Column: Active Subscriptions List */}
             <div className="md:col-span-2 order-1 md:order-2">
               <Card className="border-border-subtle bg-surface-1 shadow-md">
-                <h2 className="text-base font-bold text-zinc-200 mb-4">📅 Subscription Renewal Calendar</h2>
+                <h2 className="text-base font-bold text-zinc-200 mb-4 flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 text-brand-400 shrink-0" />
+                  Subscription Renewal Calendar
+                </h2>
 
                 <div className="flex flex-col sm:flex-row gap-2 mb-4">
                   <input
