@@ -40,6 +40,7 @@ import {
   HelpCircle,
   Plus,
   Check,
+  Shield,
 } from 'lucide-react'
 
 export default function SettingsPage() {
@@ -855,7 +856,7 @@ export default function SettingsPage() {
             {/* Insurance Policies Card */}
             <Card className="border-border-subtle bg-surface-1 shadow-md">
               <h2 className="text-base font-bold text-zinc-200 mb-2 flex items-center gap-2">
-                <span>🛡️</span>
+                <Shield className="h-5 w-5 text-brand-400 shrink-0" />
                 <span>Insurance Policies</span>
               </h2>
               <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
