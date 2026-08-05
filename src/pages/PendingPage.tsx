@@ -484,7 +484,6 @@ export default function PendingPage() {
     try {
       const { error } = await deleteTransaction(id)
       if (error) throw error
-      await fetchPendingData()
     } catch (err: any) {
       console.error('Error rejecting transaction:', err)
       showToast(err.message || 'Failed to reject transaction.', 'error')
