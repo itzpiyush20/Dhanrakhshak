@@ -310,73 +310,74 @@ export default function ProfilePage() {
               <button
                 type="button"
                 onClick={() => setShowDangerZone(true)}
+                aria-expanded={showDangerZone}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-[var(--status-danger-border)]/40 bg-[var(--status-danger-subtle)]/5 text-xs font-semibold text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)]/15 transition-colors"
               >
                 ⚠️ Show danger zone (reset data / delete account)
               </button>
             ) : (
               <>
-            {/* Account Data Reset zone */}
-            <Card className="border-[var(--status-danger-border)]/50 bg-[var(--status-danger-subtle)]/10">
-              <h2 className="text-base font-bold text-[var(--status-danger-text)] mb-2">Danger Zone: Data Reset</h2>
-              <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
-                Permanently delete all your transaction entries, custom budgets, and inbox scan logs from our database. This returns your account to a clean starting state and is irreversible!
-              </p>
+                {/* Account Data Reset zone */}
+                <Card className="border-[var(--status-danger-border)]/50 bg-[var(--status-danger-subtle)]/10">
+                  <h2 className="text-base font-bold text-[var(--status-danger-text)] mb-2">Danger Zone: Data Reset</h2>
+                  <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
+                    Permanently delete all your transaction entries, custom budgets, and inbox scan logs from our database. This returns your account to a clean starting state and is irreversible!
+                  </p>
 
-              <div className="space-y-4">
-                {resetSuccess && (
-                  <div className="rounded-xl bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] p-3 text-xs text-[var(--status-positive-text)] leading-relaxed">
-                    ✨ Wipe complete! All databases flushed successfully. Refreshing dashboard...
+                  <div className="space-y-4">
+                    {resetSuccess && (
+                      <div className="rounded-xl bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] p-3 text-xs text-[var(--status-positive-text)] leading-relaxed">
+                        ✨ Wipe complete! All databases flushed successfully. Refreshing dashboard...
+                      </div>
+                    )}
+                    <Button
+                      variant="danger"
+                      block
+                      onClick={() => setConfirmWipeOpen(true)}
+                      loading={resetLoading}
+                      disabled={resetLoading}
+                    >
+                      Reset Account Data
+                    </Button>
                   </div>
-                )}
-                <Button
-                  variant="danger"
-                  block
-                  onClick={() => setConfirmWipeOpen(true)}
-                  loading={resetLoading}
-                  disabled={resetLoading}
-                >
-                  Reset Account Data
-                </Button>
-              </div>
-            </Card>
+                </Card>
 
-            {/* Danger Zone: Permanent Deletion */}
-            <Card className="border-[var(--status-danger-border)] bg-[var(--status-danger-subtle)]/20 shadow-lg">
-              <h2 className="text-base font-bold text-[var(--status-danger-text)] flex items-center gap-1.5 mb-2">
-                <span>⚠️</span> Danger Zone: Delete Account
-              </h2>
-              <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
-                Permanently deletes your secure auth login credentials, account logs, learned rules, and database allocations. <strong>This action is absolute and irreversible.</strong>
-              </p>
+                {/* Danger Zone: Permanent Deletion */}
+                <Card className="border-[var(--status-danger-border)] bg-[var(--status-danger-subtle)]/20 shadow-lg">
+                  <h2 className="text-base font-bold text-[var(--status-danger-text)] flex items-center gap-1.5 mb-2">
+                    <span>⚠️</span> Danger Zone: Delete Account
+                  </h2>
+                  <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
+                    Permanently deletes your secure auth login credentials, account logs, learned rules, and database allocations. <strong>This action is absolute and irreversible.</strong>
+                  </p>
 
-              <form onSubmit={handleDeleteAccount} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1.5">
-                    Confirm Deletion by Typing: <span className="text-zinc-300 font-mono lowercase select-all break-all">{user?.email}</span>
-                  </label>
-                  <Input
-                    type="email"
-                    placeholder="Type your email to confirm"
-                    value={deleteConfirmEmail}
-                    onChange={(e) => setDeleteConfirmEmail(e.target.value)}
-                    disabled={deleteLoading}
-                    required
-                    className="border-red-950/60 focus:border-red-500 focus:ring-red-500/20"
-                  />
-                </div>
-                <Button
-                  variant="danger"
-                  type="submit"
-                  block
-                  disabled={deleteConfirmEmail !== user?.email || deleteLoading}
-                  loading={deleteLoading}
-                  className="bg-[var(--status-danger-text)] hover:opacity-90 active:opacity-80 disabled:opacity-40 transition-all duration-200"
-                >
-                  Permanently Delete My Account
-                </Button>
-              </form>
-            </Card>
+                  <form onSubmit={handleDeleteAccount} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1.5">
+                        Confirm Deletion by Typing: <span className="text-zinc-300 font-mono lowercase select-all break-all">{user?.email}</span>
+                      </label>
+                      <Input
+                        type="email"
+                        placeholder="Type your email to confirm"
+                        value={deleteConfirmEmail}
+                        onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                        disabled={deleteLoading}
+                        required
+                        className="border-red-950/60 focus:border-red-500 focus:ring-red-500/20"
+                      />
+                    </div>
+                    <Button
+                      variant="danger"
+                      type="submit"
+                      block
+                      disabled={deleteConfirmEmail !== user?.email || deleteLoading}
+                      loading={deleteLoading}
+                      className="bg-[var(--status-danger-text)] hover:opacity-90 active:opacity-80 disabled:opacity-40 transition-all duration-200"
+                    >
+                      Permanently Delete My Account
+                    </Button>
+                  </form>
+                </Card>
               </>
             )}
           </div>
