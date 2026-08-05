@@ -1009,6 +1009,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       const emailContentForParsing = fullText.substring(0, 2000)
 
       let parsedTxn: TransactionInsert | null = null
+      let aiConfidentReject = false
 
       {
         try {
@@ -1054,13 +1055,21 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
                 email_message_id: mailMessageId || null,
               }
             } else {
-              continue
+              // AI returned a result but classified this as a non-transaction (or
+              // couldn't extract an amount) — don't drop the email outright, since
+              // the AI misclassifies oddly-formatted bank alerts. Let it fall
+              // through to the regex heuristic engine below as a second opinion,
+              // unless the AI explicitly and confidently said this isn't a
+              // transaction at all (is_transaction === false), which we still trust.
+              aiConfidentReject = aiResult.is_transaction === false
             }
           }
         } catch (aiErr) {
           console.warn('[emailScanner] AI parsing failed, falling back to heuristics:', aiErr)
         }
       }
+
+      if (aiConfidentReject && !parsedTxn) continue
 
       if (!parsedTxn) {
         const senderDomainMatch = fromValue.match(/@([\w.-]+)>?/i)

@@ -58,7 +58,7 @@ export default function LandingPage() {
   }, [user, loading, navigate, openAuthModal])
 
   useEffect(() => {
-    document.title = 'Dhanrakshak | Auto-track your expenses. Zero manual entry.'
+    document.title = 'Dhanrakshak | Paste a bank alert, get an expense.'
     window.scrollTo(0, 0)
   }, [])
 
@@ -85,7 +85,7 @@ export default function LandingPage() {
   }
 
   const features = [
-    { icon: Zap, title: 'Zero manual entry', desc: 'Bank alerts are read and logged automatically. Never type an expense again.' },
+    { icon: Zap, title: 'No typing amounts', desc: 'Paste a bank alert text and the parser fills in merchant, amount, and category for you.' },
     { icon: Shield, title: 'Complete privacy', desc: 'All parsing happens on your device. Your data never touches our servers.' },
     { icon: Landmark, title: 'All Indian banks', desc: 'Works with ICICI, HDFC, SBI, Axis, Kotak and every UPI-enabled bank.' },
     { icon: Wallet, title: 'Smart budgets', desc: 'Set monthly limits per category. Get alerted before you overspend.' },
@@ -94,16 +94,16 @@ export default function LandingPage() {
   ]
 
   const steps = [
-    { num: '01', title: 'You transact normally', desc: 'Pay via UPI, debit or credit card. Your bank sends a transaction alert SMS or email as usual.' },
-    { num: '02', title: 'Detected & parsed locally', desc: 'Our client-side engine reads the alert directly on your device. Merchant, amount, and category extracted instantly.' },
+    { num: '01', title: 'You transact normally', desc: 'Pay via UPI, debit or credit card. Your bank sends a transaction alert by SMS or email as usual.' },
+    { num: '02', title: 'Paste it in, parsed locally', desc: 'Paste the alert text into Dhanrakshak. Our client-side engine extracts merchant, amount, and category instantly.' },
     { num: '03', title: 'Budgets updated live', desc: 'The expense is logged to your dashboard and the relevant budget category is updated automatically.' },
   ]
 
   const faqItems = [
-    { q: 'How does the app automatically detect what I spent?', a: 'When you pay with UPI, debit card, or credit card, your bank sends a transaction alert SMS or email. Dhanrakshak reads these alerts to detect the amount and merchant — so you never have to type anything manually.' },
+    { q: 'How does the app detect what I spent?', a: 'When you pay with UPI, debit card, or credit card, your bank sends a transaction alert by SMS or email. Paste that alert text into Dhanrakshak and it detects the amount and merchant — so you never have to type anything manually. You can also connect Gmail to have alerts read automatically from your inbox.' },
     { q: 'Can the app see my bank passwords or move money?', a: 'Absolutely not. Dhanrakshak is completely read-only. We never ask for your net-banking credentials, PINs, card numbers, CVV, or OTPs. We cannot touch your money in any way.' },
-    { q: 'Do my emails or SMSes leave my phone?', a: 'No. Privacy is our top priority. All scanning happens locally inside your browser or app. Your personal messages are never sent to our servers or shared with anyone.' },
-    { q: 'Do I have to connect my email or SMS?', a: 'No — it is entirely optional. You can also paste bank SMS texts manually, import a spreadsheet, or enter expenses by hand. The app works well either way.' },
+    { q: 'Does Dhanrakshak read my SMSes?', a: 'No. Dhanrakshak never accesses your SMS inbox. You can optionally connect Gmail for automatic email scanning, or paste bank SMS/email text in manually — either way, all parsing happens locally in your browser.' },
+    { q: 'Do I have to connect my email?', a: 'No — it is entirely optional. You can also paste bank SMS or email texts manually, import a spreadsheet, or enter expenses by hand. The app works well either way.' },
     { q: 'What happens after the free trial ends?', a: 'During the 14-day free trial you get full access to all features. After that, automatic scanning pauses until you upgrade. Manual entry always remains free.' },
   ]
 
@@ -182,7 +182,7 @@ export default function LandingPage() {
                   transition={{ duration: 0.5, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
                   className="text-lg text-sb-ink-secondary leading-relaxed max-w-md min-h-[3.5rem]"
                 >
-                  Dhanrakshak reads your bank alert SMSes and emails, then logs all your{" "}
+                  Paste your bank SMS or email alert and Dhanrakshak logs all your{" "}
                   <span className="inline-flex relative min-w-[110px] overflow-hidden align-baseline font-semibold text-brand-400">
                     <AnimatePresence mode="wait">
                       <motion.span
@@ -197,7 +197,7 @@ export default function LandingPage() {
                       </motion.span>
                     </AnimatePresence>
                   </span>{" "}
-                  automatically. No manual entry. Your data stays on your device.
+                  in seconds — no typing amounts or categories. Your data stays on your device.
                 </motion.p>
               </motion.div>
 
@@ -376,7 +376,7 @@ export default function LandingPage() {
                 Paste any bank SMS.<br /><span className="text-sb-primary">Watch it parse.</span>
               </h2>
               <p className="text-sb-ink-secondary leading-relaxed">
-                This is exactly how Dhanrakshak works — reading your bank alerts and extracting the merchant, amount, and category automatically. Your real alerts are parsed on-device, never uploaded.
+                This is exactly how Dhanrakshak works — paste in a bank alert and it extracts the merchant, amount, and category for you. Your real alerts are parsed on-device, never uploaded.
               </p>
               <div className="space-y-3">
                 {[
