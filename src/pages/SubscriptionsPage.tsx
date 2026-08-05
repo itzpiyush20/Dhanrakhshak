@@ -293,8 +293,9 @@ export default function SubscriptionsPage() {
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-3">
-            {/* Left Column: Summary Card and Manual Creator */}
-            <div className="md:col-span-1 space-y-6">
+            {/* Left Column: Summary Card and Manual Creator — ordered after the
+                calendar on mobile since the calendar is why someone opens this page */}
+            <div className="md:col-span-1 space-y-6 order-2 md:order-1">
               {/* Summary */}
               <Card className="border-border-subtle bg-surface-1 shadow-md p-6">
                 <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-4">Total Subscriptions</h2>
@@ -399,7 +400,7 @@ export default function SubscriptionsPage() {
             </div>
 
             {/* Right Column: Active Subscriptions List */}
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 order-1 md:order-2">
               <Card className="border-border-subtle bg-surface-1 shadow-md">
                 <h2 className="text-base font-bold text-zinc-200 mb-4">📅 Subscription Renewal Calendar</h2>
 
