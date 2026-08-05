@@ -521,7 +521,7 @@ export default function SettingsPage() {
               </p>
 
               {/* Inline Rule Creator Form */}
-              <form onSubmit={handleAddCustomRule} className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-4 p-3 bg-surface-2/40 border border-border-subtle/30 rounded-xl">
+              <form onSubmit={handleAddCustomRule} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 mb-4 p-3 bg-surface-2/40 border border-border-subtle/30 rounded-xl">
                 <div>
                   <Input
                     placeholder="Keyword (e.g. Swiggy)"
