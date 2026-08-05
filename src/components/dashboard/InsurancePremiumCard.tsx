@@ -4,6 +4,7 @@
 // ============================================
 
 import { useEffect, useState, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { Card, Button } from '@/components/ui'
 import { useToast } from '@/context'
 import { formatCurrency, formatDate } from '@/utils'
@@ -63,10 +64,18 @@ export default function InsurancePremiumCard({ onPaid }: InsurancePremiumCardPro
 
   return (
     <Card className="shadow-md">
-      <h2 className="text-sm font-bold text-text-primary flex items-center gap-2 mb-3">
-        <ShieldCheck className="h-4 w-4 text-brand-400" />
-        Premium Due
-      </h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-bold text-text-primary flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-brand-400" />
+          Premium Due
+        </h2>
+        <Link
+          to="/settings#insurance-policies"
+          className="text-xs font-semibold text-brand-400 hover:text-brand-300 transition-colors shrink-0"
+        >
+          Manage →
+        </Link>
+      </div>
       <div className="space-y-2">
         {duePolicies.map((p) => {
           const isOverdue = p.next_due_date < today
