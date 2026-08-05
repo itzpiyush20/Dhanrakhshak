@@ -771,7 +771,7 @@ export default function PendingPage() {
         )}
 
         {/* Error banner */}
-        {activeBanner === 'error' && (
+        {activeBanner === 'error' && error && (
           <div role="alert" className="rounded-2xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-4 text-sm text-[var(--status-danger-text)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-md">
             <div className="flex items-start gap-2.5">
               <AlertCircle className="h-5 w-5 text-[var(--status-danger-text)] shrink-0 mt-0.5" />
@@ -818,7 +818,7 @@ export default function PendingPage() {
         )}
 
         {/* Success message */}
-        {activeBanner === 'success' && (
+        {activeBanner === 'success' && scanSuccessMessage && (
           <div role="status" className="rounded-2xl bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] p-4 text-sm text-[var(--status-positive-text)] flex items-start justify-between gap-3 animate-fade-in shadow-md">
             <div className="flex items-start gap-2.5">
               <CheckCircle2 className="h-5 w-5 text-[var(--status-positive-text)] shrink-0 mt-0.5" />
