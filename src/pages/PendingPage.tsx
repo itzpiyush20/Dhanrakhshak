@@ -194,7 +194,7 @@ export default function PendingPage() {
 
   // ── Fetch last scan log ──────────────────────────────────
   const fetchLastScanLog = useCallback(async () => {
-    if (!user) return
+    if (!user) return null
     try {
       const { data } = await supabase
         .from('email_scan_logs')
@@ -202,9 +202,34 @@ export default function PendingPage() {
         .eq('user_id', user.id)
         .order('scanned_at', { ascending: false })
         .limit(1)
-      if (data && data.length > 0) setLastScanLog(data[0])
-    } catch {}
+      if (data && data.length > 0) {
+        setLastScanLog(data[0])
+        return data[0]
+      }
+      return null
+    } catch {
+      return null
+    }
   }, [user])
+
+  const [recentRejections, setRecentRejections] = useState<
+    { id: string; sender_domain: string | null; subject: string | null; gate: string; rejected_at: string }[]
+  >([])
+  const [showRejectionsPanel, setShowRejectionsPanel] = useState(false)
+
+  const fetchRecentRejections = useCallback(async (scanLogId: string | null) => {
+    if (!scanLogId) {
+      setRecentRejections([])
+      return
+    }
+    const { data, error } = await supabase
+      .from('email_scan_rejections')
+      .select('id, sender_domain, subject, gate, rejected_at')
+      .eq('scan_log_id', scanLogId)
+      .order('rejected_at', { ascending: false })
+      .limit(20)
+    if (!error && data) setRecentRejections(data)
+  }, [])
 
   // ── Fetch unconfirmed auto-categorized transactions ──────
   const fetchUnconfirmedCategorizations = useCallback(async () => {
@@ -625,7 +650,8 @@ export default function PendingPage() {
       setScanSuccessMessage({ total: count, autoApproved, pendingReview: pendingCount, skipped })
 
       await fetchPendingData()
-      await fetchLastScanLog()
+      const freshScanLog = await fetchLastScanLog()
+      await fetchRecentRejections(freshScanLog?.id ?? null)
       await fetchUnconfirmedCategorizations()
     } catch (err: any) {
       console.error('Scan error:', err)
@@ -663,7 +689,8 @@ export default function PendingPage() {
       setLastDeepRescanAt(Date.now())
 
       await fetchPendingData()
-      await fetchLastScanLog()
+      const freshScanLog = await fetchLastScanLog()
+      await fetchRecentRejections(freshScanLog?.id ?? null)
       await fetchUnconfirmedCategorizations()
     } catch (err: any) {
       console.error('Deep rescan error:', err)
@@ -821,6 +848,36 @@ export default function PendingPage() {
                 </>
               )}
             </Card>
+          </div>
+        )}
+
+        {lastScanLog && recentRejections.length > 0 && (
+          <div className="rounded-2xl border border-border-subtle bg-surface-1">
+            <button
+              type="button"
+              onClick={() => setShowRejectionsPanel((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-zinc-300"
+            >
+              <span>Recently skipped emails ({recentRejections.length})</span>
+              <span className="text-xs text-zinc-500">{showRejectionsPanel ? 'Hide' : 'Show'}</span>
+            </button>
+            {showRejectionsPanel && (
+              <div className="px-4 pb-4 space-y-2">
+                {recentRejections.map((r) => (
+                  <div
+                    key={r.id}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs border-t border-border-subtle/50 pt-2"
+                  >
+                    <span className="text-zinc-400 truncate">
+                      {r.sender_domain || 'unknown sender'} — {r.subject || '(no subject)'}
+                    </span>
+                    <Badge variant="default" className="shrink-0 w-fit">
+                      {r.gate}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
