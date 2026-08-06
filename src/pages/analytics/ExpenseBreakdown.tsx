@@ -20,11 +20,14 @@ interface SummaryData {
 interface ExpenseBreakdownProps {
   summary: SummaryData | null
   loading: boolean
+  /** Called when a legend row is clicked, with the category name. Omit to render the chart non-interactively (e.g. while data is loading). */
+  onCategoryClick?: (category: string) => void
 }
 
 export function ExpenseBreakdown({
   summary,
   loading,
+  onCategoryClick,
 }: ExpenseBreakdownProps) {
   const { getStyle } = useCategories()
   // Conic Gradient for doughnut
@@ -89,7 +92,13 @@ export function ExpenseBreakdown({
               {summary.category_breakdown.slice(0, 5).map((item) => {
                 const cat = getStyle(item.category)
                 return (
-                  <div key={item.category} className="flex items-center justify-between">
+                  <div
+                    key={item.category}
+                    className={`flex items-center justify-between ${onCategoryClick ? 'cursor-pointer hover:opacity-75 transition-opacity' : ''}`}
+                    onClick={onCategoryClick ? () => onCategoryClick(item.category) : undefined}
+                    role={onCategoryClick ? 'button' : undefined}
+                    tabIndex={onCategoryClick ? 0 : undefined}
+                  >
                     <div className="flex items-center gap-2 truncate mr-2">
                       <span
                         className="h-2.5 w-2.5 rounded-full shrink-0"
