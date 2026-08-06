@@ -23,6 +23,7 @@ export {
 export {
   getScanLogs,
   scanRealGmailInbox,
+  deepRescanGmailInbox,
   getMerchantRules,
   saveMerchantRule,
   deleteMerchantRule,
