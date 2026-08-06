@@ -79,7 +79,7 @@ export default function LandingPage() {
     { q: 'Can the app see my bank passwords or move money?', a: 'Absolutely not. Dhanrakshak is completely read-only. We never ask for your net-banking credentials, PINs, card numbers, CVV, or OTPs. We cannot touch your money in any way.' },
     { q: 'Does Dhanrakshak read my SMSes?', a: 'No. Dhanrakshak never accesses your SMS inbox. Automatic detection works through an optional Gmail connection — nothing is read outside of what you explicitly authorize.' },
     { q: 'Do I have to connect my email?', a: 'No — it is entirely optional. You can add every expense manually instead. Connecting Gmail just saves you the typing by detecting alerts automatically.' },
-    { q: 'What happens after the free trial ends?', a: 'During the 14-day free trial you get full access to all features. After that, automatic scanning pauses until you upgrade. Manual entry always remains free.' },
+    { q: 'What happens after the free trial ends?', a: 'During the 7-day free trial you get full access to all features. After that, automatic scanning pauses until you upgrade. Manual entry always remains free.' },
   ]
 
   return (
@@ -528,7 +528,7 @@ export default function LandingPage() {
               Take control of<br /><span className="text-sb-primary">your finances today.</span>
             </h2>
             <p data-reveal data-delay="100" className="text-lg text-sb-ink-secondary max-w-md mx-auto leading-relaxed">
-              Free account. 14-day full trial. No credit card required. Delete your data anytime.
+              Free account. 7-day full trial. No credit card required. Delete your data anytime.
             </p>
             <motion.div
               className="flex flex-wrap items-center justify-center gap-4 pt-2"

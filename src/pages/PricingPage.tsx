@@ -13,6 +13,13 @@ import { Card } from '@/components/ui'
 import { supabase } from '@/services/supabase'
 
 // ── Feature lists for different subscription tiers ───────────
+const FREE_FEATURES = [
+  'Manual expense & income entry',
+  'Basic budgets & category tracking',
+  '7-day full Pro trial — no card required',
+  'Automated Gmail scanning pauses after trial',
+]
+
 const MONTHLY_FEATURES = [
   'Automated Gmail inbox scanning',
   'Real-time category learning engine',
@@ -253,9 +260,9 @@ export default function PricingPage() {
               <div className="flex items-center gap-3">
                 <span className="text-2xl">✨</span>
                 <div>
-                  <p className="text-sm font-bold text-sb-ink">Start your 14-day free trial</p>
+                  <p className="text-sm font-bold text-sb-ink">Start your 7-day free trial</p>
                   <p className="text-xs text-zinc-400 font-medium mt-0.5">
-                    Try automated tracking, budgets, and insights free for 14 days. No card required.
+                    Try automated tracking, budgets, and insights free for 7 days. No card required.
                   </p>
                 </div>
               </div>
@@ -298,7 +305,52 @@ export default function PricingPage() {
 
         {/* ── PRICING CARDS ───────────────────────────────────── */}
         <div className="py-6 animate-fade-in">
-          <div className="grid md:grid-cols-3 gap-6 items-stretch">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
+
+            {/* ── Free tier: 7-day trial ────────────────────────── */}
+            <Card
+              hoverable
+              className="p-8 flex flex-col relative group"
+            >
+              <div className="mb-6">
+                <span className="inline-flex items-center bg-surface-2 border border-border-subtle px-2.5 py-0.5 rounded-full text-xs font-semibold text-zinc-400">Free Tier</span>
+                <h2 className="text-lg font-bold text-sb-ink mt-4">Free</h2>
+              </div>
+
+              <div className="mb-6">
+                <div className="flex items-baseline gap-1">
+                  <span className="font-extrabold text-4xl text-sb-ink tracking-tight">₹0</span>
+                </div>
+                <p className="text-xs text-zinc-400 mt-1 font-medium">7-day full trial, then manual entry stays free</p>
+              </div>
+
+              <ul className="space-y-3.5 flex-1 border-t border-border-subtle pt-5">
+                {FREE_FEATURES.map((f) => (
+                  <li key={f} className="flex items-start gap-3">
+                    <span className="text-emerald-400 shrink-0 text-sm font-bold">✓</span>
+                    <span className="text-xs text-zinc-400 font-medium">{f}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-8">
+                {!user ? (
+                  <button
+                    onClick={() => openAuthModal('/pricing', 'signup')}
+                    className="w-full justify-center rounded-xl py-3 font-semibold text-xs border border-zinc-700 bg-surface-2 hover:bg-zinc-800 text-zinc-300 transition-all active:scale-98 shadow-sm cursor-pointer"
+                  >
+                    Start Free Trial
+                  </button>
+                ) : (
+                  <button
+                    disabled
+                    className="w-full justify-center rounded-xl py-3 font-semibold text-xs border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 cursor-not-allowed"
+                  >
+                    {neverSubscribed ? 'Trial available on signup' : 'Included with your account'}
+                  </button>
+                )}
+              </div>
+            </Card>
 
             {/* ── Standard: Monthly ─────────────────────────────── */}
             <Card

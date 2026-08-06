@@ -26,7 +26,7 @@ export default function RefundPage() {
 
         {/* Section 1: Subscriptions & Trials */}
         {section("1. Free Trial and Billing Cycles", `
-          Dhanrakshak offers a 14-Day Free Trial to new users upon registration, allowing access to all premium features, including automated Gmail scanning and budget insights.
+          Dhanrakshak offers a 7-Day Free Trial to new users upon registration, allowing access to all premium features, including automated Gmail scanning and budget insights.
           
           - You will not be charged during the trial period.
           - Once the trial expires, you must manually upgrade and select a paid subscription (Basic at ₹31/month or Pro at ₹365/year) to keep auto-synchronization active.
@@ -44,7 +44,7 @@ export default function RefundPage() {
 
         {/* Section 3: Refund Eligibility & Claims */}
         {section("3. Refund Eligibility & Claims", `
-          Since Dhanrakshak offers a digital financial intelligence service with a 14-day free trial, all subscription fees are generally non-refundable once billed. However, we offer refunds under the following specific conditions:
+          Since Dhanrakshak offers a digital financial intelligence service with a 7-day free trial, all subscription fees are generally non-refundable once billed. However, we offer refunds under the following specific conditions:
           
           - Accidental Subscription Upgrades: If you accidentally upgraded your account and have not used the parsing service since upgrading, you may request a refund within forty-eight (48) hours of the transaction timestamp.
           - Technical Failures: If a payment was successfully processed but your account failed to upgrade due to system integration errors, and our engineering team is unable to resolve the issue within three (3) business days of your report, a full refund will be issued.

@@ -215,7 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       id: state.user!.id,
       email: state.user!.email,
       subscription_status: 'trial',
-      subscription_expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      subscription_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       subscription_plan_type: 'trial',
       daily_scan_time: '06:00',
     })
@@ -239,7 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id: state.user.id,
           email: state.user.email,
           subscription_status: subStatus,
-          subscription_expires_at: cachedExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          subscription_expires_at: cachedExpires || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           subscription_plan_type: cachedPlan || 'trial',
           daily_scan_time: cachedScanTime
         })
@@ -276,7 +276,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Prioritize database subscription status as the single source of truth
         const isSubscribed = data.subscription_status === 'active'
         let subStatus = data.subscription_status || 'trial'
-        const subExpires = data.subscription_expires_at || new Date(safeCreatedAtTime + 14 * 24 * 60 * 60 * 1000).toISOString()
+        const subExpires = data.subscription_expires_at || new Date(safeCreatedAtTime + 7 * 24 * 60 * 60 * 1000).toISOString()
         const subPlan = data.subscription_plan_type || (isSubscribed ? 'monthly' : 'trial')
 
         // Check if expired
@@ -368,7 +368,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id: state.user.id,
           email: state.user.email,
           subscription_status: subStatus,
-          subscription_expires_at: localExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          subscription_expires_at: localExpires || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           subscription_plan_type: subPlan,
           daily_scan_time: localStorage.getItem(`dhanrakshak_daily_scan_time_${state.user.id}`) || '06:00'
         })
@@ -399,7 +399,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: state.user.id,
         email: state.user.email,
         subscription_status: subStatus,
-        subscription_expires_at: localExpires || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        subscription_expires_at: localExpires || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         subscription_plan_type: subPlan,
         daily_scan_time: localStorage.getItem(`dhanrakshak_daily_scan_time_${state.user.id}`) || '06:00'
       })
@@ -851,7 +851,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const expiresAt = status === 'active'
         ? new Date(Date.now() + (planType === 'lifetime' ? 36500 : (planType === 'annual' ? 365 : 30)) * 24 * 60 * 60 * 1000).toISOString()
-        : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
 
       const subPlanType = planType || (status === 'active' ? 'monthly' : 'trial')
 
