@@ -937,7 +937,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     if (uniqueMessages.length === 0) {
       const { data: log } = await supabase
         .from('email_scan_logs')
-        .insert({ user_id: user.id, emails_processed: 0, transactions_found: 0, status: 'success' })
+        .insert({ id: scanLogId, user_id: user.id, emails_processed: 0, transactions_found: 0, status: 'success' })
         .select().single()
       return { data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0 }, error: null }
     }
@@ -1325,6 +1325,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       const { data: log } = await supabase
         .from('email_scan_logs')
         .insert({
+          id: scanLogId,
           user_id: user.id,
           emails_processed: validDetails.length,
           transactions_found: 0,
@@ -1351,6 +1352,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     const { data: scanLog, error: logError } = await supabase
       .from('email_scan_logs')
       .insert({
+        id: scanLogId,
         user_id: user.id,
         emails_processed: validDetails.length,
         transactions_found: transactionsToInsert.length,
@@ -1386,6 +1388,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
 
     if (!opts?.userId) {
       await supabase.from('email_scan_logs').insert({
+        id: scanLogId,
         user_id: user.id,
         emails_processed: 0,
         transactions_found: 0,
