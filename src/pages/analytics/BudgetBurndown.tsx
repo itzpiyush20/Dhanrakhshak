@@ -18,6 +18,7 @@ export interface BudgetBurndownItem {
 interface BudgetBurndownProps {
   data: BudgetBurndownItem[]
   loading: boolean
+  onCategoryClick?: (category: string) => void
 }
 
 function buildPoints(values: number[], maxY: number, width: number, height: number, maxX: number) {
@@ -30,7 +31,7 @@ function buildPoints(values: number[], maxY: number, width: number, height: numb
     .join(' ')
 }
 
-export function BudgetBurndown({ data, loading }: BudgetBurndownProps) {
+export function BudgetBurndown({ data, loading, onCategoryClick }: BudgetBurndownProps) {
   const { getStyle } = useCategories()
   const WIDTH = 100
   const HEIGHT = 40
@@ -90,7 +91,13 @@ export function BudgetBurndown({ data, loading }: BudgetBurndownProps) {
               const pctUsed = item.budgetAmount > 0 ? (item.spentSoFar / item.budgetAmount) * 100 : 0
 
               return (
-                <div key={item.category} className="rounded-xl border border-border-subtle/40 bg-surface-2/30 p-3.5">
+                <div
+                  key={item.category}
+                  className={`rounded-xl border border-border-subtle/40 bg-surface-2/30 p-3.5 ${onCategoryClick ? 'cursor-pointer hover:opacity-75' : ''}`}
+                  onClick={onCategoryClick ? () => onCategoryClick(item.category) : undefined}
+                  role={onCategoryClick ? 'button' : undefined}
+                  tabIndex={onCategoryClick ? 0 : undefined}
+                >
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-300 truncate">
                       <span
