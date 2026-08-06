@@ -417,8 +417,13 @@ const KNOWN_MERCHANTS: { pattern: RegExp; name: string; category: string; descri
 // ============================================================
 type EventType = 'debit' | 'credit' | 'refund' | 'emi' | 'sip' | 'salary' | 'chargeback' | 'subscription' | 'transfer' | 'insurance' | 'loan_repayment' | 'atm_withdrawal'
 
-function classifyEventType(text: string, txType: 'debit' | 'credit', category: string): EventType {
-  const t = text.toLowerCase()
+export function classifyEventType(text: string, txType: 'debit' | 'credit', category: string): EventType {
+  // Bank reference tokens often embed the keyword between underscores
+  // (e.g. "PPR030614052540_EMI_05-08-") — `_` is a \w character, so a bare
+  // `\bemi\b` never matches there. Normalizing underscores to spaces here
+  // (scoped to this classifier only) restores word-boundary matching
+  // without touching the general parsing text used elsewhere.
+  const t = text.replace(/_/g, ' ').toLowerCase()
 
   // Credit events
   if (txType === 'credit') {
