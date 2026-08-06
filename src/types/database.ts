@@ -210,6 +210,7 @@ export interface Database {
           created_at: string
         }
         Insert: {
+          id?: string
           user_id: string
           emails_processed?: number
           transactions_found?: number
@@ -221,6 +222,29 @@ export interface Database {
           transactions_found?: number
           status?: 'success' | 'failed' | 'partial'
           error_message?: string | null
+        }
+      }
+      email_scan_rejections: {
+        Row: {
+          id: string
+          user_id: string
+          scan_log_id: string | null
+          sender_domain: string | null
+          subject: string | null
+          gate: string
+          matched_snippet: string | null
+          rejected_at: string
+        }
+        Insert: {
+          user_id: string
+          scan_log_id?: string | null
+          sender_domain?: string | null
+          subject?: string | null
+          gate: string
+          matched_snippet?: string | null
+        }
+        Update: {
+          gate?: string
         }
       }
       merchant_rules: {
