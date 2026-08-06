@@ -20,11 +20,13 @@ interface CategoryTrendChartProps {
   data: CategoryTrendMonth[]
   loading: boolean
   hasTransactions: boolean
+  /** Called when a named-category bar segment is clicked (never for the "Other" aggregate segment). */
+  onSegmentClick?: (category: string, monthKey: string) => void
 }
 
 const OTHER_KEY = '__other__'
 
-export function CategoryTrendChart({ data, loading, hasTransactions }: CategoryTrendChartProps) {
+export function CategoryTrendChart({ data, loading, hasTransactions, onSegmentClick }: CategoryTrendChartProps) {
   const { getStyle } = useCategories()
   const [tappedIndex, setTappedIndex] = useState<number | null>(null)
   const maxTotal = data.length ? Math.max(...data.map((m) => m.total)) : 0
@@ -108,14 +110,18 @@ export function CategoryTrendChart({ data, loading, hasTransactions }: CategoryT
                         const isOther = s.category === OTHER_KEY
                         const cat = isOther ? null : getStyle(s.category)
                         const heightPct = m.total > 0 ? (s.amount / m.total) * 100 : 0
+                        const clickable = !isOther && !!onSegmentClick
                         return (
                           <div
                             key={s.category}
-                            className="w-full transition-all duration-500 ease-out hover:opacity-80"
+                            className={`w-full transition-all duration-500 ease-out hover:opacity-80 ${clickable ? 'cursor-pointer' : ''}`}
                             style={{
                               height: `${heightPct}%`,
                               backgroundColor: isOther ? 'var(--zinc-600)' : cat!.color,
                             }}
+                            onClick={clickable ? (e) => { e.stopPropagation(); onSegmentClick!(s.category, m.monthKey) } : undefined}
+                            role={clickable ? 'button' : undefined}
+                            tabIndex={clickable ? 0 : undefined}
                           />
                         )
                       })}
