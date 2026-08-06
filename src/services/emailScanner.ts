@@ -720,6 +720,17 @@ export interface ScanGmailOptions {
   activeYear?: number
   /** AI email analyzer to use. Defaults to the proxy-based `analyzeTransactionEmailWithAI`. */
   askAI?: (subject: string, body: string, emailDate: string, categoryNames?: string[]) => ReturnType<typeof analyzeTransactionEmailWithAI>
+  /**
+   * Internal: 'normal' (default) uses the standard first-scan-7-days /
+   * since-last-successful-scan window. 'deep' ignores that window entirely
+   * and scans back `lookbackDays` from now instead — used by
+   * deepRescanGmailInbox() to recover transactions from before a scanner
+   * fix shipped, since the normal rolling window will never look at them
+   * again.
+   */
+  mode?: 'normal' | 'deep'
+  /** Only used when mode === 'deep'. Clamped to [1, 30]. */
+  lookbackDays?: number
 }
 
 export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
@@ -809,7 +820,14 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       console.warn('Failed to query profile for premium bypass:', e)
     }
 
-    if (!isOwner && !isPremium) {
+    const mode = opts?.mode ?? 'normal'
+
+    // Deep rescan is an explicit, manual, user-triggered recovery action —
+    // same bypass precedent as the owner/premium eligibility check above —
+    // so it isn't subject to the automatic-scan cooldown. The UI applies
+    // its own client-side rate limit (Task 16) to prevent accidental
+    // repeated runs.
+    if (!isOwner && !isPremium && mode !== 'deep') {
       const { data: recentScanLogs } = await supabase
         .from('email_scan_logs')
         .select('scanned_at')
@@ -884,7 +902,14 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     const MAX_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000 // never scan back further than 30 days
     let startLimitTime = 0
     let q = ''
-    if (isFirstScan) {
+    if (mode === 'deep') {
+      // Recovery path: ignore the rolling since-last-scan window entirely
+      // and scan back a user-chosen number of days, so transactions missed
+      // before a scanner fix shipped (which the normal window will never
+      // reach again) can be recovered on demand.
+      const days = Math.min(Math.max(opts?.lookbackDays ?? 7, 1), 30)
+      startLimitTime = Date.now() - days * 24 * 60 * 60 * 1000
+    } else if (isFirstScan) {
       // First scan: look back 7 days
       startLimitTime = Date.now() - 7 * 24 * 60 * 60 * 1000
     } else {
@@ -1425,4 +1450,16 @@ export function getLastScheduledRefreshTime(dailyScanTime = '06:00'): Date {
   if (now.getTime() >= todayTarget.getTime()) return todayTarget
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
   return new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), hour || 6, minute || 0, 0, 0)
+}
+
+/**
+ * Recovers transactions from a wider historical window than the normal
+ * rolling scan ever revisits — e.g. transactions missed before a scanner
+ * bug fix shipped. Shares the exact same parsing/gating/dedup logic as
+ * scanRealGmailInbox(); the only difference is the time window (see the
+ * mode === 'deep' branch above). Not subject to the 24h scan cooldown —
+ * this is an explicit, manual, user-triggered recovery action.
+ */
+export async function deepRescanGmailInbox(opts: ScanGmailOptions & { lookbackDays: number }) {
+  return scanRealGmailInbox({ ...opts, mode: 'deep' })
 }
