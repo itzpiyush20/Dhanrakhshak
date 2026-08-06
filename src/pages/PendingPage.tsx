@@ -12,6 +12,7 @@ import {
   updateTransaction,
   deleteTransaction,
   scanRealGmailInbox,
+  deepRescanGmailInbox,
   saveMerchantRule,
   supabase,
   getNextRefreshTime,
@@ -179,6 +180,10 @@ export default function PendingPage() {
 
   // Scan rate-limit / cooldown state
   const [scanCooldownMessage, setScanCooldownMessage] = useState<string | null>(null)
+  const [showDeepRescanModal, setShowDeepRescanModal] = useState(false)
+  const [deepRescanning, setDeepRescanning] = useState(false)
+  const [deepRescanLookbackDays, setDeepRescanLookbackDays] = useState(7)
+  const [lastDeepRescanAt, setLastDeepRescanAt] = useState<number | null>(null)
 
   // Premium gate state
   const [isPremiumRequired, setIsPremiumRequired] = useState(false)
@@ -630,6 +635,44 @@ export default function PendingPage() {
     }
   }
 
+  const DEEP_RESCAN_MIN_INTERVAL_MS = 60 * 60 * 1000 // client-side: once per hour
+
+  const handleDeepRescan = async () => {
+    if (lastDeepRescanAt && Date.now() - lastDeepRescanAt < DEEP_RESCAN_MIN_INTERVAL_MS) {
+      setError('Deep Rescan can only be run once per hour. Please wait before trying again.')
+      return
+    }
+
+    setDeepRescanning(true)
+    setError(null)
+    setShowDeepRescanModal(false)
+
+    try {
+      const res = await deepRescanGmailInbox({ lookbackDays: deepRescanLookbackDays })
+
+      if (res.error) throw res.error
+
+      const count = res.data?.transactions?.length || 0
+      const autoApproved = res.data?.autoApprovedCount || 0
+      setScanSuccessMessage({
+        total: count,
+        autoApproved,
+        pendingReview: count - autoApproved,
+        skipped: (res.data as any)?.skippedConfidence || 0,
+      })
+      setLastDeepRescanAt(Date.now())
+
+      await fetchPendingData()
+      await fetchLastScanLog()
+      await fetchUnconfirmedCategorizations()
+    } catch (err: any) {
+      console.error('Deep rescan error:', err)
+      setError(err.message || 'Deep rescan failed. Please try again.')
+    } finally {
+      setDeepRescanning(false)
+    }
+  }
+
   const handleReconnectGoogle = async () => {
     try {
       setScanning(true)
@@ -720,6 +763,17 @@ export default function PendingPage() {
                 aria-label="Scan Gmail Inbox for new bank alerts"
               >
                 <Sparkles className="h-4 w-4 text-brand-300" /> Scan Bank Alerts
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowDeepRescanModal(true)}
+                loading={deepRescanning}
+                disabled={scanning || syncingBackground || deepRescanning}
+                className="shrink-0 gap-1.5 justify-center"
+                aria-label="Deep rescan a wider email history window"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Deep Rescan
               </Button>
             </div>
             <span className="text-xs font-semibold text-brand-300 font-mono bg-surface-2 border border-border-subtle/50 px-2 py-0.5 rounded-md flex items-center gap-1">
@@ -1284,6 +1338,40 @@ export default function PendingPage() {
             ))}
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        isOpen={showDeepRescanModal}
+        onClose={() => setShowDeepRescanModal(false)}
+        title="Deep Rescan"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowDeepRescanModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleDeepRescan} loading={deepRescanning}>
+              Start Deep Rescan
+            </Button>
+          </>
+        }
+      >
+        <p className="mb-4">
+          Deep Rescan looks back further than the normal scan and processes every
+          matching email in that window — useful for recovering transactions that
+          were missed before a scanner fix. It may take longer than a normal scan
+          and uses more of your daily AI quota.
+        </p>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
+          Look back
+        </label>
+        <Select
+          value={String(deepRescanLookbackDays)}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setDeepRescanLookbackDays(Number(e.target.value))}
+        >
+          <option value="7">7 days</option>
+          <option value="14">14 days</option>
+          <option value="30">30 days</option>
+        </Select>
       </Modal>
 
     </AppLayout>
