@@ -1091,34 +1091,24 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         }
       }
 
-      if (aiConfidentReject && !parsedTxn) continue
+      if (aiConfidentReject && !parsedTxn) {
+        logRejection(supabase, user.id, scanLogId, 'ai_confident_reject', senderDomain, subject, '')
+        continue
+      }
 
       if (!parsedTxn) {
-        const senderDomainMatch = fromValue.match(/@([\w.-]+)>?/i)
-        const senderDomain = senderDomainMatch ? senderDomainMatch[1].toLowerCase() : ''
-        const isTrustedSender = TRUSTED_SENDER_DOMAINS.has(senderDomain) ||
-          [...TRUSTED_SENDER_DOMAINS].some(d => senderDomain.endsWith('.' + d))
-
         const isHardRejected = HARD_REJECT_SUBJECT_PATTERNS.some(p => p.test(subject))
-        if (isHardRejected) continue
+        if (isHardRejected) {
+          logRejection(supabase, user.id, scanLogId, 'hard_reject_subject', senderDomain, subject, subject)
+          continue
+        }
 
         const isHardAccepted = HARD_ACCEPT_SUBJECT_PATTERNS.some(p => p.test(subject))
 
-        const isPromotionalSpam = /\b(?:promo(?:tion)?|coupon|unsubscribe|shop\s+now|buy\s+now|special\s+offer|limited\s+period|earn\s+cashback|get\s+cashback|cashback\s+on\s+your\s+next|exclusive\s+deal)\b/i.test(emailContentForParsing)
-        if (isPromotionalSpam) continue
-
-        // Always reject these — hard-accept subject does NOT override
-        if (/\b(?:declined|failed|unsuccessful|initiated|requested|rejected|cancelled|void|voided)\b/i.test(emailContentForParsing)) continue
-        if (/\b(?:otp|one\s*time\s*pass(?:word|code)|verification\s*code|verification\s*pin|passcode|security\s*pin|security\s*code|m-?pin|t-?pin|2fa|two\s*factor|auth\s*code|do\s*not\s*share)\b/i.test(emailContentForParsing)) continue
-        // Reject order-placed emails that lack an actual debit confirmation
-        if (
-          /\b(?:order\s*(?:placed|confirmed|received|acknowledged)|booking\s*(?:confirmed|received)|your\s*order\s*(?:is|has been))\b/i.test(emailContentForParsing) &&
-          !/\b(?:debited|charged|deducted|payment\s*(?:successful|done|completed|received)|amount\s*debited)\b/i.test(emailContentForParsing)
-        ) continue
-        if (!isHardAccepted) {
-          if (/\b(?:due|reminder|remind|upcoming|due\s+date|minimum\s+due|statement\s+for|payment\s+due|overdue|payable|bill\s+generated|statement\s+of|monthly\s+statement|e-?statement|estatement)\b/i.test(emailContentForParsing)) continue
-          if (/(?:will\s+be\s+debited|scheduled\s+for|pay\s+before|auto-?debit\s+has\s+been\s+scheduled|is\s+scheduled\s+for)/i.test(emailContentForParsing)) continue
-          if (/\b(?:policy\s+update|security\s+policy|terms\s+of\s+service|agreement\s+update|privacy\s+update|will\s+not\s+be\s+charged|no\s+charges\s+apply)\b/i.test(emailContentForParsing)) continue
+        const gateResult = evaluateRegexGates(subject, emailContentForParsing, isHardAccepted)
+        if (gateResult.rejected) {
+          logRejection(supabase, user.id, scanLogId, gateResult.gate!, senderDomain, subject, gateResult.snippet || '')
+          continue
         }
 
         const amountMatches: { value: number; index: number; text: string }[] = []
@@ -1300,9 +1290,9 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         if (confidence < 65) {
           skippedConfidence++
           if (skippedEmailsDetails.length < 5) {
-            const domain = fromValue.match(/@([\w.-]+)/)?.[1] || 'unknown'
-            skippedEmailsDetails.push(`${domain}|"${subject.substring(0, 30)}"|Conf:${confidence}`)
+            skippedEmailsDetails.push(`${senderDomain || 'unknown'}|"${subject.substring(0, 30)}"|Conf:${confidence}`)
           }
+          logRejection(supabase, user.id, scanLogId, 'confidence_below_65', senderDomain, subject, `confidence=${confidence}`)
           continue
         }
 
