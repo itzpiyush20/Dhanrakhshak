@@ -7,6 +7,10 @@
     {
       "path": "/api/auto-sync-gmail",
       "schedule": "30 21 * * *"
+    },
+    {
+      "path": "/api/cleanup-scan-rejections",
+      "schedule": "0 3 * * *"
     }
   ],
   "rewrites": [
