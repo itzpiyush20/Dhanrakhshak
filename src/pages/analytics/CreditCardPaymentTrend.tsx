@@ -4,6 +4,7 @@ import { formatCurrencyCompact } from '@/utils'
 import { CreditCard } from 'lucide-react'
 
 export interface CreditCardPaymentTrendItem {
+  monthKey: string
   label: string
   amount: number
 }
@@ -11,9 +12,10 @@ export interface CreditCardPaymentTrendItem {
 interface CreditCardPaymentTrendProps {
   data: CreditCardPaymentTrendItem[]
   loading: boolean
+  onMonthClick?: (monthKey: string, label: string) => void
 }
 
-export function CreditCardPaymentTrend({ data, loading }: CreditCardPaymentTrendProps) {
+export function CreditCardPaymentTrend({ data, loading, onMonthClick }: CreditCardPaymentTrendProps) {
   const hasPayments = data.some((d) => d.amount > 0)
   const maxVal = data.length ? Math.max(...data.map((d) => d.amount)) : 0
   const [tappedIndex, setTappedIndex] = useState<number | null>(null)
@@ -70,7 +72,8 @@ export function CreditCardPaymentTrend({ data, loading }: CreditCardPaymentTrend
 
                     <div className="flex items-end h-full w-full max-w-[64px] justify-center px-1 min-h-11">
                       <div
-                        className="w-4 sm:w-6 bg-slate-500/80 rounded-t-md hover:bg-slate-400 transition-all duration-500 ease-out"
+                        onClick={onMonthClick ? () => onMonthClick(d.monthKey, d.label) : undefined}
+                        className={`w-4 sm:w-6 bg-slate-500/80 rounded-t-md hover:bg-slate-400 transition-all duration-500 ease-out ${onMonthClick ? 'cursor-pointer hover:opacity-80' : ''}`}
                         style={{ height: `${Math.max(3, height)}%` }}
                       />
                     </div>

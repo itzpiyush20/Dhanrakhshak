@@ -44,7 +44,12 @@ interface TrendItem {
   income: number
   expenses: number
   savings: number
+  /** Present on day-bucketed ranges (this-week, last-week, last-15-days). */
   dateStr?: string
+  /** Present on the last-month range (week buckets). */
+  startStr?: string
+  endStr?: string
+  /** Present on the last-6-months range. */
   monthKey?: string
 }
 
@@ -405,7 +410,7 @@ export default function AnalyticsPage() {
         if (monthObj) monthObj.amount += Number(t.amount)
       })
 
-    return months.map(({ label, amount }) => ({ label, amount }))
+    return months.map(({ monthKey, label, amount }) => ({ monthKey, label, amount }))
   }, [transactions, categoryMap])
 
   // Top merchants by spend for the selected range — falls back to the raw
