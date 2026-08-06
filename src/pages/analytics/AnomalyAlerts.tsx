@@ -13,9 +13,10 @@ interface AnomalyItem {
 
 interface AnomalyAlertsProps {
   anomalies: AnomalyItem[]
+  onAnomalyClick?: (category: string) => void
 }
 
-export function AnomalyAlerts({ anomalies }: AnomalyAlertsProps) {
+export function AnomalyAlerts({ anomalies, onAnomalyClick }: AnomalyAlertsProps) {
   const { getStyle } = useCategories()
   if (anomalies.length === 0) return null
 
@@ -30,7 +31,13 @@ export function AnomalyAlerts({ anomalies }: AnomalyAlertsProps) {
         {anomalies.map((anomaly, i) => {
           const cat = getStyle(anomaly.category)
           return (
-            <div key={i} className="rounded-xl bg-[var(--status-warning-subtle)] border border-[var(--status-warning-border)] p-4">
+            <div
+              key={i}
+              className={`rounded-xl bg-[var(--status-warning-subtle)] border border-[var(--status-warning-border)] p-4 ${onAnomalyClick ? 'cursor-pointer hover:opacity-75 transition-opacity' : ''}`}
+              onClick={onAnomalyClick ? () => onAnomalyClick(anomaly.category) : undefined}
+              role={onAnomalyClick ? 'button' : undefined}
+              tabIndex={onAnomalyClick ? 0 : undefined}
+            >
               <div className="flex items-center justify-between mb-2 gap-2">
                 <span className="text-sm font-bold text-[var(--status-warning-text)] flex items-center gap-1.5 truncate">
                   <CategoryIcon name={anomaly.category} className="text-sm shrink-0" />
