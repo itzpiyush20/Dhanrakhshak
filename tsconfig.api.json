@@ -22,6 +22,8 @@
   "include": [
     "api/**/*.ts",
     "src/services/emailScanner.ts",
+    "src/services/emailBoilerplate.ts",
+    "src/services/emailScanGates.ts",
     "src/services/aiService.ts",
     "src/services/learningEngine.ts",
     "src/services/googleAuth.ts",

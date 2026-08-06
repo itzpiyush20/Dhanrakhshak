@@ -11,6 +11,8 @@ import { extractBankName } from '../utils/index.js'
 import { applyMerchantRulesFromDB } from './learningEngine.js'
 import { getGoogleToken, clearGoogleToken, tryRefreshGoogleToken } from './googleAuth.js'
 import { analyzeTransactionEmailWithAI } from './aiService.js'
+import { stripBoilerplate } from './emailBoilerplate.js'
+import { evaluateRegexGates, logRejection } from './emailScanGates.js'
 
 type EmailScanLog = Database['public']['Tables']['email_scan_logs']['Row']
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert']
@@ -722,6 +724,12 @@ export interface ScanGmailOptions {
 
 export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
   const supabase = opts?.db || defaultSupabase
+  // Generated up front so every per-email rejection logged during this scan
+  // can reference the scan_log row before that row itself is inserted
+  // (which only happens after the whole scan completes, below).
+  const scanLogId: string = crypto.randomUUID
+    ? crypto.randomUUID()
+    : `scan-${Date.now()}-${Math.random().toString(36).slice(2)}`
   const askAI = opts?.askAI ||
     ((subject: string, body: string, emailDate: string, categoryNames?: string[]) =>
       analyzeTransactionEmailWithAI(subject, body, emailDate, undefined, categoryNames))
@@ -1010,7 +1018,16 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       const subject = subjectHeader?.value || ''
       const fromHeader = headers.find((h: any) => h.name?.toLowerCase() === 'from')
       const fromValue: string = fromHeader?.value || ''
-      const fullText = `${subject} ${bodyText} ${mail.snippet || ''}`
+      const senderDomainMatch = fromValue.match(/@([\w.-]+)>?/i)
+      const senderDomain = senderDomainMatch ? senderDomainMatch[1].toLowerCase() : ''
+      const isTrustedSender = TRUSTED_SENDER_DOMAINS.has(senderDomain) ||
+        [...TRUSTED_SENDER_DOMAINS].some(d => senderDomain.endsWith('.' + d))
+      // Strip security/legal footer boilerplate before ANY gate or the AI
+      // prompt sees this text — footers were colliding with rejection
+      // keywords (e.g. "has not been initiated by you") and silently
+      // dropping genuine transaction emails.
+      const strippedBodyText = stripBoilerplate(bodyText)
+      const fullText = `${subject} ${strippedBodyText} ${mail.snippet || ''}`
       const emailContentForParsing = fullText.substring(0, 2000)
 
       let parsedTxn: TransactionInsert | null = null
@@ -1018,7 +1035,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
 
       {
         try {
-          const aiResult = await askAI(subject, bodyText, mailDate, categoryNames)
+          const aiResult = await askAI(subject, strippedBodyText, mailDate, categoryNames)
           if (aiResult) {
             if (aiResult.is_transaction && aiResult.amount && aiResult.amount > 0) {
               if (aiResult.reference_id && existingRefIds.has(aiResult.reference_id)) {
