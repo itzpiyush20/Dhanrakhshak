@@ -94,9 +94,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Safe-to-spend hero number
   const [monthBudgetTotal, setMonthBudgetTotal] = useState(0)
-  const [budgetCategories, setBudgetCategories] = useState<string[]>([])
 
   // Calm consistency chip — real logging activity, not app opens
   const [streakInfo, setStreakInfo] = useState<{ streak: number; loggedToday: boolean }>({
@@ -223,7 +221,6 @@ export default function DashboardPage() {
       setSummary(summaryRes.data)
       setRecentTransactions(transactionsRes.data || [])
       setMonthBudgetTotal((budgetsRes.data || []).reduce((sum, b) => sum + Number(b.amount), 0))
-      setBudgetCategories(Array.from(new Set((budgetsRes.data || []).map((b) => b.category))))
       if (silent) setError(null) // Clear any previous timeout error on silent success
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err)
@@ -526,21 +523,7 @@ export default function DashboardPage() {
       ? Math.max(0, Math.min(100, (summary.savings / summary.total_income) * 100))
       : 0
 
-  // "Safe to spend" — the one glanceable number that answers "am I okay?"
-  // without the user having to do the income/expense/savings math themselves.
-  // Only meaningful for the current month (there's no "days left" in a past one).
   const isCurrentMonth = dateFilter.mode === 'month' && dateFilter.month === getCurrentMonth()
-  const today = new Date()
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
-  const daysLeftInMonth = Math.max(1, daysInMonth - today.getDate() + 1)
-  // Only spend in *budgeted* categories counts against the caps — comparing
-  // total expenses to a partial set of limits would report everyone as wildly
-  // over budget (and disagrees with the Budgets page).
-  const spentSoFar = (summary?.category_breakdown || [])
-    .filter((c) => budgetCategories.includes(c.category))
-    .reduce((sum, c) => sum + Number(c.amount), 0)
-  const budgetRemaining = monthBudgetTotal - spentSoFar
-  const safeToSpendPerDay = budgetRemaining / daysLeftInMonth
 
   // Most-used categories this month, for Quick-Add's one-tap chips
   const topCategories = (summary?.category_breakdown || [])
@@ -768,54 +751,6 @@ export default function DashboardPage() {
             <ReceivablesCard onSettled={() => fetchDashboardData(dateFilter)} />
             <InsurancePremiumCard onPaid={() => fetchDashboardData(dateFilter)} />
           </>
-        )}
-
-        {/* Safe-to-spend hero number — the single glanceable answer to
-            "am I okay this month?", shown only for the month in progress. */}
-        {!loading && isCurrentMonth && (
-          <Card className="relative overflow-hidden shadow-md">
-            {monthBudgetTotal === 0 ? (
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-11 w-11 rounded-xl bg-surface-2 border border-border-subtle/50 flex items-center justify-center shrink-0">
-                    <Wallet className="h-5 w-5 text-zinc-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-text-primary">Set a budget to see what's safe to spend</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">Takes under a minute — pick one category to start.</p>
-                  </div>
-                </div>
-                <Link to="/budgets" className="shrink-0">
-                  <Button size="sm">Set a budget</Button>
-                </Link>
-              </div>
-            ) : (
-              <div className="flex items-center gap-4">
-                <div className={`h-11 w-11 rounded-xl border flex items-center justify-center shrink-0 ${
-                  safeToSpendPerDay >= 0
-                    ? 'bg-[var(--status-positive-subtle)] border-[var(--status-positive-border)]'
-                    : 'bg-[var(--status-danger-subtle)] border-[var(--status-danger-border)]'
-                }`}>
-                  <Wallet className={`h-5 w-5 ${safeToSpendPerDay >= 0 ? 'text-[var(--status-positive-text)]' : 'text-[var(--status-danger-text)]'}`} />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                    {safeToSpendPerDay >= 0 ? 'Safe to spend' : 'Over budget by'}
-                  </p>
-                  <p className={`text-2xl font-bold tracking-tight ${safeToSpendPerDay >= 0 ? 'text-[var(--status-positive-text)]' : 'text-[var(--status-danger-text)]'}`}>
-                    {safeToSpendPerDay >= 0
-                      ? `${formatCurrency(safeToSpendPerDay)}/day`
-                      : formatCurrency(Math.abs(budgetRemaining))}
-                  </p>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    {safeToSpendPerDay >= 0
-                      ? `${formatCurrency(budgetRemaining)} left across ${daysLeftInMonth} day${daysLeftInMonth === 1 ? '' : 's'}`
-                      : `for the rest of ${formatDateFilterLabel(dateFilter)}`}
-                  </p>
-                </div>
-              </div>
-            )}
-          </Card>
         )}
 
         {/* Stats summary section */}
