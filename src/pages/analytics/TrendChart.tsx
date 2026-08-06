@@ -9,6 +9,13 @@ interface TrendItem {
   income: number
   expenses: number
   savings: number
+  /** Present on day-bucketed ranges (this-week, last-week, last-15-days). */
+  dateStr?: string
+  /** Present on the last-month range (week buckets). */
+  startStr?: string
+  endStr?: string
+  /** Present on the last-6-months range. */
+  monthKey?: string
 }
 
 interface TrendChartProps {
@@ -16,6 +23,8 @@ interface TrendChartProps {
   trendData: TrendItem[]
   loading: boolean
   hasTransactions: boolean
+  /** Called when a period bar/column is clicked, with that period's own item (carrying whichever of dateStr/startStr+endStr/monthKey applies) and its display label. */
+  onPeriodClick?: (item: TrendItem, label: string) => void
 }
 
 const getTrendDescription = (trendData: TrendItem[], range: RangeType) => {
@@ -43,6 +52,7 @@ export function TrendChart({
   trendData,
   loading,
   hasTransactions,
+  onPeriodClick,
 }: TrendChartProps) {
   const maxVal = trendData.length
     ? Math.max(...trendData.map((h) => Math.max(h.income, h.expenses)))
@@ -96,8 +106,11 @@ export function TrendChart({
                   return (
                     <div
                       key={index}
-                      className="flex-1 flex flex-col items-center h-full justify-end group relative cursor-pointer"
-                      onClick={() => setTappedIndex(tappedIndex === index ? null : index)}
+                      className={`flex-1 flex flex-col items-center h-full justify-end group relative cursor-pointer ${onPeriodClick ? 'hover:opacity-80' : ''}`}
+                      onClick={() => {
+                        setTappedIndex(tappedIndex === index ? null : index)
+                        onPeriodClick?.(h, h.label)
+                      }}
                     >
                       <div className={`absolute bottom-full mb-2 bg-zinc-950 border border-zinc-800 text-xs p-2.5 rounded-xl shadow-xl space-y-1 pointer-events-none transition-opacity z-10 min-w-[120px] text-left group-hover:opacity-100 ${tappedIndex === index ? 'opacity-100' : 'opacity-0'}`}>
                         <p className="font-semibold text-zinc-300 border-b border-border-subtle/50 pb-1 mb-1">
