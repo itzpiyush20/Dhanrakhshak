@@ -36,7 +36,8 @@ import {
   type RangeType,
   type MerchantLeaderboardItem,
   type CategoryTrendMonth,
-  type BudgetBurndownItem
+  type BudgetBurndownItem,
+  type CreditCardPaymentTrendItem
 } from './analytics'
 
 interface TrendItem {
@@ -692,17 +693,17 @@ export default function AnalyticsPage() {
           </div>
         )}
 
-        {/* Core view: trend, breakdown, one tip — enough for most check-ins */}
-        <TrendChart
-          range={range}
-          trendData={trendData}
-          loading={loading}
-          hasTransactions={transactions.length > 0}
-        />
-
-        <CreditCardPaymentTrend data={ccBillPaymentTrend} loading={loading} />
-
         <DrillDownProvider onDirtyClose={fetchAllData}>
+          {/* Core view: trend, breakdown, one tip — enough for most check-ins */}
+          <TrendChartWithDrillDown
+            range={range}
+            trendData={trendData}
+            loading={loading}
+            hasTransactions={transactions.length > 0}
+          />
+
+          <CreditCardPaymentTrendWithDrillDown data={ccBillPaymentTrend} loading={loading} />
+
           <div className="grid gap-6 lg:grid-cols-12">
             <ExpenseBreakdownWithDrillDown summary={summary} loading={loading} range={range} />
             <SmartWealthTips
@@ -715,95 +716,99 @@ export default function AnalyticsPage() {
 
           <div className="grid gap-6 lg:grid-cols-12">
             <CategoryTrendChartWithDrillDown data={categoryTrendData} loading={loading} hasTransactions={transactions.length > 0} />
-            <MerchantLeaderboard
-              data={merchantLeaderboard}
-              loading={loading}
-            />
+            <MerchantLeaderboardWithDrillDown data={merchantLeaderboard} loading={loading} range={range} />
           </div>
+
+          {/* Progressive disclosure toggle */}
+          {!loading && (
+            <button
+              onClick={toggleAdvanced}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border-subtle/50 bg-surface-2/40 text-xs font-semibold text-zinc-400 hover:text-zinc-200 hover:bg-surface-2 transition-colors"
+            >
+              {showAdvanced ? (
+                <>Hide advanced analysis <ChevronUp className="h-3.5 w-3.5" /></>
+              ) : (
+                <>Show advanced analysis — health score, AI insights, forecast, anomalies <ChevronDown className="h-3.5 w-3.5" /></>
+              )}
+            </button>
+          )}
+
+          {showAdvanced && (
+            <>
+              <div className="flex items-center justify-end gap-2 -mt-2">
+                <span className="text-xs text-zinc-500">Advisory period:</span>
+                <DateFilterPicker value={dateFilter} onChange={setDateFilter} />
+              </div>
+
+              {/* Executive Diagnostic Summary */}
+              {loading ? (
+                <div className="grid gap-6 md:grid-cols-3">
+                  <Card className="h-60 skeleton"><div /></Card>
+                  <Card className="md:col-span-2 h-60 skeleton"><div /></Card>
+                </div>
+              ) : (
+                <div className="grid gap-6 md:grid-cols-3">
+                  <AdherenceDiagnosticWithDrillDown
+                    healthScore={healthScore}
+                    totalIncome={totalIncome}
+                    totalDebit={totalDebit}
+                    advisoryFrom={advisoryFrom}
+                    advisoryTo={advisoryTo}
+                  />
+                  <BudgetVisualizerWithDrillDown
+                    needsSpent={needsSpent}
+                    needsPct={needsPct}
+                    wantsSpent={wantsSpent}
+                    wantsPct={wantsPct}
+                    savingsSpent={savingsSpent}
+                    finalSavingsPct={finalSavingsPct}
+                    totalIncome={totalIncome}
+                    emergencyMonths={emergencyMonths}
+                    isEmergencyFundReady={isEmergencyFundReady}
+                    advisoryFrom={advisoryFrom}
+                    advisoryTo={advisoryTo}
+                    needsCategoryNames={needsCategoryNames}
+                    wantsCategoryNames={wantsCategoryNames}
+                    savingsCategoryNames={savingsCategoryNames}
+                  />
+                </div>
+              )}
+
+              {!loading && (
+                <BudgetBurndownWithDrillDown data={budgetBurndownData} loading={loading} dateFilter={dateFilter} />
+              )}
+
+              {/* AI Wealth Advisory + Anomalies + Scenario Simulator */}
+              {!loading && (
+                <div className="space-y-6">
+                  <AnomalyAlertsWithDrillDown anomalies={anomalies} />
+
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <AIInsights
+                      aiSource={aiSource}
+                      aiLoading={aiLoading}
+                      aiAlerts={aiAlerts}
+                      aiInsights={aiInsights}
+                    />
+                    <ScenarioSimulator
+                      simSalary={simSalary}
+                      setSimSalary={setSimSalary}
+                      simWants={simWants}
+                      setSimWants={setSimWants}
+                      totalIncome={totalIncome}
+                      wantsSpent={wantsSpent}
+                      needsSpent={needsSpent}
+                    />
+                  </div>
+
+                  <ForecastPanel forecast={forecast} />
+                </div>
+              )}
+            </>
+          )}
 
           <DrillDownModal transactions={transactions} />
         </DrillDownProvider>
-
-        {/* Progressive disclosure toggle */}
-        {!loading && (
-          <button
-            onClick={toggleAdvanced}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border-subtle/50 bg-surface-2/40 text-xs font-semibold text-zinc-400 hover:text-zinc-200 hover:bg-surface-2 transition-colors"
-          >
-            {showAdvanced ? (
-              <>Hide advanced analysis <ChevronUp className="h-3.5 w-3.5" /></>
-            ) : (
-              <>Show advanced analysis — health score, AI insights, forecast, anomalies <ChevronDown className="h-3.5 w-3.5" /></>
-            )}
-          </button>
-        )}
-
-        {showAdvanced && (
-          <>
-            <div className="flex items-center justify-end gap-2 -mt-2">
-              <span className="text-xs text-zinc-500">Advisory period:</span>
-              <DateFilterPicker value={dateFilter} onChange={setDateFilter} />
-            </div>
-
-            {/* Executive Diagnostic Summary */}
-            {loading ? (
-              <div className="grid gap-6 md:grid-cols-3">
-                <Card className="h-60 skeleton"><div /></Card>
-                <Card className="md:col-span-2 h-60 skeleton"><div /></Card>
-              </div>
-            ) : (
-              <div className="grid gap-6 md:grid-cols-3">
-                <AdherenceDiagnostic
-                  healthScore={healthScore}
-                  totalIncome={totalIncome}
-                  totalDebit={totalDebit}
-                />
-                <BudgetVisualizer
-                  needsSpent={needsSpent}
-                  needsPct={needsPct}
-                  wantsSpent={wantsSpent}
-                  wantsPct={wantsPct}
-                  savingsSpent={savingsSpent}
-                  finalSavingsPct={finalSavingsPct}
-                  totalIncome={totalIncome}
-                  emergencyMonths={emergencyMonths}
-                  isEmergencyFundReady={isEmergencyFundReady}
-                />
-              </div>
-            )}
-
-            {!loading && (
-              <BudgetBurndown data={budgetBurndownData} loading={loading} />
-            )}
-
-            {/* AI Wealth Advisory + Anomalies + Scenario Simulator */}
-            {!loading && (
-              <div className="space-y-6">
-                <AnomalyAlerts anomalies={anomalies} />
-
-                <div className="grid gap-6 md:grid-cols-2">
-                  <AIInsights
-                    aiSource={aiSource}
-                    aiLoading={aiLoading}
-                    aiAlerts={aiAlerts}
-                    aiInsights={aiInsights}
-                  />
-                  <ScenarioSimulator
-                    simSalary={simSalary}
-                    setSimSalary={setSimSalary}
-                    simWants={simWants}
-                    setSimWants={setSimWants}
-                    totalIncome={totalIncome}
-                    wantsSpent={wantsSpent}
-                    needsSpent={needsSpent}
-                  />
-                </div>
-
-                <ForecastPanel forecast={forecast} />
-              </div>
-            )}
-          </>
-        )}
       </div>
     </AppLayout>
   )
@@ -837,6 +842,123 @@ function CategoryTrendChartWithDrillDown({ data, loading, hasTransactions }: { d
         const monthLabel = data.find((m) => m.monthKey === monthKey)?.label ?? monthKey
         openDrillDown({ category, month: monthKey }, `${category} — ${monthLabel}`)
       }}
+    />
+  )
+}
+
+function TrendChartWithDrillDown({ range, trendData, loading, hasTransactions }: { range: RangeType; trendData: TrendItem[]; loading: boolean; hasTransactions: boolean }) {
+  const { openDrillDown } = useDrillDown()
+  return (
+    <TrendChart
+      range={range}
+      trendData={trendData}
+      loading={loading}
+      hasTransactions={hasTransactions}
+      onPeriodClick={(item, label) => {
+        if (item.dateStr) {
+          openDrillDown({ dateFrom: item.dateStr, dateTo: item.dateStr }, label)
+        } else if (item.startStr && item.endStr) {
+          openDrillDown({ dateFrom: item.startStr, dateTo: item.endStr }, label)
+        } else if (item.monthKey) {
+          openDrillDown({ month: item.monthKey }, label)
+        }
+      }}
+    />
+  )
+}
+
+function CreditCardPaymentTrendWithDrillDown({ data, loading }: { data: CreditCardPaymentTrendItem[]; loading: boolean }) {
+  const { openDrillDown } = useDrillDown()
+  return (
+    <CreditCardPaymentTrend
+      data={data}
+      loading={loading}
+      onMonthClick={(monthKey, label) => openDrillDown({ category: 'Credit Card Bill Payment', month: monthKey }, `Credit Card Bill Payment — ${label}`)}
+    />
+  )
+}
+
+function MerchantLeaderboardWithDrillDown({ data, loading, range }: { data: MerchantLeaderboardItem[]; loading: boolean; range: RangeType }) {
+  const { openDrillDown } = useDrillDown()
+  return (
+    <MerchantLeaderboard
+      data={data}
+      loading={loading}
+      onMerchantClick={(merchant) => {
+        const { start, end } = getRangeDates(range)
+        openDrillDown({ merchant, dateFrom: toISODateLocal(start), dateTo: toISODateLocal(end) }, merchant)
+      }}
+    />
+  )
+}
+
+function AnomalyAlertsWithDrillDown({ anomalies }: { anomalies: { category: string; thisMonth: number; baseline: number; spike: number }[] }) {
+  const { openDrillDown } = useDrillDown()
+  return (
+    <AnomalyAlerts
+      anomalies={anomalies}
+      onAnomalyClick={(category) => openDrillDown({ category, month: getCurrentMonth() }, `${category} — spike this month`)}
+    />
+  )
+}
+
+function BudgetBurndownWithDrillDown({ data, loading, dateFilter }: { data: BudgetBurndownItem[]; loading: boolean; dateFilter: DateFilter }) {
+  const { openDrillDown } = useDrillDown()
+  return (
+    <BudgetBurndown
+      data={data}
+      loading={loading}
+      onCategoryClick={(category) => {
+        const targetMonth = dateFilter.mode === 'month' ? dateFilter.month : resolveDateFilter(dateFilter).dateTo.slice(0, 7)
+        openDrillDown({ category, month: targetMonth }, category)
+      }}
+    />
+  )
+}
+
+function AdherenceDiagnosticWithDrillDown({ healthScore, totalIncome, totalDebit, advisoryFrom, advisoryTo }: { healthScore: number; totalIncome: number; totalDebit: number; advisoryFrom: string; advisoryTo: string }) {
+  const { openDrillDown } = useDrillDown()
+  return (
+    <AdherenceDiagnostic
+      healthScore={healthScore}
+      totalIncome={totalIncome}
+      totalDebit={totalDebit}
+      onClick={() => openDrillDown({ dateFrom: advisoryFrom, dateTo: advisoryTo }, 'All transactions this period')}
+    />
+  )
+}
+
+function BudgetVisualizerWithDrillDown({
+  needsSpent, needsPct, wantsSpent, wantsPct, savingsSpent, finalSavingsPct, totalIncome, emergencyMonths, isEmergencyFundReady,
+  advisoryFrom, advisoryTo, needsCategoryNames, wantsCategoryNames, savingsCategoryNames,
+}: {
+  needsSpent: number; needsPct: number; wantsSpent: number; wantsPct: number; savingsSpent: number; finalSavingsPct: number
+  totalIncome: number; emergencyMonths: number; isEmergencyFundReady: boolean
+  advisoryFrom: string; advisoryTo: string
+  needsCategoryNames: string[]; wantsCategoryNames: string[]; savingsCategoryNames: string[]
+}) {
+  const { openDrillDown } = useDrillDown()
+  const bucketLabels: Record<'needs' | 'wants' | 'savings', string> = { needs: 'Needs', wants: 'Wants', savings: 'Savings' }
+  const bucketCategories: Record<'needs' | 'wants' | 'savings', string[]> = {
+    needs: needsCategoryNames,
+    wants: wantsCategoryNames,
+    savings: savingsCategoryNames,
+  }
+  return (
+    <BudgetVisualizer
+      needsSpent={needsSpent}
+      needsPct={needsPct}
+      wantsSpent={wantsSpent}
+      wantsPct={wantsPct}
+      savingsSpent={savingsSpent}
+      finalSavingsPct={finalSavingsPct}
+      totalIncome={totalIncome}
+      emergencyMonths={emergencyMonths}
+      isEmergencyFundReady={isEmergencyFundReady}
+      onBucketClick={(bucket) => openDrillDown(
+        { categories: bucketCategories[bucket], dateFrom: advisoryFrom, dateTo: advisoryTo },
+        bucketLabels[bucket]
+      )}
     />
   )
 }
