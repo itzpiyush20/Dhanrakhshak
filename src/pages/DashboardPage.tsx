@@ -96,6 +96,7 @@ export default function DashboardPage() {
 
   // Safe-to-spend hero number
   const [monthBudgetTotal, setMonthBudgetTotal] = useState(0)
+  const [budgetCategories, setBudgetCategories] = useState<string[]>([])
 
   // Calm consistency chip — real logging activity, not app opens
   const [streakInfo, setStreakInfo] = useState<{ streak: number; loggedToday: boolean }>({
@@ -222,6 +223,7 @@ export default function DashboardPage() {
       setSummary(summaryRes.data)
       setRecentTransactions(transactionsRes.data || [])
       setMonthBudgetTotal((budgetsRes.data || []).reduce((sum, b) => sum + Number(b.amount), 0))
+      setBudgetCategories(Array.from(new Set((budgetsRes.data || []).map((b) => b.category))))
       if (silent) setError(null) // Clear any previous timeout error on silent success
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err)
@@ -531,7 +533,12 @@ export default function DashboardPage() {
   const today = new Date()
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
   const daysLeftInMonth = Math.max(1, daysInMonth - today.getDate() + 1)
-  const spentSoFar = summary?.total_expenses || 0
+  // Only spend in *budgeted* categories counts against the caps — comparing
+  // total expenses to a partial set of limits would report everyone as wildly
+  // over budget (and disagrees with the Budgets page).
+  const spentSoFar = (summary?.category_breakdown || [])
+    .filter((c) => budgetCategories.includes(c.category))
+    .reduce((sum, c) => sum + Number(c.amount), 0)
   const budgetRemaining = monthBudgetTotal - spentSoFar
   const safeToSpendPerDay = budgetRemaining / daysLeftInMonth
 
