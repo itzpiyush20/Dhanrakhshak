@@ -77,3 +77,35 @@ export function evaluateRegexGates(
 
   return { rejected: false, gate: null, snippet: null }
 }
+
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+/**
+ * Fire-and-forget: records why an email was rejected so a future recall
+ * gap is diagnosable without a manual code trace. Must never throw or
+ * slow down the scan it's called from — failures are logged to console
+ * only.
+ */
+export async function logRejection(
+  db: SupabaseClient,
+  userId: string,
+  scanLogId: string,
+  gate: string,
+  senderDomain: string,
+  subject: string,
+  matchedSnippet: string
+): Promise<void> {
+  try {
+    const { error } = await db.from('email_scan_rejections').insert({
+      user_id: userId,
+      scan_log_id: scanLogId,
+      sender_domain: senderDomain || null,
+      subject: subject ? subject.substring(0, 500) : null,
+      gate,
+      matched_snippet: matchedSnippet ? matchedSnippet.substring(0, 200) : null,
+    })
+    if (error) console.warn(`[emailScanner] Failed to log rejection (gate=${gate}):`, error.message)
+  } catch (e) {
+    console.warn(`[emailScanner] Failed to log rejection (gate=${gate}):`, e)
+  }
+}
