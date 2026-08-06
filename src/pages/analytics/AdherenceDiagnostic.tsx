@@ -6,9 +6,10 @@ interface AdherenceDiagnosticProps {
   healthScore: number
   totalIncome: number
   totalDebit: number
+  onClick?: () => void
 }
 
-export function AdherenceDiagnostic({ healthScore, totalIncome, totalDebit }: AdherenceDiagnosticProps) {
+export function AdherenceDiagnostic({ healthScore, totalIncome, totalDebit, onClick }: AdherenceDiagnosticProps) {
   const scoreColor =
     healthScore >= 80 ? 'text-[var(--status-positive-text)]' :
     healthScore >= 55 ? 'text-[var(--status-warning-text)]' :
@@ -20,7 +21,12 @@ export function AdherenceDiagnostic({ healthScore, totalIncome, totalDebit }: Ad
     'border-[var(--status-danger-border)] bg-[var(--status-danger-subtle)]'
 
   return (
-    <Card className={`border md:col-span-1 flex flex-col items-center justify-center p-6 text-center shadow-lg ${scoreBg}`}>
+    <Card
+      className={`border md:col-span-1 flex flex-col items-center justify-center p-6 text-center shadow-lg ${scoreBg} ${onClick ? 'cursor-pointer hover:opacity-75' : ''}`}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+    >
       <div className="relative flex items-center justify-center h-28 w-28 rounded-full border-4 border-dashed border-zinc-700/60 mb-4 bg-surface-1/40">
         <span className={`text-4xl font-extrabold tracking-tight ${scoreColor}`}>
           {healthScore}

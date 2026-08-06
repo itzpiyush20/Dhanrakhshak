@@ -12,6 +12,7 @@ interface BudgetVisualizerProps {
   totalIncome: number
   emergencyMonths: number
   isEmergencyFundReady: boolean
+  onBucketClick?: (bucket: 'needs' | 'wants' | 'savings') => void
 }
 
 export function BudgetVisualizer({
@@ -24,6 +25,7 @@ export function BudgetVisualizer({
   totalIncome,
   emergencyMonths,
   isEmergencyFundReady,
+  onBucketClick,
 }: BudgetVisualizerProps) {
   const savingsValue = totalIncome > 0 ? (totalIncome - needsSpent - wantsSpent) : savingsSpent
 
@@ -33,7 +35,12 @@ export function BudgetVisualizer({
         <h2 className="text-base font-bold text-zinc-200 mb-4">50/30/20 Cashflow Distribution</h2>
         <div className="space-y-4">
           {/* Needs */}
-          <div>
+          <div
+            onClick={onBucketClick ? () => onBucketClick('needs') : undefined}
+            className={onBucketClick ? 'cursor-pointer hover:opacity-75' : ''}
+            role={onBucketClick ? 'button' : undefined}
+            tabIndex={onBucketClick ? 0 : undefined}
+          >
             <div className="flex flex-col sm:flex-row sm:justify-between text-xs gap-1 mb-1">
               <span className="text-zinc-400 font-semibold flex items-center gap-1.5">
                 <Package className="w-3.5 h-3.5 text-[var(--status-info-text)] shrink-0" />
@@ -52,7 +59,12 @@ export function BudgetVisualizer({
           </div>
 
           {/* Wants */}
-          <div>
+          <div
+            onClick={onBucketClick ? () => onBucketClick('wants') : undefined}
+            className={onBucketClick ? 'cursor-pointer hover:opacity-75' : ''}
+            role={onBucketClick ? 'button' : undefined}
+            tabIndex={onBucketClick ? 0 : undefined}
+          >
             <div className="flex flex-col sm:flex-row sm:justify-between text-xs gap-1 mb-1">
               <span className="text-zinc-400 font-semibold flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-[var(--status-warning-text)] shrink-0" />
@@ -71,7 +83,12 @@ export function BudgetVisualizer({
           </div>
 
           {/* Savings */}
-          <div>
+          <div
+            onClick={onBucketClick ? () => onBucketClick('savings') : undefined}
+            className={onBucketClick ? 'cursor-pointer hover:opacity-75' : ''}
+            role={onBucketClick ? 'button' : undefined}
+            tabIndex={onBucketClick ? 0 : undefined}
+          >
             <div className="flex flex-col sm:flex-row sm:justify-between text-xs gap-1 mb-1">
               <span className="text-zinc-400 font-semibold flex items-center gap-1.5">
                 <TrendingUp className="w-3.5 h-3.5 text-[var(--status-positive-text)] shrink-0" />
