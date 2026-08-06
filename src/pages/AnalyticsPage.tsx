@@ -3,7 +3,7 @@
 // Merged Insights and CA Advisory dashboard
 // ============================================
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import AppLayout from '@/layouts/AppLayout'
 import { Card, DateFilterPicker } from '@/components/ui'
@@ -16,6 +16,8 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { detectAnomalies, generateForecast, generateAIInsights } from '@/services/aiService'
 import type { FinancialContext } from '@/services/aiService'
 import { getBudgets } from '@/services/budgets'
+import { DrillDownProvider, useDrillDown } from '@/context/DrillDownContext'
+import { DrillDownModal } from '@/pages/analytics/DrillDownModal'
 import {
   AdherenceDiagnostic,
   BudgetVisualizer,
@@ -335,42 +337,41 @@ export default function AnalyticsPage() {
     if (user) localStorage.setItem(`dhanrakshak_visited_analytics_${user.id}`, 'true')
   }, [user])
 
+  const fetchAllData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('User not authenticated')
+
+      const { data, error: queryError } = await withTimeout(
+        Promise.resolve(
+          supabase
+            .from('transactions')
+            .select('id, amount, type, category, date, merchant, description')
+            .eq('user_id', user.id)
+            .eq('approval_status', 'approved')
+            .gte('date', (() => { const d = new Date(); d.setMonth(d.getMonth() - 6); return toISODateLocal(d) })())
+            .order('date', { ascending: true })
+        ) as Promise<any>,
+        45000,
+        'Insights data fetch'
+      )
+
+      if (queryError) throw queryError
+      setTransactions(data || [])
+    } catch (err: any) {
+      console.error('Error fetching insights data:', err)
+      setError(err.message || 'Failed to load financial analysis.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     document.title = 'Insights | Dhanrakshak'
-
-    async function fetchAllData() {
-      setLoading(true)
-      setError(null)
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) throw new Error('User not authenticated')
-
-        const { data, error: queryError } = await withTimeout(
-          Promise.resolve(
-            supabase
-              .from('transactions')
-              .select('id, amount, type, category, date, merchant, description')
-              .eq('user_id', user.id)
-              .eq('approval_status', 'approved')
-              .gte('date', (() => { const d = new Date(); d.setMonth(d.getMonth() - 6); return toISODateLocal(d) })())
-              .order('date', { ascending: true })
-          ) as Promise<any>,
-          45000,
-          'Insights data fetch'
-        )
-
-        if (queryError) throw queryError
-        setTransactions(data || [])
-      } catch (err: any) {
-        console.error('Error fetching insights data:', err)
-        setError(err.message || 'Failed to load financial analysis.')
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchAllData()
-  }, [])
+  }, [fetchAllData])
 
   // Credit card bill payments are excluded from every total/trend/breakdown on
   // this page — the purchases they cover were already counted as expenses when
@@ -696,30 +697,27 @@ export default function AnalyticsPage() {
 
         <CreditCardPaymentTrend data={ccBillPaymentTrend} loading={loading} />
 
-        <div className="grid gap-6 lg:grid-cols-12">
-          <ExpenseBreakdown
-            summary={summary}
-            loading={loading}
-          />
-          <SmartWealthTips
-            loading={loading}
-            summary={summary}
-            trend={trend}
-            savingsRate={savingsRate}
-          />
-        </div>
+        <DrillDownProvider onDirtyClose={fetchAllData}>
+          <div className="grid gap-6 lg:grid-cols-12">
+            <ExpenseBreakdownWithDrillDown summary={summary} loading={loading} range={range} />
+            <SmartWealthTips
+              loading={loading}
+              summary={summary}
+              trend={trend}
+              savingsRate={savingsRate}
+            />
+          </div>
 
-        <div className="grid gap-6 lg:grid-cols-12">
-          <CategoryTrendChart
-            data={categoryTrendData}
-            loading={loading}
-            hasTransactions={transactions.length > 0}
-          />
-          <MerchantLeaderboard
-            data={merchantLeaderboard}
-            loading={loading}
-          />
-        </div>
+          <div className="grid gap-6 lg:grid-cols-12">
+            <CategoryTrendChartWithDrillDown data={categoryTrendData} loading={loading} hasTransactions={transactions.length > 0} />
+            <MerchantLeaderboard
+              data={merchantLeaderboard}
+              loading={loading}
+            />
+          </div>
+
+          <DrillDownModal transactions={transactions} />
+        </DrillDownProvider>
 
         {/* Progressive disclosure toggle */}
         {!loading && (
@@ -803,6 +801,38 @@ export default function AnalyticsPage() {
         )}
       </div>
     </AppLayout>
+  )
+}
+
+function ExpenseBreakdownWithDrillDown({ summary, loading, range }: { summary: SummaryData | null; loading: boolean; range: RangeType }) {
+  const { openDrillDown } = useDrillDown()
+  return (
+    <ExpenseBreakdown
+      summary={summary}
+      loading={loading}
+      onCategoryClick={(category) => {
+        const { start, end } = getRangeDates(range)
+        openDrillDown(
+          { category, dateFrom: toISODateLocal(start), dateTo: toISODateLocal(end) },
+          category
+        )
+      }}
+    />
+  )
+}
+
+function CategoryTrendChartWithDrillDown({ data, loading, hasTransactions }: { data: CategoryTrendMonth[]; loading: boolean; hasTransactions: boolean }) {
+  const { openDrillDown } = useDrillDown()
+  return (
+    <CategoryTrendChart
+      data={data}
+      loading={loading}
+      hasTransactions={hasTransactions}
+      onSegmentClick={(category, monthKey) => {
+        const monthLabel = data.find((m) => m.monthKey === monthKey)?.label ?? monthKey
+        openDrillDown({ category, month: monthKey }, `${category} — ${monthLabel}`)
+      }}
+    />
   )
 }
 
