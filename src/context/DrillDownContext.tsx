@@ -3,6 +3,10 @@ import { createContext, useCallback, useContext, useState, type ReactNode } from
 
 export interface DrillDownFilter {
   category?: string
+  /** Match any category in this list instead of a single one — e.g. Budget Visualizer's "Needs" bucket spans several categories via the analytics_tags system. Takes precedence over `category` if both happen to be set. */
+  categories?: string[]
+  /** Match on merchant instead of/in addition to category — e.g. Merchant Leaderboard drills by merchant. */
+  merchant?: string
   type?: 'debit' | 'credit'
   /** YYYY-MM-DD. Takes precedence over `month` when both are set — matches getTransactions()'s own precedence in src/services/transactions.ts. */
   dateFrom?: string
@@ -12,13 +16,19 @@ export interface DrillDownFilter {
   month?: string
 }
 
-/** Pure filter matcher, shared by any drill-down-capable chart. Matches on category (if given), then either an explicit date range or a month prefix (if given) — never both. */
-export function filterTransactionsForDrillDown<T extends { category: string; date: string }>(
+/** Pure filter matcher, shared by any drill-down-capable chart. */
+export function filterTransactionsForDrillDown<T extends { category: string; date: string; merchant?: string | null }>(
   transactions: T[],
   filter: DrillDownFilter
 ): T[] {
   return transactions.filter((t) => {
-    if (filter.category && t.category !== filter.category) return false
+    if (filter.categories) {
+      if (!filter.categories.includes(t.category)) return false
+    } else if (filter.category && t.category !== filter.category) {
+      return false
+    }
+    if (filter.merchant && t.merchant !== filter.merchant) return false
+    if (filter.type && (t as { type?: string }).type !== filter.type) return false
     if (filter.dateFrom || filter.dateTo) {
       if (filter.dateFrom && t.date < filter.dateFrom) return false
       if (filter.dateTo && t.date > filter.dateTo) return false

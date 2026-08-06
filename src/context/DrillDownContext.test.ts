@@ -44,4 +44,38 @@ describe('filterTransactionsForDrillDown', () => {
     const filter: DrillDownFilter = { category: 'Travel' }
     expect(filterTransactionsForDrillDown(txns, filter)).toEqual([])
   })
+
+  it('filters by merchant', () => {
+    const merchantTxns = [
+      { id: '1', category: 'Food & Dining', date: '2026-08-01', merchant: 'Zomato' },
+      { id: '2', category: 'Food & Dining', date: '2026-08-02', merchant: 'Swiggy' },
+      { id: '3', category: 'Shopping', date: '2026-08-03', merchant: 'Zomato' },
+    ]
+    const result = filterTransactionsForDrillDown(merchantTxns, { merchant: 'Zomato' })
+    expect(result.map((t) => t.id)).toEqual(['1', '3'])
+  })
+
+  it('filters by categories (match-any) combined with a date range', () => {
+    const catTxns = [
+      { id: '1', category: 'Groceries', date: '2026-08-05' },
+      { id: '2', category: 'Rent', date: '2026-08-05' },
+      { id: '3', category: 'Shopping', date: '2026-08-05' },
+      { id: '4', category: 'Groceries', date: '2026-07-01' },
+    ]
+    const result = filterTransactionsForDrillDown(catTxns, {
+      categories: ['Groceries', 'Rent'],
+      dateFrom: '2026-08-01',
+      dateTo: '2026-08-31',
+    })
+    expect(result.map((t) => t.id)).toEqual(['1', '2'])
+  })
+
+  it('categories takes precedence over a single category field if both are somehow set', () => {
+    const catTxns = [
+      { id: '1', category: 'Groceries', date: '2026-08-05' },
+      { id: '2', category: 'Rent', date: '2026-08-05' },
+    ]
+    const result = filterTransactionsForDrillDown(catTxns, { category: 'Groceries', categories: ['Rent'] })
+    expect(result.map((t) => t.id)).toEqual(['2'])
+  })
 })
