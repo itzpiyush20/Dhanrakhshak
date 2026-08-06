@@ -20,7 +20,7 @@ import {
 } from '@/services'
 import { saveMerchantRuleToDb } from '@/services/learningEngine'
 import { useAuth } from '@/context/AuthContext'
-import { formatCurrency, formatDate, parsePaymentSource, formatPaymentSource, isCardPayment, withTimeout } from '@/utils'
+import { formatCurrency, formatDate, parsePaymentSource, formatPaymentSource, isCardPayment, withTimeout, getCurrentMonth } from '@/utils'
 import type { Database } from '@/types/database'
 import { useToast } from '@/context'
 import { useCategories } from '@/context/CategoriesContext'
@@ -230,11 +230,20 @@ export default function PendingPage() {
   const fetchUnconfirmedCategorizations = useCallback(async () => {
     if (!user) return
     try {
+      // Scoped to the current month only — older transactions that never
+      // got an explicit category_confirmed_at (a historical data gap in
+      // how some insert paths wrote rows) should not keep resurfacing in
+      // this review modal indefinitely. Anything already confirmed is
+      // permanently excluded regardless of date; this only stops PAST
+      // months' never-confirmed rows from being asked about again — it
+      // does not retroactively mark them confirmed.
+      const monthStart = `${getCurrentMonth()}-01`
       const { data } = await supabase
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
         .is('category_confirmed_at', null)
+        .gte('date', monthStart)
         .order('date', { ascending: false })
       if (data && data.length > 0) {
         setAutoCategorizedTxns(data)

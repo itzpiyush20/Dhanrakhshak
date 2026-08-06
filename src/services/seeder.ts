@@ -38,7 +38,7 @@ export async function seedSandboxData() {
   // ==========================================
   // B. PREPARE TRANSACTIONS (APPROVED)
   // ==========================================
-  const transactions: TransactionInsert[] = [
+  const approvedTransactionSeeds: TransactionInsert[] = [
     // Current Month — Credits
     {
       user_id: user.id,
@@ -204,6 +204,15 @@ export async function seedSandboxData() {
       approval_status: 'approved',
     },
   ]
+
+  // Every entry above is pre-approved seed data — explicitly stamp
+  // category_confirmed_at (rather than relying on the DB column default)
+  // so seeded transactions never resurface in the "awaiting your
+  // confirmation" review modal on Pending Alerts.
+  const transactions: TransactionInsert[] = approvedTransactionSeeds.map((t) => ({
+    ...t,
+    category_confirmed_at: new Date(`${t.date}T12:00:00Z`).toISOString(),
+  }))
 
   // ==========================================
   // C. PREPARE PENDING ALERTS

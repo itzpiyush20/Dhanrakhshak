@@ -62,6 +62,11 @@ export default function QuickAddWidget({ topCategories, onAdded }: QuickAddWidge
       date: new Date().toISOString().split('T')[0],
       source: 'manual',
       approval_status: 'approved',
+      // Explicitly stamp this rather than relying on the DB column
+      // default — a manually entered, self-approved transaction should
+      // never resurface in the "awaiting your confirmation" review modal
+      // on Pending Alerts.
+      category_confirmed_at: new Date().toISOString(),
     })
     setSaving(false)
 
