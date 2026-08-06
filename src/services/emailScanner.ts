@@ -909,9 +909,15 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     let messages: { id: string; threadId: string }[] = []
     let nextPageToken = ''
 
+    // Page size only — NOT a cap on total messages processed. The scan
+    // window (isFirstScan / since-last-successful-scan, computed above)
+    // defines completeness; a message-count cap here would silently
+    // truncate the oldest matches whenever a window has more mail than
+    // the cap, which is exactly when completeness matters most (a first
+    // 7-day scan, or a scan after a gap).
     do {
-      const maxResults = isOwner ? 200 : 100
-      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=${encodeURIComponent(q)}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`
+      const pageSize = isOwner ? 200 : 100
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${pageSize}&q=${encodeURIComponent(q)}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`
       const listRes = await fetch(url, { headers: { Authorization: `Bearer ${providerToken}` } })
 
       if (listRes.status === 401 || listRes.status === 403) {
@@ -922,8 +928,6 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
 
       const listData = await listRes.json() as any
       if (listData.messages) messages = messages.concat(listData.messages)
-      const messageLimit = isOwner ? 200 : 100
-      if (messages.length >= messageLimit) { messages = messages.slice(0, messageLimit); break }
       nextPageToken = listData.nextPageToken || ''
     } while (nextPageToken)
 
