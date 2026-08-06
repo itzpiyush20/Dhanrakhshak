@@ -11,9 +11,10 @@ export interface MerchantLeaderboardItem {
 interface MerchantLeaderboardProps {
   data: MerchantLeaderboardItem[]
   loading: boolean
+  onMerchantClick?: (merchant: string) => void
 }
 
-export function MerchantLeaderboard({ data, loading }: MerchantLeaderboardProps) {
+export function MerchantLeaderboard({ data, loading, onMerchantClick }: MerchantLeaderboardProps) {
   const maxAmount = data.length ? Math.max(...data.map((d) => d.amount)) : 0
 
   return (
@@ -45,7 +46,13 @@ export function MerchantLeaderboard({ data, loading }: MerchantLeaderboardProps)
         ) : (
           <div className="space-y-3.5">
             {data.map((item, index) => (
-              <div key={item.merchant} className="space-y-1">
+              <div
+                key={item.merchant}
+                className={`space-y-1 ${onMerchantClick ? 'cursor-pointer hover:opacity-75' : ''}`}
+                onClick={onMerchantClick ? () => onMerchantClick(item.merchant) : undefined}
+                role={onMerchantClick ? 'button' : undefined}
+                tabIndex={onMerchantClick ? 0 : undefined}
+              >
                 <div className="flex items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="shrink-0 h-5 w-5 rounded-full bg-surface-2 border border-border-subtle/50 flex items-center justify-center text-[10px] font-bold text-zinc-500">
