@@ -47,7 +47,7 @@ vi.mock('./supabase', () => ({
   },
 }))
 
-import { getLoggingStreak, getActiveReceivables, settleReceivable, getMonthlySummary, getHistoricalAnalytics, getSummary } from './transactions'
+import { getLoggingStreak, getActiveReceivables, settleReceivable, getMonthlySummary, getHistoricalAnalytics, getSummary, getTransactionById } from './transactions'
 
 function isoDaysAgo(n: number) {
   const d = new Date()
@@ -241,6 +241,20 @@ describe('getSummary', () => {
     })
     const { data } = await getSummary({ dateFrom: '2026-07-01', dateTo: '2026-07-31' })
     expect(data!.total_expenses).toBe(500)
+  })
+})
+
+describe('getTransactionById', () => {
+  it('returns the full transaction row for a given id', async () => {
+    const fullRow = {
+      id: 't1', user_id: 'u1', amount: 500, type: 'debit', category: 'Food & Dining',
+      date: '2026-08-01', merchant: 'Zomato', description: 'Zomato order',
+      source: 'manual', approval_status: 'approved', category_confirmed_at: '2026-08-01T00:00:00Z',
+    }
+    mockSingle.mockResolvedValue({ data: fullRow, error: null })
+    const { data, error } = await getTransactionById('t1')
+    expect(error).toBeNull()
+    expect(data).toEqual(fullRow)
   })
 })
 
