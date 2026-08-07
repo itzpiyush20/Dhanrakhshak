@@ -4,6 +4,7 @@
 // ============================================
 
 import { supabase } from './supabase'
+import { disconnectGmail } from './googleAuth'
 import type { Database } from '@/types/database'
 
 type ProfileRow = Database['public']['Tables']['profiles']['Row']
@@ -96,6 +97,18 @@ export async function deleteAccount(): Promise<{ error: Error | null; success: b
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: new Error('User not authenticated'), success: false, method: 'purge' }
 
+  // 0. Revoke the Google grant before the account goes away. Deleting the row
+  // alone would leave a live grant sitting in the user's Google account with
+  // nothing left here to revoke it from. Best-effort: a revoke failure must
+  // never block erasure, which is the user's actual right.
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session?.access_token) {
+    const { error: revokeError } = await disconnectGmail(session.access_token)
+    if (revokeError) {
+      console.warn('deleteAccount: Gmail revoke failed, continuing with deletion:', revokeError)
+    }
+  }
+
   // 1. Try to invoke the postgres superuser-level RPC cascade
   try {
     const { error: rpcErr } = await supabase.rpc('delete_user')
@@ -127,10 +140,15 @@ export async function deleteAccount(): Promise<{ error: Error | null; success: b
     .eq('id', user.id)
 
   if (profileErr) {
-    // If profile delete fails due to lack of policy, we still count as success but return the warning.
+    // Report this as a failure. Returning success here told the user their
+    // account was gone while their profile row (and auth login) survived —
+    // the one outcome an erasure request must never report as done.
     return {
-      error: new Error('Local database logs purged, but auth account deletion requires Supabase SQL editor configuration.'),
-      success: true,
+      error: new Error(
+        'Your transaction data was erased, but the account itself could not be deleted. ' +
+        'Please contact support so we can complete the deletion.'
+      ),
+      success: false,
       method: 'purge',
     }
   }

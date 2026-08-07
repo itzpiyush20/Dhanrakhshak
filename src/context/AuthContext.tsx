@@ -15,7 +15,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase, readStoredSession } from '@/services/supabase'
-import { saveGoogleToken, clearGoogleToken, clearAllGoogleTokens, isGoogleConnected, purgeOldTokenKey, validateGoogleToken, saveGoogleRefreshToken, saveGoogleRefreshTokenServerSide, tryRefreshGoogleToken } from '@/services/googleAuth'
+import { saveGoogleToken, clearGoogleToken, clearAllGoogleTokens, isGoogleConnected, purgeOldTokenKey, validateGoogleToken, saveGoogleRefreshTokenServerSide, migrateLegacyRefreshToken, disconnectGmail, tryRefreshGoogleToken } from '@/services/googleAuth'
 import { Button } from '@/components/ui'
 import { identifyUser, resetAnalytics, track, EVENTS } from '@/services/analytics'
 
@@ -30,6 +30,7 @@ interface AuthContextValue extends AuthState {
   hasGoogleToken: boolean
   refreshProfile: () => Promise<void>
   notifyGoogleTokenCleared: () => void
+  disconnectGoogle: () => Promise<{ error: string | null }>
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signInWithGoogle: (redirectPath?: string, requestGmailScope?: boolean, forceConsent?: boolean) => Promise<{ error: string | null }>
@@ -202,6 +203,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearGoogleToken()
     setHasGoogleToken(false)
   }, [])
+
+  // Full Gmail disconnect: revokes the grant at Google and deletes the
+  // server-side refresh token, so the daily sync cron stops reading this
+  // inbox. Distinct from notifyGoogleTokenCleared, which only drops the
+  // short-lived access token when it expires.
+  const disconnectGoogle = useCallback(async (): Promise<{ error: string | null }> => {
+    const jwt = state.session?.access_token
+    if (!jwt) return { error: 'You must be signed in to disconnect Gmail.' }
+    const { error } = await disconnectGmail(jwt)
+    setHasGoogleToken(false)
+    return { error }
+  }, [state.session?.access_token])
 
   const refreshProfile = async () => {
     if (!state.user) {
@@ -508,11 +521,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading: false,
       })
 
-      if (session?.provider_refresh_token) {
-        saveGoogleRefreshToken(session.provider_refresh_token)
-        if (session.access_token) {
-          saveGoogleRefreshTokenServerSide(session.access_token, session.provider_refresh_token)
-        }
+      // The refresh token goes straight to the server and is never written to
+      // localStorage — it is a permanent Gmail credential.
+      if (session?.provider_refresh_token && session.access_token) {
+        saveGoogleRefreshTokenServerSide(session.access_token, session.provider_refresh_token)
+      } else if (session?.access_token) {
+        // Upgrade path: move any refresh token left in localStorage by an older
+        // build to the server, then erase it. Keeps existing Gmail connections
+        // working without forcing a re-authorisation.
+        migrateLegacyRefreshToken(session.access_token)
       }
 
       if (session?.provider_token) {
@@ -570,11 +587,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           loading: false,
         })
 
-        if (session?.provider_refresh_token) {
-          saveGoogleRefreshToken(session.provider_refresh_token)
-          if (session.access_token) {
-            saveGoogleRefreshTokenServerSide(session.access_token, session.provider_refresh_token)
-          }
+        // Server-side only — see the note on the matching block above.
+        if (session?.provider_refresh_token && session.access_token) {
+          saveGoogleRefreshTokenServerSide(session.access_token, session.provider_refresh_token)
+        } else if (session?.access_token) {
+          migrateLegacyRefreshToken(session.access_token)
         }
 
         if (session?.provider_token) {
@@ -910,6 +927,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         hasGoogleToken,
         notifyGoogleTokenCleared,
+        disconnectGoogle,
         refreshProfile,
         signUp,
         signIn,

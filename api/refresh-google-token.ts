@@ -36,11 +36,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Server misconfiguration' })
   }
 
-  const { refreshToken } = req.body ?? {}
-  if (!refreshToken || typeof refreshToken !== 'string') {
-    return res.status(400).json({ error: 'refreshToken required' })
-  }
-
   // Verify the caller is an authenticated Supabase user before touching their Google token
   const authHeader = req.headers.authorization
   if (!authHeader?.startsWith('Bearer ')) {
@@ -53,6 +48,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   )
   const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(jwt)
   if (userError || !user) return res.status(401).json({ error: 'Unauthorized' })
+
+  // The refresh token is looked up by the authenticated user's id — never accepted
+  // from the request body. Taking it from the caller would turn this endpoint into
+  // a token-exchange oracle: anyone holding *any* valid app JWT could mint Gmail
+  // access tokens for any refresh token they got hold of.
+  const { data: tokenRow, error: tokenErr } = await supabaseAdmin
+    .from('google_oauth_tokens')
+    .select('refresh_token')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (tokenErr) {
+    console.error('refresh-google-token: token lookup failed', tokenErr)
+    return res.status(500).json({ error: 'Token lookup failed' })
+  }
+  // 410 = "this grant is gone" — the client clears local state and prompts a reconnect.
+  if (!tokenRow?.refresh_token) {
+    return res.status(410).json({ error: 'no_token' })
+  }
+  const refreshToken = tokenRow.refresh_token
 
   // Exchange the Google refresh token for a new access token
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -68,9 +83,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!tokenRes.ok) {
     const err = await tokenRes.json().catch(() => ({})) as Record<string, string>
-    // invalid_grant = refresh token revoked by user — client should clear it and ask for re-auth
-    const status = err.error === 'invalid_grant' ? 410 : 400
-    return res.status(status).json({ error: err.error || 'Token refresh failed' })
+    // invalid_grant = refresh token revoked by the user in their Google account.
+    // Drop the dead row so the daily sync cron stops retrying it, and tell the
+    // client (410) to clear local state and prompt a reconnect.
+    if (err.error === 'invalid_grant') {
+      await supabaseAdmin.from('google_oauth_tokens').delete().eq('user_id', user.id)
+      return res.status(410).json({ error: 'invalid_grant' })
+    }
+    return res.status(400).json({ error: err.error || 'Token refresh failed' })
   }
 
   const { access_token, expires_in } = await tokenRes.json() as { access_token: string; expires_in: number }

@@ -41,12 +41,26 @@ import {
   Plus,
   Check,
   Shield,
+  Mail,
 } from 'lucide-react'
 
 export default function SettingsPage() {
-  const { user, activeYear, startNewFinancialYear, dailyScanTime, updateDailyScanTime, currencySymbol } = useAuth()
+  const { user, activeYear, startNewFinancialYear, dailyScanTime, updateDailyScanTime, currencySymbol, hasGoogleToken, disconnectGoogle } = useAuth()
   const { showToast } = useToast()
   const { categories, fallbackCategory } = useCategories()
+
+  const [disconnectLoading, setDisconnectLoading] = useState(false)
+
+  const handleDisconnectGmail = async () => {
+    setDisconnectLoading(true)
+    const { error } = await disconnectGoogle()
+    setDisconnectLoading(false)
+    if (error) {
+      showToast(`Could not fully disconnect Gmail: ${error}`, 'error')
+      return
+    }
+    showToast('Gmail disconnected. We no longer have access to your inbox.', 'success')
+  }
 
   const [isLight, setIsLight] = useState(() => {
     try {
@@ -713,6 +727,37 @@ export default function SettingsPage() {
             </Card>
 
             {/* Plain Export Card */}
+            {/* Gmail Connection Card */}
+            <Card className="border-border-subtle bg-surface-1 shadow-md">
+              <h2 className="text-base font-bold text-zinc-200 mb-2 flex items-center gap-2">
+                <Mail className="h-5 w-5 text-brand-400 shrink-0" />
+                <span>Gmail Inbox Connection</span>
+              </h2>
+              {hasGoogleToken ? (
+                <>
+                  <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
+                    Dhanrakshak can read bank transaction alerts from your Gmail to log expenses
+                    automatically. Disconnecting revokes our access at Google immediately and stops
+                    all scheduled scans. Your already-imported transactions stay untouched.
+                  </p>
+                  <Button
+                    onClick={handleDisconnectGmail}
+                    variant="secondary"
+                    className="w-full text-xs justify-center gap-1.5 cursor-pointer"
+                    disabled={disconnectLoading}
+                  >
+                    <XCircle className="h-4 w-4 shrink-0" />
+                    {disconnectLoading ? 'Disconnecting…' : 'Disconnect Gmail'}
+                  </Button>
+                </>
+              ) : (
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Gmail is not connected. Dhanrakshak has no access to your inbox. You can connect it
+                  from the Pending Alerts page to import bank transaction emails automatically.
+                </p>
+              )}
+            </Card>
+
             <Card className="border-border-subtle bg-surface-1 shadow-md">
               <h2 className="text-base font-bold text-zinc-200 mb-2 flex items-center gap-2">
                 <Download className="h-5 w-5 text-brand-400 shrink-0" />
