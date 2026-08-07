@@ -45,6 +45,25 @@ RETURNS BOOLEAN AS $$
   SELECT COALESCE((SELECT is_admin FROM public.profiles WHERE id = uid), false);
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
+-- Permanently erases the calling user's account. profiles.id cascades from
+-- auth.users and every other user table cascades from profiles, so this one
+-- statement removes all of their data. SECURITY DEFINER is needed to touch
+-- auth.users; it is safe because the WHERE clause is pinned to auth.uid() and
+-- the function takes no parameters, so a caller can only delete themselves.
+-- See supabase/012_delete_user_rpc.sql for the migration form.
+CREATE OR REPLACE FUNCTION public.delete_user()
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  DELETE FROM auth.users WHERE id = auth.uid();
+$$;
+
+REVOKE ALL ON FUNCTION public.delete_user() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.delete_user() FROM anon;
+GRANT EXECUTE ON FUNCTION public.delete_user() TO authenticated;
+
 -- Auto-create profile when a new user signs up
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
