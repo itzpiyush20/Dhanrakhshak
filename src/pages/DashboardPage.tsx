@@ -30,11 +30,13 @@ import {
   Flame,
   CheckCircle2,
   Circle,
+  ArrowRight,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
 import { getTransactions, getMonthlySummary, getSummary, getLoggingStreak } from '@/services/transactions'
 import { getBudgets } from '@/services/budgets'
+import { detectAnomalies } from '@/services/aiService'
 import {
   supabase,
   resetAccountData,
@@ -45,6 +47,7 @@ import {
 } from '@/services'
 import { migrateLocalStorageRulesToDB } from '@/services/learningEngine'
 import { formatCurrency, formatCurrencyCompact, getCurrentMonth, formatDate, withTimeout, resolveDateFilter, formatDateFilterLabel, getMonthsInRange, type DateFilter } from '@/utils'
+import { toISODateLocal } from '@/utils/dateFilter'
 import { useCategories } from '@/context/CategoriesContext'
 import type { Database } from '@/types/database'
 
@@ -106,6 +109,17 @@ export default function DashboardPage() {
   const [checklistDismissed, setChecklistDismissed] = useState(false)
   const [visitedAnalytics, setVisitedAnalytics] = useState(false)
 
+  // Insights teaser — a single top spending anomaly surfaced on the Dashboard
+  // so users don't have to visit the Insights page to catch it. Deliberately
+  // uses detectAnomalies() (a local, rule-based calculation) rather than
+  // generateAIInsights() (the Gemini-backed one): the Dashboard loads on every
+  // visit, and burning AI quota for a card most sessions won't even look at
+  // isn't worth it. 'loading' while the background fetch is in flight, 'none'
+  // once resolved with nothing notable, or the top anomaly itself.
+  const [insightsTeaser, setInsightsTeaser] = useState<
+    'loading' | 'none' | { category: string; thisMonth: number; baseline: number; spike: number }
+  >('loading')
+
   // Post-sync summary card (replaces plain "sync complete" toast)
   const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null)
 
@@ -151,13 +165,17 @@ export default function DashboardPage() {
   // Widget customization states
   const [showConfigModal, setShowConfigModal] = useState(false)
   const [widgets, setWidgets] = useState<Record<string, boolean>>(() => {
+    const defaults = { stats: true, breakdown: true, recent: true, subscriptions: true, insights: true }
     const saved = localStorage.getItem('dhanrakshak_dashboard_widgets')
     if (saved) {
       try {
-        return JSON.parse(saved)
+        // Merge onto defaults (not a plain override) so a widget added after a
+        // user already saved their config — like `insights` here — still shows
+        // up for them instead of silently defaulting to hidden.
+        return { ...defaults, ...JSON.parse(saved) }
       } catch (e) {}
     }
-    return { stats: true, breakdown: true, recent: true, subscriptions: true }
+    return defaults
   })
 
   const toggleWidget = (key: string) => {
@@ -345,6 +363,42 @@ export default function DashboardPage() {
     setChecklistDismissed(localStorage.getItem(`dhanrakshak_checklist_dismissed_${user.id}`) === 'true')
     setVisitedAnalytics(localStorage.getItem(`dhanrakshak_visited_analytics_${user.id}`) === 'true')
   }, [user, refreshStreak])
+
+  // Insights teaser fetch — intentionally decoupled from fetchDashboardData
+  // (which only pulls 5 recent transactions) since anomaly detection needs a
+  // few months of per-category history. Runs independently in the background
+  // so it never blocks or delays the main dashboard render.
+  useEffect(() => {
+    if (!user || !widgets.insights) return
+    let cancelled = false
+
+    const fourMonthsAgo = new Date()
+    fourMonthsAgo.setMonth(fourMonthsAgo.getMonth() - 4)
+
+    getTransactions({
+      type: 'debit',
+      dateFrom: toISODateLocal(fourMonthsAgo),
+      dateTo: toISODateLocal(new Date()),
+    })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error || !data) {
+          setInsightsTeaser('none')
+          return
+        }
+        const [topAnomaly] = detectAnomalies(
+          data.map((t) => ({ ...t, merchant: t.merchant || '' }))
+        )
+        setInsightsTeaser(topAnomaly || 'none')
+      })
+      .catch(() => {
+        if (!cancelled) setInsightsTeaser('none')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user, widgets.insights])
 
   // Month-end recap — the peak-end rule says a session that closes on a
   // summary is remembered better, and it's a good reason to open the app
@@ -833,6 +887,45 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Insights teaser — surfaces the top Insights finding here so most
+            users never need to leave the Dashboard to catch it. */}
+        {widgets.insights && insightsTeaser !== 'none' && (
+          <Link
+            to="/insights"
+            className="flex items-center gap-4 rounded-2xl border border-border-subtle bg-surface-1 shadow-md px-5 py-4 transition-colors hover:bg-surface-2/40 group"
+          >
+            <div className="shrink-0 h-10 w-10 rounded-full bg-brand-500/10 flex items-center justify-center">
+              <Sparkles className="h-5 w-5 text-brand-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Insights</p>
+              {insightsTeaser === 'loading' ? (
+                <div className="skeleton h-4 w-2/3 mt-1.5 rounded" />
+              ) : (
+                <p className="text-sm text-zinc-200 mt-0.5 truncate">
+                  {(() => {
+                    const cat = getStyle(insightsTeaser.category)
+                    return (
+                      <>
+                        <span className="font-semibold">{cat.emoji} {cat.label}</span> spending is up{' '}
+                        <span className="font-semibold text-[var(--status-warning-text)]">
+                          {Math.round(insightsTeaser.spike)}%
+                        </span>{' '}
+                        this month — {formatCurrency(insightsTeaser.thisMonth)} vs a{' '}
+                        {formatCurrency(insightsTeaser.baseline)} average.
+                      </>
+                    )
+                  })()}
+                </p>
+              )}
+            </div>
+            <div className="shrink-0 flex items-center gap-1 text-xs font-semibold text-brand-400 group-hover:text-brand-300">
+              <span className="hidden sm:inline">View Insights</span>
+              <ArrowRight className="h-4 w-4" />
+            </div>
+          </Link>
+        )}
+
         {/* Details breakdown */}
         {(widgets.breakdown || widgets.recent) && (
           <div className="grid gap-6 lg:grid-cols-12">
@@ -1316,6 +1409,23 @@ export default function DashboardPage() {
                 type="checkbox"
                 checked={widgets.subscriptions}
                 onChange={() => toggleWidget('subscriptions')}
+                className="h-4 w-4 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
+              />
+            </div>
+
+            {/* Insights Teaser Widget */}
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-surface-2/40 border border-border-subtle/30">
+              <div className="flex items-center gap-3">
+                <Sparkles className="h-5 w-5 text-brand-400 shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-text-primary">Insights Teaser</p>
+                  <p className="text-xs text-zinc-500">Surfaces your top spending anomaly, if any</p>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={widgets.insights}
+                onChange={() => toggleWidget('insights')}
                 className="h-4 w-4 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
               />
             </div>
