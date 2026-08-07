@@ -12,3 +12,10 @@ dist/
 .vercel/
 .git/
 *.log
+
+# Vitest test files under api/ were being deployed as their own Serverless
+# Functions (Vercel treats every top-level api/*.ts as a route). That silently
+# ate 3 of the Hobby plan's 12-function cap for files that are never routes,
+# which is why adding one real endpoint (disconnect-gmail.ts) broke the
+# deploy outright. Test files never belong in the production bundle.
+api/**/*.test.ts
