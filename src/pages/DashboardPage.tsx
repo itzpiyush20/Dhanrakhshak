@@ -888,8 +888,11 @@ export default function DashboardPage() {
         )}
 
         {/* Insights teaser — surfaces the top Insights finding here so most
-            users never need to leave the Dashboard to catch it. */}
-        {widgets.insights && insightsTeaser !== 'none' && (
+            users never need to leave the Dashboard to catch it. Always
+            renders something once resolved (an anomaly, or a "nothing
+            unusual" reassurance) rather than disappearing when there's
+            nothing to flag — a card that vanishes reads as broken. */}
+        {widgets.insights && (
           <Link
             to="/insights"
             className="flex items-center gap-4 rounded-2xl border border-border-subtle bg-surface-1 shadow-md px-5 py-4 transition-colors hover:bg-surface-2/40 group"
@@ -901,6 +904,10 @@ export default function DashboardPage() {
               <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Insights</p>
               {insightsTeaser === 'loading' ? (
                 <div className="skeleton h-4 w-2/3 mt-1.5 rounded" />
+              ) : insightsTeaser === 'none' ? (
+                <p className="text-sm text-zinc-200 mt-0.5 truncate">
+                  No unusual spending detected this month — nice and steady.
+                </p>
               ) : (
                 <p className="text-sm text-zinc-200 mt-0.5 truncate">
                   {(() => {
