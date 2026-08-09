@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
-import { Card, Button, EmptyState, Modal, DateFilterPicker } from '@/components/ui'
+import { Card, Button, EmptyState, Modal, DateFilterPicker, TransactionIdentity } from '@/components/ui'
 import ActiveSubscriptionsWidget from '@/components/dashboard/ActiveSubscriptionsWidget'
 import QuickAddWidget from '@/components/dashboard/QuickAddWidget'
 import ReceivablesCard from '@/components/dashboard/ReceivablesCard'
@@ -46,7 +46,7 @@ import {
   seedSandboxData,
 } from '@/services'
 import { migrateLocalStorageRulesToDB } from '@/services/learningEngine'
-import { formatCurrency, formatCurrencyCompact, getCurrentMonth, formatDate, withTimeout, resolveDateFilter, formatDateFilterLabel, getMonthsInRange, type DateFilter } from '@/utils'
+import { formatCurrency, formatCurrencyCompact, getCurrentMonth, formatDate, withTimeout, resolveDateFilter, formatDateFilterLabel, getMonthsInRange, resolveTransactionIdentity, type DateFilter } from '@/utils'
 import { toISODateLocal } from '@/utils/dateFilter'
 import { useCategories } from '@/context/CategoriesContext'
 import type { Database } from '@/types/database'
@@ -1255,12 +1255,7 @@ export default function DashboardPage() {
                     {categoryTransactions.map((txn) => (
                       <div key={txn.id} className="flex items-center justify-between py-3">
                         <div className="flex flex-col min-w-0 pr-3">
-                          <p className="text-xs font-bold text-zinc-200 truncate" title={txn.merchant || txn.description || 'Transaction'}>
-                            {txn.merchant || txn.description || 'Transaction'}
-                          </p>
-                          {txn.description && txn.description !== `${txn.merchant} Transaction` && (
-                            <p className="text-xs text-zinc-500 truncate mt-0.5">{txn.description}</p>
-                          )}
+                          <TransactionIdentity {...resolveTransactionIdentity(txn)} size="sm" />
                           <span className="text-xs text-zinc-500 mt-1">
                             {new Date(txn.date).toLocaleDateString('en-IN', {
                               day: '2-digit',
