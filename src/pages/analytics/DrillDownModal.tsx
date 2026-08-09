@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Modal, Button, EmptyState } from '@/components/ui'
+import { Modal, Button, EmptyState, TransactionIdentity } from '@/components/ui'
 import ExpenseForm from '@/components/expenses/ExpenseForm'
 import { getTransactionById } from '@/services'
-import { formatCurrency, formatDate } from '@/utils'
+import { formatCurrency, formatDate, resolveTransactionIdentity } from '@/utils'
 import { useDrillDown, filterTransactionsForDrillDown } from '@/context/DrillDownContext'
 import type { Database } from '@/types/database'
 import { Pencil, Inbox } from 'lucide-react'
@@ -109,17 +109,15 @@ export function DrillDownModal({ transactions }: DrillDownModalProps) {
               )
             ) : (
               <div key={txn.id} className="flex items-center justify-between gap-3 rounded-xl border border-border-subtle bg-surface-1 p-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-zinc-100 truncate">
-                    {txn.merchant || txn.description || 'Transaction'}
-                  </p>
-                  <p className="text-xs text-zinc-500">{formatDate(txn.date)} · {txn.category}</p>
+                <div className="min-w-0 flex-1">
+                  <TransactionIdentity {...resolveTransactionIdentity(txn)} size="sm" />
+                  <p className="text-xs text-zinc-500 mt-0.5">{formatDate(txn.date)} · {txn.category}</p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <span className={`text-sm font-bold ${txn.type === 'credit' ? 'text-[var(--status-positive-text)]' : 'text-zinc-200'}`}>
                     {formatCurrency(txn.amount)}
                   </span>
-                  <Button size="sm" variant="ghost" onClick={() => handleEditClick(txn.id)} aria-label={`Edit ${txn.merchant || 'transaction'}`}>
+                  <Button size="sm" variant="ghost" onClick={() => handleEditClick(txn.id)} aria-label={`Edit ${resolveTransactionIdentity(txn).title}`}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
                 </div>
