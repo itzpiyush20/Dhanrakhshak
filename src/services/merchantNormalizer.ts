@@ -96,6 +96,9 @@ const CANONICAL_MAP: Array<{ patterns: RegExp[]; canonical: string; category: st
   { patterns: [/\bcred\b/i], canonical: 'CRED', category: 'Other' },
 ]
 
+/** Flat list of canonical brand names, for autocomplete/suggestion UIs. Derived from CANONICAL_MAP so it can never drift out of sync with what normalizeMerchant() actually recognizes. */
+export const KNOWN_MERCHANTS: string[] = CANONICAL_MAP.map((entry) => entry.canonical)
+
 /**
  * Normalize a raw merchant name to its canonical form.
  * Applies alias matching first, then applies generic cleanup.
