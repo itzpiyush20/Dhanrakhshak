@@ -3,9 +3,9 @@
 // edit/delete actions and bulk operations
 // ============================================
 
-import { Card, Badge, Button, EmptyState, ConfirmDialog } from '@/components/ui'
+import { Card, Badge, Button, EmptyState, ConfirmDialog, TransactionIdentity } from '@/components/ui'
 import { useCategories } from '@/context/CategoriesContext'
-import { formatCurrency, formatDate } from '@/utils'
+import { formatCurrency, formatDate, resolveTransactionIdentity } from '@/utils'
 import { deleteTransaction, bulkDeleteTransactions, bulkUpdateTransactionsCategory } from '@/services/transactions'
 import type { Database } from '@/types/database'
 import { useState, useEffect } from 'react'
@@ -171,6 +171,7 @@ export default function ExpenseList({
         {transactions.map((txn) => {
           const cat = getStyle(txn.category)
           const isDebit = txn.type === 'debit'
+          const { title: txnTitle } = resolveTransactionIdentity(txn)
 
           return (
             <div
@@ -185,7 +186,7 @@ export default function ExpenseList({
                     className="h-4 w-4 shrink-0 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
                     checked={selectedIds.includes(txn.id)}
                     onChange={() => handleToggleSelect(txn.id)}
-                    aria-label={`Select transaction ${txn.description || cat.label}`}
+                    aria-label={`Select transaction ${txnTitle}`}
                   />
                 </label>
 
@@ -199,9 +200,7 @@ export default function ExpenseList({
 
                 {/* Details */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">
-                    {txn.description || cat.label}
-                  </p>
+                  <TransactionIdentity {...resolveTransactionIdentity(txn)} size="md" />
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className="text-xs text-zinc-500">{formatDate(txn.date)}</span>
                     <Badge>{cat.label}</Badge>
@@ -235,7 +234,7 @@ export default function ExpenseList({
                     size="sm"
                     className="h-11 w-11 p-0 flex items-center justify-center cursor-pointer"
                     onClick={() => onEdit(txn)}
-                    aria-label={`Edit ${txn.description || cat.label}`}
+                    aria-label={`Edit ${txnTitle}`}
                     title="Edit"
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -246,7 +245,7 @@ export default function ExpenseList({
                     className="h-11 w-11 p-0 flex items-center justify-center text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] cursor-pointer"
                     onClick={() => setConfirmDeleteId(txn.id)}
                     loading={deletingId === txn.id}
-                    aria-label={`Delete ${txn.description || cat.label}`}
+                    aria-label={`Delete ${txnTitle}`}
                     title="Delete"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
