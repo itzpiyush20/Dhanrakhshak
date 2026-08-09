@@ -9,6 +9,7 @@ import { useCategories } from '@/context/CategoriesContext'
 import { useAuth } from '@/context/AuthContext'
 import { createTransaction, updateTransaction } from '@/services'
 import type { Database } from '@/types/database'
+import { KNOWN_MERCHANTS } from '@/services/merchantNormalizer'
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row']
 
@@ -41,6 +42,7 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
   const [amount, setAmount] = useState(editingTransaction?.amount?.toString() || '')
   const [category, setCategory] = useState(editingTransaction?.category || defaultCategory)
   const [description, setDescription] = useState(editingTransaction?.description || '')
+  const [merchant, setMerchant] = useState(editingTransaction?.merchant || '')
   const [tagsInput, setTagsInput] = useState(
     editingTransaction?.tags?.join(', ') || ''
   )
@@ -86,6 +88,7 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
         amount: parsedAmount,
         category,
         description,
+        merchant: merchant.trim() || null,
         date,
         tags,
         is_returnable: type === 'debit' && isReturnable,
@@ -110,6 +113,7 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
         amount: parsedAmount,
         category,
         description,
+        merchant: merchant.trim() || null,
         date,
         source: 'manual',
         approval_status: 'approved',
@@ -132,6 +136,7 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
     if (!isEditing) {
       setAmount('')
       setDescription('')
+      setMerchant('')
       setTagsInput('')
       setCategory(defaultCategory)
       setDate(new Date().toISOString().split('T')[0])
@@ -176,11 +181,36 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Input
+              label="Merchant"
+              placeholder="e.g. Swiggy"
+              value={merchant}
+              onChange={(e) => setMerchant(e.target.value)}
+              list="merchant-suggestions"
+            />
+            <datalist id="merchant-suggestions">
+              {KNOWN_MERCHANTS.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+          </div>
+
           <Select
             label="Category"
             options={categoryOptions}
             value={category}
             onChange={(e) => setCategory(e.target.value)}
+            required
+          />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Description"
+            placeholder="What was this for?"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             required
           />
 
@@ -192,14 +222,6 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
             required
           />
         </div>
-
-        <Input
-          label="Description"
-          placeholder="What was this for?"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          required
-        />
 
         <div className="space-y-1.5">
           <Input
