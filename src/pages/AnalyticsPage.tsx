@@ -10,7 +10,7 @@ import { Card, DateFilterPicker } from '@/components/ui'
 import { supabase } from '@/services/supabase'
 import { useAuth } from '@/context/AuthContext'
 import { useCategories } from '@/context/CategoriesContext'
-import { getCurrentMonth, withTimeout, resolveDateFilter, formatDateFilterLabel, type DateFilter } from '@/utils'
+import { getCurrentMonth, withTimeout, resolveDateFilter, formatDateFilterLabel, resolveTransactionIdentity, type DateFilter } from '@/utils'
 import { toISODateLocal } from '@/utils/dateFilter'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { detectAnomalies, generateForecast, generateAIInsights } from '@/services/aiService'
@@ -289,6 +289,30 @@ const getMoMTrend = (allTxns: any[]) => {
   }
 }
 
+/** Pure: groups debit transactions in [startStr, endStr] by resolved merchant identity. Extracted so it's testable without rendering the page. Defaults to the full range when no bounds are passed (used by the memo below, which always passes explicit bounds). */
+export function buildMerchantLeaderboard(
+  txns: Array<{ type: string; date: string | null; amount: number; merchant?: string | null; description?: string | null }>,
+  bounds?: { startStr: string; endStr: string }
+): MerchantLeaderboardItem[] {
+  const merchantMap = new Map<string, { amount: number; count: number }>()
+  txns
+    .filter((t) => {
+      if (t.type !== 'debit' || !t.date) return false
+      if (!bounds) return true
+      return t.date >= bounds.startStr && t.date <= bounds.endStr
+    })
+    .forEach((t) => {
+      const { title } = resolveTransactionIdentity(t)
+      const existing = merchantMap.get(title) || { amount: 0, count: 0 }
+      merchantMap.set(title, { amount: existing.amount + Number(t.amount), count: existing.count + 1 })
+    })
+
+  return Array.from(merchantMap.entries())
+    .map(([merchant, { amount, count }]) => ({ merchant, amount, count }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 8)
+}
+
 export default function AnalyticsPage() {
   const { user } = useAuth()
   const { categories, categoryMap } = useCategories()
@@ -414,27 +438,16 @@ export default function AnalyticsPage() {
     return months.map(({ monthKey, label, amount }) => ({ monthKey, label, amount }))
   }, [transactions, categoryMap])
 
-  // Top merchants by spend for the selected range — falls back to the raw
-  // description when a transaction has no merchant name so nothing gets
-  // silently dropped from the ranking.
+  // Top merchants by spend for the selected range — recognized brands hiding
+  // in raw narration are folded into their real merchant's total; anything
+  // else collapses into a single "Unclassified" row instead of leaking
+  // narration text into the ranking.
   const merchantLeaderboard = useMemo<MerchantLeaderboardItem[]>(() => {
     const { start, end } = getRangeDates(range)
-    const startStr = toISODateLocal(start)
-    const endStr = toISODateLocal(end)
-
-    const merchantMap = new Map<string, { amount: number; count: number }>()
-    expenseTransactions
-      .filter((t) => t.type === 'debit' && t.date && t.date >= startStr && t.date <= endStr)
-      .forEach((t) => {
-        const merchant = (t.merchant && t.merchant.trim()) || (t.description && t.description.trim()) || 'Unknown'
-        const existing = merchantMap.get(merchant) || { amount: 0, count: 0 }
-        merchantMap.set(merchant, { amount: existing.amount + Number(t.amount), count: existing.count + 1 })
-      })
-
-    return Array.from(merchantMap.entries())
-      .map(([merchant, { amount, count }]) => ({ merchant, amount, count }))
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 8)
+    return buildMerchantLeaderboard(expenseTransactions, {
+      startStr: toISODateLocal(start),
+      endStr: toISODateLocal(end),
+    })
   }, [expenseTransactions, range])
 
   // Top-5 category spend per month over the trailing 6 months — independent
