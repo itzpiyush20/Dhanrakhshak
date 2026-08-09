@@ -20,7 +20,7 @@ import {
 } from '@/services'
 import { saveMerchantRuleToDb } from '@/services/learningEngine'
 import { useAuth } from '@/context/AuthContext'
-import { formatCurrency, formatDate, parsePaymentSource, formatPaymentSource, isCardPayment, withTimeout, getCurrentMonth } from '@/utils'
+import { formatCurrency, formatDate, parsePaymentSource, formatPaymentSource, isCardPayment, withTimeout, getCurrentMonth, resolveTransactionIdentity } from '@/utils'
 import type { Database } from '@/types/database'
 import { useToast } from '@/context'
 import { useCategories } from '@/context/CategoriesContext'
@@ -1142,9 +1142,9 @@ export default function PendingPage() {
                     <div className="flex flex-col gap-1 min-w-0">
                       <div className="flex items-center gap-2 overflow-hidden flex-nowrap">
                         <Badge variant="info" className="shrink-0 whitespace-nowrap">Detected Alert</Badge>
-                        <Badge variant="warning" className="truncate max-w-[150px] whitespace-nowrap font-bold flex items-center gap-1" title={txn.merchant || ''}>
+                        <Badge variant="warning" className="truncate max-w-[150px] whitespace-nowrap font-bold flex items-center gap-1" title={resolveTransactionIdentity(txn).title}>
                           <Store className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                          <span>{txn.merchant || parseShortDescription(txn.description || '', '', '')}</span>
+                          <span>{resolveTransactionIdentity(txn).title}</span>
                         </Badge>
                       </div>
                       <span className="text-xs text-zinc-500 font-semibold">{formatDate(txn.date)}</span>
