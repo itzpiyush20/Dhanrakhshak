@@ -368,3 +368,4 @@ export function formatPaymentSource(txn: {
 
 export { encryptText, decryptText } from './crypto.js'
 export { resolveDateFilter, getMonthsInRange, formatDateFilterLabel, toISODateLocal, type DateFilter } from './dateFilter'
+export { resolveTransactionIdentity, type ResolvedTransactionIdentity } from './transactionIdentity'
