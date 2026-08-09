@@ -97,6 +97,14 @@ const CANONICAL_MAP: Array<{ patterns: RegExp[]; canonical: string; category: st
 ]
 
 /**
+ * Flat, de-duplicated list of known canonical merchant names — used to power
+ * merchant autocomplete suggestions in the UI.
+ */
+export const KNOWN_MERCHANTS: string[] = Array.from(
+  new Set(CANONICAL_MAP.map((entry) => entry.canonical))
+).sort((a, b) => a.localeCompare(b))
+
+/**
  * Normalize a raw merchant name to its canonical form.
  * Applies alias matching first, then applies generic cleanup.
  */
