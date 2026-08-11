@@ -78,6 +78,72 @@ export function evaluateRegexGates(
   return { rejected: false, gate: null, snippet: null }
 }
 
+/**
+ * Bulk/marketing distribution markers. `List-Unsubscribe` is mandated for
+ * high-volume senders by Gmail's and Yahoo's bulk-sender requirements, while
+ * transactional receipts are exempt and typically omit it — so this is a
+ * structural signal that generalizes to any publisher, not a per-vendor list.
+ */
+const BULK_BODY_PATTERNS: RegExp[] = [
+  /\bunsubscribe\b/i,
+  /\bopt[-\s]?out\b/i,
+  /manage\s+(?:your\s+)?(?:email\s+)?preferences/i,
+  /you\s+(?:are|were)\s+receiving\s+this\s+(?:email|message)\s+because/i,
+  /view\s+(?:this\s+)?(?:email\s+)?in\s+(?:your\s+)?browser/i,
+]
+
+/**
+ * True when the message carries bulk/marketing distribution markers.
+ * Fails open (returns false) on missing headers or empty body, so a malformed
+ * message degrades to existing behaviour rather than being silently dropped.
+ *
+ * `bodyText` should be the FULL body, not a truncated prefix — opt-out text
+ * lives in footers, past where the other gates stop reading.
+ */
+export function isBulkMarketingEmail(
+  headers: Array<{ name?: string; value?: string }> | null | undefined,
+  bodyText: string | null | undefined
+): boolean {
+  for (const h of headers || []) {
+    const name = (h?.name || '').toLowerCase()
+    if (name === 'list-unsubscribe' || name === 'list-unsubscribe-post') return true
+  }
+  const text = bodyText || ''
+  if (!text) return false
+  return BULK_BODY_PATTERNS.some((p) => p.test(text))
+}
+
+/**
+ * Vocabulary asserting that money actually moved. `total` is deliberately
+ * included and is load-bearing: the unknown-vendor receipt fixture contains
+ * `Total` and none of the other terms, so removing it breaks detection for
+ * exactly the long-tail vendors this pipeline exists to support.
+ */
+const PAYMENT_ASSERTION_PATTERNS: RegExp[] = [
+  /\bdebited\b/i,
+  /\bcredited\b/i,
+  /\bpaid\b/i,
+  /\bcharged\b/i,
+  /\bspent\b/i,
+  /\bwithdrawn\b/i,
+  /\btransferred\b/i,
+  /\bdeducted\b/i,
+  /\bbilled\b/i,
+  /\bsub\s*total\b/i,
+  /\btotal\b/i,
+  /\bamount\s+paid\b/i,
+  /\bpayment\s+of\b/i,
+  /\bfare\b/i,
+  /\btxn\b/i,
+  /\btransaction\s+id\b/i,
+]
+
+/** True when the text asserts that money actually moved. */
+export function hasPaymentAssertion(text: string | null | undefined): boolean {
+  if (!text) return false
+  return PAYMENT_ASSERTION_PATTERNS.some((p) => p.test(text))
+}
+
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
