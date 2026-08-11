@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { isGenuinePendingInitiation, evaluateRegexGates, logRejection } from './emailScanGates'
+import { isGenuinePendingInitiation, evaluateRegexGates, logRejection, isBulkMarketingEmail, hasPaymentAssertion } from './emailScanGates'
 import { AXIS_EMI_BODY } from './__fixtures__/axisEmiDebit'
+import { UBER_TRIP_BODY } from './__fixtures__/uberTripReceipt'
+import { ZOMATO_ORDER_BODY } from './__fixtures__/zomatoOrderReceipt'
+import { UNKNOWN_VENDOR_BODY } from './__fixtures__/unknownVendorReceipt'
 import { stripBoilerplate } from './emailBoilerplate'
 
 describe('isGenuinePendingInitiation', () => {
@@ -105,5 +108,71 @@ describe('logRejection', () => {
     await expect(
       logRejection(mockDb, 'user-1', 'scan-log-1', 'otp_or_security_code', 'axis.bank.in', 'subj', 'snippet')
     ).resolves.toBeUndefined()
+  })
+})
+
+describe('isBulkMarketingEmail', () => {
+  it('detects a List-Unsubscribe header', () => {
+    const headers = [
+      { name: 'Subject', value: 'Anything' },
+      { name: 'List-Unsubscribe', value: '<https://example.com/u>' },
+    ]
+    expect(isBulkMarketingEmail(headers, 'plain body')).toBe(true)
+  })
+
+  it('detects a List-Unsubscribe-Post header regardless of casing', () => {
+    const headers = [{ name: 'list-unsubscribe-post', value: 'List-Unsubscribe=One-Click' }]
+    expect(isBulkMarketingEmail(headers, 'plain body')).toBe(true)
+  })
+
+  it('detects opt-out phrasing in the body when no header is present', () => {
+    expect(isBulkMarketingEmail([], 'Some content. Opt out of this newsletter.')).toBe(true)
+    expect(isBulkMarketingEmail([], 'You are receiving this email because you signed up.')).toBe(true)
+    expect(isBulkMarketingEmail([], 'Click here to unsubscribe')).toBe(true)
+  })
+
+  it('returns false for an ordinary transactional body with no headers', () => {
+    expect(isBulkMarketingEmail([], 'Rs.250 debited from your account.')).toBe(false)
+  })
+
+  it('treats missing headers and empty body as not bulk (fail open)', () => {
+    expect(isBulkMarketingEmail([], '')).toBe(false)
+  })
+
+  it('does not flag any of the genuine receipt fixtures', () => {
+    expect(isBulkMarketingEmail([], UBER_TRIP_BODY)).toBe(false)
+    expect(isBulkMarketingEmail([], ZOMATO_ORDER_BODY)).toBe(false)
+    expect(isBulkMarketingEmail([], UNKNOWN_VENDOR_BODY)).toBe(false)
+  })
+})
+
+describe('hasPaymentAssertion', () => {
+  it('matches explicit money-movement verbs', () => {
+    expect(hasPaymentAssertion('Rs.250 debited from your account')).toBe(true)
+    expect(hasPaymentAssertion('Amount credited to your wallet')).toBe(true)
+    expect(hasPaymentAssertion('You paid Rs.100')).toBe(true)
+    expect(hasPaymentAssertion('Your card was charged')).toBe(true)
+  })
+
+  it('matches receipt vocabulary', () => {
+    expect(hasPaymentAssertion('Total ₹120.00')).toBe(true)
+    expect(hasPaymentAssertion('Trip fare ₹224.76')).toBe(true)
+  })
+
+  it('accepts every genuine receipt fixture', () => {
+    expect(hasPaymentAssertion(UBER_TRIP_BODY)).toBe(true)
+    expect(hasPaymentAssertion(ZOMATO_ORDER_BODY)).toBe(true)
+    // Load-bearing: this fixture contains 'Total' and none of the other
+    // vocabulary. A stricter list would silently break unknown-vendor detection.
+    expect(hasPaymentAssertion(UNKNOWN_VENDOR_BODY)).toBe(true)
+  })
+
+  it('rejects subscription-advertisement pricing copy', () => {
+    const promo = 'save 41% ₹ 6,000 Blueprint Digital ₹ 3,500 annual (digital only) ₹ 291/Month Subscribe Now'
+    expect(hasPaymentAssertion(promo)).toBe(false)
+  })
+
+  it('returns false for empty text', () => {
+    expect(hasPaymentAssertion('')).toBe(false)
   })
 })
