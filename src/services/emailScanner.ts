@@ -1425,12 +1425,37 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       return { data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0 }, error: null }
     }
 
-    const { data: insertedTxns, error: txnError } = await supabase
+    let insertedTxns: any[] = []
+    const { data: batchInsertedTxns, error: batchTxnError } = await supabase
       .from('transactions')
       .insert(transactionsToInsert)
       .select()
 
-    if (txnError) throw txnError
+    if (batchTxnError) {
+      // 23505 = Postgres unique_violation. transactions_email_message_id_user_id_key
+      // (schema.sql:493-495) exists precisely to stop two concurrent scans from
+      // double-inserting the same email — but a batch insert throws on the WHOLE
+      // batch if even one row trips it, discarding every unrelated legitimate
+      // transaction alongside it. Fall back to inserting row-by-row so only the
+      // actually-conflicting row (already inserted by the other scan) is skipped.
+      if (batchTxnError.code === '23505') {
+        for (const txn of transactionsToInsert) {
+          const { data: rowData, error: rowError } = await supabase
+            .from('transactions')
+            .insert(txn)
+            .select()
+          if (rowError) {
+            if (rowError.code === '23505') continue // already inserted by a concurrent scan — not a fault
+            throw rowError // any other error on an individual row still fails loud
+          }
+          if (rowData) insertedTxns.push(...rowData)
+        }
+      } else {
+        throw batchTxnError // non-conflict error — unchanged fail-loud behavior
+      }
+    } else {
+      insertedTxns = batchInsertedTxns || []
+    }
 
     try {
       // Cards sync disabled
