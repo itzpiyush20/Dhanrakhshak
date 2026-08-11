@@ -385,6 +385,7 @@ STRICT RULES — set is_transaction to FALSE for ALL of:
 - Payment reminders, bill generation, due dates, upcoming scheduled debits
 - Declined, failed, cancelled, or reversed transactions
 - Promotional emails, cashback OFFERS (not credits), discount codes, coupons
+- Subscription or product marketing showing pricing tiers, percentage discounts ("save 41%"), struck-through "was" prices, or "Subscribe Now"/"Upgrade Now"/"Choose your plan" calls to action — an advertisement for a purchase the reader has NOT made is not a receipt, and its prices are not transaction amounts
 - Reward point NOTIFICATIONS (not actual money)
 - Festival/sale announcements, limited-period offers
 - Credit limit increase offers, pre-approved loan offers

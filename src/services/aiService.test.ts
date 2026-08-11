@@ -54,3 +54,18 @@ describe('analyzeTransactionEmailWithAI', () => {
     expect(callArg.purpose).toBe('scan')
   })
 })
+
+describe('analyzeTransactionEmailWithAI — marketing rejection rule', () => {
+  it('includes a rule rejecting subscription/pricing-table marketing', async () => {
+    let capturedPrompt = ''
+    const fakeCallGemini = async (body: any) => {
+      capturedPrompt = body?.contents?.[0]?.parts?.[0]?.text || ''
+      return { candidates: [{ content: { parts: [{ text: '{"is_transaction":false,"confidence_score":0}' }] } }] }
+    }
+
+    await analyzeTransactionEmailWithAI('Subject', 'Body', '2026-08-10', fakeCallGemini)
+
+    expect(capturedPrompt).toMatch(/pricing tiers/i)
+    expect(capturedPrompt).toMatch(/subscribe now/i)
+  })
+})
