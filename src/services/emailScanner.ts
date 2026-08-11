@@ -879,7 +879,14 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       console.warn('Failed to query email scan logs, assuming first scan', e)
     }
 
-    const EMAIL_KEYWORDS = '(debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)'
+    // Two OR-ed groups: the original bank-alert-style keywords, plus generic
+    // receipt-shaped language that direct-vendor emails use instead (a trip
+    // receipt or food-delivery order confirmation rarely says "debited" or
+    // "paid" — it says "receipt", "order", "trip", "total"). Together these
+    // widen the fetch net without fetching every email in the window.
+    const BANK_ALERT_KEYWORDS = '(debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)'
+    const RECEIPT_KEYWORDS = '(receipt OR invoice OR order OR booking OR trip OR fare OR ride OR subscription OR renewal OR total)'
+    const EMAIL_KEYWORDS = `(${BANK_ALERT_KEYWORDS} OR ${RECEIPT_KEYWORDS})`
 
     const MAX_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000 // never scan back further than 30 days
     let startLimitTime = 0

@@ -107,3 +107,40 @@ describe('scanRealGmailInbox — Axis EMI debit regression', () => {
     expect(txn.event_type).toBe('emi')
   })
 })
+
+describe('scanRealGmailInbox — fetch query includes receipt-shaped keywords', () => {
+  it('builds a Gmail query that matches both bank-alert and generic receipt language', async () => {
+    let capturedUrl = ''
+    const mockDb: any = {
+      auth: {
+        getSession: async () => ({
+          data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } },
+        }),
+      },
+      from: (table: string) => {
+        const handler: any = {
+          select: () => handler, eq: () => handler, order: () => handler, limit: () => handler,
+          single: () => Promise.resolve({ data: null, error: null }),
+          insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: null }) }), then: (r: any) => r({ data: [], error: null }) }),
+          then: (resolve: any) => resolve({ data: [], error: null }),
+        }
+        return handler
+      },
+    }
+
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        capturedUrl = url
+        return { ok: true, status: 200, json: async () => ({ messages: [] }) } as any
+      }
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+
+    const decodedQuery = decodeURIComponent(capturedUrl.match(/[?&]q=([^&]+)/)?.[1] || '')
+    expect(decodedQuery).toMatch(/debited OR credited/i)
+    expect(decodedQuery).toMatch(/receipt OR invoice OR order OR booking OR trip OR fare OR ride OR subscription OR renewal OR total/i)
+  })
+})
