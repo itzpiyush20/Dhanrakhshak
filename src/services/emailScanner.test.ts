@@ -4,6 +4,8 @@ import { makeAxisEmiGmailMessage } from './__fixtures__/axisEmiDebit'
 import { makeUberTripGmailMessage } from './__fixtures__/uberTripReceipt'
 import { makeUnknownVendorGmailMessage } from './__fixtures__/unknownVendorReceipt'
 import { makeZomatoOrderGmailMessage } from './__fixtures__/zomatoOrderReceipt'
+import { makeBusinessStandardGmailMessage } from './__fixtures__/businessStandardNewsletter'
+import { makeBulkProseGmailMessage } from './__fixtures__/bulkMailWithPaymentProse'
 
 vi.mock('./googleAuth', () => ({
   getGoogleToken: () => 'fake-access-token',
@@ -320,4 +322,92 @@ describe('scanRealGmailInbox — low regex confidence inserts pending, not dropp
     expect(insertedRejections.some((r: any) => r.gate === 'confidence_below_65')).toBe(true)
     expect(result.data?.lowConfidencePendingCount).toBeGreaterThanOrEqual(1)
   })
+})
+
+describe('scanRealGmailInbox — newsletter false positives', () => {
+  const insertedTransactions: any[] = []
+  const insertedRejections: any[] = []
+  let mockDb: any
+
+  beforeEach(() => {
+    insertedTransactions.length = 0
+    insertedRejections.length = 0
+    mockDb = makeMockDb(insertedTransactions, insertedRejections)
+  })
+
+  it('rejects a subscription-advertisement newsletter without calling the AI', async () => {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'msg-bs-newsletter-1', threadId: 'thread-bs-newsletter-1' }] }) } as any
+      }
+      if (url.includes('/messages/msg-bs-newsletter-1')) {
+        return { ok: true, status: 200, json: async () => makeBusinessStandardGmailMessage() } as any
+      }
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const askAISpy = vi.fn(async () => null)
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: askAISpy as any })
+
+    expect(result.error).toBeNull()
+    expect(insertedTransactions).toHaveLength(0)
+    // The quota-preservation guarantee: junk must not reach the AI at all.
+    expect(askAISpy).not.toHaveBeenCalled()
+    const gates = insertedRejections.flat().map((r: any) => r.gate)
+    expect(gates).toContain('bulk_mail_no_payment_evidence')
+  })
+
+  it('rejects bulk mail whose payment language is far from the amount', async () => {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'msg-bulk-prose-1', threadId: 'thread-bulk-prose-1' }] }) } as any
+      }
+      if (url.includes('/messages/msg-bulk-prose-1')) {
+        return { ok: true, status: 200, json: async () => makeBulkProseGmailMessage() } as any
+      }
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+
+    expect(result.error).toBeNull()
+    expect(insertedTransactions).toHaveLength(0)
+    const gates = insertedRejections.flat().map((r: any) => r.gate)
+    expect(gates).toContain('bulk_mail_no_payment_near_amount')
+  })
+})
+
+describe('scanRealGmailInbox — genuine receipts still detected (regression)', () => {
+  const cases = [
+    { name: 'Uber trip receipt', id: 'msg-uber-trip-1', make: makeUberTripGmailMessage },
+    { name: 'Zomato order receipt', id: 'msg-zomato-order-1', make: makeZomatoOrderGmailMessage },
+    { name: 'unknown vendor receipt', id: 'msg-unknown-vendor-1', make: makeUnknownVendorGmailMessage },
+  ]
+
+  for (const c of cases) {
+    it(`still inserts a pending transaction for the ${c.name}`, async () => {
+      const insertedTransactions: any[] = []
+      const insertedRejections: any[] = []
+      const mockDb = makeMockDb(insertedTransactions, insertedRejections)
+
+      global.fetch = vi.fn(async (url: string) => {
+        if (url.includes('/messages?')) {
+          return { ok: true, status: 200, json: async () => ({ messages: [{ id: c.id, threadId: `thread-${c.id}` }] }) } as any
+        }
+        if (url.includes(`/messages/${c.id}`)) {
+          return { ok: true, status: 200, json: async () => c.make() } as any
+        }
+        throw new Error(`Unexpected fetch URL in test: ${url}`)
+      }) as any
+
+      const { scanRealGmailInbox } = await import('./emailScanner')
+      const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+
+      expect(result.error).toBeNull()
+      expect(insertedTransactions).toHaveLength(1)
+      expect(insertedTransactions[0][0].approval_status).toBe('pending')
+    })
+  }
 })
