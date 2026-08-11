@@ -42,6 +42,19 @@ describe('stripBoilerplate', () => {
     expect(result).toContain('Total paid - ₹286.47')
   })
 
+  it('does not swallow unrelated legitimate content when "etc." is far away or absent (unbounded-match regression)', () => {
+    // Regression guard for the "will never ask you for your personal
+    // information ... etc." pattern: it must not run unbounded looking for
+    // a distant/absent "etc." and eat a real transaction paragraph along
+    // the way. Pad well past the {0,300} cap so the pattern is forced to
+    // fail closed rather than reach the legitimate content below.
+    const filler = 'Please note this is part of our standard notice text. '.repeat(10)
+    const body = `Our employees or representatives will never ask you for your personal information. ${filler}Total paid - ₹500.00 for your recent order. Thank you for shopping with us.`
+    const result = stripBoilerplate(body)
+    expect(result).toContain('Total paid - ₹500.00')
+    expect(result).toContain('Thank you for shopping with us')
+  })
+
   it('returns unstripped text unchanged when it contains no boilerplate', () => {
     const clean = 'Your account was debited with INR 500.00 for Zomato order.'
     expect(stripBoilerplate(clean)).toBe(clean)
