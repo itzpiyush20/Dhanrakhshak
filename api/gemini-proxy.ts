@@ -60,10 +60,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Per-user daily quota, tracked in Postgres so it survives cold starts
   // (the in-memory IP limiter above resets per serverless instance and
   // doesn't actually bound cost under any real load).
+  //
+  // Two independent counters: email-scan classification (one call per
+  // scanned email, can be dozens per scan) and AI-insights generation
+  // (roughly one call per user action) used to share a single 50/day
+  // limit, which meant a normal scan could exhaust the quota the
+  // insights feature depends on, or vice versa. `purpose` selects which
+  // counter/limit applies; omitting it preserves the original behavior
+  // for any caller written before this change.
+  const purpose: 'scan' | 'insights' = req.body?.purpose === 'scan' ? 'scan' : 'insights'
   const DAILY_AI_CALL_LIMIT = 50
+  const DAILY_AI_SCAN_CALL_LIMIT = 500
+  const countColumn = purpose === 'scan' ? 'ai_scan_calls_count' : 'ai_calls_count'
+  const resetColumn = purpose === 'scan' ? 'ai_scan_calls_reset_at' : 'ai_calls_reset_at'
+  const dailyLimit = purpose === 'scan' ? DAILY_AI_SCAN_CALL_LIMIT : DAILY_AI_CALL_LIMIT
+
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('profiles')
-    .select('ai_calls_count, ai_calls_reset_at')
+    .select(`${countColumn}, ${resetColumn}`)
     .eq('id', user.id)
     .single()
 
@@ -71,19 +85,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Failed to verify usage quota' })
   }
 
-  const resetAt = new Date(profile.ai_calls_reset_at).getTime()
+  const resetAt = new Date((profile as any)[resetColumn]).getTime()
   const needsReset = Date.now() - resetAt > 24 * 60 * 60 * 1000
-  const currentCount = needsReset ? 0 : profile.ai_calls_count
+  const currentCount = needsReset ? 0 : (profile as any)[countColumn]
 
-  if (currentCount >= DAILY_AI_CALL_LIMIT) {
-    return res.status(429).json({ error: 'Daily AI insights limit reached. Try again tomorrow.' })
+  if (currentCount >= dailyLimit) {
+    const limitMessage = purpose === 'scan' ? 'Daily AI scan limit reached. Try again tomorrow.' : 'Daily AI insights limit reached. Try again tomorrow.'
+    return res.status(429).json({ error: limitMessage })
   }
 
   await supabaseAdmin
     .from('profiles')
     .update({
-      ai_calls_count: currentCount + 1,
-      ...(needsReset ? { ai_calls_reset_at: new Date().toISOString() } : {}),
+      [countColumn]: currentCount + 1,
+      ...(needsReset ? { [resetColumn]: new Date().toISOString() } : {}),
     })
     .eq('id', user.id)
 
