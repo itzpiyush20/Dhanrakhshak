@@ -1195,7 +1195,19 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           })
         }
 
-        if (debitScore === 0 && creditScore === 0) continue
+        // No debit/credit keyword anywhere near the amount — this used to be a
+        // silent `continue` with no logRejection call, the one rejection point
+        // in this file that left no trace. A receipt-shaped email (Uber trip,
+        // Zomato order) legitimately has no such keyword, so instead of
+        // dropping it, fall through: txType below naturally resolves to
+        // 'debit' (creditScore is not > debitScore when both are 0) and
+        // debitCreditClear is naturally false (|0-0| < 10), which correctly
+        // marks the direction as inferred, not keyword-confirmed. The email
+        // still has to clear every gate above and the confidence check below.
+        const hadNoDirectionSignal = debitScore === 0 && creditScore === 0
+        if (hadNoDirectionSignal) {
+          logRejection(supabase, user.id, scanLogId, 'no_debit_credit_signal', senderDomain, subject, `amount=${amount}`)
+        }
 
         let txType: 'debit' | 'credit' = creditScore > debitScore ? 'credit' : 'debit'
         const debitCreditClear = Math.abs(debitScore - creditScore) >= 10

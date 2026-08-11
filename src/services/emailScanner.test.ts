@@ -1,6 +1,9 @@
 // src/services/emailScanner.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { makeAxisEmiGmailMessage } from './__fixtures__/axisEmiDebit'
+import { makeUberTripGmailMessage } from './__fixtures__/uberTripReceipt'
+import { makeUnknownVendorGmailMessage } from './__fixtures__/unknownVendorReceipt'
+import { makeZomatoOrderGmailMessage } from './__fixtures__/zomatoOrderReceipt'
 
 vi.mock('./googleAuth', () => ({
   getGoogleToken: () => 'fake-access-token',
@@ -31,6 +34,34 @@ function makeTableMock(response: any, opts: { insertCapture?: any[] } = {}) {
     then: (resolve: any) => resolve(response),
   }
   return handler
+}
+
+/** Shared across the "no debit/credit keyword" and "low confidence" test groups below. */
+function makeMockDb(insertedTransactions: any[], insertedRejections: any[]) {
+  const makeTableMock = (response: any, opts: { insertCapture?: any[] } = {}) => {
+    const handler: any = {
+      select: () => handler, eq: () => handler, order: () => handler, limit: () => handler,
+      single: () => Promise.resolve(response),
+      insert: (row: any) => {
+        opts.insertCapture?.push(row)
+        return { select: () => ({ single: () => Promise.resolve(response) }), then: (resolve: any) => resolve(response) }
+      },
+      then: (resolve: any) => resolve(response),
+    }
+    return handler
+  }
+  return {
+    auth: { getSession: async () => ({ data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } } }) },
+    from: (table: string) => {
+      if (table === 'profiles') return makeTableMock({ data: null, error: null })
+      if (table === 'email_scan_logs') return makeTableMock({ data: [], error: null })
+      if (table === 'cards') return makeTableMock({ data: [], error: null })
+      if (table === 'transactions') return makeTableMock({ data: [], error: null }, { insertCapture: insertedTransactions })
+      if (table === 'categories') return makeTableMock({ data: [{ name: 'Transport', is_permanent: false }, { name: 'Food & Dining', is_permanent: false }, { name: 'Other', is_permanent: true }], error: null })
+      if (table === 'email_scan_rejections') return makeTableMock({ error: null }, { insertCapture: insertedRejections })
+      return makeTableMock({ data: [], error: null })
+    },
+  }
 }
 
 describe('scanRealGmailInbox — Axis EMI debit regression', () => {
@@ -142,5 +173,120 @@ describe('scanRealGmailInbox — fetch query includes receipt-shaped keywords', 
     const decodedQuery = decodeURIComponent(capturedUrl.match(/[?&]q=([^&]+)/)?.[1] || '')
     expect(decodedQuery).toMatch(/debited OR credited/i)
     expect(decodedQuery).toMatch(/receipt OR invoice OR order OR booking OR trip OR fare OR ride OR subscription OR renewal OR total/i)
+  })
+})
+
+describe('scanRealGmailInbox — receipt-shaped emails with no debit/credit keyword', () => {
+  it('inserts the Uber trip receipt as pending instead of dropping it, and logs why', async () => {
+    const insertedTransactions: any[] = []
+    const insertedRejections: any[] = []
+    const mockDb = makeMockDb(insertedTransactions, insertedRejections)
+
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'msg-uber-trip-1', threadId: 'thread-uber-trip-1' }] }) } as any
+      if (url.includes('/messages/msg-uber-trip-1')) return { ok: true, status: 200, json: async () => makeUberTripGmailMessage() } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+
+    expect(result.error).toBeNull()
+    expect(insertedTransactions).toHaveLength(1)
+    const txn = insertedTransactions[0][0]
+    expect(txn.amount).toBe(224.76)
+    expect(txn.type).toBe('debit')
+    expect(txn.approval_status).toBe('pending')
+
+    expect(insertedRejections.some((r: any) => r.gate === 'no_debit_credit_signal')).toBe(true)
+  })
+
+  it('inserts a receipt from a wholly unrecognized vendor as pending (not list-dependent)', async () => {
+    const insertedTransactions: any[] = []
+    const insertedRejections: any[] = []
+    const mockDb = makeMockDb(insertedTransactions, insertedRejections)
+
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'msg-unknown-vendor-1', threadId: 'thread-unknown-vendor-1' }] }) } as any
+      if (url.includes('/messages/msg-unknown-vendor-1')) return { ok: true, status: 200, json: async () => makeUnknownVendorGmailMessage() } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+
+    expect(result.error).toBeNull()
+    expect(insertedTransactions).toHaveLength(1)
+    const txn = insertedTransactions[0][0]
+    expect(txn.amount).toBe(120)
+    expect(txn.type).toBe('debit')
+    expect(txn.approval_status).toBe('pending')
+  })
+
+  it('inserts the Zomato order receipt end-to-end (stripped footer survives the OTP gate, "Total paid" gives a clear debit signal)', async () => {
+    const insertedTransactions: any[] = []
+    const insertedRejections: any[] = []
+    const mockDb = makeMockDb(insertedTransactions, insertedRejections)
+
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'msg-zomato-order-1', threadId: 'thread-zomato-order-1' }] }) } as any
+      if (url.includes('/messages/msg-zomato-order-1')) return { ok: true, status: 200, json: async () => makeZomatoOrderGmailMessage() } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+
+    expect(result.error).toBeNull()
+    expect(insertedTransactions).toHaveLength(1)
+    const txn = insertedTransactions[0][0]
+    expect(txn.amount).toBe(286.47)
+    expect(txn.type).toBe('debit')
+    expect(txn.approval_status).toBe('pending')
+    // This email's own debit signal ("Total paid") is clear on its own —
+    // it should NOT need the no_debit_credit_signal fallback from this task.
+    expect(insertedRejections.some((r: any) => r.gate === 'no_debit_credit_signal')).toBe(false)
+  })
+
+  it('still rejects a promotional email even though the fetch query and pending-floor are both wider now', async () => {
+    const insertedTransactions: any[] = []
+    const insertedRejections: any[] = []
+    const mockDb = makeMockDb(insertedTransactions, insertedRejections)
+
+    function toBase64Url(text: string): string {
+      return Buffer.from(text, 'utf-8').toString('base64url')
+    }
+    const promoBody = 'Get cashback on your next Zomato order! Limited period offer, shop now. Total savings up to ₹200.'
+    const promoMessage = {
+      id: 'msg-promo-1',
+      threadId: 'thread-promo-1',
+      snippet: 'Get cashback on your next Zomato order!',
+      internalDate: String(Date.UTC(2026, 7, 10, 9, 0, 0)),
+      payload: {
+        headers: [
+          { name: 'Subject', value: 'Exclusive cashback offer just for you' },
+          { name: 'From', value: 'Zomato <noreply@zomato.com>' },
+        ],
+        mimeType: 'text/plain',
+        body: { data: toBase64Url(promoBody) },
+      },
+    }
+
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'msg-promo-1', threadId: 'thread-promo-1' }] }) } as any
+      if (url.includes('/messages/msg-promo-1')) return { ok: true, status: 200, json: async () => promoMessage } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+
+    expect(insertedTransactions).toHaveLength(0)
+    // The subject itself ("...offer...") trips the hard_reject_subject
+    // gate before evaluateRegexGates (and its promotional_spam check) is
+    // ever reached — that's the actual (correct, pre-existing) gate that
+    // fires here, not promotional_spam. Either way the email is rejected
+    // and logged, which is what this guardrail test cares about.
+    expect(insertedRejections.some((r: any) => r.gate === 'hard_reject_subject')).toBe(true)
   })
 })
