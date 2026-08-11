@@ -492,3 +492,116 @@ describe('scanRealGmailInbox — transient fetch failure handling', () => {
     expect(gates).toContain('fetch_failed')
   }, 15000)
 })
+
+describe('scanRealGmailInbox — batch insert fault isolation', () => {
+  it('falls back to per-row insert when the batch hits a unique-constraint conflict, keeping the non-conflicting rows', async () => {
+    const insertedRejections: any[] = []
+    let batchInsertAttempted = false
+    const perRowInserted: any[] = []
+
+    const mockDb: any = {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } } }) },
+      from: (table: string) => {
+        const baseHandler: any = {
+          select: () => baseHandler,
+          eq: () => baseHandler,
+          order: () => baseHandler,
+          limit: () => baseHandler,
+          single: () => Promise.resolve({ data: null, error: null }),
+          then: (resolve: any) => resolve({ data: [], error: null }),
+        }
+        if (table === 'profiles') return baseHandler
+        if (table === 'email_scan_logs') {
+          return {
+            ...baseHandler,
+            insert: (row: any) => ({ select: () => ({ single: () => Promise.resolve({ data: row, error: null }) }) }),
+          }
+        }
+        if (table === 'cards') return baseHandler
+        if (table === 'categories') return { ...baseHandler, then: (resolve: any) => resolve({ data: [{ name: 'Food & Dining', is_permanent: false }, { name: 'Other', is_permanent: true }], error: null }) }
+        if (table === 'email_scan_rejections') {
+          return { ...baseHandler, insert: (row: any) => { insertedRejections.push(row); return Promise.resolve({ error: null }) } }
+        }
+        if (table === 'transactions') {
+          return {
+            ...baseHandler,
+            insert: (rows: any) => {
+              const rowArray = Array.isArray(rows) ? rows : [rows]
+              if (rowArray.length > 1) {
+                batchInsertAttempted = true
+                return { select: () => Promise.resolve({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } }) }
+              }
+              // Per-row fallback: second row (the one "already inserted by another scan") conflicts, first succeeds.
+              const row = rowArray[0]
+              if (perRowInserted.length === 1) {
+                return { select: () => Promise.resolve({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } }) }
+              }
+              perRowInserted.push(row)
+              return { select: () => Promise.resolve({ data: [row], error: null }) }
+            },
+          }
+        }
+        return baseHandler
+      },
+    }
+
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'msg-uber-trip-1', threadId: 't1' }, { id: 'msg-zomato-order-1', threadId: 't2' }] }) } as any
+      }
+      if (url.includes('/messages/msg-uber-trip-1')) {
+        return { ok: true, status: 200, json: async () => makeUberTripGmailMessage() } as any
+      }
+      if (url.includes('/messages/msg-zomato-order-1')) {
+        return { ok: true, status: 200, json: async () => makeZomatoOrderGmailMessage() } as any
+      }
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+
+    expect(batchInsertAttempted).toBe(true)
+    expect(result.error).toBeNull()
+    // One of the two rows conflicted and was skipped; the other succeeded —
+    // the scan must not throw and must not lose the non-conflicting row.
+    expect(perRowInserted).toHaveLength(1)
+  })
+
+  it('still throws on a non-conflict database error', async () => {
+    const mockDb: any = {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } } }) },
+      from: (table: string) => {
+        const baseHandler: any = {
+          select: () => baseHandler, eq: () => baseHandler, order: () => baseHandler, limit: () => baseHandler,
+          single: () => Promise.resolve({ data: null, error: null }),
+          then: (resolve: any) => resolve({ data: [], error: null }),
+        }
+        if (table === 'profiles') return baseHandler
+        if (table === 'cards') return baseHandler
+        if (table === 'categories') return { ...baseHandler, then: (resolve: any) => resolve({ data: [{ name: 'Transport', is_permanent: false }, { name: 'Other', is_permanent: true }], error: null }) }
+        if (table === 'email_scan_rejections') return { ...baseHandler, insert: () => Promise.resolve({ error: null }) }
+        if (table === 'email_scan_logs') return { ...baseHandler, insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }) }) }
+        if (table === 'transactions') {
+          return { ...baseHandler, insert: () => ({ select: () => Promise.resolve({ data: null, error: { code: '500', message: 'connection reset' } }) }) }
+        }
+        return baseHandler
+      },
+    }
+
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'msg-uber-trip-1', threadId: 't1' }] }) } as any
+      }
+      if (url.includes('/messages/msg-uber-trip-1')) {
+        return { ok: true, status: 200, json: async () => makeUberTripGmailMessage() } as any
+      }
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+
+    expect(result.error).not.toBeNull()
+  })
+})
