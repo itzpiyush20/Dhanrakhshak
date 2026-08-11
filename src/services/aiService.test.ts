@@ -41,4 +41,16 @@ describe('analyzeTransactionEmailWithAI', () => {
     expect(result?.merchant).toBe('Swiggy')
     expect(result?.amount).toBe(450)
   })
+
+  it('passes purpose: "scan" through to the Gemini proxy call', async () => {
+    const fakeCallGemini = vi.fn().mockResolvedValue({
+      candidates: [{ content: { parts: [{ text: JSON.stringify({ is_transaction: false, transaction_type: null, amount: null, merchant: null, category: null, description: null, payment_mode: null, card_issuer: null, card_brand: null, transaction_time: null, reference_id: null, date: null, confidence_score: 0 }) }] } }],
+    })
+
+    await analyzeTransactionEmailWithAI('subj', 'body', '2026-08-10', fakeCallGemini)
+
+    expect(fakeCallGemini).toHaveBeenCalledTimes(1)
+    const callArg = fakeCallGemini.mock.calls[0][0]
+    expect(callArg.purpose).toBe('scan')
+  })
 })

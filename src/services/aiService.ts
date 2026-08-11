@@ -66,6 +66,7 @@ export async function generateAIInsights(ctx: FinancialContext): Promise<{
         { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
         { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
       ],
+      purpose: 'insights',
     })
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
     const parsed = parseGeminiResponse(text)
@@ -458,6 +459,7 @@ If NOT a completed transaction:
         topP: 0.9,
         responseMimeType: 'application/json',
       },
+      purpose: 'scan',
     })
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
 
