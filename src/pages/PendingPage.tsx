@@ -152,7 +152,7 @@ export default function PendingPage() {
     total: number
     autoApproved: number
     pendingReview: number
-    skipped: number
+    lowConfidence: number
   } | null>(null)
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -647,11 +647,11 @@ export default function PendingPage() {
       const count = res.data?.transactions?.length || 0
       const autoApproved = res.data?.autoApprovedCount || 0
       const pendingCount = count - autoApproved
-      const skipped = (res.data as any)?.skippedConfidence || 0
+      const lowConfidence = (res.data as any)?.lowConfidencePendingCount || 0
 
       // Per-transaction detail already lives in the auto-categorization review
       // modal below — this stays a short, glanceable summary, not a repeat dump.
-      setScanSuccessMessage({ total: count, autoApproved, pendingReview: pendingCount, skipped })
+      setScanSuccessMessage({ total: count, autoApproved, pendingReview: pendingCount, lowConfidence })
 
       await fetchPendingData()
       const freshScanLog = await fetchLastScanLog()
@@ -897,7 +897,7 @@ export default function PendingPage() {
                   <p className="text-xs opacity-80 mt-1">
                     {scanSuccessMessage.autoApproved} auto-approved
                     {scanSuccessMessage.pendingReview > 0 ? `, ${scanSuccessMessage.pendingReview} waiting below for your review` : ''}
-                    {scanSuccessMessage.skipped > 0 ? ` · ${scanSuccessMessage.skipped} skipped (low confidence)` : ''}
+                    {scanSuccessMessage.lowConfidence > 0 ? ` · ${scanSuccessMessage.lowConfidence} flagged low-confidence (please review)` : ''}
                   </p>
                 )}
               </div>
