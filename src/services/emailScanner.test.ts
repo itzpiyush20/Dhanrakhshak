@@ -37,7 +37,7 @@ function makeTableMock(response: any, opts: { insertCapture?: any[] } = {}) {
 }
 
 /** Shared across the "no debit/credit keyword" and "low confidence" test groups below. */
-function makeMockDb(insertedTransactions: any[], insertedRejections: any[]) {
+function makeMockDb(insertedTransactions: any[], insertedRejections: any[]): any {
   const makeTableMock = (response: any, opts: { insertCapture?: any[] } = {}) => {
     const handler: any = {
       select: () => handler, eq: () => handler, order: () => handler, limit: () => handler,
@@ -148,7 +148,7 @@ describe('scanRealGmailInbox — fetch query includes receipt-shaped keywords', 
           data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } },
         }),
       },
-      from: (table: string) => {
+      from: (_table: string) => {
         const handler: any = {
           select: () => handler, eq: () => handler, order: () => handler, limit: () => handler,
           single: () => Promise.resolve({ data: null, error: null }),
