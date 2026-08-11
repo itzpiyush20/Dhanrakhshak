@@ -7,7 +7,7 @@
 import { supabase as defaultSupabase } from './supabase.js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
-import { extractBankName } from '../utils/index.js'
+import { extractBankName, retryWithBackoff } from '../utils/index.js'
 import { applyMerchantRulesFromDB } from './learningEngine.js'
 import { getGoogleToken, clearGoogleToken, tryRefreshGoogleToken } from './googleAuth.js'
 import { analyzeTransactionEmailWithAI } from './aiService.js'
@@ -961,17 +961,33 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       const batchResults = await Promise.all(
         batch.map(async (m: { id: string }) => {
           try {
-            const res = await fetch(
-              `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}`,
-              { headers: { Authorization: `Bearer ${providerToken}` } }
-            )
+            const res = await retryWithBackoff(async () => {
+              const r = await fetch(
+                `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}`,
+                { headers: { Authorization: `Bearer ${providerToken}` } }
+              )
+              // 401/403 are auth failures, not transient — surface immediately,
+              // don't burn retries on a token that isn't coming back this batch.
+              if (r.status === 401 || r.status === 403) return r
+              // 429/5xx are transient — throwing here is what makes
+              // retryWithBackoff retry; anything else (2xx, 4xx other than
+              // 401/403) returns normally and is handled below.
+              if (r.status === 429 || r.status >= 500) {
+                throw new Error(`Transient Gmail fetch failure: ${r.status}`)
+              }
+              return r
+            }, 2, 500)
+
             if (res.status === 401 || res.status === 403) {
               tokenExpiredDuringBatch = true
               return null
             }
             if (!res.ok) return null
             return await res.json()
-          } catch { return null }
+          } catch {
+            logRejection(supabase, user.id, scanLogId, 'fetch_failed', '', '', `messageId=${m.id}`)
+            return null
+          }
         })
       )
       if (tokenExpiredDuringBatch) {
