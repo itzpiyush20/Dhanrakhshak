@@ -4,6 +4,7 @@ import { AXIS_EMI_BODY } from './__fixtures__/axisEmiDebit'
 import { UBER_TRIP_BODY } from './__fixtures__/uberTripReceipt'
 import { ZOMATO_ORDER_BODY } from './__fixtures__/zomatoOrderReceipt'
 import { UNKNOWN_VENDOR_BODY } from './__fixtures__/unknownVendorReceipt'
+import { BANK_MARKETING_BODY } from './__fixtures__/bankMarketingFromTrustedSender'
 import { stripBoilerplate } from './emailBoilerplate'
 
 describe('isGenuinePendingInitiation', () => {
@@ -174,5 +175,16 @@ describe('hasPaymentAssertion', () => {
 
   it('returns false for empty text', () => {
     expect(hasPaymentAssertion('')).toBe(false)
+  })
+})
+
+describe('bulk-mail gate — trusted-sender marketing', () => {
+  it('flags trusted-sender marketing as bulk (List-Unsubscribe present)', () => {
+    const headers = [{ name: 'List-Unsubscribe', value: '<https://hdfcbank.com/unsubscribe>' }]
+    expect(isBulkMarketingEmail(headers, BANK_MARKETING_BODY)).toBe(true)
+  })
+
+  it('has no payment assertion in bank marketing copy', () => {
+    expect(hasPaymentAssertion(BANK_MARKETING_BODY)).toBe(false)
   })
 })
