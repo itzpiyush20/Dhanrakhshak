@@ -1048,12 +1048,15 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       // not a receipt. Rejected BEFORE the AI call so newsletters never consume
       // the daily AI scan quota — a newsletter-heavy inbox would otherwise
       // exhaust it on junk and force genuine receipts onto the regex fallback.
-      // All three conditions are required: banks bypass on the first, and
-      // genuine receipts bypass on the second (they carry no bulk markers).
+      // Applies uniformly regardless of sender trust: banks send cashback/upsell
+      // marketing from the same domains as their real transaction alerts, and it
+      // carries the same List-Unsubscribe signal any other bulk mail does — a
+      // trusted-sender exemption here would let that marketing straight through.
+      // Genuine receipts still bypass this gate (they carry no bulk markers).
       // `bodyText` is passed unstripped and untruncated on purpose — opt-out
       // text lives in footers, past where the other gates stop reading.
       const isBulkMail = isBulkMarketingEmail(mail.payload?.headers || [], bodyText)
-      if (!isTrustedSender && isBulkMail && !hasPaymentAssertion(emailContentForParsing)) {
+      if (isBulkMail && !hasPaymentAssertion(emailContentForParsing)) {
         logRejection(supabase, user.id, scanLogId, 'bulk_mail_no_payment_evidence', senderDomain, subject, subject.substring(0, 120))
         continue
       }
@@ -1206,7 +1209,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         // Second form of the pre-AI gate, now that an amount exists. Catches
         // bulk mail that mentions payments somewhere in an article but whose
         // *amount* is editorial — a share price or an advertised list price.
-        if (!isTrustedSender && isBulkMail && !hasPaymentAssertion(windowContent)) {
+        if (isBulkMail && !hasPaymentAssertion(windowContent)) {
           logRejection(supabase, user.id, scanLogId, 'bulk_mail_no_payment_near_amount', senderDomain, subject, `amount=${amount}`)
           continue
         }

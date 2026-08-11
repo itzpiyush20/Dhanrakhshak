@@ -6,6 +6,7 @@ import { makeUnknownVendorGmailMessage } from './__fixtures__/unknownVendorRecei
 import { makeZomatoOrderGmailMessage } from './__fixtures__/zomatoOrderReceipt'
 import { makeBusinessStandardGmailMessage } from './__fixtures__/businessStandardNewsletter'
 import { makeBulkProseGmailMessage } from './__fixtures__/bulkMailWithPaymentProse'
+import { makeBankMarketingGmailMessage } from './__fixtures__/bankMarketingFromTrustedSender'
 
 vi.mock('./googleAuth', () => ({
   getGoogleToken: () => 'fake-access-token',
@@ -376,6 +377,32 @@ describe('scanRealGmailInbox — newsletter false positives', () => {
     expect(insertedTransactions).toHaveLength(0)
     const gates = insertedRejections.flat().map((r: any) => r.gate)
     expect(gates).toContain('bulk_mail_no_payment_near_amount')
+  })
+})
+
+describe('scanRealGmailInbox — trusted-sender marketing', () => {
+  it('rejects marketing from a trusted bank domain (no more exemption)', async () => {
+    const insertedTransactions: any[] = []
+    const insertedRejections: any[] = []
+    const mockDb = makeMockDb(insertedTransactions, insertedRejections)
+
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'msg-bank-marketing-1', threadId: 'thread-bank-marketing-1' }] }) } as any
+      }
+      if (url.includes('/messages/msg-bank-marketing-1')) {
+        return { ok: true, status: 200, json: async () => makeBankMarketingGmailMessage() } as any
+      }
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+
+    expect(result.error).toBeNull()
+    expect(insertedTransactions).toHaveLength(0)
+    const gates = insertedRejections.flat().map((r: any) => r.gate)
+    expect(gates).toContain('bulk_mail_no_payment_evidence')
   })
 })
 
