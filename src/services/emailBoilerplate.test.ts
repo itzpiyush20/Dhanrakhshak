@@ -34,6 +34,14 @@ describe('stripBoilerplate', () => {
     expect(result).toContain('PPR030614052540_EMI_05-08-')
   })
 
+  it('removes the "do not share these details" security sentence (Zomato-style phrasing)', () => {
+    const body = `Thank you for ordering from Patiala House. Total paid - ₹286.47. Eternal employees or representatives will NEVER ask you for your personal information i.e. your bank account details, password, PIN, CVV, OTP etc. For your own safety, DO NOT share these details with anyone over phone, SMS or email.`
+    const result = stripBoilerplate(body)
+    expect(result).not.toMatch(/DO NOT share these details/i)
+    expect(result).not.toMatch(/CVV, OTP/i)
+    expect(result).toContain('Total paid - ₹286.47')
+  })
+
   it('returns unstripped text unchanged when it contains no boilerplate', () => {
     const clean = 'Your account was debited with INR 500.00 for Zomato order.'
     expect(stripBoilerplate(clean)).toBe(clean)

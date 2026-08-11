@@ -19,7 +19,8 @@ const BOILERPLATE_SENTENCE_PATTERNS: RegExp[] = [
   /\bif\s+(?:this|it)\s+(?:was\s+)?not\s+(?:done|initiated)\s+by\s+you[^.]*\./gi,
   // "please do not share your ... OTP/CVV/PIN/password ..."
   /\bplease\s+do\s+not\s+share\s+your[^.]*\./gi,
-  /\bdo\s+not\s+share\s+your[^.]*?(?:otp|cvv|pin|password|card\s*number)[^.]*\./gi,
+  /\bdo\s+not\s+share\s+(?:your|these|this|such)[^.]*?(?:otp|cvv|pin|password|card\s*number|details)[^.]*\./gi,
+  /\b\S+\s+(?:employees|representatives)?\s*(?:or\s+representatives)?\s+will\s+never\s+ask\s+you\s+for\s+your\s+personal\s+information\b[\s\S]*?etc\.?/gi,
   // RBI / fraud advisory boilerplate
   /\bRBI\s+never\s+deals\s+with\s+individuals[^.]*\./gi,
   /\bdo\s+not\s+click\s+on\s+links?\s+from\s+unknown[^.]*\./gi,
