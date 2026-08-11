@@ -438,3 +438,57 @@ describe('scanRealGmailInbox — genuine receipts still detected (regression)', 
     })
   }
 })
+
+describe('scanRealGmailInbox — transient fetch failure handling', () => {
+  it('retries a message fetch that returns 429 and succeeds on a later attempt', async () => {
+    const insertedTransactions: any[] = []
+    const insertedRejections: any[] = []
+    const mockDb = makeMockDb(insertedTransactions, insertedRejections)
+
+    let messageFetchAttempts = 0
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'msg-axis-emi-1', threadId: 'thread-axis-emi-1' }] }) } as any
+      }
+      if (url.includes('/messages/msg-axis-emi-1')) {
+        messageFetchAttempts++
+        if (messageFetchAttempts < 3) {
+          return { ok: false, status: 429, json: async () => ({}) } as any
+        }
+        return { ok: true, status: 200, json: async () => makeAxisEmiGmailMessage() } as any
+      }
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+
+    expect(result.error).toBeNull()
+    expect(messageFetchAttempts).toBe(3)
+    expect(insertedTransactions).toHaveLength(1)
+  })
+
+  it('logs a fetch_failed rejection and drops the message when retries exhaust', async () => {
+    const insertedTransactions: any[] = []
+    const insertedRejections: any[] = []
+    const mockDb = makeMockDb(insertedTransactions, insertedRejections)
+
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'msg-axis-emi-1', threadId: 'thread-axis-emi-1' }] }) } as any
+      }
+      if (url.includes('/messages/msg-axis-emi-1')) {
+        return { ok: false, status: 429, json: async () => ({}) } as any
+      }
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+
+    expect(result.error).toBeNull()
+    expect(insertedTransactions).toHaveLength(0)
+    const gates = insertedRejections.flat().map((r: any) => r.gate)
+    expect(gates).toContain('fetch_failed')
+  }, 15000)
+})
