@@ -194,6 +194,13 @@ describe('scanRealGmailInbox — receipt-shaped emails with no debit/credit keyw
     expect(result.error).toBeNull()
     expect(insertedTransactions).toHaveLength(1)
     const txn = insertedTransactions[0][0]
+    // Regression check: the fixture has both "Total ₹224.76" and a
+    // "Payments" section header sitting right above "Suggested fare
+    // ₹214.76". Before the txKeywordsRe fix, the literal substring
+    // "payment" inside "Payments" false-matched as a transaction keyword,
+    // and its proximity to 214.76 made the amount-selection heuristic
+    // pick the suggested fare instead of the actual total. This asserts
+    // the correct total (224.76) wins, not the false-matched 214.76.
     expect(txn.amount).toBe(224.76)
     expect(txn.type).toBe('debit')
     expect(txn.approval_status).toBe('pending')

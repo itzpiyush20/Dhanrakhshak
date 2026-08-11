@@ -1151,7 +1151,12 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
 
         if (filteredAmounts.length === 0) continue
 
-        const txKeywordsRe = /debited|spent|paid|withdrawn|txn|charged|payment|credited|received|added|refund|transfer|neft|imps|rtgs/i
+        // `payment(?!s\b)` excludes the plural "Payments" section header
+        // (a false match that used to win the amount-proximity tie-break
+        // against real amounts in receipt-shaped emails) while still
+        // matching genuine singular uses like "payment of Rs.500" or
+        // "Payment received".
+        const txKeywordsRe = /debited|spent|paid|withdrawn|txn|charged|payment(?!s\b)|credited|received|added|refund|transfer|neft|imps|rtgs/i
         let amount = filteredAmounts[0].value
         let resolvedMatch = filteredAmounts[0]
 
@@ -1182,16 +1187,29 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         const creditWords = ['credited', 'credited to', 'received', 'received from', 'added', 'refund', 'refunded', 'cashback', 'deposited', 'salary', 'credit', 'reversed']
 
         const FALSE_CREDIT_RECEIVED = /received\s+(?:your\s+)?(?:order|payment)|order\s+received|payment\s+received|we\s+(?:have\s+)?received\s+your|received\s+at/i
+        // Mirrors FALSE_CREDIT_RECEIVED: "invoice" in debitWords is meant to
+        // catch genuine invoice/bill language ("Invoice #1234 generated,
+        // amount debited"), but boilerplate disclaimers like "is not a tax
+        // invoice" (e.g. ride-receipt fine print) false-match it as a debit
+        // signal. This guard only suppresses that negated phrasing — a bare
+        // "invoice" mention still scores normally.
+        const FALSE_DEBIT_INVOICE = /not\s+an?\s+(?:tax\s+)?invoice/i
 
         let debitScore = 0, creditScore = 0
-        debitWords.forEach(w => { if (windowContent.includes(w)) debitScore += 10 })
+        debitWords.forEach(w => {
+          if (w === 'invoice' && FALSE_DEBIT_INVOICE.test(windowContent)) return
+          if (windowContent.includes(w)) debitScore += 10
+        })
         creditWords.forEach(w => {
           if (w === 'received' && FALSE_CREDIT_RECEIVED.test(windowContent)) return
           if (windowContent.includes(w)) creditScore += 10
         })
 
         if (debitScore === 0 && creditScore === 0) {
-          debitWords.forEach(w => { if (lowerContent.includes(w)) debitScore += 5 })
+          debitWords.forEach(w => {
+            if (w === 'invoice' && FALSE_DEBIT_INVOICE.test(lowerContent)) return
+            if (lowerContent.includes(w)) debitScore += 5
+          })
           creditWords.forEach(w => {
             if (w === 'received' && FALSE_CREDIT_RECEIVED.test(lowerContent)) return
             if (lowerContent.includes(w)) creditScore += 5
