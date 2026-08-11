@@ -242,6 +242,13 @@ export default function PendingPage() {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
+        // Only auto-APPROVED rows belong here. Per migration 007, a NULL
+        // category_confirmed_at means "auto-categorized and auto-approved
+        // without human review" — a row still awaiting approval is already
+        // surfaced in the main Pending Review list below (which has its own
+        // category dropdown), so including it here made the same transaction
+        // demand confirmation twice, in two different places.
+        .eq('approval_status', 'approved')
         .is('category_confirmed_at', null)
         .gte('date', monthStart)
         .order('date', { ascending: false })
@@ -408,6 +415,12 @@ export default function PendingPage() {
         category: fields.category,
         description: fields.description,
         approval_status: 'approved',
+        // Approving here IS the human review, so stamp the confirmation.
+        // Migration 007's contract says anything approved via Pending Alerts
+        // carries a timestamp — without this the row stays NULL forever and
+        // the Auto-Categorization Review popup keeps asking about a
+        // transaction the user already approved.
+        category_confirmed_at: new Date().toISOString(),
       })
       if (error) throw error
 
