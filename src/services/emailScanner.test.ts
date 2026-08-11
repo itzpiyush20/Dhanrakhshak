@@ -290,3 +290,27 @@ describe('scanRealGmailInbox — receipt-shaped emails with no debit/credit keyw
     expect(insertedRejections.some((r: any) => r.gate === 'hard_reject_subject')).toBe(true)
   })
 })
+
+describe('scanRealGmailInbox — low regex confidence inserts pending, not dropped', () => {
+  it('inserts the Uber receipt (untrusted sender, no reference id) as pending despite scoring below 65', async () => {
+    const insertedTransactions: any[] = []
+    const insertedRejections: any[] = []
+    const mockDb = makeMockDb(insertedTransactions, insertedRejections)
+
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'msg-uber-trip-1', threadId: 'thread-uber-trip-1' }] }) } as any
+      if (url.includes('/messages/msg-uber-trip-1')) return { ok: true, status: 200, json: async () => makeUberTripGmailMessage() } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+
+    expect(insertedTransactions).toHaveLength(1)
+    const txn = insertedTransactions[0][0]
+    expect(txn.approval_status).toBe('pending')
+    expect(txn.confidence_score).toBeLessThan(65)
+    expect(insertedRejections.some((r: any) => r.gate === 'confidence_below_65')).toBe(true)
+    expect(result.data?.lowConfidencePendingCount).toBeGreaterThanOrEqual(1)
+  })
+})

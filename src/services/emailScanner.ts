@@ -1009,8 +1009,11 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     const fallbackCategoryName = (userCategories || []).find((c: any) => c.is_permanent)?.name || 'Other'
 
     const transactionsToInsert: TransactionInsert[] = []
-    let skippedConfidence = 0
-    const skippedEmailsDetails: string[] = []
+    // Renamed from skippedConfidence: these emails are no longer skipped —
+    // they're inserted as pending transactions with their low score
+    // preserved, so the name should say what actually happens to them now.
+    let lowConfidencePendingCount = 0
+    const lowConfidenceEmailsDetails: string[] = []
 
     for (const mail of validDetails) {
       const mailMessageId: string = mail.id || ''
@@ -1310,13 +1313,20 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           debitCreditClear,
         })
 
+        // Below-threshold confidence used to drop the email outright. It now
+        // still gets logged (so the audit trail in email_scan_rejections is
+        // unchanged), but inserts as a pending transaction instead of being
+        // discarded — approval_status is already guaranteed 'pending' here
+        // (applyMerchantRulesFromDB/applyMerchantRules never return
+        // 'approved'), so a low-confidence guess costs the user one
+        // dismiss-tap on the Pending page rather than a permanently missing
+        // transaction.
         if (confidence < 65) {
-          skippedConfidence++
-          if (skippedEmailsDetails.length < 5) {
-            skippedEmailsDetails.push(`${senderDomain || 'unknown'}|"${subject.substring(0, 30)}"|Conf:${confidence}`)
+          lowConfidencePendingCount++
+          if (lowConfidenceEmailsDetails.length < 5) {
+            lowConfidenceEmailsDetails.push(`${senderDomain || 'unknown'}|"${subject.substring(0, 30)}"|Conf:${confidence}`)
           }
           logRejection(supabase, user.id, scanLogId, 'confidence_below_65', senderDomain, subject, `confidence=${confidence}`)
-          continue
         }
 
         parsedTxn = {
@@ -1353,7 +1363,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           emails_processed: validDetails.length,
           transactions_found: 0,
           status: 'success',
-          error_message: skippedConfidence > 0 ? `${skippedConfidence} email(s) skipped (low confidence). Samples: ${skippedEmailsDetails.join('; ')}` : null,
+          error_message: lowConfidencePendingCount > 0 ? `${lowConfidencePendingCount} email(s) added as pending (low confidence). Samples: ${lowConfidenceEmailsDetails.join('; ')}` : null,
         })
         .select().single()
       return { data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0 }, error: null }
@@ -1380,7 +1390,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         emails_processed: validDetails.length,
         transactions_found: transactionsToInsert.length,
         status: 'success',
-        error_message: skippedConfidence > 0 ? `${skippedConfidence} email(s) skipped (confidence < 65). Samples: ${skippedEmailsDetails.join('; ')}` : null,
+        error_message: lowConfidencePendingCount > 0 ? `${lowConfidencePendingCount} email(s) added as pending (confidence < 65). Samples: ${lowConfidenceEmailsDetails.join('; ')}` : null,
       })
       .select().single()
 
@@ -1393,7 +1403,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         transactions: insertedTxns,
         log: scanLog as EmailScanLog,
         autoApprovedCount,
-        skippedConfidence,
+        lowConfidencePendingCount,
       },
       error: null,
     }
