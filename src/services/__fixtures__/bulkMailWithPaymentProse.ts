@@ -20,7 +20,7 @@ ${'Filler commentary to separate the payment prose above from the figure below. 
 Shares of the company closed at ₹ 95.30 on Friday, up marginally on the week.
 
 You are receiving this email because you signed up at marketsweekly.example.
-Click here to unsubscribe.`
+Manage how you receive future issues at marketsweekly.example/prefs.`
 
 function toBase64Url(text: string): string {
   return Buffer.from(text, 'utf-8').toString('base64url')

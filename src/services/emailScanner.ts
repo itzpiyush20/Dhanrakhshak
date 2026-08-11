@@ -12,7 +12,7 @@ import { applyMerchantRulesFromDB } from './learningEngine.js'
 import { getGoogleToken, clearGoogleToken, tryRefreshGoogleToken } from './googleAuth.js'
 import { analyzeTransactionEmailWithAI } from './aiService.js'
 import { stripBoilerplate } from './emailBoilerplate.js'
-import { evaluateRegexGates, logRejection } from './emailScanGates.js'
+import { evaluateRegexGates, logRejection, isBulkMarketingEmail, hasPaymentAssertion } from './emailScanGates.js'
 
 type EmailScanLog = Database['public']['Tables']['email_scan_logs']['Row']
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert']
@@ -1044,6 +1044,20 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       const fullText = `${subject} ${strippedBodyText} ${mail.snippet || ''}`
       const emailContentForParsing = fullText.substring(0, 2000)
 
+      // Bulk marketing with no payment language anywhere is an advertisement,
+      // not a receipt. Rejected BEFORE the AI call so newsletters never consume
+      // the daily AI scan quota — a newsletter-heavy inbox would otherwise
+      // exhaust it on junk and force genuine receipts onto the regex fallback.
+      // All three conditions are required: banks bypass on the first, and
+      // genuine receipts bypass on the second (they carry no bulk markers).
+      // `bodyText` is passed unstripped and untruncated on purpose — opt-out
+      // text lives in footers, past where the other gates stop reading.
+      const isBulkMail = isBulkMarketingEmail(mail.payload?.headers || [], bodyText)
+      if (!isTrustedSender && isBulkMail && !hasPaymentAssertion(emailContentForParsing)) {
+        logRejection(supabase, user.id, scanLogId, 'bulk_mail_no_payment_evidence', senderDomain, subject, subject.substring(0, 120))
+        continue
+      }
+
       let parsedTxn: TransactionInsert | null = null
       let aiConfidentReject = false
 
@@ -1064,7 +1078,17 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
                 ruleResult = { category: aiResult.category || fallbackCategoryName, approval_status: 'pending', confidence: aiResult.confidence_score }
               }
 
-              const approval_status = ruleResult.approval_status
+              // The prompt tells the model to score 0-59 for "uncertain cases
+              // (these will be reviewed or rejected)", but this call site never
+              // read the score. Honour that contract: still insert (never
+              // silently drop), but pin it to pending explicitly here rather
+              // than relying on applyMerchantRulesFromDB's invariant.
+              const aiLowConfidence =
+                typeof aiResult.confidence_score === 'number' && aiResult.confidence_score < 60
+              if (aiLowConfidence) {
+                logRejection(supabase, user.id, scanLogId, 'ai_low_confidence', senderDomain, subject, `confidence=${aiResult.confidence_score}`)
+              }
+              const approval_status = aiLowConfidence ? 'pending' : ruleResult.approval_status
 
               const resolvedCategory = (categoryNames.length > 0 && !categoryNames.includes(ruleResult.category))
                 ? fallbackCategoryName
@@ -1179,6 +1203,14 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         const windowContent = emailContentForParsing.substring(winStart, winEnd).toLowerCase()
         const lowerContent = emailContentForParsing.toLowerCase()
 
+        // Second form of the pre-AI gate, now that an amount exists. Catches
+        // bulk mail that mentions payments somewhere in an article but whose
+        // *amount* is editorial — a share price or an advertised list price.
+        if (!isTrustedSender && isBulkMail && !hasPaymentAssertion(windowContent)) {
+          logRejection(supabase, user.id, scanLogId, 'bulk_mail_no_payment_near_amount', senderDomain, subject, `amount=${amount}`)
+          continue
+        }
+
         const debitWords = [
           'debited', 'debited for', 'spent', 'paid', 'paid to', 'withdrawn', 'charged',
           'payment to', 'sent to', 'transfer to', 'purchased at', 'debit',
@@ -1245,7 +1277,13 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           cardIssuer = cardMap[cardLast4]
         }
 
-        const knownMerchant = extractMerchantFromSnippet(fullText)
+        // Anchored to the subject and the amount's neighbourhood, never the
+        // whole body: a real merchant sits next to its amount ("Rs.250 debited
+        // at OLA CABS") or in the subject ("Your trip with Uber"), whereas a
+        // brand mentioned in an article tens of KB away is not the merchant.
+        // Scanning fullText is how a news story about Ola Electric became an
+        // "Ola Cab Ride" transaction.
+        const knownMerchant = extractMerchantFromSnippet(`${subject} ${windowContent}`)
         const dynamicMerchant = extractDynamicMerchant(emailContentForParsing)
         const subjectMerchant = subject ? extractDynamicMerchant(subject) : ''
 
