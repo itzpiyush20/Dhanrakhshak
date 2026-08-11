@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS ai_calls_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS ai_calls_reset_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS ai_scan_calls_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS ai_scan_calls_reset_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
 -- Returns true if the given user (default: caller) is flagged as an admin.
 -- SECURITY DEFINER so it can read profiles.is_admin without recursing into
