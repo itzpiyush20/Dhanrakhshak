@@ -158,6 +158,9 @@ const HARD_ACCEPT_SUBJECT_PATTERNS = [
   /\b(?:credit\s*)?card\s*payment\b/i,
   /\bcred\b/i,
   /\b(?:transaction|txn|debit|credit|payment|spend)\s*(?:alert|notification|update|confirmation)\b/i,
+  /\b(?:credit\s*card|card)\s*(?:bill\s*)?(?:payment|paid|received|successful|confirmation)\b/i,
+  /\b(?:credit\s*)?card\s*bill\s*(?:is\s*)?paid\b/i,
+  /\bpayment\s*(?:is|was|has\s+been)?\s*successful\b/i,
 ]
 
 // ============================================================
@@ -2159,7 +2162,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         }
       }
 
-      if (aiConfidentReject && !parsedTxn) {
+      if (aiConfidentReject && !parsedTxn && !isHardAccepted) {
         bufferRejection('ai_confident_reject', senderDomain, subject, '')
         continue
       }
@@ -2200,7 +2203,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           const postEnd = Math.min(emailContentForParsing.length, m.index + m.text.length + 50)
           const succeedingText = emailContentForParsing.substring(m.index + m.text.length, postEnd).toLowerCase()
           const contextWindow = `${precedingText} ${m.text.toLowerCase()} ${succeedingText}`
-          const isPaymentOrPaidAmount = /\b(?:payment\s*(?:of|received|successful|done|completed|towards|credited|processed)?|paid|received|debited|spent|credited)\b/i.test(contextWindow)
+          const isPaymentOrPaidAmount = /\b(?:payment\s*(?:is|was|has\s+been)?\s*(?:of|received|successful|done|completed|towards|credited|processed|confirmed)?|paid|received|debited|spent|credited)\b/i.test(contextWindow)
 
           if (isPaymentOrPaidAmount) {
             return !(/avail(?:able)?\s+limit|credit\s+limit|reward\s+points/i.test(precedingText) ||
@@ -2263,7 +2266,9 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           'debited', 'debited for', 'spent', 'paid', 'paid to', 'withdrawn', 'charged',
           'payment to', 'sent to', 'transfer to', 'purchased at', 'debit',
           'order placed', 'checkout', 'billed', 'invoice', 'bill payment', 'payment received',
-          'card payment', 'payment towards', 'payment for', 'payment of', 'towards card', 'towards credit card'
+          'card payment', 'payment towards', 'payment for', 'payment of', 'towards card', 'towards credit card',
+          'payment was successful', 'payment is successful', 'payment successful', 'bill payment successful',
+          'credit card bill payment', 'credit card payment', 'card bill payment'
         ]
         const creditWords = ['credited', 'credited to', 'received', 'received from', 'added', 'refund', 'refunded', 'cashback', 'deposited', 'salary', 'credit', 'reversed']
 
