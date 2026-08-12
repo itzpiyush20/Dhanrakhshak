@@ -1318,8 +1318,10 @@ describe('scanRealGmailInbox — progress reporting', () => {
     expect(phases).toContain('filtering')
     expect(phases).toContain('analyzing')
     expect(phases).toContain('saving')
-    // Phases never run backwards.
-    const order = ['listing', 'fetching', 'preparing', 'filtering', 'analyzing', 'saving']
+    // Phases never run backwards. `preparing` precedes `fetching` on purpose:
+    // the dedup set has to be loaded BEFORE message bodies are downloaded, so
+    // mail an earlier scan already handled is never fetched at all (R4).
+    const order = ['listing', 'preparing', 'fetching', 'filtering', 'analyzing', 'saving']
     const seen = phases.map((p) => order.indexOf(p))
     expect(seen).toEqual([...seen].sort((a, b) => a - b))
   })
@@ -2391,5 +2393,81 @@ describe('scanRealGmailInbox — bounded cost on an oversized HTML email', () =>
     expect(result.error).toBeNull()
     expect(inserted.flat()).toHaveLength(1)
     expect(inserted.flat()[0].amount).toBe(450)
+  })
+})
+
+// ============================================================
+// R4 — "never reconsider an email already considered in an earlier scan."
+// This was previously honoured only in Stage A, i.e. AFTER every message body
+// had already been downloaded and decoded. Combined with R3's strict rolling
+// 7-day window (every scan re-lists the whole week), that meant each scan
+// re-fetched ~160 message bodies in order to process the handful that were
+// actually new. The check has to happen before the network cost, not after it.
+// ============================================================
+
+describe('scanRealGmailInbox — skips already-processed mail before fetching it', () => {
+  it('never requests a message body for an email an earlier scan already handled', async () => {
+    const messages = [
+      makeAxisEmiGmailMessage('msg-seen-1'),
+      makeAxisEmiGmailMessage('msg-seen-2'),
+      makeAxisEmiGmailMessage('msg-fresh'),
+    ]
+    const bodyFetches: string[] = []
+
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) {
+        bodyFetches.push(hit.id)
+        return { ok: true, status: 200, json: async () => hit } as any
+      }
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    // Two of the three are already stored from a previous scan.
+    const storedRows = [
+      { id: 'txn-1', email_message_id: 'msg-seen-1', merged_email_message_ids: null },
+      { id: 'txn-2', email_message_id: 'msg-seen-2', merged_email_message_ids: null },
+    ]
+
+    const txnHandler: any = {
+      select: () => txnHandler, eq: () => txnHandler, order: () => txnHandler,
+      limit: () => txnHandler, gte: () => txnHandler,
+      single: () => Promise.resolve({ data: storedRows, error: null }),
+      insert: () => ({
+        select: () => ({ single: () => Promise.resolve({ data: null, error: null }) }),
+        then: (resolve: any) => resolve({ data: [], error: null }),
+      }),
+      then: (resolve: any) => resolve({ data: storedRows, error: null }),
+    }
+
+    const mockDb: any = {
+      auth: {
+        getSession: async () => ({
+          data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } },
+        }),
+      },
+      from: (table: string) => {
+        if (table === 'transactions') return txnHandler
+        return makeTableMock({ data: [], error: null })
+      },
+    }
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    // The two seen ids cost no network round trip at all — not "were fetched
+    // and then skipped", which is what the old ordering did.
+    expect(bodyFetches).toEqual(['msg-fresh'])
   })
 })

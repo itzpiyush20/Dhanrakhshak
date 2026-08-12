@@ -1523,7 +1523,20 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     do {
       const pageSize = isOwner ? 200 : 100
       const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${pageSize}&q=${encodeURIComponent(q)}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`
-      const listRes = await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${providerToken}` } }, 20000)
+      // Retried on the same terms as the per-message fetches below, which have
+      // had this since the start. Without it, ONE transient network failure on
+      // this very first call — a dropped connection, an ERR_QUIC_PROTOCOL_ERROR,
+      // a 429 — ends the entire scan at "stage: starting" with nothing done,
+      // even though the identical failure on any later message is shrugged off.
+      const listRes = await retryWithBackoff(async () => {
+        const r = await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${providerToken}` } }, 20000)
+        // Auth failures are terminal; retrying cannot fix a dead token.
+        if (r.status === 401 || r.status === 403) return r
+        if (r.status === 429 || r.status >= 500) {
+          throw new Error(`Transient Gmail list failure: ${r.status}`)
+        }
+        return r
+      }, 2, 500)
 
       if (listRes.status === 401 || listRes.status === 403) {
         clearGoogleToken()
@@ -1551,53 +1564,6 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         .insert({ id: scanLogId, user_id: user.id, emails_processed: 0, transactions_found: 0, status: 'success', scan_mode: scanMode })
         .select().single()
       return { data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0 }, error: null }
-    }
-
-    const batchSize = 15
-    const validDetails: any[] = []
-    for (let i = 0; i < uniqueMessages.length; i += batchSize) {
-      const batch = uniqueMessages.slice(i, i + batchSize)
-      let tokenExpiredDuringBatch = false
-      const batchResults = await Promise.all(
-        batch.map(async (m: { id: string }) => {
-          try {
-            const res = await retryWithBackoff(async () => {
-              const r = await fetchWithTimeout(
-                `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}`,
-                { headers: { Authorization: `Bearer ${providerToken}` } },
-                20000
-              )
-              // 401/403 are auth failures, not transient — surface immediately,
-              // don't burn retries on a token that isn't coming back this batch.
-              if (r.status === 401 || r.status === 403) return r
-              // 429/5xx are transient — throwing here is what makes
-              // retryWithBackoff retry; anything else (2xx, 4xx other than
-              // 401/403) returns normally and is handled below.
-              if (r.status === 429 || r.status >= 500) {
-                throw new Error(`Transient Gmail fetch failure: ${r.status}`)
-              }
-              return r
-            }, 2, 500)
-
-            if (res.status === 401 || res.status === 403) {
-              tokenExpiredDuringBatch = true
-              return null
-            }
-            if (!res.ok) return null
-            return await res.json()
-          } catch {
-            bufferRejection('fetch_failed', '', '', `messageId=${m.id}`)
-            return null
-          }
-        })
-      )
-      if (tokenExpiredDuringBatch) {
-        clearGoogleToken()
-        throw new Error('TOKEN_EXPIRED')
-      }
-      validDetails.push(...batchResults.filter(Boolean))
-      checkpoint(`fetching email ${validDetails.length} of ${uniqueMessages.length}`)
-      emitProgress({ phase: 'fetching', current: validDetails.length, total: uniqueMessages.length })
     }
 
     // Scoped to the scan window plus a margin, rather than every transaction
@@ -1686,6 +1652,81 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     const mergeCandidates: StoredMergeCandidate[] = [
       ...((existingTxns ?? []) as unknown as StoredMergeCandidate[]),
     ]
+
+    // ── Drop already-processed mail BEFORE paying to download it ──────
+    // R4 ("never reconsider an email already considered") was previously
+    // honoured only in Stage A — i.e. AFTER every message body had already
+    // been fetched from Gmail and decoded. With the strict rolling 7-day
+    // window (R3), that meant each scan re-downloaded and re-parsed the whole
+    // previous week: ~160 messages fetched to process the handful that were
+    // actually new. The dedup set is known here, so the cheapest possible
+    // thing is to not ask Gmail for those messages at all.
+    //
+    // Stage A keeps its own identical check: this set is a snapshot, and a
+    // concurrent scan can insert a row between here and there.
+    const newMessages = uniqueMessages.filter((m) => !existingMessageIds.has(m.id))
+    const alreadyKnownCount = uniqueMessages.length - newMessages.length
+    if (alreadyKnownCount > 0) {
+      console.info(
+        `[emailScanner] skipping ${alreadyKnownCount} of ${uniqueMessages.length} messages already processed by an earlier scan`
+      )
+    }
+
+    if (newMessages.length === 0) {
+      const { data: log } = await supabase
+        .from('email_scan_logs')
+        .insert({ id: scanLogId, user_id: user.id, emails_processed: 0, transactions_found: 0, status: 'success', scan_mode: scanMode })
+        .select().single()
+      await flushRejections()
+      return { data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0, mergedDuplicateCount: 0 }, error: null }
+    }
+
+    const batchSize = 15
+    const validDetails: any[] = []
+    for (let i = 0; i < newMessages.length; i += batchSize) {
+      const batch = newMessages.slice(i, i + batchSize)
+      let tokenExpiredDuringBatch = false
+      const batchResults = await Promise.all(
+        batch.map(async (m: { id: string }) => {
+          try {
+            const res = await retryWithBackoff(async () => {
+              const r = await fetchWithTimeout(
+                `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}`,
+                { headers: { Authorization: `Bearer ${providerToken}` } },
+                20000
+              )
+              // 401/403 are auth failures, not transient — surface immediately,
+              // don't burn retries on a token that isn't coming back this batch.
+              if (r.status === 401 || r.status === 403) return r
+              // 429/5xx are transient — throwing here is what makes
+              // retryWithBackoff retry; anything else (2xx, 4xx other than
+              // 401/403) returns normally and is handled below.
+              if (r.status === 429 || r.status >= 500) {
+                throw new Error(`Transient Gmail fetch failure: ${r.status}`)
+              }
+              return r
+            }, 2, 500)
+
+            if (res.status === 401 || res.status === 403) {
+              tokenExpiredDuringBatch = true
+              return null
+            }
+            if (!res.ok) return null
+            return await res.json()
+          } catch {
+            bufferRejection('fetch_failed', '', '', `messageId=${m.id}`)
+            return null
+          }
+        })
+      )
+      if (tokenExpiredDuringBatch) {
+        clearGoogleToken()
+        throw new Error('TOKEN_EXPIRED')
+      }
+      validDetails.push(...batchResults.filter(Boolean))
+      checkpoint(`fetching email ${validDetails.length} of ${newMessages.length}`)
+      emitProgress({ phase: 'fetching', current: validDetails.length, total: newMessages.length })
+    }
 
     // Fetch the user's real categories once per scan (not once per email) — used to
     // (1) feed the AI prompt the user's actual category names instead of the old
