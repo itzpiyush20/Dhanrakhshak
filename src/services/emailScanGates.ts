@@ -69,13 +69,13 @@ export function evaluateRegexGates(
   if (promoMatch && !hasCompletedPaymentEvidence) return { rejected: true, gate: 'promotional_spam', snippet: promoMatch[0] }
 
   const declinedMatch = /\b(?:declined|failed|unsuccessful|rejected|cancelled|void|voided)\b/i.exec(emailContentForParsing)
-  if (declinedMatch) return { rejected: true, gate: 'declined_or_void', snippet: declinedMatch[0] }
+  if (declinedMatch && !hasCompletedPaymentEvidence) return { rejected: true, gate: 'declined_or_void', snippet: declinedMatch[0] }
 
   const pendingInitiation = isGenuinePendingInitiation(emailContentForParsing)
   if (pendingInitiation.matched && !hasCompletedPaymentEvidence) return { rejected: true, gate: 'pending_initiation', snippet: pendingInitiation.snippet }
 
-  const otpMatch = /\b(?:otp|one\s*time\s*pass(?:word|code)|verification\s*code|verification\s*pin|passcode|security\s*pin|security\s*code|m-?pin|t-?pin|2fa|two\s*factor|auth\s*code|do\s*not\s*share)\b/i.exec(emailContentForParsing)
-  if (otpMatch) return { rejected: true, gate: 'otp_or_security_code', snippet: otpMatch[0] }
+  const otpMatch = /\b(?:otp|one\s*time\s*pass(?:word|code)|verification\s*code|verification\s*pin|passcode|security\s*pin|security\s*code|m-?pin|t-?pin|2fa|two\s*factor|auth\s*code)\b/i.exec(emailContentForParsing)
+  if (otpMatch && !hasCompletedPaymentEvidence) return { rejected: true, gate: 'otp_or_security_code', snippet: otpMatch[0] }
 
   const orderPlacedMatch = /\b(?:order\s*(?:placed|confirmed|received|acknowledged)|booking\s*(?:confirmed|received)|your\s*order\s*(?:is|has been))\b/i.exec(emailContentForParsing)
   if (orderPlacedMatch && !hasDebitConfirmation) {
