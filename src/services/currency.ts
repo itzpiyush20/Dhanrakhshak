@@ -19,15 +19,15 @@ export const DEFAULT_CURRENCY = 'INR'
  * are recognised before a bare "$", and "AED" before a stray "D".
  */
 const CURRENCY_TOKENS: Array<{ pattern: string; code: string }> = [
-  { pattern: 'Rs\\.?|INR|₹|Rupees?', code: 'INR' },
-  { pattern: 'US\\$|USD', code: 'USD' },
-  { pattern: 'S\\$|SGD', code: 'SGD' },
-  { pattern: 'A\\$|AUD', code: 'AUD' },
-  { pattern: 'C\\$|CAD', code: 'CAD' },
-  { pattern: 'AED|Dhs\\.?', code: 'AED' },
-  { pattern: 'EUR|€', code: 'EUR' },
-  { pattern: 'GBP|£', code: 'GBP' },
-  { pattern: 'JPY|¥', code: 'JPY' },
+  { pattern: '\\b(?:Rs\\.?|INR|Rupees?)\\b|₹', code: 'INR' },
+  { pattern: '\\bUSD\\b|US\\$', code: 'USD' },
+  { pattern: '\\bSGD\\b|S\\$', code: 'SGD' },
+  { pattern: '\\bAUD\\b|A\\$', code: 'AUD' },
+  { pattern: '\\bCAD\\b|C\\$', code: 'CAD' },
+  { pattern: '\\bAED\\b|Dhs\\.?', code: 'AED' },
+  { pattern: '\\bEUR\\b|€', code: 'EUR' },
+  { pattern: '\\bGBP\\b|£', code: 'GBP' },
+  { pattern: '\\bJPY\\b|¥', code: 'JPY' },
   // Bare $ last: every more specific dollar variant has already matched.
   { pattern: '\\$', code: 'USD' },
 ]

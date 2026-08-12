@@ -60,7 +60,7 @@ export async function saveMerchantRuleToDb(
     .select('id, times_confirmed, card_brand')
     .eq('user_id', userId)
     .eq('merchant_key', merchantKey)
-    .single()
+    .maybeSingle()
 
   if (existing) {
     const updatePayload: Record<string, unknown> = {

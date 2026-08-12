@@ -147,6 +147,7 @@ const HARD_ACCEPT_SUBJECT_PATTERNS = [
   /\btransaction\s*on\s*(?:your\s*)?(?:credit\s*)?card\b/i,
   /\bcharge\s*on\s*(?:your\s*)?(?:credit\s*)?card\b/i,
   /\bspend\s*on\s*(?:your\s*)?(?:card|sbi|hdfc|icici|axis|kotak|onecard|scapia|amex|diners|rupay)\b/i,
+  /\bspent\s+(?:on|at)\b/i,
   /\b(?:transaction|txn|debit|credit|payment|spend)\s*(?:alert|notification|update|confirmation)\b/i,
 ]
 
@@ -533,12 +534,12 @@ function extractCardLast4(text: string): string | null {
     const digits = candidate.digits
     const idx = candidate.index
 
-    const val = parseInt(digits, 10)
-    if (val >= 2020 && val <= 2035) continue
-
     const preText = text.substring(Math.max(0, idx - 60), idx)
-
     const isMasked = /[xX*]+-?\s*$/.test(preText)
+    const hasCardPrefix = /\b(card|cc|ending|ends)\b/i.test(preText)
+
+    const val = parseInt(digits, 10)
+    if (val >= 2020 && val <= 2035 && !isMasked && !hasCardPrefix) continue
 
     const cardRegex = /\b(card|cc|credit|debit|visa|mastercard|mc|rupay|amex|diners|sbicard|sbi-card)\b/i
     const accountRegex = /\b(a\/c|account|acct|acc|savings|current|deposit|loan|wallet)\b/i
@@ -734,6 +735,39 @@ function decodeBase64Url(str: string, maxChars?: number): string {
  */
 const MAX_HTML_PARSE_CHARS = 60000
 
+function stripHtmlTagsFast(html: string): string {
+  if (!html) return ''
+  let result = ''
+  let inTag = false
+  let tagBuffer = ''
+  let skipContent = false
+
+  for (let i = 0; i < html.length; i++) {
+    const char = html[i]
+    if (char === '<') {
+      inTag = true
+      tagBuffer = ''
+    } else if (char === '>') {
+      inTag = false
+      const tagLower = tagBuffer.toLowerCase().trim()
+      if (skipContent) {
+        if (tagLower === '/style' || tagLower === '/script' || tagLower.startsWith('/style ') || tagLower.startsWith('/script ')) {
+          skipContent = false
+        }
+      } else if (tagLower.startsWith('style') || tagLower.startsWith('script')) {
+        skipContent = true
+      }
+      tagBuffer = ''
+      result += ' '
+    } else if (inTag) {
+      tagBuffer += char
+    } else if (!skipContent) {
+      result += char
+    }
+  }
+  return result.replace(/\s+/g, ' ')
+}
+
 function extractEmailBody(mail: any): string {
   if (!mail || !mail.payload) return mail?.snippet || ''
   let plainText = ''
@@ -753,17 +787,8 @@ function extractEmailBody(mail: any): string {
   if (plainText.trim()) return plainText.trim()
   if (htmlText.trim()) {
     if (htmlText.length > MAX_HTML_PARSE_CHARS) htmlText = htmlText.slice(0, MAX_HTML_PARSE_CHARS)
-    try {
-      const textContent = htmlText
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/\s+/g, ' ')
-      if (textContent.trim()) return textContent.trim()
-    } catch {
-      const textContent = htmlText.replace(/<[^>]*>/g, ' ')
-      if (textContent.trim()) return textContent.trim()
-    }
+    const textContent = stripHtmlTagsFast(htmlText)
+    if (textContent.trim()) return textContent.trim()
   }
   return mail.snippet || ''
 }
@@ -1814,6 +1839,9 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         if (isWeakMerchantLabel(stored.merchant) && !isWeakMerchantLabel(merged.merchant)) {
           patch.merchant = merged.merchant
           if (merged.description) patch.description = merged.description
+        }
+        if (merged.confidence_score && merged.confidence_score > (stored.confidence_score ?? 0)) {
+          patch.confidence_score = merged.confidence_score
         }
       }
 

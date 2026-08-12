@@ -93,8 +93,11 @@ function sameAmount(a: number, b: number): boolean {
 }
 
 function withinOneDay(a: string, b: string): boolean {
-  const ta = Date.parse(`${a}T00:00:00Z`)
-  const tb = Date.parse(`${b}T00:00:00Z`)
+  if (!a || !b) return false
+  const dateA = a.substring(0, 10)
+  const dateB = b.substring(0, 10)
+  const ta = Date.parse(`${dateA}T00:00:00Z`)
+  const tb = Date.parse(`${dateB}T00:00:00Z`)
   if (Number.isNaN(ta) || Number.isNaN(tb)) return false
   return Math.abs(ta - tb) <= 24 * 60 * 60 * 1000
 }

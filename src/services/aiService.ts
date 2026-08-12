@@ -622,10 +622,13 @@ Example of the array shape for 2 emails:
     }
 
     return results
-  } catch (e) {
-    // Batch failed wholesale. Fall back to the proven single-email path rather
-    // than dropping the whole chunk onto the regex ladder.
-    console.warn('[AI] Batch classification failed, falling back to single calls:', e)
+  } catch (e: any) {
+    console.warn('[AI] Batch classification failed:', e)
+    const isFatalProxyError = /404|503|401|Not authenticated/i.test(e?.message || '')
+    if (isFatalProxyError) {
+      return results
+    }
+    // Fall back to single calls only for transient content/JSON parsing failures
     for (const email of emails) {
       try {
         const single = await analyzeTransactionEmailWithAI(

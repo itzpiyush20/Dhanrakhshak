@@ -102,14 +102,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(429).json({ error: limitMessage })
   }
 
-  await supabaseAdmin
-    .from('profiles')
-    .update({
-      [countColumn]: currentCount + 1,
-      ...(needsReset ? { [resetColumn]: new Date().toISOString() } : {}),
-    })
-    .eq('id', user.id)
-
   const { contents, generationConfig, safetySettings } = req.body ?? {}
   if (!Array.isArray(contents)) {
     return res.status(400).json({ error: 'contents array is required' })
@@ -134,6 +126,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const data = await geminiRes.json()
+
+    // Deduct quota only after successful call
+    await supabaseAdmin
+      .from('profiles')
+      .update({
+        [countColumn]: currentCount + 1,
+        ...(needsReset ? { [resetColumn]: new Date().toISOString() } : {}),
+      })
+      .eq('id', user.id)
+
     return res.status(200).json(data)
   } catch (error: any) {
     console.error('Gemini proxy error:', error)
