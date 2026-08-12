@@ -242,7 +242,21 @@ Dependencies matter more than size here.
    email is never resurrected by a later scan in the window. Stored rows the user has
    already approved or re-categorised are never rewritten. The prompt rule discarding
    merchant "we received your payment" receipts is removed, as planned.
-7. **D6** (multi-currency) — independent; sequence by owner priority.
+7. ~~**D6** (multi-currency)~~ — **DONE.** Migration `016_transaction_currency.sql`;
+   detection and formatting in `src/services/currency.ts`; AI contract carries a
+   currency code with an explicit instruction never to convert. `formatCurrency` gained
+   an optional currency argument, so all ~100 existing call sites are unchanged, and the
+   per-transaction renders the scanner feeds now pass it. Headline totals and historical
+   analytics are INR-only, with foreign spend reported separately on the Dashboard
+   rather than folded in or silently dropped. Also fixed an interaction with D5:
+   `isSamePayment` ignored currency, so $50 and ₹50 merged into one.
+
+   **Not converted between currencies, by design** — that needs a live rate source and a
+   rate-on-what-date policy, and would make historical totals drift as rates move.
+
+   **Known remaining surface:** Budgets, Analytics and Subscriptions still aggregate
+   without a currency filter. They are INR-correct today because non-INR rows are rare
+   and newly possible; revisit if foreign spend becomes common.
 8. **D7** (rejection logging for missing amounts) — trivial, anytime.
 9. ~~**Performance Phase 2** (progress + incremental inserts)~~ — **DONE**, moved ahead of
    D3 at the owner's direction: incremental flushing is what stops a larger post-D3 scan

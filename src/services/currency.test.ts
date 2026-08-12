@@ -109,3 +109,36 @@ describe('currencySymbol / isHomeCurrency', () => {
     expect(isHomeCurrency('USD')).toBe(false)
   })
 })
+
+// Formatting lives in utils (used by 100+ render sites); these pin the
+// currency-aware behaviour and, critically, the backwards compatibility that
+// lets every existing single-argument call keep working unchanged.
+describe('formatCurrency', () => {
+  it('still formats rupees when called with one argument', async () => {
+    const { formatCurrency } = await import('../utils/index')
+    expect(formatCurrency(1234.5)).toContain('₹')
+  })
+
+  it('formats a foreign amount in its own currency', async () => {
+    const { formatCurrency } = await import('../utils/index')
+    expect(formatCurrency(50, 'USD')).toContain('$')
+    expect(formatCurrency(50, 'USD')).not.toContain('₹')
+  })
+
+  it('uses Indian digit grouping for rupees only', async () => {
+    const { formatCurrency } = await import('../utils/index')
+    // 1,23,456 (lakh grouping) vs 123,456 (thousands grouping)
+    expect(formatCurrency(123456, 'INR')).toContain('1,23,456')
+    expect(formatCurrency(123456, 'USD')).toContain('123,456')
+  })
+
+  it('does not throw on an unrecognised currency code', async () => {
+    const { formatCurrency } = await import('../utils/index')
+    expect(() => formatCurrency(50, 'XYZ')).not.toThrow()
+  })
+
+  it('treats an empty currency as the home currency', async () => {
+    const { formatCurrency } = await import('../utils/index')
+    expect(formatCurrency(50, '')).toContain('₹')
+  })
+})

@@ -1236,7 +1236,7 @@ export default function PendingPage() {
                           : 'text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border-[var(--status-positive-border)] shadow-sm shadow-[var(--status-positive-text)]/5'
                       }`}
                     >
-                      {formatCurrency(Number(txn.amount))}
+                      {formatCurrency(Number(txn.amount), txn.currency)}
                     </span>
                   </div>
 
@@ -1398,7 +1398,7 @@ export default function PendingPage() {
 
                 <div className="flex items-center gap-2 shrink-0 justify-between sm:justify-end">
                   <span className="text-sm font-bold text-[var(--status-positive-text)] font-mono pr-1">
-                    {formatCurrency(Number(txn.amount))}
+                    {formatCurrency(Number(txn.amount), txn.currency)}
                   </span>
 
                   <select
