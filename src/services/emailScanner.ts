@@ -707,8 +707,23 @@ function decodeBase64Url(str: string, maxChars?: number): string {
   }
 }
 
-/** See the comment at its use below. */
-const MAX_HTML_PARSE_CHARS = 300000
+/**
+ * Ceiling on how much of one email's body is decoded and DOM-parsed.
+ *
+ * Sized against what actually READS this text, which is far less than it
+ * used to be set to (300000):
+ *   - the AI prompt        first  1500 chars (AI_BODY_CHAR_LIMIT)
+ *   - the regex gates      first  2000 chars (emailContentForParsing)
+ *   - bulk-mail markers    first/last 4000 chars each (BULK_SCAN_EDGE)
+ *   - boilerplate strip    last  12000 chars (BOILERPLATE_SCAN_TAIL_CHARS)
+ *
+ * Nothing consumes more than ~16KB, so parsing 300KB meant discarding ~95%
+ * of the work — per email, on the main thread, and worst on exactly the
+ * image-heavy marketing mail the gates exist to throw away. 60KB keeps a
+ * wide margin over every consumer above while cutting the decode+parse cost
+ * of a heavy email by ~5x.
+ */
+const MAX_HTML_PARSE_CHARS = 60000
 
 function extractEmailBody(mail: any): string {
   if (!mail || !mail.payload) return mail?.snippet || ''
@@ -886,8 +901,47 @@ export function resolveManualScanLimit(isOwner: boolean, isPremium: boolean): nu
 // timeout can still fire. Without this a large scan wedges the tab: the UI
 // freezes on its last painted frame and the timeout that is supposed to rescue
 // it never runs, because its callback is queued behind the blocking loop.
-const STAGE_A_YIELD_EVERY = 10
+//
+// Yielding is TIME-based, not count-based. A fixed "every 10 emails" yield
+// assumes emails cost about the same, and they don't: at ~0.5s for one heavy
+// marketing email, 10 of them is a 5-second main-thread block and Chrome shows
+// "Page Unresponsive" — which is exactly what kept happening. Checking elapsed
+// time instead bounds the block by wall-clock rather than by item count, so the
+// worst case is one email's work plus the budget, no matter how the per-email
+// cost varies or how many emails there are.
+const STAGE_YIELD_BUDGET_MS = 40
 const yieldToEventLoop = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+
+/**
+ * An email slower than this gets named in the console with its size and sender.
+ *
+ * Every prior round of this bug was diagnosed from screenshots of a frozen
+ * spinner, which says only that something was slow, never what. This makes a
+ * pathological email identify itself.
+ */
+const SLOW_EMAIL_WARN_MS = 400
+
+/**
+ * Whether a sender domain is trusted, matching the domain itself or any
+ * subdomain of it.
+ *
+ * The subdomain check walks the domain's own labels (at most a handful) and
+ * looks each suffix up in the Set. The previous form —
+ * `[...TRUSTED_SENDER_DOMAINS].some(d => senderDomain.endsWith('.' + d))` —
+ * spread the whole ~100-entry Set into a fresh array and built up to 100
+ * throwaway strings, for every email in every scan. Same result, without the
+ * per-email allocation.
+ */
+function isTrustedSenderDomain(senderDomain: string): boolean {
+  if (!senderDomain) return false
+  if (TRUSTED_SENDER_DOMAINS.has(senderDomain)) return true
+  let rest = senderDomain
+  for (let dot = rest.indexOf('.'); dot !== -1; dot = rest.indexOf('.')) {
+    rest = rest.slice(dot + 1)
+    if (TRUSTED_SENDER_DOMAINS.has(rest)) return true
+  }
+  return false
+}
 
 // Bulk markers live at the very top (preheader) or the very bottom (footer) of
 // a marketing email, never buried in the middle. Scanning head and tail keeps
@@ -1751,12 +1805,18 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     emitProgress({ phase: 'filtering', current: 0, total: validDetails.length })
 
     let stageAProcessed = 0
+    let stageASliceStartedAt = Date.now()
     for (const mail of validDetails) {
-      if (++stageAProcessed % STAGE_A_YIELD_EVERY === 0) {
+      stageAProcessed++
+      // Time-based, not every-Nth — see STAGE_YIELD_BUDGET_MS. Checked BEFORE
+      // the work so the budget bounds the block that is about to happen.
+      if (Date.now() - stageASliceStartedAt >= STAGE_YIELD_BUDGET_MS) {
         checkpoint(`sorting email ${stageAProcessed} of ${validDetails.length}`)
         emitProgress({ phase: 'filtering', current: stageAProcessed, total: validDetails.length })
         await yieldToEventLoop()
+        stageASliceStartedAt = Date.now()
       }
+      const emailStartedAt = Date.now()
 
       const mailMessageId: string = mail.id || ''
 
@@ -1777,8 +1837,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       const fromValue: string = fromHeader?.value || ''
       const senderDomainMatch = fromValue.match(/@([\w.-]+)>?/i)
       const senderDomain = senderDomainMatch ? senderDomainMatch[1].toLowerCase() : ''
-      const isTrustedSender = TRUSTED_SENDER_DOMAINS.has(senderDomain) ||
-        [...TRUSTED_SENDER_DOMAINS].some(d => senderDomain.endsWith('.' + d))
+      const isTrustedSender = isTrustedSenderDomain(senderDomain)
 
       // ── Year scope ────────────────────────────────────────────────
       // This used to be two bare `continue`s with no rejection log, and with a
@@ -1816,6 +1875,19 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       // keywords (e.g. "has not been initiated by you") and silently
       // dropping genuine transaction emails.
       const strippedBodyText = stripBoilerplate(bodyText)
+      // These two lines are the entire expensive part of Stage A (base64
+      // decode + DOM parse, then the boilerplate regexes); every gate around
+      // them is cheap string work. Timing here therefore attributes a slow
+      // email to the operation actually responsible, and names the message so
+      // a pathological one can be found in Gmail instead of inferred from a
+      // screenshot of a frozen spinner.
+      const bodyCostMs = Date.now() - emailStartedAt
+      if (bodyCostMs >= SLOW_EMAIL_WARN_MS) {
+        console.warn(
+          `[emailScanner] slow email: ${bodyCostMs}ms to read body — ` +
+          `${Math.round(bodyText.length / 1024)}KB from ${senderDomain || 'unknown sender'} — "${subject.substring(0, 80)}"`
+        )
+      }
       const fullText = `${subject} ${strippedBodyText} ${mail.snippet || ''}`
       const emailContentForParsing = fullText.substring(0, 2000)
 
@@ -1864,6 +1936,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // AI-result handling and regex ladder as before. Everything here is cheap
     // and stays sequential so accumulation order is deterministic.
     let stageCProcessed = 0
+    let stageCSliceStartedAt = Date.now()
     for (const candidate of candidates) {
       // Same macrotask yield as Stage A, and needed for the same reason. The
       // `await absorbIntoExistingPayment(...)` below looks like it yields, but
@@ -1871,10 +1944,12 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       // which only queues a MICROtask — and browsers paint between macrotasks,
       // not microtasks. Without this, Stage C blocks exactly as Stage A did,
       // while doing the heavier work of the full regex ladder per email.
-      if (++stageCProcessed % STAGE_A_YIELD_EVERY === 0) {
+      stageCProcessed++
+      if (Date.now() - stageCSliceStartedAt >= STAGE_YIELD_BUDGET_MS) {
         checkpoint(`interpreting email ${stageCProcessed} of ${candidates.length}`)
         emitProgress({ phase: 'analyzing', current: stageCProcessed, total: candidates.length })
         await yieldToEventLoop()
+        stageCSliceStartedAt = Date.now()
       }
 
       // `mail` and `strippedBodyText` are deliberately not destructured here:

@@ -1358,12 +1358,39 @@ describe('scanRealGmailInbox — progress reporting', () => {
     expect(insertedTransactions.flat()).toHaveLength(1)
   })
 
+  // Yielding is time-based (STAGE_YIELD_BUDGET_MS), so these two tests must
+  // give the scanner enough real work to exceed that budget — a handful of
+  // small text/plain fixtures now legitimately finishes inside one slice and
+  // never needs to yield at all. Heavy HTML bodies are what a yield exists to
+  // survive in production, so that is what these exercise: each message carries
+  // a real debit line plus enough markup to make the decode + DOM parse cost
+  // genuine, and the count is set well above the threshold so the assertions
+  // are not timing-marginal on a fast machine.
+  function makeHeavyHtmlMessage(id: string) {
+    const filler = '<tr><td><table><tr><td>promotional layout cell with padding text</td></tr></table></td></tr>'.repeat(1200)
+    const html = `<html><body><p>Rs.450.00 debited from your account XX4471 at SWIGGY on 10-08-26.</p><table>${filler}</table></body></html>`
+    return {
+      id,
+      threadId: `thread-${id}`,
+      snippet: 'debited',
+      internalDate: String(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      payload: {
+        headers: [
+          { name: 'Subject', value: 'Debit transaction alert' },
+          { name: 'From', value: 'Alerts <alerts@hdfcbank.com>' },
+        ],
+        mimeType: 'text/html',
+        body: { data: Buffer.from(html, 'utf-8').toString('base64url') },
+      },
+    }
+  }
+
   it('yields to the event loop during Stage A so the UI can repaint', async () => {
     // Regression guard. Stage A had no awaits at all, so it ran as one
     // uninterrupted synchronous block: React could not repaint, and the scan's
     // own setTimeout timeout could not fire either — a large scan wedged the
     // tab instead of timing out.
-    const messages = Array.from({ length: 25 }, (_, i) => makeAxisEmiGmailMessage(`msg-yield-${i}`))
+    const messages = Array.from({ length: 40 }, (_, i) => makeHeavyHtmlMessage(`msg-yield-${i}`))
     mockGmail(messages)
 
     let timerFiredDuringScan = false
@@ -1385,7 +1412,7 @@ describe('scanRealGmailInbox — progress reporting', () => {
     // synchronously whenever no merge partner is found — a microtask, which
     // does NOT let the browser paint. Same freeze as Stage A had, in the
     // stage that does more work per email.
-    const messages = Array.from({ length: 30 }, (_, i) => makeAxisEmiGmailMessage(`msg-stagec-${i}`))
+    const messages = Array.from({ length: 40 }, (_, i) => makeHeavyHtmlMessage(`msg-stagec-${i}`))
     mockGmail(messages)
 
     let ticks = 0
