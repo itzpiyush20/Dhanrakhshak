@@ -356,4 +356,10 @@ describe('credit card bill payment & spend alert gates', () => {
     const result = evaluateRegexGates('Transaction alert for HDFC Credit Card', content, false)
     expect(result.rejected).toBe(false)
   })
+
+  it('does not reject exact subject YOUR CREDIT CARD BILL PAYMENT IS SUCCESSFUL', () => {
+    const content = 'YOUR CREDIT CARD BILL PAYMENT IS SUCCESSFUL. Payment of Rs 15,000 towards SBI Card was received on 12 Aug 2026. UTR: 421098765432.'
+    const result = evaluateRegexGates('YOUR CREDIT CARD BILL PAYMENT IS SUCCESSFUL', content, true)
+    expect(result.rejected).toBe(false)
+  })
 })

@@ -144,10 +144,10 @@ const HARD_ACCEPT_SUBJECT_PATTERNS = [
   /\bpremium\s*(?:successfully\s+)?(?:collected|paid|received)\b/i,
   /\bpremium\s*payment\s*(?:successful|received|confirmation)\b/i,
   /\bdividend\s*(?:credited|paid)\b/i,
-  // Credit Card Bill Payments & Card Transactions
-  /\bcredit\s*card\s*bill\s*(?:paid|payment|received|successful|confirmation)\b/i,
-  /\bcard\s*payment\s*(?:received|successful|confirmed|completed|towards|processed)\b/i,
-  /\bpayment\s*(?:received|successful|confirmed|completed|processed)\s*(?:towards|for)?\s*(?:your\s*)?(?:credit\s*)?card\b/i,
+  /\bcredit\s*card\s*bill\s*payment\b/i,
+  /\bpayment\s*(?:is|was|has\s+been)?\s*(?:successful|received|confirmed|completed|done|processed)\b/i,
+  /\bcard\s*payment\s*(?:is|was|has\s+been)?\s*(?:successful|received|confirmed|completed|towards|processed)\b/i,
+  /\bpayment\s*(?:is|was|has\s+been)?\s*(?:received|successful|confirmed|completed|processed)\s*(?:towards|for)?\s*(?:your\s*)?(?:credit\s*)?card\b/i,
   /\bcred\b.*(?:bill|payment)\b/i,
   /\b(?:card|credit\s*card)\s*(?:transaction|spend|charge|alert|notification)\b/i,
   /\btransaction\s*on\s*(?:your\s*)?(?:credit\s*)?card\b/i,
@@ -2193,7 +2193,8 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           const precedingText = emailContentForParsing.substring(preStart, m.index).toLowerCase()
           const postEnd = Math.min(emailContentForParsing.length, m.index + m.text.length + 50)
           const succeedingText = emailContentForParsing.substring(m.index + m.text.length, postEnd).toLowerCase()
-          const isPaymentOrPaidAmount = /\b(?:payment\s*(?:of|received|successful|done|completed|towards|credited|processed)?|paid|received|debited|spent|credited)\b/i.test(precedingText)
+          const contextWindow = `${precedingText} ${m.text.toLowerCase()} ${succeedingText}`
+          const isPaymentOrPaidAmount = /\b(?:payment\s*(?:of|received|successful|done|completed|towards|credited|processed)?|paid|received|debited|spent|credited)\b/i.test(contextWindow)
 
           if (isPaymentOrPaidAmount) {
             return !(/avail(?:able)?\s+limit|credit\s+limit|reward\s+points/i.test(precedingText) ||
