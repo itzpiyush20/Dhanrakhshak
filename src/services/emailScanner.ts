@@ -2157,13 +2157,12 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       }
 
       if (!parsedTxn) {
-        const isHardRejected = HARD_REJECT_SUBJECT_PATTERNS.some(p => p.test(subject))
+        const isHardAccepted = HARD_ACCEPT_SUBJECT_PATTERNS.some(p => p.test(subject))
+        const isHardRejected = !isHardAccepted && HARD_REJECT_SUBJECT_PATTERNS.some(p => p.test(subject))
         if (isHardRejected) {
           bufferRejection('hard_reject_subject', senderDomain, subject, subject)
           continue
         }
-
-        const isHardAccepted = HARD_ACCEPT_SUBJECT_PATTERNS.some(p => p.test(subject))
 
         const gateResult = evaluateRegexGates(subject, emailContentForParsing, isHardAccepted)
         if (gateResult.rejected) {
