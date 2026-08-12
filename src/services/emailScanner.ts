@@ -1250,6 +1250,8 @@ export interface ScanGmailOptions {
   accessToken?: string
   /** Active financial year to scope the scan to. Defaults to the browser's localStorage value (or 2026). */
   activeYear?: number
+  /** Lookback window in milliseconds for searching Gmail. Defaults to 7 days. */
+  scanWindowMs?: number
   /**
    * Single-email AI analyzer. Defaults to the proxy-based
    * `analyzeTransactionEmailWithAI`. Still used as the per-email fallback when
@@ -1587,7 +1589,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // mail in that gap permanently beyond reach, because the Gmail query will
     // never request it again and dedup cannot recover what was never fetched.
     // Free users are most exposed, having no automatic scan at all.
-    const SCAN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+    const SCAN_WINDOW_MS = opts?.scanWindowMs ?? (7 * 24 * 60 * 60 * 1000)
     const startLimitTime = Date.now() - SCAN_WINDOW_MS
     let q = ''
     // Use Unix epoch (seconds) for precise filtering — Gmail supports this format
@@ -1598,13 +1600,13 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     let nextPageToken = ''
 
     // Page size only — NOT a cap on total messages processed. The rolling
-    // 7-day scan window computed above defines completeness; a message-count
+    // 30-day scan window computed above defines completeness; a message-count
     // cap here would silently truncate the oldest matches whenever a window
     // has more mail than the cap, which is exactly when completeness matters
     // most (a first scan, or a busy week).
     do {
       const pageSize = isOwner ? 200 : 100
-      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${pageSize}&q=${encodeURIComponent(q)}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${pageSize}&includeSpamTrash=true&q=${encodeURIComponent(q)}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`
       // Retried on the same terms as the per-message fetches below, which have
       // had this since the start. Without it, ONE transient network failure on
       // this very first call — a dropped connection, an ERR_QUIC_PROTOCOL_ERROR,
