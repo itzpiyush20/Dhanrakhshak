@@ -75,7 +75,16 @@ export class ErrorBoundary extends Component<Props, State> {
             )}
             <div className="flex gap-3 justify-center">
               <button
-                onClick={() => this.setState({ hasError: false, error: null })}
+                onClick={() => {
+                  const isStale = /failed to fetch dynamically imported module|error loading dynamically imported module/i.test(
+                    this.state.error?.message || ''
+                  )
+                  if (isStale) {
+                    window.location.reload()
+                  } else {
+                    this.setState({ hasError: false, error: null })
+                  }
+                }}
                 className="rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-semibold px-5 py-2.5 transition-colors"
               >
                 Try Again

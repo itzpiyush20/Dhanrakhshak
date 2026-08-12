@@ -1368,9 +1368,35 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
    * writing once, after the parent row exists, fixes the FK violation and
    * collapses N failing requests into one that succeeds.
    */
-  const rejectionBuffer: { gate: string; senderDomain: string; subject: string; matchedSnippet: string }[] = []
-  const bufferRejection = (gate: string, senderDomain: string, subject: string, matchedSnippet: string) => {
-    rejectionBuffer.push({ gate, senderDomain, subject, matchedSnippet })
+  const getLocalScannedMessageIds = (userId: string): Set<string> => {
+    try {
+      const raw = localStorage.getItem(`dhanrakshak_scanned_msg_ids_${userId}`)
+      if (!raw) return new Set()
+      const arr = JSON.parse(raw)
+      return new Set(Array.isArray(arr) ? arr : [])
+    } catch {
+      return new Set()
+    }
+  }
+
+  const saveLocalScannedMessageIds = (userId: string, newIds: string[]): void => {
+    try {
+      if (!newIds || newIds.length === 0) return
+      const current = getLocalScannedMessageIds(userId)
+      newIds.forEach((id) => { if (id) current.add(id) })
+      const list = Array.from(current).slice(-2000)
+      localStorage.setItem(`dhanrakshak_scanned_msg_ids_${userId}`, JSON.stringify(list))
+    } catch {
+      // Ignore localStorage errors
+    }
+  }
+
+  const rejectionBuffer: { gate: string; senderDomain: string; subject: string; matchedSnippet: string; emailMessageId?: string }[] = []
+  const bufferRejection = (gate: string, senderDomain: string, subject: string, matchedSnippet: string, emailMessageId?: string) => {
+    if (emailMessageId && user?.id) {
+      saveLocalScannedMessageIds(user.id, [emailMessageId])
+    }
+    rejectionBuffer.push({ gate, senderDomain, subject, matchedSnippet, emailMessageId })
   }
   /** Writes every buffered rejection, chunked so one oversized batch can't lose them all. */
   const flushRejections = async () => {
@@ -1382,6 +1408,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       subject: r.subject ? r.subject.substring(0, 500) : null,
       gate: r.gate,
       matched_snippet: r.matchedSnippet ? r.matchedSnippet.substring(0, 200) : null,
+      email_message_id: r.emailMessageId || null,
     }))
     const REJECTION_FLUSH_CHUNK = 500
     for (let i = 0; i < rows.length; i += REJECTION_FLUSH_CHUNK) {
@@ -1638,7 +1665,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
 
     const dedupFrom = new Date(startLimitTime - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-    const [existingTxnsRes, userCategoriesRes, merchantRules] = await Promise.all([
+    const [existingTxnsRes, existingRejectionsRes, userCategoriesRes, merchantRules] = await Promise.all([
       preloadOrDefault<PreloadRows>(
         supabase
           .from('transactions')
@@ -1649,6 +1676,14 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         'Loading existing transactions'
       ),
       preloadOrDefault<PreloadRows>(
+        supabase
+          .from('email_scan_rejections')
+          .select('email_message_id')
+          .eq('user_id', user.id),
+        { data: [], error: null },
+        'Loading rejected transactions'
+      ),
+      preloadOrDefault<PreloadRows>(
         supabase.from('categories').select('name, is_permanent').eq('user_id', user.id),
         { data: [], error: null },
         'Loading categories'
@@ -1657,6 +1692,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     ])
 
     const existingTxns = existingTxnsRes.data
+    const existingRejections = existingRejectionsRes.data
     if (existingTxnsRes.error) {
       console.error('[emailScanner] Failed to load existing transactions for dedup:', existingTxnsRes.error)
     }
@@ -1671,6 +1707,11 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         if (merged) existingMessageIds.add(merged)
       }
     }
+    for (const r of existingRejections ?? []) {
+      if ((r as any)?.email_message_id) existingMessageIds.add((r as any).email_message_id)
+    }
+    const localScannedIds = getLocalScannedMessageIds(user.id)
+    localScannedIds.forEach((id) => existingMessageIds.add(id))
     const existingRefIds = new Set<string>(
       (existingTxns ?? []).map((t: any) => t.reference_id).filter((r: any): r is string => !!r)
     )
