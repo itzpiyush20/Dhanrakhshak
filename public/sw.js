@@ -39,7 +39,16 @@ self.addEventListener('fetch', (e) => {
       caches.match(req).then((cached) => {
         const network = fetch(req)
           .then((res) => {
-            if (res.ok) caches.open(CACHE_NAME).then((cache) => cache.put(req, res.clone()));
+            // Cloned SYNCHRONOUSLY, before any other async step. caches.open()
+            // is itself async, and `res` is handed back to the page (via the
+            // `return res` below) the moment this .then() runs — the browser
+            // can start consuming that body immediately. Deferring .clone()
+            // into a nested .then() on caches.open() raced that consumption:
+            // by the time it ran, res.bodyUsed was often already true, and
+            // clone() throws "Response body is already used" instead of
+            // caching anything — this fired on nearly every asset load.
+            const resClone = res.ok ? res.clone() : null;
+            if (resClone) caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
             return res;
           })
           .catch(() => cached);
@@ -55,7 +64,8 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(
       fetch(req)
         .then((res) => {
-          caches.open(CACHE_NAME).then((cache) => cache.put('/', res.clone()));
+          const resClone = res.clone(); // see the /assets/ branch above for why this must be synchronous
+          caches.open(CACHE_NAME).then((cache) => cache.put('/', resClone));
           return res;
         })
         .catch(() => caches.match('/'))
@@ -68,7 +78,8 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     fetch(req)
       .then((res) => {
-        if (res.ok) caches.open(CACHE_NAME).then((cache) => cache.put(req, res.clone()));
+        const resClone = res.ok ? res.clone() : null; // see the /assets/ branch above for why this must be synchronous
+        if (resClone) caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
         return res;
       })
       .catch(async () => {
