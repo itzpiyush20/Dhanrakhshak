@@ -2089,6 +2089,8 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         emailContentForParsing, isBulkMail,
       } = candidate
 
+      const isHardAccepted = HARD_ACCEPT_SUBJECT_PATTERNS.some(p => p.test(subject))
+
       let parsedTxn: TransactionInsert | null = null
       let aiConfidentReject = false
 
@@ -2168,7 +2170,6 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       }
 
       if (!parsedTxn) {
-        const isHardAccepted = HARD_ACCEPT_SUBJECT_PATTERNS.some(p => p.test(subject))
         const isHardRejected = !isHardAccepted && HARD_REJECT_SUBJECT_PATTERNS.some(p => p.test(subject))
         if (isHardRejected) {
           bufferRejection('hard_reject_subject', senderDomain, subject, subject)
