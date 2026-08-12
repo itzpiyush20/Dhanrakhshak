@@ -1752,7 +1752,16 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         // path — was stored as a bare number and rendered as rupees.
         const amountMatches = extractAmountMatches(emailContentForParsing)
 
-        if (amountMatches.length === 0) continue
+        if (amountMatches.length === 0) {
+          // R12: bills and premiums whose amount lives only in a PDF or an
+          // image are skipped, not OCR'd. Logging the skip changes nothing the
+          // user has to act on, but it puts the cost of that decision in the
+          // rejection audit trail so it can be measured later instead of
+          // guessed at. This path used to be a bare `continue` — the one
+          // rejection point in the file that left no trace.
+          logRejection(supabase, user.id, scanLogId, 'no_amount_in_body', senderDomain, subject, subject.substring(0, 120))
+          continue
+        }
 
         const filteredAmounts = amountMatches.filter(m => {
           const preStart = Math.max(0, m.index - 80)
@@ -1763,7 +1772,13 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
             /bal(?:ance)?|avail(?:able)?|limit|outstanding|ledger|reward|bonus/i.test(succeedingText))
         })
 
-        if (filteredAmounts.length === 0) continue
+        if (filteredAmounts.length === 0) {
+          // Amounts were present but every one sat next to balance/limit/reward
+          // wording, so none of them represents money that moved. Distinct from
+          // no_amount_in_body, and worth telling apart in the audit trail.
+          logRejection(supabase, user.id, scanLogId, 'only_balance_or_reward_amounts', senderDomain, subject, subject.substring(0, 120))
+          continue
+        }
 
         // `payment(?!s\b)` excludes the plural "Payments" section header
         // (a false match that used to win the amount-proximity tie-break

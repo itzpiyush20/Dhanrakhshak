@@ -2025,3 +2025,76 @@ describe('scanRealGmailInbox — foreign currency', () => {
     expect(new Set(rows.map((r: any) => r.currency))).toEqual(new Set(['USD', 'INR']))
   })
 })
+
+// ============================================================
+// D7 / R12 — attachment-only bills are skipped, but not silently.
+// The skip itself is the owner's decision; logging it makes the cost of that
+// decision measurable in the rejection audit trail.
+// ============================================================
+
+describe('scanRealGmailInbox — logs emails with no readable amount', () => {
+  function toBase64Url(t: string) { return Buffer.from(t, 'utf-8').toString('base64url') }
+
+  function msg(id: string, subject: string, body: string) {
+    return {
+      id, threadId: `t-${id}`, snippet: body.slice(0, 60),
+      internalDate: String(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      payload: {
+        headers: [
+          { name: 'Subject', value: subject },
+          { name: 'From', value: 'Billing <billing@tatapower.com>' },
+        ],
+        mimeType: 'text/plain',
+        body: { data: toBase64Url(body) },
+      },
+    }
+  }
+
+  function mockGmail(messages: any[]) {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return { ok: true, status: 200, json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }) } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  }
+
+  it('logs no_amount_in_body when the amount is only in an attachment', async () => {
+    mockGmail([msg('msg-pdf-bill', 'Your electricity bill payment receipt',
+      'Thank you. Your payment receipt is attached as a PDF. Please find the details enclosed.')])
+
+    const inserted: any[] = []
+    const rejections: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(inserted, rejections),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    expect(inserted.flat()).toHaveLength(0)
+    expect(rejections.flat().map((r: any) => r.gate)).toContain('no_amount_in_body')
+  })
+
+  it('distinguishes balance-only amounts from no amount at all', async () => {
+    mockGmail([msg('msg-balance-only', 'Account update',
+      'Your payment was processed. Available balance Rs.9,999.00. Reward points balance Rs.250.00.')])
+
+    const inserted: any[] = []
+    const rejections: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb(inserted, rejections),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(inserted.flat()).toHaveLength(0)
+    const gates = rejections.flat().map((r: any) => r.gate)
+    expect(gates).toContain('only_balance_or_reward_amounts')
+    expect(gates).not.toContain('no_amount_in_body')
+  })
+})

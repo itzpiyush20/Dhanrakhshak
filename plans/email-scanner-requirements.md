@@ -257,7 +257,10 @@ Dependencies matter more than size here.
    **Known remaining surface:** Budgets, Analytics and Subscriptions still aggregate
    without a currency filter. They are INR-correct today because non-INR rows are rare
    and newly possible; revisit if foreign spend becomes common.
-8. **D7** (rejection logging for missing amounts) — trivial, anytime.
+8. ~~**D7** (rejection logging for missing amounts)~~ — **DONE.** Two paths that were
+   bare `continue`s now log: `no_amount_in_body` (the R12 attachment-only case) and
+   `only_balance_or_reward_amounts`. Nothing the user must act on — it just makes the
+   cost of skipping PDFs measurable instead of invisible.
 9. ~~**Performance Phase 2** (progress + incremental inserts)~~ — **DONE**, moved ahead of
    D3 at the owner's direction: incremental flushing is what stops a larger post-D3 scan
    from losing everything if it dies partway.
