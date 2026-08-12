@@ -333,6 +333,8 @@ export interface AITransactionResult {
   is_transaction: boolean
   transaction_type: 'debit' | 'credit' | null
   amount: number | null
+  /** ISO 4217 code. Absent or null means the app's home currency. */
+  currency?: string | null
   merchant: string | null
   category: string | null
   description: string | null
@@ -402,7 +404,8 @@ ONLY set is_transaction to TRUE when money has ALREADY moved (past tense):
 function buildExtractionSpec(categoryListText: string, dateInstruction: string): string {
   return `If TRUE, extract:
 - transaction_type: 'debit' (money out) or 'credit' (money in)
-- amount: exact transaction amount in INR as a number. Do NOT use balance or limit amounts.
+- amount: exact transaction amount as a number, in whatever currency the email states. Do NOT use balance or limit amounts.
+- currency: ISO 4217 code for that amount — 'INR' for Rs/₹/Rupees, 'USD' for $, 'EUR' for €, 'GBP' for £, and so on. Use 'INR' when the email states no currency at all. NEVER convert the amount between currencies; report the number exactly as written alongside its own currency code.
 - merchant: clean merchant/vendor name (e.g. 'Swiggy', 'Amazon', 'Airtel'). Strip suffixes like 'Ltd', 'Pvt', 'Private Limited'.
 - category: one of ${categoryListText}
   - 'Transport' = day-to-day local commute: cabs/auto (Uber, Ola, Rapido), metro, bus, fuel/petrol/diesel, tolls (FASTag), parking, train tickets (IRCTC) for regular travel
@@ -424,6 +427,7 @@ const POSITIVE_EXAMPLE = `{
   "is_transaction": true,
   "transaction_type": "debit",
   "amount": 450.00,
+  "currency": "INR",
   "merchant": "Swiggy",
   "category": "Food & Dining",
   "description": "Swiggy food order",
@@ -441,6 +445,7 @@ const NEGATIVE_EXAMPLE = `{
   "is_transaction": false,
   "transaction_type": null,
   "amount": null,
+  "currency": null,
   "merchant": null,
   "category": null,
   "description": null,

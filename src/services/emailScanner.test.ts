@@ -1879,3 +1879,149 @@ describe('scanRealGmailInbox — smart-merges duplicate payments', () => {
     expect(askAI).not.toHaveBeenCalled()
   })
 })
+
+// ============================================================
+// D6 / R11 — foreign-currency transactions are captured as what they are.
+//
+// The bug: amount extraction only recognised rupee markers, while the AI path
+// returns a bare number for ANY currency. A USD 50 charge was therefore either
+// invisible or stored indistinguishably from Rs.50 — a wrong number in the
+// ledger, worse than a missing one.
+// ============================================================
+
+describe('scanRealGmailInbox — foreign currency', () => {
+  function toBase64Url(text: string): string {
+    return Buffer.from(text, 'utf-8').toString('base64url')
+  }
+
+  function chargeMessage(id: string, subject: string, body: string) {
+    return {
+      id,
+      threadId: `thread-${id}`,
+      snippet: body.slice(0, 80),
+      internalDate: String(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      payload: {
+        headers: [
+          { name: 'Subject', value: subject },
+          { name: 'From', value: 'Alerts <alerts@hdfcbank.com>' },
+        ],
+        mimeType: 'text/plain',
+        body: { data: toBase64Url(body) },
+      },
+    }
+  }
+
+  function mockGmail(messages: any[]) {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  }
+
+  it('stores a USD charge as USD, not as rupees', async () => {
+    mockGmail([chargeMessage('msg-usd', 'Debit transaction alert',
+      'Your card ending 4471 was charged $50.00 at NETFLIX.COM on 10-08-26.')])
+
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null, // regex path
+    })
+
+    expect(result.error).toBeNull()
+    const rows = inserted.flat()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].amount).toBe(50)
+    expect(rows[0].currency).toBe('USD')
+  })
+
+  it('still stores a rupee charge as INR', async () => {
+    mockGmail([chargeMessage('msg-inr', 'Debit transaction alert',
+      'Rs.450.00 has been debited from your A/c XX4471 at SWIGGY on 10-08-26.')])
+
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    const rows = inserted.flat()
+    expect(rows[0].amount).toBe(450)
+    expect(rows[0].currency).toBe('INR')
+  })
+
+  it('records the currency the AI reports', async () => {
+    mockGmail([chargeMessage('msg-ai-eur', 'Payment confirmation',
+      'Your payment has been processed successfully.')])
+
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => ({
+        is_transaction: true, transaction_type: 'debit', amount: 12.99, currency: 'EUR',
+        merchant: 'Spotify', category: 'Subscriptions', description: 'Spotify',
+        payment_mode: 'credit_card', card_issuer: null, card_brand: null,
+        transaction_time: null, reference_id: null, date: null, confidence_score: 92,
+      } as any),
+    })
+
+    const rows = inserted.flat()
+    expect(rows[0].currency).toBe('EUR')
+    expect(rows[0].amount).toBe(12.99)
+  })
+
+  it('falls back to INR when the AI omits a currency', async () => {
+    // The model returns a bare number for any currency, so an unstated one
+    // must resolve explicitly rather than being left undefined.
+    mockGmail([chargeMessage('msg-ai-nocur', 'Payment confirmation',
+      'Your payment has been processed successfully.')])
+
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => ({
+        is_transaction: true, transaction_type: 'debit', amount: 300,
+        merchant: 'Airtel', category: 'Other', description: 'Airtel',
+        payment_mode: 'upi', card_issuer: null, card_brand: null,
+        transaction_time: null, reference_id: null, date: null, confidence_score: 88,
+      } as any),
+    })
+
+    expect(inserted.flat()[0].currency).toBe('INR')
+  })
+
+  it('does not merge same-amount payments in different currencies', async () => {
+    // $50 and Rs.50 on the same day to the same merchant are not one payment.
+    mockGmail([
+      chargeMessage('msg-cur-usd', 'Debit transaction alert', 'Charged $50.00 at SWIGGY on 10-08-26.'),
+      chargeMessage('msg-cur-inr', 'Debit transaction alert', 'Rs.50.00 debited at SWIGGY on 10-08-26.'),
+    ])
+
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    const rows = inserted.flat()
+    expect(rows).toHaveLength(2)
+    expect(new Set(rows.map((r: any) => r.currency))).toEqual(new Set(['USD', 'INR']))
+  })
+})

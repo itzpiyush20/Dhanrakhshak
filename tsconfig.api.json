@@ -30,6 +30,7 @@
     "src/services/supabase.ts",
     "src/services/merchantNormalizer.ts",
     "src/services/paymentMerge.ts",
+    "src/services/currency.ts",
     "src/utils/index.ts",
     "src/utils/crypto.ts",
     "src/utils/dateFilter.ts",

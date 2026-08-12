@@ -16,10 +16,13 @@
 // ============================================================
 
 import { normalizeMerchant, getMerchantKey } from './merchantNormalizer.js'
+import { DEFAULT_CURRENCY } from './currency.js'
 
 /** Structural subset shared by parsed inserts and stored rows. */
 export interface MergeableTransaction {
   amount: number
+  /** ISO 4217. Absent means the app's home currency. */
+  currency?: string | null
   type: string
   date: string
   merchant?: string | null
@@ -105,6 +108,10 @@ function withinOneDay(a: string, b: string): boolean {
  */
 export function isSamePayment(a: MergeableTransaction, b: MergeableTransaction): boolean {
   if (a.type !== b.type) return false
+  // Currency before amount: $50 and Rs.50 to the same merchant on the same day
+  // are two real payments. Comparing the numbers alone would merge them and
+  // destroy one.
+  if ((a.currency ?? DEFAULT_CURRENCY) !== (b.currency ?? DEFAULT_CURRENCY)) return false
   if (!sameAmount(a.amount, b.amount)) return false
   if (!withinOneDay(a.date, b.date)) return false
 

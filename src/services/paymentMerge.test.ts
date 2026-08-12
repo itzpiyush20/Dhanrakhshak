@@ -11,6 +11,7 @@ import {
 function txn(over: Partial<MergeableTransaction> = {}): MergeableTransaction {
   return {
     amount: 450,
+    currency: 'INR',
     type: 'debit',
     date: '2026-08-10',
     merchant: 'Swiggy',
@@ -76,6 +77,16 @@ describe('merchantsCorrespond', () => {
 })
 
 describe('isSamePayment', () => {
+  it('never pairs the same number in different currencies', () => {
+    // $50 and Rs.50 to one merchant on one day are two real payments.
+    // Comparing the numbers alone would merge them and destroy one.
+    expect(isSamePayment(txn({ currency: 'USD' }), txn({ currency: 'INR' }))).toBe(false)
+  })
+
+  it('treats an absent currency as the home currency', () => {
+    expect(isSamePayment(txn({ currency: undefined }), txn({ currency: 'INR' }))).toBe(true)
+  })
+
   it('pairs a bank alert with the merchant receipt for the same payment', () => {
     const bankAlert = txn({ merchant: 'SWIGGYBANGALORE', reference_id: '445566778899', payment_mode: 'upi' })
     const receipt = txn({ merchant: 'Swiggy', email_message_id: 'msg-2' })

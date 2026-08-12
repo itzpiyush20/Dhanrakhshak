@@ -20,6 +20,7 @@ import {
 import { stripBoilerplate } from './emailBoilerplate.js'
 import { evaluateRegexGates, logRejection, isBulkMarketingEmail, hasPaymentAssertion } from './emailScanGates.js'
 import { isSamePayment, mergePayments, isWeakMerchantLabel, type MergeableTransaction } from './paymentMerge.js'
+import { extractAmountMatches, isHomeCurrency, DEFAULT_CURRENCY } from './currency.js'
 
 type EmailScanLog = Database['public']['Tables']['email_scan_logs']['Row']
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert']
@@ -873,6 +874,7 @@ type StoredMergeCandidate = MergeableTransaction & {
 function toMergeable(t: TransactionInsert): MergeableTransaction {
   return {
     amount: t.amount,
+    currency: t.currency ?? null,
     type: t.type,
     date: t.date,
     merchant: t.merchant ?? null,
@@ -1394,7 +1396,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     const dedupFrom = new Date(startLimitTime - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     const { data: existingTxns, error: existingTxnsError } = await supabase
       .from('transactions')
-      .select('id, amount, type, date, merchant, description, reference_id, payment_mode, card_issuer, card_brand, transaction_time, confidence_score, approval_status, category_confirmed_at, email_message_id, merged_email_message_ids')
+      .select('id, amount, currency, type, date, merchant, description, reference_id, payment_mode, card_issuer, card_brand, transaction_time, confidence_score, approval_status, category_confirmed_at, email_message_id, merged_email_message_ids')
       .eq('user_id', user.id)
       .gte('date', dedupFrom)
 
@@ -1691,6 +1693,10 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
               parsedTxn = {
                 user_id: user.id,
                 amount: aiResult.amount,
+                // The model reports a bare number for any currency, so an
+                // unstated currency must fall back explicitly rather than
+                // being left undefined and defaulted by the database.
+                currency: aiResult.currency || DEFAULT_CURRENCY,
                 type: aiResult.transaction_type || 'debit',
                 category: resolvedCategory,
                 merchant: resolvedMerchant,
@@ -1741,18 +1747,10 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           continue
         }
 
-        const amountMatches: { value: number; index: number; text: string }[] = []
-        const prefixRegex = /(?:Rs\.?\s*|INR\s*|₹\s*|Rupees?\s*)([0-9,]+(?:\.[0-9]{1,2})?)/gi
-        const suffixRegex = /\b([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:Rs\.?|INR|₹|Rupees?)/gi
-        let amtMatch
-        while ((amtMatch = prefixRegex.exec(emailContentForParsing)) !== null) {
-          const value = Number(amtMatch[1].replace(/,/g, ''))
-          if (!isNaN(value) && value > 0 && value <= 99999999) amountMatches.push({ value, index: amtMatch.index, text: amtMatch[0] })
-        }
-        while ((amtMatch = suffixRegex.exec(emailContentForParsing)) !== null) {
-          const value = Number(amtMatch[1].replace(/,/g, ''))
-          if (!isNaN(value) && value > 0 && value <= 99999999) amountMatches.push({ value, index: amtMatch.index, text: amtMatch[0] })
-        }
+        // Currency-aware (R11). Previously this only recognised rupee markers,
+        // so a foreign charge either found no amount at all or — on the AI
+        // path — was stored as a bare number and rendered as rupees.
+        const amountMatches = extractAmountMatches(emailContentForParsing)
 
         if (amountMatches.length === 0) continue
 
@@ -1789,6 +1787,10 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         }
 
         if (isNaN(amount) || amount <= 0) continue
+
+        // Take the currency from the amount that actually won, so a foreign
+        // charge is never quietly filed as rupees.
+        const currency = resolvedMatch.currency
 
         const winStart = Math.max(0, resolvedMatch.index - 120)
         const winEnd = Math.min(emailContentForParsing.length, resolvedMatch.index + resolvedMatch.text.length + 120)
@@ -1957,7 +1959,8 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           hasMerchant: !isGenericMerchant,
           hasPaymentMode: paymentMode !== 'unknown',
           hasReferenceId: !!reference_id,
-          isLargeAmount: amount > 100000,
+          // A rupee threshold — meaningless against USD or EUR magnitudes.
+          isLargeAmount: isHomeCurrency(currency) && amount > 100000,
           debitCreditClear,
         })
 
@@ -1980,6 +1983,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         parsedTxn = {
           user_id: user.id,
           amount,
+          currency,
           type: txType,
           category: finalCategory,
           merchant,

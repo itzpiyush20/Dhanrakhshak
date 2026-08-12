@@ -64,6 +64,7 @@ export interface Database {
           id: string
           user_id: string
           amount: number
+          currency: string
           type: 'debit' | 'credit'
           category: string
           description: string
@@ -96,6 +97,8 @@ export interface Database {
         Insert: {
           user_id: string
           amount: number
+          /** ISO 4217. Omit to accept the database default of 'INR'. */
+          currency?: string
           type: 'debit' | 'credit'
           category: string
           description: string
@@ -125,6 +128,7 @@ export interface Database {
         }
         Update: {
           amount?: number
+          currency?: string
           type?: 'debit' | 'credit'
           category?: string
           description?: string
