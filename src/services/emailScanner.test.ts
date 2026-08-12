@@ -1354,11 +1354,50 @@ describe('scanRealGmailInbox — progress reporting', () => {
     expect(insertedTransactions.flat()).toHaveLength(1)
   })
 
+  it('yields to the event loop during Stage A so the UI can repaint', async () => {
+    // Regression guard. Stage A had no awaits at all, so it ran as one
+    // uninterrupted synchronous block: React could not repaint, and the scan's
+    // own setTimeout timeout could not fire either — a large scan wedged the
+    // tab instead of timing out.
+    const messages = Array.from({ length: 25 }, (_, i) => makeAxisEmiGmailMessage(`msg-yield-${i}`))
+    mockGmail(messages)
+
+    let timerFiredDuringScan = false
+    const timer = setTimeout(() => { timerFiredDuringScan = true }, 0)
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb([], []),
+      activeYear: new Date().getUTCFullYear(),
+      askAIBatch: async (emails) => new Map(emails.map((e) => [e.index, null])),
+    })
+    clearTimeout(timer)
+
+    expect(timerFiredDuringScan).toBe(true)
+  })
+
+  it('reports filtering progress while sorting a large batch', async () => {
+    const messages = Array.from({ length: 25 }, (_, i) => makeAxisEmiGmailMessage(`msg-filter-${i}`))
+    mockGmail(messages)
+
+    const phases: string[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb([], []),
+      activeYear: new Date().getUTCFullYear(),
+      askAIBatch: async (emails) => new Map(emails.map((e) => [e.index, null])),
+      onProgress: (p) => phases.push(p.phase),
+    })
+
+    expect(phases).toContain('filtering')
+  })
+
   it('formats each phase into readable copy', async () => {
     const { formatScanProgress } = await import('./emailScanner')
     expect(formatScanProgress({ phase: 'listing', current: 0, total: 0 })).toMatch(/No new emails/i)
     expect(formatScanProgress({ phase: 'listing', current: 7, total: 7 })).toMatch(/Found 7 emails/i)
     expect(formatScanProgress({ phase: 'fetching', current: 3, total: 9 })).toMatch(/Reading email 3 of 9/i)
+    expect(formatScanProgress({ phase: 'filtering', current: 4, total: 9 })).toMatch(/Sorting email 4 of 9/i)
     expect(formatScanProgress({ phase: 'analyzing', current: 5, total: 9 })).toMatch(/Analyzing email 5 of 9/i)
     expect(formatScanProgress({ phase: 'saving', current: 2, total: 9 })).toMatch(/Saving/i)
   })

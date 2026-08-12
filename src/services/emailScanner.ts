@@ -782,7 +782,7 @@ interface ScanCandidate {
 }
 
 /** Batches of AI classification in flight at once. */
-const AI_BATCH_CONCURRENCY = 2
+const AI_BATCH_CONCURRENCY = 4
 
 // ── Manual scan quotas (plans/email-scanner-requirements.md R6/R7/R8) ──
 // Owner is unlimited and handled separately. Premium and trial share a limit.
@@ -821,6 +821,25 @@ export function isPremiumProfile(
 export function resolveManualScanLimit(isOwner: boolean, isPremium: boolean): number {
   if (isOwner) return Infinity
   return isPremium ? PREMIUM_MANUAL_SCANS_PER_DAY : FREE_MANUAL_SCANS_PER_DAY
+}
+
+// Stage A runs entirely on the main thread. Yield to the event loop every so
+// often so React can repaint and — critically — so the scan's own setTimeout
+// timeout can still fire. Without this a large scan wedges the tab: the UI
+// freezes on its last painted frame and the timeout that is supposed to rescue
+// it never runs, because its callback is queued behind the blocking loop.
+const STAGE_A_YIELD_EVERY = 10
+const yieldToEventLoop = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+
+// Bulk markers live at the very top (preheader) or the very bottom (footer) of
+// a marketing email, never buried in the middle. Scanning head and tail keeps
+// the detection the full-body scan gave us while bounding the cost of a 200KB
+// HTML newsletter — which, multiplied across a large scan, was a real part of
+// what made Stage A block for so long.
+const BULK_SCAN_EDGE = 4000
+function bulkScanText(body: string): string {
+  if (!body || body.length <= BULK_SCAN_EDGE * 2) return body
+  return `${body.slice(0, BULK_SCAN_EDGE)}\n${body.slice(-BULK_SCAN_EDGE)}`
 }
 
 /** Transactions written per flush. Small enough that a dying scan loses little. */
@@ -891,7 +910,7 @@ function toMergeable(t: TransactionInsert): MergeableTransaction {
 
 /** Progress signal emitted during a scan so the UI can show real state. */
 export interface ScanProgress {
-  phase: 'listing' | 'fetching' | 'analyzing' | 'saving'
+  phase: 'listing' | 'fetching' | 'filtering' | 'analyzing' | 'saving'
   current: number
   total: number
 }
@@ -909,6 +928,8 @@ export function formatScanProgress(p: ScanProgress): string {
         : `Found ${p.total} email${p.total === 1 ? '' : 's'} to check…`
     case 'fetching':
       return `Reading email ${seen} of ${p.total}…`
+    case 'filtering':
+      return `Sorting email ${seen} of ${p.total}…`
     case 'analyzing':
       return `Analyzing email ${seen} of ${p.total}…`
     case 'saving':
@@ -1273,7 +1294,11 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     //     matches on "payment"/"paid", so adding them buys nothing but junk.
     //   interest — Gmail stems it to "interested", which floods the net with
     //     marketing. Real interest credits match on "credited" already.
-    const FINANCIAL_KEYWORDS = '(refund OR premium OR dividend OR folio OR nach OR autopay)'
+    // "premium" as a bare word is a marketing magnet ("premium membership", "go
+    // premium") and drove a 6.7x jump in matched mail on the first real scan.
+    // Phrases keep the insurance coverage without the newsletters; an insurance
+    // premium that was actually PAID also still matches on paid/received/debited.
+    const FINANCIAL_KEYWORDS = '(refund OR dividend OR folio OR nach OR autopay OR "premium paid" OR "premium collected" OR "premium received" OR "premium payment")'
     const EMAIL_KEYWORDS = `(${BANK_ALERT_KEYWORDS} OR ${RECEIPT_KEYWORDS} OR ${FINANCIAL_KEYWORDS})`
 
     // ── Scan window — strict rolling 7 days ──────────────────────────
@@ -1540,7 +1565,13 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // of the user's daily quota on it.
     const candidates: ScanCandidate[] = []
 
+    let stageAProcessed = 0
     for (const mail of validDetails) {
+      if (++stageAProcessed % STAGE_A_YIELD_EVERY === 0) {
+        emitProgress({ phase: 'filtering', current: stageAProcessed, total: validDetails.length })
+        await yieldToEventLoop()
+      }
+
       const mailMessageId: string = mail.id || ''
 
       if (mailMessageId && existingMessageIds.has(mailMessageId)) continue
@@ -1613,7 +1644,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       // Genuine receipts still bypass this gate (they carry no bulk markers).
       // `bodyText` is passed unstripped and untruncated on purpose — opt-out
       // text lives in footers, past where the other gates stop reading.
-      const isBulkMail = isBulkMarketingEmail(mail.payload?.headers || [], bodyText)
+      const isBulkMail = isBulkMarketingEmail(mail.payload?.headers || [], bulkScanText(bodyText))
       if (isBulkMail && !hasPaymentAssertion(emailContentForParsing)) {
         logRejection(supabase, user.id, scanLogId, 'bulk_mail_no_payment_evidence', senderDomain, subject, subject.substring(0, 120))
         continue
