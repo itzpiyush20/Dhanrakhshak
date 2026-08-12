@@ -161,6 +161,9 @@ export default function DashboardPage() {
   const [showInactivityBanner, setShowInactivityBanner] = useState(false)
   const [syncingBackground, setSyncingBackground] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
+  // Shows a "still working" hint once a manual sync runs past a few seconds,
+  // so a legitimately slow scan isn't indistinguishable from a frozen one.
+  const [scanTakingLong, setScanTakingLong] = useState(false)
 
   // Widget customization states
   const [showConfigModal, setShowConfigModal] = useState(false)
@@ -349,6 +352,16 @@ export default function DashboardPage() {
       checkScheduledTasks()
     }
   }, [user, checkScheduledTasks])
+
+  // ── "Still working" hint for slow-but-live manual syncs ──
+  useEffect(() => {
+    if (!syncingBackground) {
+      setScanTakingLong(false)
+      return
+    }
+    const timer = setTimeout(() => setScanTakingLong(true), 6000)
+    return () => clearTimeout(timer)
+  }, [syncingBackground])
 
   const refreshStreak = useCallback(async () => {
     if (!user) return
@@ -741,6 +754,11 @@ export default function DashboardPage() {
                       ? `Your transaction tracker is active in full trial mode. Last sync: ${lastScanTime ? lastScanTime.toLocaleString('en-IN') : 'Never'}. Click Sync Now to fetch new alerts.`
                       : `Your transaction tracker has not refreshed in the last 24 hours (last sync: ${lastScanTime ? lastScanTime.toLocaleString('en-IN') : 'Never'}). Click Sync Now to import the latest bank alerts.`}
                   </p>
+                  {syncingBackground && scanTakingLong && (
+                    <p role="status" className="text-xs text-zinc-500 mt-1">
+                      Still syncing — large inboxes can take up to a minute…
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">

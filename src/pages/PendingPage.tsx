@@ -187,6 +187,11 @@ export default function PendingPage() {
   const [lastScanLog, setLastScanLog] = useState<any>(null)
   const [nextScanCountdown, setNextScanCountdown] = useState<string | null>(null)
 
+  // Shows a "still working" hint once a scan runs past a few seconds, so a
+  // legitimately slow scan (large inbox, many AI classification calls) isn't
+  // indistinguishable from a frozen one.
+  const [scanTakingLong, setScanTakingLong] = useState(false)
+
   // ── Fetch last scan log ──────────────────────────────────
   const fetchLastScanLog = useCallback(async () => {
     if (!user) return null
@@ -285,6 +290,16 @@ export default function PendingPage() {
     const interval = setInterval(tick, 1000)
     return () => clearInterval(interval)
   }, [lastScanLog])
+
+  // ── "Still working" hint for slow-but-live scans ────────
+  useEffect(() => {
+    if (!scanning && !syncingBackground) {
+      setScanTakingLong(false)
+      return
+    }
+    const timer = setTimeout(() => setScanTakingLong(true), 6000)
+    return () => clearTimeout(timer)
+  }, [scanning, syncingBackground])
 
   const fetchPendingData = useCallback(async () => {
     setLoading(true)
@@ -770,9 +785,15 @@ export default function PendingPage() {
                 <Sparkles className="h-4 w-4 text-brand-300" /> Scan Bank Alerts
               </Button>
             </div>
-            <span className="text-xs font-semibold text-brand-300 font-mono bg-surface-2 border border-border-subtle/50 px-2 py-0.5 rounded-md flex items-center gap-1">
-              <Calendar className="h-3 w-3 text-brand-300 shrink-0" /> Next Refresh: {getNextRefreshTime(dailyScanTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
-            </span>
+            {(scanning || syncingBackground) && scanTakingLong ? (
+              <span role="status" className="text-xs text-zinc-500">
+                Still scanning your inbox — large inboxes can take up to a minute…
+              </span>
+            ) : (
+              <span className="text-xs font-semibold text-brand-300 font-mono bg-surface-2 border border-border-subtle/50 px-2 py-0.5 rounded-md flex items-center gap-1">
+                <Calendar className="h-3 w-3 text-brand-300 shrink-0" /> Next Refresh: {getNextRefreshTime(dailyScanTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
+              </span>
+            )}
           </div>
         </div>
 
