@@ -445,11 +445,13 @@ const KNOWN_MERCHANTS: { pattern: RegExp; name: string; category: string; descri
   { pattern: /swiggy\s*genie/i, name: 'Swiggy Genie', category: 'Transport', description: 'Swiggy Genie Delivery' },
   { pattern: /tata\s*cliq|tatacliq/i, name: 'Tata CLiQ', category: 'Shopping', description: 'Tata CLiQ Purchase' },
   { pattern: /lenskart/i, name: 'Lenskart', category: 'Health', description: 'Lenskart Eyewear' },
-  { pattern: /cred\b.*credit\s*card|credit\s*card\s*payment|card\s*payment\s*towards/i, name: 'Credit Card Payment', category: 'Utilities & Bills', description: 'Credit Card Bill Payment' },
-  { pattern: /sbi\s*card\s*payment|sbicard\s*payment/i, name: 'SBI Card Bill', category: 'Utilities & Bills', description: 'SBI Credit Card Bill Payment' },
-  { pattern: /hdfc\s*bank\s*credit\s*card\s*payment|hdfc\s*cc\s*payment/i, name: 'HDFC Credit Card Bill', category: 'Utilities & Bills', description: 'HDFC Credit Card Bill Payment' },
-  { pattern: /icici\s*bank\s*credit\s*card\s*payment|icici\s*cc\s*payment/i, name: 'ICICI Credit Card Bill', category: 'Utilities & Bills', description: 'ICICI Credit Card Bill Payment' },
-  { pattern: /axis\s*bank\s*credit\s*card\s*payment|axis\s*cc\s*payment/i, name: 'Axis Credit Card Bill', category: 'Utilities & Bills', description: 'Axis Credit Card Bill Payment' },
+  { pattern: /\bcred\b|\bcheq\b|(?:credit\s*)?card\s*(?:bill\s*)?payment|payment\s*(?:is|was|has\s+been)?\s*(?:successful|received|confirmed|done|completed|processed)?\s*(?:towards|for)?\s*(?:your\s*)?(?:credit\s*)?card/i, name: 'Credit Card Payment', category: 'Utilities & Bills', description: 'Credit Card Bill Payment' },
+  { pattern: /sbi\s*(?:bank\s*)?(?:credit\s*)?card\s*(?:bill\s*)?payment|sbicard/i, name: 'SBI Credit Card Bill', category: 'Utilities & Bills', description: 'SBI Credit Card Bill Payment' },
+  { pattern: /hdfc\s*(?:bank\s*)?(?:credit\s*)?card\s*(?:bill\s*)?payment|hdfc\s*cc/i, name: 'HDFC Credit Card Bill', category: 'Utilities & Bills', description: 'HDFC Credit Card Bill Payment' },
+  { pattern: /icici\s*(?:bank\s*)?(?:credit\s*)?card\s*(?:bill\s*)?payment|icici\s*cc/i, name: 'ICICI Credit Card Bill', category: 'Utilities & Bills', description: 'ICICI Credit Card Bill Payment' },
+  { pattern: /axis\s*(?:bank\s*)?(?:credit\s*)?card\s*(?:bill\s*)?payment|axis\s*cc/i, name: 'Axis Credit Card Bill', category: 'Utilities & Bills', description: 'Axis Credit Card Bill Payment' },
+  { pattern: /onecard\s*(?:bill\s*)?payment/i, name: 'OneCard Credit Card Bill', category: 'Utilities & Bills', description: 'OneCard Credit Card Bill Payment' },
+  { pattern: /scapia\s*(?:bill\s*)?payment/i, name: 'Scapia Credit Card Bill', category: 'Utilities & Bills', description: 'Scapia Credit Card Bill Payment' },
   { pattern: /classplus|unacademy|byjus|byju/i, name: 'EdTech Platform', category: 'Education', description: 'Online Education' },
 ]
 

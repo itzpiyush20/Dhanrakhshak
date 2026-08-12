@@ -89,12 +89,13 @@ const CANONICAL_MAP: Array<{ patterns: RegExp[]; canonical: string; category: st
   { patterns: [/upstox/i], canonical: 'Upstox', category: 'Investments' },
   { patterns: [/kuvera/i], canonical: 'Kuvera', category: 'Investments' },
 
-  // Payment platforms
+  // Payment platforms / Bill Payments
   { patterns: [/paytm/i], canonical: 'Paytm', category: 'Other' },
   { patterns: [/phonepe|phone\s*pe/i], canonical: 'PhonePe', category: 'Other' },
   { patterns: [/\bbharatpe\b/i], canonical: 'BharatPe', category: 'Other' },
-  { patterns: [/\bcred\b/i], canonical: 'CRED', category: 'Other' },
-  { patterns: [/\bcheq\b/i], canonical: 'CHEQ', category: 'Other' },
+  { patterns: [/\bcred\b|cred\s*club/i], canonical: 'CRED', category: 'Utilities & Bills' },
+  { patterns: [/\bcheq\b/i], canonical: 'CHEQ', category: 'Utilities & Bills' },
+  { patterns: [/credit\s*card\s*(?:bill\s*)?payment|card\s*bill\s*payment/i], canonical: 'Credit Card Payment', category: 'Utilities & Bills' },
 ]
 
 /** Flat list of canonical brand names, for autocomplete/suggestion UIs. Derived from CANONICAL_MAP so it can never drift out of sync with what normalizeMerchant() actually recognizes. */
