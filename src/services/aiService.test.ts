@@ -94,6 +94,15 @@ describe('analyzeTransactionEmailWithAI — false-positive rules stay in the pro
     ['declined or reversed transactions', /Declined, failed, cancelled, or reversed/i],
   ]
 
+  it('no longer discards merchant payment receipts (R10)', async () => {
+    // This rule rejected "we received your payment" receipts as a crude guard
+    // against double-counting against the bank's own alert. Real merging now
+    // handles that, and the rule had become actively harmful: it discarded the
+    // ONLY record of any payment the bank never alerted on.
+    const prompt = await capturePrompt()
+    expect(prompt).not.toMatch(/We received your payment/i)
+  })
+
   it('scopes the savings/investment rule to advertisements only (R2)', async () => {
     // The rule used to read "Any email about savings, investments, ...", broad
     // enough for the model to reject a genuine SIP debit or dividend credit —

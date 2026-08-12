@@ -234,8 +234,14 @@ Dependencies matter more than size here.
    to reject genuine SIP debits. Found and fixed a false-negative class on the way:
    insurance and subscription confirmations state the next due date, which tripped the
    reminder gate and rejected the whole class.
-6. **D5** (smart merge) — must land with or before D3's vendor-receipt volume increase,
-   or duplicates get worse.
+6. ~~**D5** (smart merge)~~ — **DONE.** Matching logic lives in
+   `src/services/paymentMerge.ts` (conservative by design: a missed merge costs a
+   dismiss-tap, a wrong merge destroys a transaction). Wired into the scan for both
+   directions — two emails in one scan, and a new email against a stored transaction —
+   with migration `015_merged_email_message_ids.sql` recording absorbed ids so a merged
+   email is never resurrected by a later scan in the window. Stored rows the user has
+   already approved or re-categorised are never rewritten. The prompt rule discarding
+   merchant "we received your payment" receipts is removed, as planned.
 7. **D6** (multi-currency) — independent; sequence by owner priority.
 8. **D7** (rejection logging for missing amounts) — trivial, anytime.
 9. ~~**Performance Phase 2** (progress + incremental inserts)~~ — **DONE**, moved ahead of

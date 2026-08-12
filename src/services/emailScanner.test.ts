@@ -1641,3 +1641,241 @@ describe('scanRealGmailInbox — newly in-scope financial transactions', () => {
     expect(inserted.flat()).toHaveLength(0)
   })
 })
+
+// ============================================================
+// D5 / R10 — a bank alert and the merchant's receipt for ONE payment become
+// one transaction. Covers both directions: two emails in the same scan, and a
+// new email matching a transaction stored by an earlier scan.
+// ============================================================
+
+describe('scanRealGmailInbox — smart-merges duplicate payments', () => {
+  function toBase64Url(text: string): string {
+    return Buffer.from(text, 'utf-8').toString('base64url')
+  }
+
+  /** A minimal payment email with controllable merchant/amount/reference. */
+  function paymentMessage(id: string, subject: string, body: string) {
+    return {
+      id,
+      threadId: `thread-${id}`,
+      snippet: body.slice(0, 80),
+      internalDate: String(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      payload: {
+        headers: [
+          { name: 'Subject', value: subject },
+          { name: 'From', value: 'Alerts <alerts@hdfcbank.com>' },
+        ],
+        mimeType: 'text/plain',
+        body: { data: toBase64Url(body) },
+      },
+    }
+  }
+
+  const BANK_ALERT = paymentMessage(
+    'msg-bank-alert',
+    'Debit transaction alert',
+    'Rs.450.00 has been debited from your HDFC Bank A/c XX4471 at SWIGGY on 10-08-26. UPI Ref 445566778899.'
+  )
+  const MERCHANT_RECEIPT = paymentMessage(
+    'msg-merchant-receipt',
+    'Your Swiggy order receipt',
+    'Thanks for ordering from Swiggy. Total paid Rs.450.00 for your order. We hope you enjoyed your meal.'
+  )
+
+  function mockGmail(messages: any[]) {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  }
+
+  /** Mock DB seeded with pre-existing transactions, capturing inserts and updates. */
+  function makeMergeDb(existing: any[], inserted: any[], updates: any[]) {
+    const chain = (payload: any): any => {
+      const h: any = {
+        select: () => h, eq: () => h, order: () => h, gte: () => h, limit: () => h,
+        single: () => Promise.resolve({ data: null, error: null }),
+        insert: (row: any) => ({
+          select: () => ({ single: () => Promise.resolve({ data: row, error: null }) }),
+          then: (r: any) => r({ data: [], error: null }),
+        }),
+        update: (patch: any) => ({ eq: (_c: any, id: any) => { updates.push({ id, patch }); return Promise.resolve({ error: null }) } }),
+        then: (r: any) => r(payload),
+      }
+      return h
+    }
+    return {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } } }) },
+      from: (table: string) => {
+        if (table === 'categories') return chain({ data: [{ name: 'Food & Dining', is_permanent: false }, { name: 'Other', is_permanent: true }], error: null })
+        if (table === 'transactions') {
+          const h = chain({ data: existing, error: null })
+          h.insert = (rows: any) => {
+            const arr = Array.isArray(rows) ? rows : [rows]
+            inserted.push(...arr)
+            return { select: () => Promise.resolve({ data: arr.map((r: any, i: number) => ({ ...r, id: `new-${inserted.length}-${i}` })), error: null }) }
+          }
+          h.update = (patch: any) => ({ eq: (_col: any, id: any) => { updates.push({ id, patch }); return Promise.resolve({ error: null }) } })
+          return h
+        }
+        return chain({ data: [], error: null })
+      },
+    } as any
+  }
+
+  it('folds a bank alert and a merchant receipt in the same scan into one transaction', async () => {
+    mockGmail([BANK_ALERT, MERCHANT_RECEIPT])
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMergeDb([], inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    // Two emails in, ONE transaction out.
+    expect(inserted).toHaveLength(1)
+    expect(result.data?.mergedDuplicateCount).toBe(1)
+    // And it keeps the richer detail from both sides.
+    expect(inserted[0].amount).toBe(450)
+    expect(inserted[0].reference_id).toBe('445566778899')
+    // The absorbed email is recorded so a later scan cannot resurrect it.
+    expect(inserted[0].merged_email_message_ids).toContain('msg-merchant-receipt')
+  })
+
+  it('does not merge two same-amount payments to different merchants', async () => {
+    const swiggy = paymentMessage('msg-swiggy', 'Debit transaction alert',
+      'Rs.450.00 debited from your A/c XX4471 at SWIGGY on 10-08-26. UPI Ref 111111111111.')
+    const zomato = paymentMessage('msg-zomato', 'Debit transaction alert',
+      'Rs.450.00 debited from your A/c XX4471 at ZOMATO on 10-08-26. UPI Ref 222222222222.')
+    mockGmail([swiggy, zomato])
+
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMergeDb([], inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    expect(inserted).toHaveLength(2)
+    expect(result.data?.mergedDuplicateCount).toBe(0)
+  })
+
+  it('merges a receipt against a transaction stored by an earlier scan', async () => {
+    const today = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const storedBankAlert = {
+      id: 'stored-1',
+      amount: 450,
+      type: 'debit',
+      date: today,
+      merchant: 'HDFC Bank', // weak label — the receipt should improve it
+      description: 'Bank transaction',
+      reference_id: null,
+      payment_mode: 'unknown',
+      card_issuer: null,
+      card_brand: null,
+      transaction_time: null,
+      confidence_score: 60,
+      approval_status: 'pending',
+      category_confirmed_at: null,
+      email_message_id: 'msg-old-bank-alert',
+      merged_email_message_ids: null,
+    }
+
+    // Receipt names the merchant, so the pair corresponds via the reference id
+    // the bank alert carries... which it does not here, so use a named receipt
+    // whose merchant matches a NON-weak stored label instead.
+    storedBankAlert.merchant = 'Swiggy'
+    mockGmail([MERCHANT_RECEIPT])
+
+    const inserted: any[] = []
+    const updates: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMergeDb([storedBankAlert], inserted, updates),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    // No new row — the receipt was absorbed into the stored transaction.
+    expect(inserted).toHaveLength(0)
+    expect(result.data?.mergedDuplicateCount).toBe(1)
+    // The absorbed id is recorded against the stored row.
+    expect(updates).toHaveLength(1)
+    expect(updates[0].patch.merged_email_message_ids).toContain('msg-merchant-receipt')
+  })
+
+  it('never rewrites a transaction the user has already acted on', async () => {
+    const today = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const approved = {
+      id: 'stored-approved',
+      amount: 450, type: 'debit', date: today,
+      merchant: 'Swiggy',
+      description: 'My own edited description',
+      reference_id: null, payment_mode: 'unknown',
+      card_issuer: null, card_brand: null, transaction_time: null,
+      confidence_score: 95,
+      approval_status: 'approved',          // user approved it
+      category_confirmed_at: '2026-08-11T00:00:00Z', // and confirmed the category
+      email_message_id: 'msg-old-approved',
+      merged_email_message_ids: null,
+    }
+    mockGmail([MERCHANT_RECEIPT])
+
+    const inserted: any[] = []
+    const updates: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMergeDb([approved], inserted, updates),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    // Still absorbed (no duplicate), but the only change is bookkeeping.
+    expect(inserted).toHaveLength(0)
+    expect(updates).toHaveLength(1)
+    expect(Object.keys(updates[0].patch)).toEqual(['merged_email_message_ids'])
+  })
+
+  it('treats an already-absorbed email id as seen on the next scan', async () => {
+    const today = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const stored = {
+      id: 'stored-merged',
+      amount: 450, type: 'debit', date: today,
+      merchant: 'Swiggy', description: 'Swiggy order',
+      reference_id: '445566778899', payment_mode: 'upi',
+      card_issuer: 'HDFC', card_brand: null, transaction_time: null,
+      confidence_score: 90,
+      approval_status: 'pending', category_confirmed_at: null,
+      email_message_id: 'msg-bank-alert',
+      merged_email_message_ids: ['msg-merchant-receipt'],
+    }
+    mockGmail([MERCHANT_RECEIPT])
+
+    const inserted: any[] = []
+    const updates: any[] = []
+    const askAI = vi.fn(async () => null)
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMergeDb([stored], inserted, updates),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: askAI as any,
+    })
+
+    // Dedup catches it before any work — no insert, no update, no AI call.
+    expect(inserted).toHaveLength(0)
+    expect(updates).toHaveLength(0)
+    expect(askAI).not.toHaveBeenCalled()
+  })
+})

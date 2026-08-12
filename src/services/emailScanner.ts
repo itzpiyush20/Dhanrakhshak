@@ -19,6 +19,7 @@ import {
 } from './aiService.js'
 import { stripBoilerplate } from './emailBoilerplate.js'
 import { evaluateRegexGates, logRejection, isBulkMarketingEmail, hasPaymentAssertion } from './emailScanGates.js'
+import { isSamePayment, mergePayments, isWeakMerchantLabel, type MergeableTransaction } from './paymentMerge.js'
 
 type EmailScanLog = Database['public']['Tables']['email_scan_logs']['Row']
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert']
@@ -860,6 +861,32 @@ async function insertTransactionsChunk(db: SupabaseClient, rows: TransactionInse
   throw batchError // non-conflict error — unchanged fail-loud behavior
 }
 
+/** A stored transaction considered as a merge partner for a newly parsed one. */
+type StoredMergeCandidate = MergeableTransaction & {
+  id: string
+  approval_status?: string | null
+  category_confirmed_at?: string | null
+  merged_email_message_ids?: string[] | null
+}
+
+/** Narrow a parsed insert to the fields payment matching actually reads. */
+function toMergeable(t: TransactionInsert): MergeableTransaction {
+  return {
+    amount: t.amount,
+    type: t.type,
+    date: t.date,
+    merchant: t.merchant ?? null,
+    description: t.description ?? null,
+    reference_id: t.reference_id ?? null,
+    payment_mode: t.payment_mode ?? null,
+    card_issuer: t.card_issuer ?? null,
+    card_brand: t.card_brand ?? null,
+    transaction_time: t.transaction_time ?? null,
+    confidence_score: t.confidence_score ?? null,
+    email_message_id: t.email_message_id ?? null,
+  }
+}
+
 /** Progress signal emitted during a scan so the UI can show real state. */
 export interface ScanProgress {
   phase: 'listing' | 'fetching' | 'analyzing' | 'saving'
@@ -1359,21 +1386,42 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       emitProgress({ phase: 'fetching', current: validDetails.length, total: uniqueMessages.length })
     }
 
+    // Scoped to the scan window plus a margin, rather than every transaction
+    // the user has ever had. Nothing older can collide: the Gmail query cannot
+    // reach past the window, so neither a message id nor a reference id from
+    // outside it can appear in this scan. The margin covers the ±1 day
+    // tolerance that payment merging allows.
+    const dedupFrom = new Date(startLimitTime - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     const { data: existingTxns, error: existingTxnsError } = await supabase
       .from('transactions')
-      .select('email_message_id, reference_id')
+      .select('id, amount, type, date, merchant, description, reference_id, payment_mode, card_issuer, card_brand, transaction_time, confidence_score, approval_status, category_confirmed_at, email_message_id, merged_email_message_ids')
       .eq('user_id', user.id)
+      .gte('date', dedupFrom)
 
     if (existingTxnsError) {
       console.error('[emailScanner] Failed to load existing transactions for dedup:', existingTxnsError)
     }
 
-    const existingMessageIds = new Set<string>(
-      (existingTxns ?? []).map((t: any) => t.email_message_id).filter((id: any): id is string => !!id)
-    )
+    // Absorbed ids count as seen. Without this a merged-away email would be
+    // re-classified and re-inserted on every scan for the rest of the window,
+    // recreating the duplicate the merge removed.
+    const existingMessageIds = new Set<string>()
+    for (const t of existingTxns ?? []) {
+      if (t.email_message_id) existingMessageIds.add(t.email_message_id)
+      for (const merged of (t as any).merged_email_message_ids ?? []) {
+        if (merged) existingMessageIds.add(merged)
+      }
+    }
     const existingRefIds = new Set<string>(
       (existingTxns ?? []).map((t: any) => t.reference_id).filter((r: any): r is string => !!r)
     )
+
+    // Stored transactions a newly parsed one might turn out to duplicate.
+    // Grows as this scan flushes, so a payment split across two emails is
+    // caught whether its partner is pre-existing or was written moments ago.
+    const mergeCandidates: StoredMergeCandidate[] = [
+      ...((existingTxns ?? []) as unknown as StoredMergeCandidate[]),
+    ]
 
     // Fetch the user's real categories once per scan (not once per email) — used to
     // (1) feed the AI prompt the user's actual category names instead of the old
@@ -1402,7 +1450,77 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       const rows = pendingFlush
       pendingFlush = []
       emitProgress({ phase: 'saving', current: insertedTxns.length, total: transactionsToInsert.length })
-      insertedTxns.push(...(await insertTransactionsChunk(supabase, rows)))
+      const written = await insertTransactionsChunk(supabase, rows)
+      insertedTxns.push(...written)
+      // Now visible to later merges in this same scan.
+      mergeCandidates.push(...(written as unknown as StoredMergeCandidate[]))
+    }
+
+    /**
+     * Fold a newly parsed transaction into an existing one when they describe
+     * the same payment (R10) — a bank alert and the merchant's own receipt.
+     * Returns true when it was absorbed and must not be inserted separately.
+     */
+    const absorbIntoExistingPayment = async (candidate: TransactionInsert): Promise<boolean> => {
+      // 1. Against this scan's unwritten buffer — merge in place, no DB work.
+      const bufferedIndex = pendingFlush.findIndex((p) => isSamePayment(p, candidate))
+      if (bufferedIndex >= 0) {
+        const existing = pendingFlush[bufferedIndex]
+        const merged = mergePayments(existing, candidate)
+        const absorbedId =
+          merged.email_message_id === existing.email_message_id
+            ? candidate.email_message_id
+            : existing.email_message_id
+        merged.merged_email_message_ids = [
+          ...(existing.merged_email_message_ids ?? []),
+          ...(candidate.merged_email_message_ids ?? []),
+          absorbedId,
+        ].filter((id): id is string => !!id)
+        pendingFlush[bufferedIndex] = merged
+        return true
+      }
+
+      // 2. Against transactions already stored (pre-existing, or flushed
+      //    earlier in this scan).
+      const stored = mergeCandidates.find((c) => isSamePayment(c, candidate))
+      if (!stored) return false
+
+      const patch: Record<string, unknown> = {
+        merged_email_message_ids: [
+          ...(stored.merged_email_message_ids ?? []),
+          candidate.email_message_id,
+        ].filter(Boolean),
+      }
+
+      // Enrich ONLY a row the user has not acted on yet, and only by filling
+      // gaps — never overwriting a populated field. A transaction they have
+      // already approved or re-categorised must not be rewritten underneath
+      // them just because a second email turned up.
+      const untouched = stored.approval_status === 'pending' && !stored.category_confirmed_at
+      if (untouched) {
+        const merged = mergePayments(stored, toMergeable(candidate))
+        if (!stored.reference_id && merged.reference_id) patch.reference_id = merged.reference_id
+        if ((!stored.payment_mode || stored.payment_mode === 'unknown') && merged.payment_mode) {
+          patch.payment_mode = merged.payment_mode
+        }
+        if (!stored.card_issuer && merged.card_issuer) patch.card_issuer = merged.card_issuer
+        if (!stored.card_brand && merged.card_brand) patch.card_brand = merged.card_brand
+        if (!stored.transaction_time && merged.transaction_time) patch.transaction_time = merged.transaction_time
+        if (isWeakMerchantLabel(stored.merchant) && !isWeakMerchantLabel(merged.merchant)) {
+          patch.merchant = merged.merchant
+          if (merged.description) patch.description = merged.description
+        }
+      }
+
+      const { error: patchError } = await supabase.from('transactions').update(patch).eq('id', stored.id)
+      if (patchError) {
+        // Losing the enrichment is survivable; losing the transaction is not.
+        // Report it as absorbed anyway so a duplicate is not inserted.
+        console.warn('[emailScanner] Failed to merge into existing transaction:', patchError.message)
+      } else {
+        Object.assign(stored, patch)
+      }
+      return true
     }
 
     // Renamed from skippedConfidence: these emails are no longer skipped —
@@ -1410,6 +1528,8 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // preserved, so the name should say what actually happens to them now.
     let lowConfidencePendingCount = 0
     const lowConfidenceEmailsDetails: string[] = []
+    /** Emails folded into an existing transaction instead of becoming a new one. */
+    let mergedDuplicateCount = 0
 
     // ── Stage A — cheap per-email gates ──────────────────────────────
     // Everything here is synchronous string work and set lookups. Gate order
@@ -1878,6 +1998,13 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       }
 
       if (parsedTxn) {
+        // R10: a bank alert and the merchant's receipt for one payment become
+        // one transaction, not two.
+        if (await absorbIntoExistingPayment(parsedTxn)) {
+          mergedDuplicateCount++
+          continue
+        }
+
         transactionsToInsert.push(parsedTxn)
         pendingFlush.push(parsedTxn)
         // Write as we go. Previously nothing was saved until the whole loop
@@ -1904,7 +2031,13 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           error_message: lowConfidencePendingCount > 0 ? `${lowConfidencePendingCount} email(s) added as pending (low confidence). Samples: ${lowConfidenceEmailsDetails.join('; ')}` : null,
         })
         .select().single()
-      return { data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0 }, error: null }
+      // mergedDuplicateCount can be non-zero here: every email may have been
+      // folded into a transaction an earlier scan already stored, which is a
+      // successful outcome, not an empty scan.
+      return {
+        data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0, mergedDuplicateCount },
+        error: null,
+      }
     }
 
     // Rows are already written — Stage C flushed them in chunks as it went.
@@ -1938,6 +2071,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         log: scanLog as EmailScanLog,
         autoApprovedCount,
         lowConfidencePendingCount,
+        mergedDuplicateCount,
       },
       error: null,
     }

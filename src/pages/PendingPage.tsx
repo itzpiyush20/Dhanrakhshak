@@ -155,6 +155,7 @@ export default function PendingPage() {
     autoApproved: number
     pendingReview: number
     lowConfidence: number
+    merged: number
   } | null>(null)
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -706,10 +707,11 @@ export default function PendingPage() {
       const autoApproved = res.data?.autoApprovedCount || 0
       const pendingCount = count - autoApproved
       const lowConfidence = (res.data as any)?.lowConfidencePendingCount || 0
+      const merged = (res.data as any)?.mergedDuplicateCount || 0
 
       // Per-transaction detail already lives in the auto-categorization review
       // modal below — this stays a short, glanceable summary, not a repeat dump.
-      setScanSuccessMessage({ total: count, autoApproved, pendingReview: pendingCount, lowConfidence })
+      setScanSuccessMessage({ total: count, autoApproved, pendingReview: pendingCount, lowConfidence, merged })
 
       await fetchPendingData()
       const freshScanLog = await fetchLastScanLog()
@@ -963,7 +965,11 @@ export default function PendingPage() {
               <div>
                 <p className="font-semibold">
                   {scanSuccessMessage.total === 0
-                    ? 'Sync complete — no new transactions found.'
+                    ? scanSuccessMessage.merged > 0
+                      // Every email matched a transaction already on file. Say so
+                      // — "no new transactions" alone reads like the scan failed.
+                      ? `Sync complete — ${scanSuccessMessage.merged} receipt${scanSuccessMessage.merged === 1 ? '' : 's'} matched transactions you already have.`
+                      : 'Sync complete — no new transactions found.'
                     : `${scanSuccessMessage.total} new transaction${scanSuccessMessage.total === 1 ? '' : 's'} found.`}
                 </p>
                 {scanSuccessMessage.total > 0 && (
@@ -971,6 +977,7 @@ export default function PendingPage() {
                     {scanSuccessMessage.autoApproved} auto-approved
                     {scanSuccessMessage.pendingReview > 0 ? `, ${scanSuccessMessage.pendingReview} waiting below for your review` : ''}
                     {scanSuccessMessage.lowConfidence > 0 ? ` · ${scanSuccessMessage.lowConfidence} flagged low-confidence (please review)` : ''}
+                    {scanSuccessMessage.merged > 0 ? ` · ${scanSuccessMessage.merged} duplicate receipt${scanSuccessMessage.merged === 1 ? '' : 's'} merged` : ''}
                   </p>
                 )}
               </div>
