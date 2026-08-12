@@ -2308,4 +2308,61 @@ describe('scanRealGmailInbox — bounded cost on an oversized HTML email', () =>
     expect(inserted.flat()).toHaveLength(1)
     expect(inserted.flat()[0].amount).toBe(450)
   })
+
+  // Regression test for the actual root cause of the "Page Unresponsive"
+  // freeze: the previous fix truncated the DECODED html to MAX_HTML_PARSE_CHARS
+  // but decoded the FULL, untruncated base64 body first. A marketing email
+  // with a large inline base64 image in its text/html part (common — these
+  // are exactly the emails the bulk-marketing gate exists to filter) still
+  // paid the full decode cost, which is a synchronous byte-copy loop over
+  // the entire binary length. This test uses a raw body far larger than the
+  // 600KB case above — big enough that decoding it in full (rather than a
+  // bounded prefix) would blow the time budget on its own.
+  it('does not decode more of an oversized HTML part than the parse bound needs', async () => {
+    // ~160MB of raw HTML — the size class of a heavy template with a large
+    // inline base64 image, not just a bloated text layout. Real content
+    // first, so a regression that decodes nothing at all would also fail on
+    // correctness. Sized well past the point where an unbounded decode blows
+    // the time budget on its own (direct benchmark: ~10s unbounded vs ~15ms
+    // bounded at this scale — a wide, non-flaky margin either side of the
+    // 5s assertion below).
+    const filler = '<tr><td><table><tr><td>lorem ipsum filler layout cell</td></tr></table></td></tr>'.repeat(2000000)
+    const html = `<html><body><p>Rs.450.00 debited from your account XX4471 at SWIGGY on 10-08-26.</p>${filler}</body></html>`
+
+    const messages = [{
+      id: 'msg-massive-html', threadId: 't-massive', snippet: 'debited',
+      internalDate: String(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      payload: {
+        headers: [
+          { name: 'Subject', value: 'Debit transaction alert' },
+          { name: 'From', value: 'Alerts <alerts@hdfcbank.com>' },
+        ],
+        mimeType: 'text/html',
+        body: { data: toBase64Url(html) },
+      },
+    }]
+
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return { ok: true, status: 200, json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }) } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const inserted: any[] = []
+    const start = Date.now()
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(Date.now() - start).toBeLessThan(5000)
+    expect(result.error).toBeNull()
+    expect(inserted.flat()).toHaveLength(1)
+    expect(inserted.flat()[0].amount).toBe(450)
+  })
 })

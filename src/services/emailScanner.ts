@@ -662,9 +662,36 @@ function computeConfidence(signals: ConfidenceSignals): number {
 // ============================================================
 // UTILITY — Base64 URL Decoder
 // ============================================================
-function decodeBase64Url(str: string): string {
+/**
+ * `maxChars`, when given, bounds the DECODE itself — not just what a caller
+ * does with the result afterward. The byte-copy loop below is O(decoded
+ * length): for a marketing email with a multi-MB inline base64 image sitting
+ * in its `text/html` part, that loop alone can block the main thread for
+ * seconds, and it happens inside a single synchronous call — no per-email
+ * yield elsewhere in the scan loop can rescue a stall that occurs mid-decode.
+ * A caller that only truncates the decoded string afterward (as this
+ * function's callers used to) still pays the full decode cost first, which
+ * defeats the truncation's purpose entirely on exactly the pathological
+ * emails it exists to protect against.
+ *
+ * Base64 expands 3 bytes to 4 characters, so `maxChars` decoded characters
+ * needs at most `maxChars * 4/3` base64 input characters; the extra slack
+ * below is deliberately generous since multi-byte UTF-8 sequences can need
+ * more than one byte per decoded character.
+ */
+function decodeBase64Url(str: string, maxChars?: number): string {
   if (!str) return ''
-  let base64 = str.replace(/-/g, '+').replace(/_/g, '/').replace(/\s/g, '')
+  // Sliced BEFORE sanitizing, not after — str.replace(...) with a global flag
+  // is itself an O(length) scan of the FULL input. Truncating only the
+  // *result* of those three replace() passes still pays for scanning the
+  // entire multi-MB string first, which defeats the bound on exactly the
+  // huge input it exists to protect against.
+  let input = str
+  if (maxChars && maxChars > 0) {
+    const neededBase64Chars = Math.ceil((maxChars * 2) / 3) * 4
+    if (input.length > neededBase64Chars) input = input.slice(0, neededBase64Chars)
+  }
+  let base64 = input.replace(/-/g, '+').replace(/_/g, '/').replace(/\s/g, '')
   const pad = base64.length % 4
   if (pad) {
     if (pad === 1) return ''
@@ -692,8 +719,9 @@ function extractEmailBody(mail: any): string {
     if (!part) return
     const mimeType = part.mimeType || ''
     const bodyData = part.body?.data || ''
-    if (mimeType === 'text/plain' && bodyData) plainText += decodeBase64Url(bodyData) + '\n'
-    else if (mimeType === 'text/html' && bodyData) htmlText += decodeBase64Url(bodyData) + '\n'
+    // Bounded at the decode call, not after — see decodeBase64Url's comment.
+    if (mimeType === 'text/plain' && bodyData) plainText += decodeBase64Url(bodyData, MAX_HTML_PARSE_CHARS) + '\n'
+    else if (mimeType === 'text/html' && bodyData) htmlText += decodeBase64Url(bodyData, MAX_HTML_PARSE_CHARS) + '\n'
     if (part.parts && Array.isArray(part.parts)) part.parts.forEach(traverseParts)
   }
 
