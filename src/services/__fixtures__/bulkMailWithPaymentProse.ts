@@ -5,6 +5,8 @@
 // catches what the pre-AI gate deliberately lets through, since the pre-AI
 // gate scans the whole message and would find "paid" here.
 
+import { daysAgoMs } from './_fixtureClock'
+
 export const BULK_PROSE_SUBJECT = 'Markets Weekly: what moved and why'
 
 export const BULK_PROSE_FROM = 'Markets Weekly <digest@marketsweekly.example>'
@@ -32,7 +34,7 @@ export function makeBulkProseGmailMessage(id = 'msg-bulk-prose-1') {
     id,
     threadId: 'thread-bulk-prose-1',
     snippet: 'Markets Weekly. In this issue we look at how the largest infrastructure firms paid down debt...',
-    internalDate: String(Date.UTC(2026, 7, 10, 10, 0, 0)),
+    internalDate: daysAgoMs(2),
     payload: {
       headers: [
         { name: 'Subject', value: BULK_PROSE_SUBJECT },

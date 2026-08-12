@@ -46,6 +46,22 @@ export function evaluateRegexGates(
   emailContentForParsing: string,
   isHardAccepted: boolean
 ): GateCheckResult {
+  // Credit/loan OFFERS. Runs first so the audit trail records the specific
+  // reason rather than whichever generic promo word happened to appear.
+  //
+  // This gate exists because offer mail defeats the other defences: a
+  // pre-approved loan email comes from a trusted bank domain, carries a large
+  // rupee amount, and says "will be credited" — which trips hasPaymentAssertion
+  // and therefore slips past the bulk-marketing gate. Without this, the regex
+  // ladder turns "pre-approved for Rs.5,00,000" into a phantom credit whenever
+  // the AI is unavailable.
+  //
+  // Deliberately narrow: only unambiguous offer constructions. Broader phrasing
+  // like "you are eligible for" was considered and rejected — genuine receipts
+  // say things like "eligible for free delivery".
+  const offerMatch = /\bpre[-\s]?(?:approved|qualified|sanctioned)\b|\b(?:credit\s+)?limit\s+(?:has\s+been\s+)?(?:increased|enhanced|upgraded)\b|\bloan\s+offer\b/i.exec(emailContentForParsing)
+  if (offerMatch) return { rejected: true, gate: 'offer_or_pre_approval', snippet: offerMatch[0] }
+
   const promoMatch = /\b(?:promo(?:tion)?|coupon|unsubscribe|shop\s+now|buy\s+now|special\s+offer|limited\s+period|earn\s+cashback|get\s+cashback|cashback\s+on\s+your\s+next|exclusive\s+deal)\b/i.exec(emailContentForParsing)
   if (promoMatch) return { rejected: true, gate: 'promotional_spam', snippet: promoMatch[0] }
 

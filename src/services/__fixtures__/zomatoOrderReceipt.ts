@@ -6,6 +6,8 @@
 // pattern, so the survived footer's "OTP" mention tripped the
 // otp_or_security_code gate.
 
+import { daysAgoMs } from './_fixtureClock'
+
 export const ZOMATO_ORDER_SUBJECT = 'Your Zomato order from Patiala House'
 
 export const ZOMATO_ORDER_FROM = 'Zomato <noreply@zomato.com>'
@@ -39,7 +41,7 @@ export function makeZomatoOrderGmailMessage(id = 'msg-zomato-order-1') {
     id,
     threadId: 'thread-zomato-order-1',
     snippet: 'Hi Piyush Khandelwal, Thank you for ordering from Patiala House ORDER ID: 8454583228 Delivered...',
-    internalDate: String(Date.UTC(2026, 7, 10, 15, 15, 21)),
+    internalDate: daysAgoMs(2),
     payload: {
       headers: [
         { name: 'Subject', value: ZOMATO_ORDER_SUBJECT },

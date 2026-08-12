@@ -5,6 +5,8 @@
 // codebase. Proves that detection works for a vendor the app has never
 // seen before, not just for Uber/Zomato specifically.
 
+import { daysAgoMs } from './_fixtureClock'
+
 export const UNKNOWN_VENDOR_SUBJECT = 'Your order from Ramesh Tiffin Service'
 
 export const UNKNOWN_VENDOR_FROM = 'Ramesh Tiffin Service <orders@rameshtiffins.example>'
@@ -30,7 +32,7 @@ export function makeUnknownVendorGmailMessage(id = 'msg-unknown-vendor-1') {
     id,
     threadId: 'thread-unknown-vendor-1',
     snippet: 'Hello, Your daily tiffin order has been delivered. Order #4471 1 X Full Thali Total ₹120.00...',
-    internalDate: String(Date.UTC(2026, 7, 10, 12, 0, 0)),
+    internalDate: daysAgoMs(2),
     payload: {
       headers: [
         { name: 'Subject', value: UNKNOWN_VENDOR_SUBJECT },

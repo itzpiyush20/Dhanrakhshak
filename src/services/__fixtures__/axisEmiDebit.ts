@@ -7,6 +7,8 @@
 // the OTP gate. Both are standard security boilerplate, not transaction
 // content.
 
+import { daysAgoMs } from './_fixtureClock'
+
 export const AXIS_EMI_SUBJECT = 'Debit transaction alert for Axis Bank A/c'
 
 export const AXIS_EMI_FROM = 'Axis Bank Alerts <alerts@axis.bank.in>'
@@ -61,7 +63,7 @@ export function makeAxisEmiGmailMessage(id = 'msg-axis-emi-1') {
     id,
     threadId: 'thread-axis-emi-1',
     snippet: 'We wish to inform you that your A/c no. XX5154 has been debited with INR 42293.00...',
-    internalDate: String(Date.UTC(2026, 7, 5, 10, 2, 30)),
+    internalDate: daysAgoMs(2),
     payload: {
       headers: [
         { name: 'Subject', value: AXIS_EMI_SUBJECT },
