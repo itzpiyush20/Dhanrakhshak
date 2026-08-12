@@ -784,6 +784,16 @@ interface ScanCandidate {
 /** Batches of AI classification in flight at once. */
 const AI_BATCH_CONCURRENCY = 4
 
+/** Per-preload ceiling. Short, because these are small indexed reads. */
+const PRELOAD_TIMEOUT_MS = 12000
+
+/**
+ * The subset of a Supabase list response the scan preloads actually read.
+ * Declared once so the fallback literals and the generics agree without
+ * repeating an inline shape at every call site.
+ */
+type PreloadRows = { data: any[] | null; error: unknown }
+
 // ── Manual scan quotas (plans/email-scanner-requirements.md R6/R7/R8) ──
 // Owner is unlimited and handled separately. Premium and trial share a limit.
 const FREE_MANUAL_SCANS_PER_DAY = 1
@@ -1426,17 +1436,58 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // of N", making a stall here look identical to a stall in the fetch loop.
     emitProgress({ phase: 'preparing', current: 0, total: 0 })
 
-    const dedupFrom = new Date(startLimitTime - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    // All three preloads are independent, so they run together rather than in
+    // series — and crucially NONE of them may kill the scan. Each degrades
+    // safely on its own:
+    //
+    //   transactions   → empty dedup set. Already-imported emails get
+    //                    reprocessed, but UNIQUE (email_message_id, user_id)
+    //                    still rejects the insert and the 23505 row-by-row
+    //                    fallback skips them, so no duplicate can reach the
+    //                    ledger. The cost is wasted AI calls, not bad data.
+    //   categories     → empty list, which the validation below already treats
+    //                    as "accept what the classifier chose".
+    //   merchant rules → empty list, falling through to the localStorage
+    //                    heuristics exactly as a DB outage always has.
+    //
+    // Losing dedup for a single scan beats the scan dying in "Preparing…" with
+    // nothing to show for it — which is what a stalled query here did, since
+    // the Supabase client has no timeout of its own.
+    //
     // Promise.resolve() because a Supabase query builder is thenable but not a
     // real Promise — it has no .finally, which withTimeout needs.
-    const { data: existingTxns, error: existingTxnsError } = await withTimeout(Promise.resolve(supabase
-      .from('transactions')
-      .select('id, amount, currency, type, date, merchant, description, reference_id, payment_mode, card_issuer, card_brand, transaction_time, confidence_score, approval_status, category_confirmed_at, email_message_id, merged_email_message_ids')
-      .eq('user_id', user.id)
-      .gte('date', dedupFrom)), 20000, 'Loading existing transactions')
+    const preloadOrDefault = async <T,>(work: PromiseLike<T>, fallback: T, label: string): Promise<T> => {
+      try {
+        return await withTimeout(Promise.resolve(work), PRELOAD_TIMEOUT_MS, label)
+      } catch (e) {
+        console.warn(`[emailScanner] ${label} failed, continuing without it:`, e)
+        return fallback
+      }
+    }
 
-    if (existingTxnsError) {
-      console.error('[emailScanner] Failed to load existing transactions for dedup:', existingTxnsError)
+    const dedupFrom = new Date(startLimitTime - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+    const [existingTxnsRes, userCategoriesRes, merchantRules] = await Promise.all([
+      preloadOrDefault<PreloadRows>(
+        supabase
+          .from('transactions')
+          .select('id, amount, currency, type, date, merchant, description, reference_id, payment_mode, card_issuer, card_brand, transaction_time, confidence_score, approval_status, category_confirmed_at, email_message_id, merged_email_message_ids')
+          .eq('user_id', user.id)
+          .gte('date', dedupFrom),
+        { data: [], error: null },
+        'Loading existing transactions'
+      ),
+      preloadOrDefault<PreloadRows>(
+        supabase.from('categories').select('name, is_permanent').eq('user_id', user.id),
+        { data: [], error: null },
+        'Loading categories'
+      ),
+      preloadOrDefault(getMerchantRulesFromDB(user.id, supabase), [], 'Loading merchant rules'),
+    ])
+
+    const existingTxns = existingTxnsRes.data
+    if (existingTxnsRes.error) {
+      console.error('[emailScanner] Failed to load existing transactions for dedup:', existingTxnsRes.error)
     }
 
     // Absorbed ids count as seen. Without this a merged-away email would be
@@ -1464,10 +1515,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // (1) feed the AI prompt the user's actual category names instead of the old
     // hardcoded/legacy list, and (2) validate merchant-rule/AI category suggestions
     // against what actually exists, falling back to the permanent category if not.
-    const { data: userCategories } = await withTimeout(Promise.resolve(supabase
-      .from('categories')
-      .select('name, is_permanent')
-      .eq('user_id', user.id)), 20000, 'Loading categories')
+    const userCategories = userCategoriesRes.data
     const categoryNames = (userCategories || []).map((c: any) => c.name)
     const fallbackCategoryName = (userCategories || []).find((c: any) => c.is_permanent)?.name || 'Other'
 
@@ -1475,7 +1523,6 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // to re-read this entire table for every email in the loop below — on a
     // 50-email scan that was 50 full table reads for data that cannot change
     // mid-scan.
-    const merchantRules = await withTimeout(getMerchantRulesFromDB(user.id, supabase), 20000, 'Loading merchant rules')
 
     // Everything parsed this scan, for the counts on the scan log.
     const transactionsToInsert: TransactionInsert[] = []

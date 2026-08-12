@@ -394,7 +394,11 @@ export default function PendingPage() {
         setSyncingBackground(true)
         if (hasGoogleToken) {
           try {
-            const res = await scanRealGmailInbox()
+            // The one scan entry point that was never bounded. It fires on
+            // mount, so without a ceiling it can sit running — and contending
+            // with a manual scan the user starts — indefinitely. Shorter than
+            // the manual 90s because nothing is watching this one.
+            const res = await withTimeout(scanRealGmailInbox({ scanMode: 'scheduled' }), 45000, 'Gmail auto-sync')
             if (res && !res.error) {
               setShowInactivityBanner(false)
               fetchPendingData()
