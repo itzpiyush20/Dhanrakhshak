@@ -1312,10 +1312,14 @@ describe('scanRealGmailInbox — progress reporting', () => {
 
     expect(phases[0]).toBe('listing')
     expect(phases).toContain('fetching')
+    // Each stage announces itself the moment it begins, so a stall is
+    // attributable to a specific stage rather than to "somewhere after fetch".
+    expect(phases).toContain('preparing')
+    expect(phases).toContain('filtering')
     expect(phases).toContain('analyzing')
     expect(phases).toContain('saving')
     // Phases never run backwards.
-    const order = ['listing', 'fetching', 'analyzing', 'saving']
+    const order = ['listing', 'fetching', 'preparing', 'filtering', 'analyzing', 'saving']
     const seen = phases.map((p) => order.indexOf(p))
     expect(seen).toEqual([...seen].sort((a, b) => a - b))
   })

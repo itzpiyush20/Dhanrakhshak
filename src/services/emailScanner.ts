@@ -7,7 +7,7 @@
 import { supabase as defaultSupabase } from './supabase.js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
-import { extractBankName, retryWithBackoff, fetchWithTimeout } from '../utils/index.js'
+import { extractBankName, retryWithBackoff, fetchWithTimeout, withTimeout } from '../utils/index.js'
 import { getMerchantRulesFromDB, applyMerchantRulesFromRows } from './learningEngine.js'
 import { getGoogleToken, clearGoogleToken, tryRefreshGoogleToken } from './googleAuth.js'
 import {
@@ -910,7 +910,7 @@ function toMergeable(t: TransactionInsert): MergeableTransaction {
 
 /** Progress signal emitted during a scan so the UI can show real state. */
 export interface ScanProgress {
-  phase: 'listing' | 'fetching' | 'filtering' | 'analyzing' | 'saving'
+  phase: 'listing' | 'fetching' | 'preparing' | 'filtering' | 'analyzing' | 'saving'
   current: number
   total: number
 }
@@ -928,6 +928,8 @@ export function formatScanProgress(p: ScanProgress): string {
         : `Found ${p.total} email${p.total === 1 ? '' : 's'} to check…`
     case 'fetching':
       return `Reading email ${seen} of ${p.total}…`
+    case 'preparing':
+      return 'Preparing…'
     case 'filtering':
       return `Sorting email ${seen} of ${p.total}…`
     case 'analyzing':
@@ -1418,12 +1420,20 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // reach past the window, so neither a message id nor a reference id from
     // outside it can appear in this scan. The margin covers the ±1 day
     // tolerance that payment merging allows.
+    // Announced before the queries below, not after. The Supabase client has no
+    // default timeout, so an unbounded query here is a place the scan can stop
+    // dead — and until this marker existed the UI still read "Reading email N
+    // of N", making a stall here look identical to a stall in the fetch loop.
+    emitProgress({ phase: 'preparing', current: 0, total: 0 })
+
     const dedupFrom = new Date(startLimitTime - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    const { data: existingTxns, error: existingTxnsError } = await supabase
+    // Promise.resolve() because a Supabase query builder is thenable but not a
+    // real Promise — it has no .finally, which withTimeout needs.
+    const { data: existingTxns, error: existingTxnsError } = await withTimeout(Promise.resolve(supabase
       .from('transactions')
       .select('id, amount, currency, type, date, merchant, description, reference_id, payment_mode, card_issuer, card_brand, transaction_time, confidence_score, approval_status, category_confirmed_at, email_message_id, merged_email_message_ids')
       .eq('user_id', user.id)
-      .gte('date', dedupFrom)
+      .gte('date', dedupFrom)), 20000, 'Loading existing transactions')
 
     if (existingTxnsError) {
       console.error('[emailScanner] Failed to load existing transactions for dedup:', existingTxnsError)
@@ -1454,10 +1464,10 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // (1) feed the AI prompt the user's actual category names instead of the old
     // hardcoded/legacy list, and (2) validate merchant-rule/AI category suggestions
     // against what actually exists, falling back to the permanent category if not.
-    const { data: userCategories } = await supabase
+    const { data: userCategories } = await withTimeout(Promise.resolve(supabase
       .from('categories')
       .select('name, is_permanent')
-      .eq('user_id', user.id)
+      .eq('user_id', user.id)), 20000, 'Loading categories')
     const categoryNames = (userCategories || []).map((c: any) => c.name)
     const fallbackCategoryName = (userCategories || []).find((c: any) => c.is_permanent)?.name || 'Other'
 
@@ -1465,7 +1475,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // to re-read this entire table for every email in the loop below — on a
     // 50-email scan that was 50 full table reads for data that cannot change
     // mid-scan.
-    const merchantRules = await getMerchantRulesFromDB(user.id, supabase)
+    const merchantRules = await withTimeout(getMerchantRulesFromDB(user.id, supabase), 20000, 'Loading merchant rules')
 
     // Everything parsed this scan, for the counts on the scan log.
     const transactionsToInsert: TransactionInsert[] = []
@@ -1564,6 +1574,11 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // Junk MUST be rejected here, before Stage B spends an AI call and a slice
     // of the user's daily quota on it.
     const candidates: ScanCandidate[] = []
+
+    // Immediately, so the label changes the moment this stage begins rather
+    // than only at the first yield — otherwise a stall in the first few emails
+    // is indistinguishable from a stall in the previous stage.
+    emitProgress({ phase: 'filtering', current: 0, total: validDetails.length })
 
     let stageAProcessed = 0
     for (const mail of validDetails) {
@@ -1669,6 +1684,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // One Gemini call per AI_BATCH_SIZE emails instead of one per email, with
     // a small number of batches in flight at once. This is what takes a
     // 50-email scan from ~100-160s of serial round trips down to ~15-25s.
+    emitProgress({ phase: 'analyzing', current: 0, total: candidates.length })
     const aiVerdicts = await classifyCandidatesWithAI(candidates, askAIBatch, askAI, categoryNames, emitProgress)
 
     // ── Stage C — per-email interpretation ───────────────────────────
