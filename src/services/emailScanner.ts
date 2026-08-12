@@ -18,7 +18,7 @@ import {
   type AITransactionResult,
 } from './aiService.js'
 import { stripBoilerplate } from './emailBoilerplate.js'
-import { evaluateRegexGates, logRejection, isBulkMarketingEmail, hasPaymentAssertion } from './emailScanGates.js'
+import { evaluateRegexGates, isBulkMarketingEmail, hasPaymentAssertion } from './emailScanGates.js'
 import { isSamePayment, mergePayments, isWeakMerchantLabel, type MergeableTransaction } from './paymentMerge.js'
 import { extractAmountMatches, isHomeCurrency, DEFAULT_CURRENCY } from './currency.js'
 
@@ -1271,6 +1271,42 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     }
   }
 
+  /**
+   * Rejections are buffered in memory instead of written immediately.
+   *
+   * `logRejection` used to fire an insert the moment a gate rejected an
+   * email — but the parent `email_scan_logs` row (same `scanLogId`) isn't
+   * inserted until the scan finishes, so `email_scan_rejections`' foreign
+   * key made EVERY one of those inserts fail with a 409 for the entire
+   * duration of every scan. On an inbox where most mail is non-transactional
+   * (the common case), that's dozens of failed round trips competing with
+   * everything else for the browser's ~6-connections-per-origin budget —
+   * which is what was actually stalling Stage A, not CPU work. Buffering and
+   * writing once, after the parent row exists, fixes the FK violation and
+   * collapses N failing requests into one that succeeds.
+   */
+  const rejectionBuffer: { gate: string; senderDomain: string; subject: string; matchedSnippet: string }[] = []
+  const bufferRejection = (gate: string, senderDomain: string, subject: string, matchedSnippet: string) => {
+    rejectionBuffer.push({ gate, senderDomain, subject, matchedSnippet })
+  }
+  /** Writes every buffered rejection, chunked so one oversized batch can't lose them all. */
+  const flushRejections = async () => {
+    if (rejectionBuffer.length === 0) return
+    const rows = rejectionBuffer.map((r) => ({
+      user_id: user!.id,
+      scan_log_id: scanLogId,
+      sender_domain: r.senderDomain || null,
+      subject: r.subject ? r.subject.substring(0, 500) : null,
+      gate: r.gate,
+      matched_snippet: r.matchedSnippet ? r.matchedSnippet.substring(0, 200) : null,
+    }))
+    const REJECTION_FLUSH_CHUNK = 500
+    for (let i = 0; i < rows.length; i += REJECTION_FLUSH_CHUNK) {
+      const { error } = await supabase.from('email_scan_rejections').insert(rows.slice(i, i + REJECTION_FLUSH_CHUNK))
+      if (error) console.warn('[emailScanner] Failed to flush rejection batch:', error.message)
+    }
+  }
+
   try {
     const cleanEmail = user.email?.toLowerCase().trim() || ''
     const isOwner = OWNER_EMAILS.length > 0 && OWNER_EMAILS.includes(cleanEmail)
@@ -1496,7 +1532,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
             if (!res.ok) return null
             return await res.json()
           } catch {
-            logRejection(supabase, user.id, scanLogId, 'fetch_failed', '', '', `messageId=${m.id}`)
+            bufferRejection('fetch_failed', '', '', `messageId=${m.id}`)
             return null
           }
         })
@@ -1762,14 +1798,14 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       // condition correctly declines to keep importing it.
       const mailYear = Number(mailDate.slice(0, 4))
       if (mailYear > activeYear) {
-        logRejection(supabase, user.id, scanLogId, 'after_active_year', senderDomain, subject, `date=${mailDate}`)
+        bufferRejection('after_active_year', senderDomain, subject, `date=${mailDate}`)
         continue
       }
       if (mailYear < activeYear) {
         const windowStraddlesNewYear =
           mailYear === activeYear - 1 && new Date().getUTCFullYear() === activeYear
         if (!windowStraddlesNewYear) {
-          logRejection(supabase, user.id, scanLogId, 'before_active_year', senderDomain, subject, `date=${mailDate}`)
+          bufferRejection('before_active_year', senderDomain, subject, `date=${mailDate}`)
           continue
         }
       }
@@ -1796,7 +1832,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       // text lives in footers, past where the other gates stop reading.
       const isBulkMail = isBulkMarketingEmail(mail.payload?.headers || [], bulkScanText(bodyText))
       if (isBulkMail && !hasPaymentAssertion(emailContentForParsing)) {
-        logRejection(supabase, user.id, scanLogId, 'bulk_mail_no_payment_evidence', senderDomain, subject, subject.substring(0, 120))
+        bufferRejection('bulk_mail_no_payment_evidence', senderDomain, subject, subject.substring(0, 120))
         continue
       }
 
@@ -1878,7 +1914,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
               const aiLowConfidence =
                 typeof aiResult.confidence_score === 'number' && aiResult.confidence_score < 60
               if (aiLowConfidence) {
-                logRejection(supabase, user.id, scanLogId, 'ai_low_confidence', senderDomain, subject, `confidence=${aiResult.confidence_score}`)
+                bufferRejection('ai_low_confidence', senderDomain, subject, `confidence=${aiResult.confidence_score}`)
               }
               const approval_status = aiLowConfidence ? 'pending' : ruleResult.approval_status
 
@@ -1924,14 +1960,14 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       }
 
       if (aiConfidentReject && !parsedTxn) {
-        logRejection(supabase, user.id, scanLogId, 'ai_confident_reject', senderDomain, subject, '')
+        bufferRejection('ai_confident_reject', senderDomain, subject, '')
         continue
       }
 
       if (!parsedTxn) {
         const isHardRejected = HARD_REJECT_SUBJECT_PATTERNS.some(p => p.test(subject))
         if (isHardRejected) {
-          logRejection(supabase, user.id, scanLogId, 'hard_reject_subject', senderDomain, subject, subject)
+          bufferRejection('hard_reject_subject', senderDomain, subject, subject)
           continue
         }
 
@@ -1939,7 +1975,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
 
         const gateResult = evaluateRegexGates(subject, emailContentForParsing, isHardAccepted)
         if (gateResult.rejected) {
-          logRejection(supabase, user.id, scanLogId, gateResult.gate!, senderDomain, subject, gateResult.snippet || '')
+          bufferRejection(gateResult.gate!, senderDomain, subject, gateResult.snippet || '')
           continue
         }
 
@@ -1955,7 +1991,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           // rejection audit trail so it can be measured later instead of
           // guessed at. This path used to be a bare `continue` — the one
           // rejection point in the file that left no trace.
-          logRejection(supabase, user.id, scanLogId, 'no_amount_in_body', senderDomain, subject, subject.substring(0, 120))
+          bufferRejection('no_amount_in_body', senderDomain, subject, subject.substring(0, 120))
           continue
         }
 
@@ -1972,7 +2008,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           // Amounts were present but every one sat next to balance/limit/reward
           // wording, so none of them represents money that moved. Distinct from
           // no_amount_in_body, and worth telling apart in the audit trail.
-          logRejection(supabase, user.id, scanLogId, 'only_balance_or_reward_amounts', senderDomain, subject, subject.substring(0, 120))
+          bufferRejection('only_balance_or_reward_amounts', senderDomain, subject, subject.substring(0, 120))
           continue
         }
 
@@ -2012,7 +2048,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         // bulk mail that mentions payments somewhere in an article but whose
         // *amount* is editorial — a share price or an advertised list price.
         if (isBulkMail && !hasPaymentAssertion(windowContent)) {
-          logRejection(supabase, user.id, scanLogId, 'bulk_mail_no_payment_near_amount', senderDomain, subject, `amount=${amount}`)
+          bufferRejection('bulk_mail_no_payment_near_amount', senderDomain, subject, `amount=${amount}`)
           continue
         }
 
@@ -2064,7 +2100,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         // still has to clear every gate above and the confidence check below.
         const hadNoDirectionSignal = debitScore === 0 && creditScore === 0
         if (hadNoDirectionSignal) {
-          logRejection(supabase, user.id, scanLogId, 'no_debit_credit_signal', senderDomain, subject, `amount=${amount}`)
+          bufferRejection('no_debit_credit_signal', senderDomain, subject, `amount=${amount}`)
         }
 
         let txType: 'debit' | 'credit' = creditScore > debitScore ? 'credit' : 'debit'
@@ -2188,7 +2224,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           if (lowConfidenceEmailsDetails.length < 5) {
             lowConfidenceEmailsDetails.push(`${senderDomain || 'unknown'}|"${subject.substring(0, 30)}"|Conf:${confidence}`)
           }
-          logRejection(supabase, user.id, scanLogId, 'confidence_below_65', senderDomain, subject, `confidence=${confidence}`)
+          bufferRejection('confidence_below_65', senderDomain, subject, `confidence=${confidence}`)
         }
 
         parsedTxn = {
@@ -2246,6 +2282,9 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           error_message: lowConfidencePendingCount > 0 ? `${lowConfidencePendingCount} email(s) added as pending (low confidence). Samples: ${lowConfidenceEmailsDetails.join('; ')}` : null,
         })
         .select().single()
+      // Only valid once the row above exists — the FK this satisfies is the
+      // whole reason rejections are buffered instead of written as they occur.
+      await flushRejections()
       // mergedDuplicateCount can be non-zero here: every email may have been
       // folded into a transaction an earlier scan already stored, which is a
       // successful outcome, not an empty scan.
@@ -2277,6 +2316,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       .select().single()
 
     if (logError) throw logError
+    await flushRejections()
 
     const autoApprovedCount = transactionsToInsert.filter((t) => t.approval_status === 'approved').length
 
@@ -2323,6 +2363,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         scan_mode: scanMode,
         error_message: errorMessage,
       })
+      await flushRejections()
     }
     return { data: null, error: new Error(errorMessage) }
   }

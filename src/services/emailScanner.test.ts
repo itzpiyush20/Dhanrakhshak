@@ -214,7 +214,7 @@ describe('scanRealGmailInbox — receipt-shaped emails with no debit/credit keyw
     expect(txn.type).toBe('debit')
     expect(txn.approval_status).toBe('pending')
 
-    expect(insertedRejections.some((r: any) => r.gate === 'no_debit_credit_signal')).toBe(true)
+    expect(insertedRejections.flat().some((r: any) => r.gate === 'no_debit_credit_signal')).toBe(true)
   })
 
   it('inserts a receipt from a wholly unrecognized vendor as pending (not list-dependent)', async () => {
@@ -261,7 +261,7 @@ describe('scanRealGmailInbox — receipt-shaped emails with no debit/credit keyw
     expect(txn.approval_status).toBe('pending')
     // This email's own debit signal ("Total paid") is clear on its own —
     // it should NOT need the no_debit_credit_signal fallback from this task.
-    expect(insertedRejections.some((r: any) => r.gate === 'no_debit_credit_signal')).toBe(false)
+    expect(insertedRejections.flat().some((r: any) => r.gate === 'no_debit_credit_signal')).toBe(false)
   })
 
   it('still rejects a promotional email even though the fetch query and pending-floor are both wider now', async () => {
@@ -303,7 +303,7 @@ describe('scanRealGmailInbox — receipt-shaped emails with no debit/credit keyw
     // ever reached — that's the actual (correct, pre-existing) gate that
     // fires here, not promotional_spam. Either way the email is rejected
     // and logged, which is what this guardrail test cares about.
-    expect(insertedRejections.some((r: any) => r.gate === 'hard_reject_subject')).toBe(true)
+    expect(insertedRejections.flat().some((r: any) => r.gate === 'hard_reject_subject')).toBe(true)
   })
 })
 
@@ -326,7 +326,7 @@ describe('scanRealGmailInbox — low regex confidence inserts pending, not dropp
     const txn = insertedTransactions[0][0]
     expect(txn.approval_status).toBe('pending')
     expect(txn.confidence_score).toBeLessThan(65)
-    expect(insertedRejections.some((r: any) => r.gate === 'confidence_below_65')).toBe(true)
+    expect(insertedRejections.flat().some((r: any) => r.gate === 'confidence_below_65')).toBe(true)
     expect(result.data?.lowConfidencePendingCount).toBeGreaterThanOrEqual(1)
   })
 })
