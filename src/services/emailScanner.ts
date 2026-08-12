@@ -680,6 +680,9 @@ function decodeBase64Url(str: string): string {
   }
 }
 
+/** See the comment at its use below. */
+const MAX_HTML_PARSE_CHARS = 300000
+
 function extractEmailBody(mail: any): string {
   if (!mail || !mail.payload) return mail?.snippet || ''
   let plainText = ''
@@ -697,6 +700,15 @@ function extractEmailBody(mail: any): string {
   traverseParts(mail.payload)
   if (plainText.trim()) return plainText.trim()
   if (htmlText.trim()) {
+    // A genuine bank alert's HTML is a few KB; an image-heavy marketing
+    // template can run into hundreds of KB. Same reasoning as
+    // stripBoilerplate's tail bound: this caps the ONE thing that can make a
+    // single email expensive enough to block the main thread for seconds,
+    // which no per-email yield elsewhere in the scan can rescue. DOMParser
+    // handles a truncated/malformed document fine — browsers are lenient by
+    // design — so this only risks losing trailing footer text on already-huge
+    // marketing mail, never on a real transaction email.
+    if (htmlText.length > MAX_HTML_PARSE_CHARS) htmlText = htmlText.slice(0, MAX_HTML_PARSE_CHARS)
     try {
       const doc = new DOMParser().parseFromString(htmlText, 'text/html')
       const textContent = doc.body.textContent || doc.body.innerText || ''

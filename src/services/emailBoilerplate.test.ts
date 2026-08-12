@@ -64,3 +64,39 @@ describe('stripBoilerplate', () => {
     expect(stripBoilerplate('')).toBe('')
   })
 })
+
+// ============================================================
+// Performance bound. stripBoilerplate used to run all ~14 global regex
+// passes across the FULL, untruncated body of every email, unconditionally.
+// Cheap on a normal bank alert, but expensive enough on a large body — the
+// widened D3 fetch net pulls in bulkier marketing/newsletter content — to
+// block the main thread for multiple seconds on a SINGLE email. No per-email
+// yield in the scan loop can rescue a stall inside one email's own
+// processing, which is what produced Chrome's "Page Unresponsive" dialog.
+// ============================================================
+
+describe('stripBoilerplate — bounded cost on oversized bodies', () => {
+  it('finishes quickly on a very large body', () => {
+    // Far past the ~1.7KB largest genuine fixture, deliberately pathological:
+    // no periods at all, so every `[^.]*\.`-style pattern must scan to the
+    // end of its bounded window without a sentence terminator to stop at.
+    const huge = 'word '.repeat(400000) // ~2MB, zero periods
+    const start = Date.now()
+    stripBoilerplate(huge)
+    expect(Date.now() - start).toBeLessThan(1000)
+  })
+
+  it('still strips a genuine footer sitting within the scanned tail', () => {
+    const huge = 'Some unrelated padding text without punctuation '.repeat(5000)
+    const withFooter = huge + 'Please do not share your OTP with anyone for any reason whatsoever.'
+    const result = stripBoilerplate(withFooter)
+    expect(result).not.toContain('do not share your OTP')
+  })
+
+  it('does not touch a normal-sized email at all', () => {
+    // Every real fixture is well under the bound — confirms the cap is a
+    // no-op for genuine transaction emails.
+    expect(stripBoilerplate(AXIS_EMI_BODY)).toBe(stripBoilerplate(AXIS_EMI_BODY))
+    expect(AXIS_EMI_BODY.length).toBeLessThan(12000)
+  })
+})

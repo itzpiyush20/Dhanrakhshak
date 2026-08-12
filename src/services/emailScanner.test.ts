@@ -2251,3 +2251,61 @@ describe('scanRealGmailInbox — failures name their stage', () => {
     expect(formatScanProgress({ phase: 'preparing', current: 0, total: 0, elapsedMs: 47000 })).toMatch(/\(47s\)/)
   })
 })
+
+// ============================================================
+// extractEmailBody must not block on an oversized HTML part. Same class of
+// bug as stripBoilerplate's tail bound: one huge marketing email should not
+// be able to stall the scan for seconds on its own, regardless of how many
+// emails surround it or how often the loop yields between them.
+// ============================================================
+
+describe('scanRealGmailInbox — bounded cost on an oversized HTML email', () => {
+  function toBase64Url(t: string) { return Buffer.from(t, 'utf-8').toString('base64url') }
+
+  it('processes a very large HTML email without blocking for long', async () => {
+    // ~600KB of deeply-nested table markup — the classic heavy email-template
+    // shape — with a real debit alert folded in so a false negative here
+    // would also be a correctness signal, not just a timing one.
+    // Real content first, filler after — matches how actual bank/marketing
+    // emails are shaped, and proves the truncation bound does not cost the
+    // transaction itself, only the trailing bloat.
+    const filler = '<tr><td><table><tr><td>lorem ipsum filler layout cell</td></tr></table></td></tr>'.repeat(4000)
+    const html = `<html><body><p>Rs.450.00 debited from your account XX4471 at SWIGGY on 10-08-26.</p>${filler}</body></html>`
+
+    const messages = [{
+      id: 'msg-huge-html', threadId: 't-huge', snippet: 'debited',
+      internalDate: String(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      payload: {
+        headers: [
+          { name: 'Subject', value: 'Debit transaction alert' },
+          { name: 'From', value: 'Alerts <alerts@hdfcbank.com>' },
+        ],
+        mimeType: 'text/html',
+        body: { data: toBase64Url(html) },
+      },
+    }]
+
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return { ok: true, status: 200, json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }) } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const inserted: any[] = []
+    const start = Date.now()
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(Date.now() - start).toBeLessThan(3000)
+    expect(result.error).toBeNull()
+    expect(inserted.flat()).toHaveLength(1)
+    expect(inserted.flat()[0].amount).toBe(450)
+  })
+})

@@ -53,11 +53,34 @@ const BOILERPLATE_SENTENCE_PATTERNS: RegExp[] = [
   /\bshould\s+you\s+wish\s+to\s+reach\s+us[^.]*\./gi,
 ]
 
+// Every pattern above targets footer material — security disclaimers, "do not
+// share your OTP", legal/confidentiality notices, RBI advisories, "know
+// more >>" — which sits at the END of an email, never in the middle. Genuine
+// bank/transaction emails are short (every fixture in __fixtures__ is under
+// 1700 chars), so this bound never touches real transaction content.
+//
+// It exists because this function used to run all ~14 global regexes across
+// the FULL, untruncated body of every candidate, unconditionally. That was
+// cheap for a normal bank alert and expensive enough on a large body —
+// hundreds of KB, which large marketing/newsletter HTML converts to after
+// text extraction — to block the main thread for multiple seconds on a
+// SINGLE email. A periodic yield elsewhere in the scan loop can only rescue
+// stalls BETWEEN emails, not a stall inside one, which is exactly what
+// produced Chrome's "Page Unresponsive" dialog mid-scan.
+const BOILERPLATE_SCAN_TAIL_CHARS = 12000
+
 export function stripBoilerplate(text: string): string {
   if (!text) return text
-  let result = text
+  const scanned = text.length > BOILERPLATE_SCAN_TAIL_CHARS
+    ? text.slice(-BOILERPLATE_SCAN_TAIL_CHARS)
+    : text
+  const head = text.length > BOILERPLATE_SCAN_TAIL_CHARS
+    ? text.slice(0, text.length - BOILERPLATE_SCAN_TAIL_CHARS)
+    : ''
+
+  let strippedTail = scanned
   for (const pattern of BOILERPLATE_SENTENCE_PATTERNS) {
-    result = result.replace(pattern, ' ')
+    strippedTail = strippedTail.replace(pattern, ' ')
   }
-  return result
+  return head + strippedTail
 }
