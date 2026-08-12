@@ -5,7 +5,7 @@
 // is absent or request fails
 // ============================================
 
-import { formatCurrency } from '../utils/index.js'
+import { formatCurrency, fetchWithTimeout } from '../utils/index.js'
 import { supabase } from './supabase.js'
 
 const GEMINI_PROXY_URL = '/api/gemini-proxy'
@@ -15,11 +15,15 @@ async function callGeminiProxy(body: Record<string, unknown>): Promise<any> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session?.access_token) throw new Error('Not authenticated')
 
-  const response = await fetch(GEMINI_PROXY_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-    body: JSON.stringify(body),
-  })
+  const response = await fetchWithTimeout(
+    GEMINI_PROXY_URL,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify(body),
+    },
+    25000
+  )
 
   if (!response.ok) throw new Error(`Gemini proxy error: ${response.status}`)
   return response.json()

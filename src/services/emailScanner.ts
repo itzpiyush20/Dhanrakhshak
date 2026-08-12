@@ -7,7 +7,7 @@
 import { supabase as defaultSupabase } from './supabase.js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
-import { extractBankName, retryWithBackoff } from '../utils/index.js'
+import { extractBankName, retryWithBackoff, fetchWithTimeout } from '../utils/index.js'
 import { applyMerchantRulesFromDB } from './learningEngine.js'
 import { getGoogleToken, clearGoogleToken, tryRefreshGoogleToken } from './googleAuth.js'
 import { analyzeTransactionEmailWithAI } from './aiService.js'
@@ -925,7 +925,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     do {
       const pageSize = isOwner ? 200 : 100
       const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${pageSize}&q=${encodeURIComponent(q)}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`
-      const listRes = await fetch(url, { headers: { Authorization: `Bearer ${providerToken}` } })
+      const listRes = await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${providerToken}` } }, 20000)
 
       if (listRes.status === 401 || listRes.status === 403) {
         clearGoogleToken()
@@ -962,9 +962,10 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         batch.map(async (m: { id: string }) => {
           try {
             const res = await retryWithBackoff(async () => {
-              const r = await fetch(
+              const r = await fetchWithTimeout(
                 `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}`,
-                { headers: { Authorization: `Bearer ${providerToken}` } }
+                { headers: { Authorization: `Bearer ${providerToken}` } },
+                20000
               )
               // 401/403 are auth failures, not transient — surface immediately,
               // don't burn retries on a token that isn't coming back this batch.

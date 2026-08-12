@@ -519,7 +519,7 @@ export default function DashboardPage() {
         return
       }
 
-      const res = await scanRealGmailInbox()
+      const res = await withTimeout(scanRealGmailInbox(), 90000, 'Gmail scan')
       if (res.error) {
         // If token expired, update AuthContext state so the whole app knows
         if (res.error.message?.includes('expired') || res.error.message?.includes('TOKEN_EXPIRED')) {

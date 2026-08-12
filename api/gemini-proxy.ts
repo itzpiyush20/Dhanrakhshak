@@ -107,6 +107,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'contents array is required' })
   }
 
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 20000)
+
   try {
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -114,6 +117,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents, generationConfig, safetySettings }),
+        signal: controller.signal,
       }
     )
 
@@ -125,6 +129,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(data)
   } catch (error: any) {
     console.error('Gemini proxy error:', error)
-    return res.status(500).json({ error: error.message || 'AI request failed' })
+    const isTimeout = error?.name === 'AbortError'
+    return res.status(isTimeout ? 504 : 500).json({ error: isTimeout ? 'Gemini API request timed out' : (error.message || 'AI request failed') })
+  } finally {
+    clearTimeout(timeoutId)
   }
 }

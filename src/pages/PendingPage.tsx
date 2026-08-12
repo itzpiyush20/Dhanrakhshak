@@ -626,7 +626,7 @@ export default function PendingPage() {
         return
       }
 
-      const res = await scanRealGmailInbox()
+      const res = await withTimeout(scanRealGmailInbox(), 90000, 'Gmail scan')
 
       if (res.error) {
         const msg = res.error.message || ''

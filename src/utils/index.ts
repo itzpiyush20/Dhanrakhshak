@@ -51,6 +51,17 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, label = 'Request
 }
 
 /**
+ * fetch() with an AbortController-based timeout, so a stalled request fails
+ * fast instead of hanging indefinitely (browsers don't time out fetch on
+ * their own). Defaults to 20s.
+ */
+export function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, ms = 20000): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), ms)
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timeoutId))
+}
+
+/**
  * Retries an async function with exponential backoff.
  * Useful for transient Supabase / network failures.
  * @param fn - Async function to retry
