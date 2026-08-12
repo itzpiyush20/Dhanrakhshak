@@ -16,7 +16,13 @@ function isRateLimited(ip: string): boolean {
     rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 })
     return false
   }
-  if (entry.count >= 20) return true
+  // Pre-auth abuse shield only — real cost control is the per-user daily quota
+  // in Postgres below. Raised from 20 when the scanner moved to batched
+  // classification: a legitimate large scan now issues its calls in a short
+  // burst rather than spread over minutes of serial waiting, and at 20/min it
+  // would 429 itself. A 429 here is invisible to the user (the AI layer
+  // degrades to regex), so throttling a real scan silently costs accuracy.
+  if (entry.count >= 60) return true
   entry.count++
   return false
 }

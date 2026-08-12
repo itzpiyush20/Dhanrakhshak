@@ -8,9 +8,15 @@ import { supabase as defaultSupabase } from './supabase.js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 import { extractBankName, retryWithBackoff, fetchWithTimeout } from '../utils/index.js'
-import { applyMerchantRulesFromDB } from './learningEngine.js'
+import { getMerchantRulesFromDB, applyMerchantRulesFromRows } from './learningEngine.js'
 import { getGoogleToken, clearGoogleToken, tryRefreshGoogleToken } from './googleAuth.js'
-import { analyzeTransactionEmailWithAI } from './aiService.js'
+import {
+  analyzeTransactionEmailWithAI,
+  analyzeTransactionEmailBatchWithAI,
+  AI_BATCH_SIZE,
+  type EmailForAI,
+  type AITransactionResult,
+} from './aiService.js'
 import { stripBoilerplate } from './emailBoilerplate.js'
 import { evaluateRegexGates, logRejection, isBulkMarketingEmail, hasPaymentAssertion } from './emailScanGates.js'
 
@@ -708,6 +714,87 @@ export async function getScanLogs() {
 // ============================================================
 // MAIN ENGINE — Scan Real Gmail Inbox (V2)
 // ============================================================
+/**
+ * An email that survived Stage A's cheap gates and is worth an AI opinion.
+ * Carries everything Stage C needs so the body/header work is done exactly once.
+ */
+interface ScanCandidate {
+  mail: any
+  mailMessageId: string
+  mailDate: string
+  bodyText: string
+  strippedBodyText: string
+  subject: string
+  fromValue: string
+  senderDomain: string
+  isTrustedSender: boolean
+  emailContentForParsing: string
+  isBulkMail: boolean
+}
+
+/** Batches of AI classification in flight at once. */
+const AI_BATCH_CONCURRENCY = 2
+
+/**
+ * Runs Stage B: classify every candidate, batched and with bounded concurrency.
+ * Returns a map of Gmail message id → verdict, where a missing/null entry means
+ * "no AI opinion" and Stage C falls through to the regex ladder.
+ *
+ * Never throws. `analyzeTransactionEmailBatchWithAI` already degrades a failed
+ * batch to single calls internally; the extra guard here covers an injected
+ * batch function (tests, cron) that doesn't.
+ */
+async function classifyCandidatesWithAI(
+  candidates: ScanCandidate[],
+  askAIBatch: NonNullable<ScanGmailOptions['askAIBatch']>,
+  askAI: NonNullable<ScanGmailOptions['askAI']>,
+  categoryNames: string[]
+): Promise<Map<string, AITransactionResult | null>> {
+  const verdicts = new Map<string, AITransactionResult | null>()
+  if (candidates.length === 0) return verdicts
+
+  const chunks: ScanCandidate[][] = []
+  for (let i = 0; i < candidates.length; i += AI_BATCH_SIZE) {
+    chunks.push(candidates.slice(i, i + AI_BATCH_SIZE))
+  }
+
+  for (let i = 0; i < chunks.length; i += AI_BATCH_CONCURRENCY) {
+    const inFlight = chunks.slice(i, i + AI_BATCH_CONCURRENCY)
+    const settled = await Promise.all(
+      inFlight.map(async (chunk) => {
+        const emails: EmailForAI[] = chunk.map((c, idx) => ({
+          index: idx,
+          subject: c.subject,
+          body: c.strippedBodyText,
+          emailDate: c.mailDate,
+        }))
+        try {
+          return { chunk, byIndex: await askAIBatch(emails, categoryNames) }
+        } catch (err) {
+          // An injected batch fn that throws — degrade to single calls rather
+          // than dropping the whole chunk onto the regex ladder.
+          console.warn('[emailScanner] AI batch failed, falling back to single calls:', err)
+          const byIndex = new Map<number, AITransactionResult | null>()
+          for (let idx = 0; idx < chunk.length; idx++) {
+            try {
+              byIndex.set(idx, await askAI(chunk[idx].subject, chunk[idx].strippedBodyText, chunk[idx].mailDate, categoryNames))
+            } catch {
+              byIndex.set(idx, null)
+            }
+          }
+          return { chunk, byIndex }
+        }
+      })
+    )
+
+    for (const { chunk, byIndex } of settled) {
+      chunk.forEach((c, idx) => verdicts.set(c.mailMessageId, byIndex.get(idx) ?? null))
+    }
+  }
+
+  return verdicts
+}
+
 export interface ScanGmailOptions {
   /** Supabase client to use for all DB reads/writes during this scan. Defaults to the browser singleton. */
   db?: SupabaseClient
@@ -718,8 +805,20 @@ export interface ScanGmailOptions {
   accessToken?: string
   /** Active financial year to scope the scan to. Defaults to the browser's localStorage value (or 2026). */
   activeYear?: number
-  /** AI email analyzer to use. Defaults to the proxy-based `analyzeTransactionEmailWithAI`. */
+  /**
+   * Single-email AI analyzer. Defaults to the proxy-based
+   * `analyzeTransactionEmailWithAI`. Still used as the per-email fallback when
+   * a batch call fails, so it remains the safety net even though the batch
+   * path below does the bulk of the work.
+   */
   askAI?: (subject: string, body: string, emailDate: string, categoryNames?: string[]) => ReturnType<typeof analyzeTransactionEmailWithAI>
+  /**
+   * Batched AI analyzer — classifies up to AI_BATCH_SIZE emails per call.
+   * Defaults to the proxy-based `analyzeTransactionEmailBatchWithAI`. The cron
+   * path injects a variant backed by its direct Gemini client so it gets the
+   * same reduction in calls.
+   */
+  askAIBatch?: (emails: EmailForAI[], categoryNames?: string[]) => Promise<Map<number, AITransactionResult | null>>
 }
 
 export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
@@ -733,6 +832,24 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
   const askAI = opts?.askAI ||
     ((subject: string, body: string, emailDate: string, categoryNames?: string[]) =>
       analyzeTransactionEmailWithAI(subject, body, emailDate, undefined, categoryNames))
+  // When a caller supplies only `askAI` (every existing test, and any older
+  // caller), synthesise a batch fn from it so behaviour is unchanged for them:
+  // same one-call-per-email semantics, just routed through the staged pipeline.
+  const askAIBatch = opts?.askAIBatch ||
+    (opts?.askAI
+      ? async (emails: EmailForAI[], categoryNames?: string[]) => {
+          const out = new Map<number, AITransactionResult | null>()
+          for (const e of emails) {
+            try {
+              out.set(e.index, await askAI(e.subject, e.body, e.emailDate, categoryNames))
+            } catch {
+              out.set(e.index, null)
+            }
+          }
+          return out
+        }
+      : (emails: EmailForAI[], categoryNames?: string[]) =>
+          analyzeTransactionEmailBatchWithAI(emails, undefined, categoryNames))
 
   let user: { id: string; email?: string } | undefined
   let providerToken: string | null = null
@@ -1025,12 +1142,25 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     const categoryNames = (userCategories || []).map((c: any) => c.name)
     const fallbackCategoryName = (userCategories || []).find((c: any) => c.is_permanent)?.name || 'Other'
 
+    // Fetched ONCE per scan, not once per email. applyMerchantRulesFromDB used
+    // to re-read this entire table for every email in the loop below — on a
+    // 50-email scan that was 50 full table reads for data that cannot change
+    // mid-scan.
+    const merchantRules = await getMerchantRulesFromDB(user.id, supabase)
+
     const transactionsToInsert: TransactionInsert[] = []
     // Renamed from skippedConfidence: these emails are no longer skipped —
     // they're inserted as pending transactions with their low score
     // preserved, so the name should say what actually happens to them now.
     let lowConfidencePendingCount = 0
     const lowConfidenceEmailsDetails: string[] = []
+
+    // ── Stage A — cheap per-email gates ──────────────────────────────
+    // Everything here is synchronous string work and set lookups. Gate order
+    // is unchanged and load-bearing: dedup → date window → bulk-marketing.
+    // Junk MUST be rejected here, before Stage B spends an AI call and a slice
+    // of the user's daily quota on it.
+    const candidates: ScanCandidate[] = []
 
     for (const mail of validDetails) {
       const mailMessageId: string = mail.id || ''
@@ -1078,12 +1208,47 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         continue
       }
 
+      candidates.push({
+        mail,
+        mailMessageId,
+        mailDate,
+        bodyText,
+        strippedBodyText,
+        subject,
+        fromValue,
+        senderDomain,
+        isTrustedSender,
+        emailContentForParsing,
+        isBulkMail,
+      })
+    }
+
+    // ── Stage B — batched AI classification ──────────────────────────
+    // One Gemini call per AI_BATCH_SIZE emails instead of one per email, with
+    // a small number of batches in flight at once. This is what takes a
+    // 50-email scan from ~100-160s of serial round trips down to ~15-25s.
+    const aiVerdicts = await classifyCandidatesWithAI(candidates, askAIBatch, askAI, categoryNames)
+
+    // ── Stage C — per-email interpretation ───────────────────────────
+    // Unchanged logic: take the AI verdict (or its absence) and run the same
+    // AI-result handling and regex ladder as before. Everything here is cheap
+    // and stays sequential so accumulation order is deterministic.
+    for (const candidate of candidates) {
+      // `mail` and `strippedBodyText` are deliberately not destructured here:
+      // both are consumed in Stage A (header/body extraction) and Stage B (the
+      // AI prompt), and nothing in Stage C reads them.
+      const {
+        mailMessageId, mailDate, bodyText,
+        subject, fromValue, senderDomain, isTrustedSender,
+        emailContentForParsing, isBulkMail,
+      } = candidate
+
       let parsedTxn: TransactionInsert | null = null
       let aiConfidentReject = false
 
       {
-        try {
-          const aiResult = await askAI(subject, strippedBodyText, mailDate, categoryNames)
+        {
+          const aiResult = aiVerdicts.get(mailMessageId) ?? null
           if (aiResult) {
             if (aiResult.is_transaction && aiResult.amount && aiResult.amount > 0) {
               if (aiResult.reference_id && existingRefIds.has(aiResult.reference_id)) {
@@ -1093,7 +1258,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
               const resolvedMerchant = aiResult.merchant || 'Other'
               let ruleResult
               try {
-                ruleResult = await applyMerchantRulesFromDB(user.id, resolvedMerchant, bodyText, aiResult.category || fallbackCategoryName, supabase)
+                ruleResult = applyMerchantRulesFromRows(merchantRules, resolvedMerchant, bodyText, aiResult.category || fallbackCategoryName)
               } catch {
                 ruleResult = { category: aiResult.category || fallbackCategoryName, approval_status: 'pending', confidence: aiResult.confidence_score }
               }
@@ -1144,8 +1309,6 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
               aiConfidentReject = aiResult.is_transaction === false
             }
           }
-        } catch (aiErr) {
-          console.warn('[emailScanner] AI parsing failed, falling back to heuristics:', aiErr)
         }
       }
 
@@ -1364,7 +1527,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
 
         let ruleResult: RuleMatchResult
         try {
-          ruleResult = await applyMerchantRulesFromDB(user.id, merchant, emailContentForParsing, category, supabase)
+          ruleResult = applyMerchantRulesFromRows(merchantRules, merchant, emailContentForParsing, category)
         } catch {
           ruleResult = applyMerchantRules(merchant, emailContentForParsing, category)
         }

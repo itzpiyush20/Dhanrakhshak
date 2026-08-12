@@ -12,7 +12,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 type CardBrand = 'Visa' | 'Mastercard' | 'RuPay' | 'American Express' | 'Diners'
 
-type MerchantRuleRow = {
+export type MerchantRuleRow = {
   id: string
   user_id: string
   merchant_key: string
@@ -158,6 +158,59 @@ export async function migrateLocalStorageRulesToDB(userId: string): Promise<{ mi
   return { migrated }
 }
 
+/**
+ * Pure matching half of `applyMerchantRulesFromDB` — takes rules already in
+ * memory instead of fetching them.
+ *
+ * Exists so a scan can fetch the user's rules ONCE and reuse them across every
+ * email, rather than re-reading the whole `merchant_rules` table per email as
+ * the DB-fetching wrapper does. Behaviour is otherwise identical, including the
+ * localStorage fallback when nothing matches.
+ */
+export function applyMerchantRulesFromRows(
+  rules: MerchantRuleRow[],
+  merchant: string,
+  snippet: string,
+  defaultCategory: string
+): RuleMatchResult {
+  // Normalize the merchant to canonical form for consistent lookup
+  const normalized = normalizeMerchant(merchant)
+  const canonicalName = normalized.isKnown ? normalized.canonical : cleanMerchantName(merchant)
+  const merchantKey = getMerchantKey(canonicalName) || cleanMerchantName(merchant).toLowerCase().trim()
+
+  // Exact key match
+  const exactMatch = rules.find((r) => r.merchant_key === merchantKey)
+  if (exactMatch) {
+    // Rule confidence never auto-approves — approval always requires explicit
+    // human review, regardless of confidence/auto_approve/times_confirmed.
+    return {
+      category: exactMatch.preferred_category,
+      approval_status: 'pending',
+      confidence: exactMatch.confidence,
+      matchReason: `DB rule: '${exactMatch.merchant_key}' (${exactMatch.confidence}% confidence, ${exactMatch.times_confirmed} confirmations)`,
+    }
+  }
+
+  // Partial match — only for keys with 5+ chars to prevent "jio", "air", "pay" etc.
+  // from false-matching against unrelated emails
+  const lowerSnippet = snippet.toLowerCase().substring(0, 300)
+  for (const rule of rules) {
+    if (rule.merchant_key.length < 5) continue
+    if (merchantKey.includes(rule.merchant_key) || lowerSnippet.includes(rule.merchant_key)) {
+      // Same as exact match above — never auto-approve, always pending review.
+      return {
+        category: rule.preferred_category,
+        approval_status: 'pending',
+        confidence: Math.round(rule.confidence * 0.8),
+        matchReason: `DB partial rule: '${rule.merchant_key}' (partial match)`,
+      }
+    }
+  }
+
+  // Fallback to localStorage-based rules
+  return applyMerchantRules(merchant, snippet, defaultCategory)
+}
+
 export async function applyMerchantRulesFromDB(
   userId: string,
   merchant: string,
@@ -165,46 +218,14 @@ export async function applyMerchantRulesFromDB(
   defaultCategory: string,
   db: SupabaseClient = supabase
 ): Promise<RuleMatchResult> {
-  // Normalize the merchant to canonical form for consistent DB lookup
-  const normalized = normalizeMerchant(merchant)
-  const canonicalName = normalized.isKnown ? normalized.canonical : cleanMerchantName(merchant)
-  const merchantKey = getMerchantKey(canonicalName) || cleanMerchantName(merchant).toLowerCase().trim()
-
+  let rules: MerchantRuleRow[] = []
   try {
-    const rules = await getMerchantRulesFromDB(userId, db)
-
-    // Exact key match
-    const exactMatch = rules.find((r) => r.merchant_key === merchantKey)
-    if (exactMatch) {
-      // Rule confidence never auto-approves — approval always requires explicit
-      // human review, regardless of confidence/auto_approve/times_confirmed.
-      return {
-        category: exactMatch.preferred_category,
-        approval_status: 'pending',
-        confidence: exactMatch.confidence,
-        matchReason: `DB rule: '${exactMatch.merchant_key}' (${exactMatch.confidence}% confidence, ${exactMatch.times_confirmed} confirmations)`,
-      }
-    }
-
-    // Partial match — only for keys with 5+ chars to prevent "jio", "air", "pay" etc.
-    // from false-matching against unrelated emails
-    const lowerSnippet = snippet.toLowerCase().substring(0, 300)
-    for (const rule of rules) {
-      if (rule.merchant_key.length < 5) continue
-      if (merchantKey.includes(rule.merchant_key) || lowerSnippet.includes(rule.merchant_key)) {
-        // Same as exact match above — never auto-approve, always pending review.
-        return {
-          category: rule.preferred_category,
-          approval_status: 'pending',
-          confidence: Math.round(rule.confidence * 0.8),
-          matchReason: `DB partial rule: '${rule.merchant_key}' (partial match)`,
-        }
-      }
-    }
+    rules = await getMerchantRulesFromDB(userId, db)
   } catch (err) {
+    // Unreachable in practice (getMerchantRulesFromDB swallows its own errors
+    // and returns []), but kept so a future change there can't turn a DB
+    // outage into a failed scan. Empty rules degrade to localStorage below.
     console.warn('[LearningEngine] DB lookup failed, falling back to localStorage:', err)
   }
-
-  // Fallback to localStorage-based rules
-  return applyMerchantRules(merchant, snippet, defaultCategory)
+  return applyMerchantRulesFromRows(rules, merchant, snippet, defaultCategory)
 }

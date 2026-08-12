@@ -26,7 +26,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { scanRealGmailInbox } from '../src/services/emailScanner.js'
-import { analyzeTransactionEmailWithAI } from '../src/services/aiService.js'
+import { analyzeTransactionEmailWithAI, analyzeTransactionEmailBatchWithAI } from '../src/services/aiService.js'
 
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL || '',
@@ -169,7 +169,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         userId: row.user_id,
         userEmail: profile.email || undefined,
         accessToken: refreshResult.accessToken,
+        // Batch is the primary path (one Gemini call per 5 emails); askAI stays
+        // as the per-email fallback the batch helper degrades to. Because the
+        // run-wide cap below counts CALLS, batching stretches the same cap
+        // roughly 5x further in emails processed.
         askAI: (subject, body, emailDate) => analyzeTransactionEmailWithAI(subject, body, emailDate, callGeminiDirect),
+        askAIBatch: (emails, categoryNames) => analyzeTransactionEmailBatchWithAI(emails, callGeminiDirect, categoryNames),
       })
 
       if (error) {

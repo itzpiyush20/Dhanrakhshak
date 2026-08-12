@@ -14,11 +14,15 @@ vi.mock('./googleAuth', () => ({
   tryRefreshGoogleToken: async () => null,
 }))
 
-vi.mock('./learningEngine', () => ({
-  applyMerchantRulesFromDB: async () => {
-    throw new Error('no DB rule — force fallback to local applyMerchantRules')
-  },
-}))
+// No merchant rules stored for these users, so every email falls through to
+// the local applyMerchantRules heuristics — the same outcome the previous
+// mock forced by making the DB lookup throw. applyMerchantRulesFromRows is
+// left as the real implementation because that fall-through IS the behaviour
+// under test.
+vi.mock('./learningEngine', async () => {
+  const actual = await vi.importActual<typeof import('./learningEngine')>('./learningEngine')
+  return { ...actual, getMerchantRulesFromDB: async () => [] }
+})
 
 function makeTableMock(response: any, opts: { insertCapture?: any[] } = {}) {
   const handler: any = {
@@ -603,5 +607,222 @@ describe('scanRealGmailInbox — batch insert fault isolation', () => {
     const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
 
     expect(result.error).not.toBeNull()
+  })
+})
+
+// ============================================================
+// Stage B — batched AI classification.
+//
+// The scanner used to spend one sequential Gemini round trip per email, which
+// put a 50-email scan at 100-160s and made timeouts routine. These tests pin
+// the batching contract: emails are grouped, gates still run BEFORE any AI
+// call is made, and an AI outage still degrades to the regex ladder rather
+// than dropping mail.
+// ============================================================
+
+describe('scanRealGmailInbox — batched AI classification', () => {
+  function makeMessages(n: number) {
+    // Distinct ids so dedup and verdict-mapping are exercised properly.
+    return Array.from({ length: n }, (_, i) => makeAxisEmiGmailMessage(`msg-batch-${i}`))
+  }
+
+  function mockGmail(messages: any[]) {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  }
+
+  it('groups 12 emails into 3 batch calls instead of 12 single calls', async () => {
+    const messages = makeMessages(12)
+    mockGmail(messages)
+    const mockDb = makeMockDb([], [])
+
+    const batchSizes: number[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getFullYear(),
+      askAIBatch: async (emails) => {
+        batchSizes.push(emails.length)
+        return new Map(emails.map((e) => [e.index, null]))
+      },
+    })
+
+    // AI_BATCH_SIZE is 5 → 5 + 5 + 2
+    expect(batchSizes).toEqual([5, 5, 2])
+  })
+
+  it('maps each batch verdict back to the right email', async () => {
+    const messages = makeMessages(3)
+    mockGmail(messages)
+    const insertedTransactions: any[] = []
+    const mockDb = makeMockDb(insertedTransactions, [])
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getFullYear(),
+      askAIBatch: async (emails) =>
+        new Map(
+          emails.map((e) => [
+            e.index,
+            // Give each email a distinct amount keyed off its position.
+            {
+              is_transaction: true,
+              transaction_type: 'debit',
+              amount: 100 + e.index,
+              merchant: `Merchant${e.index}`,
+              category: 'Other',
+              description: 'd',
+              payment_mode: 'upi',
+              card_issuer: null,
+              card_brand: null,
+              transaction_time: null,
+              reference_id: null,
+              date: e.emailDate,
+              confidence_score: 95,
+            } as any,
+          ])
+        ),
+    })
+
+    const rows = insertedTransactions.flat()
+    expect(rows).toHaveLength(3)
+    // Every verdict landed on a distinct email, none duplicated or lost.
+    expect(new Set(rows.map((r: any) => r.amount)).size).toBe(3)
+    expect(rows.every((r: any) => r.merchant.startsWith('Merchant'))).toBe(true)
+  })
+
+  it('never sends gate-rejected junk to the AI', async () => {
+    // One genuine debit alert plus two pieces of bulk marketing. Only the
+    // genuine one may reach Stage B — junk must never cost an AI call or a
+    // slice of the daily quota.
+    const messages = [
+      makeAxisEmiGmailMessage('msg-genuine-1'),
+      makeBankMarketingGmailMessage('msg-marketing-1'),
+      makeBusinessStandardGmailMessage('msg-newsletter-1'),
+    ]
+    mockGmail(messages)
+    const mockDb = makeMockDb([], [])
+
+    const seenSubjects: string[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getFullYear(),
+      askAIBatch: async (emails) => {
+        emails.forEach((e) => seenSubjects.push(e.subject))
+        return new Map(emails.map((e) => [e.index, null]))
+      },
+    })
+
+    expect(seenSubjects).toHaveLength(1)
+    expect(seenSubjects[0]).toMatch(/Debit transaction alert/i)
+  })
+
+  it('makes no AI call at all when every email is gate-rejected', async () => {
+    mockGmail([makeBankMarketingGmailMessage('msg-marketing-only')])
+    const mockDb = makeMockDb([], [])
+
+    const askAIBatch = vi.fn(async (emails: any[]) => new Map(emails.map((e) => [e.index, null])))
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({ db: mockDb, activeYear: new Date().getFullYear(), askAIBatch: askAIBatch as any })
+
+    expect(askAIBatch).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the regex ladder when the batch analyzer throws', async () => {
+    // AI failure must never surface as a scan failure or a dropped email.
+    mockGmail([makeAxisEmiGmailMessage('msg-ai-down-1')])
+    const insertedTransactions: any[] = []
+    const mockDb = makeMockDb(insertedTransactions, [])
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getFullYear(),
+      askAIBatch: async () => { throw new Error('gemini down') },
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    // The Axis EMI email is still captured, by regex.
+    const rows = insertedTransactions.flat()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].amount).toBe(42293)
+  })
+
+  it('degrades a thrown batch to per-email single calls before giving up', async () => {
+    mockGmail(makeMessages(3))
+    const mockDb = makeMockDb([], [])
+
+    let singleCalls = 0
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getFullYear(),
+      askAIBatch: async () => { throw new Error('batch unavailable') },
+      askAI: async () => { singleCalls++; return null },
+    })
+
+    expect(singleCalls).toBe(3)
+  })
+
+  it('routes through the batch path even when only askAI is supplied', async () => {
+    // Back-compat: every pre-existing caller passes askAI alone and must keep
+    // working, with unchanged one-call-per-email semantics.
+    mockGmail(makeMessages(4))
+    const mockDb = makeMockDb([], [])
+
+    let singleCalls = 0
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getFullYear(),
+      askAI: async () => { singleCalls++; return null },
+    })
+
+    expect(result.error).toBeNull()
+    expect(singleCalls).toBe(4)
+  })
+})
+
+describe('scanRealGmailInbox — merchant rules are fetched once per scan', () => {
+  it('reads merchant_rules once regardless of how many emails are scanned', async () => {
+    // Previously this table was re-read for every email in the loop.
+    const messages = Array.from({ length: 8 }, (_, i) => makeAxisEmiGmailMessage(`msg-rules-${i}`))
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const learningEngine = await import('./learningEngine')
+    const spy = vi.spyOn(learningEngine, 'getMerchantRulesFromDB')
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb([], []),
+      activeYear: new Date().getFullYear(),
+      askAIBatch: async (emails) => new Map(emails.map((e) => [e.index, null])),
+    })
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    spy.mockRestore()
   })
 })
