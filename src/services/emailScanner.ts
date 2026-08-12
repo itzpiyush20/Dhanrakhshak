@@ -978,24 +978,6 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       }
     }
 
-    let isFirstScan = true
-    let lastScanTime = 0
-    try {
-      const { data: logs } = await supabase
-        .from('email_scan_logs')
-        .select('scanned_at')
-        .eq('user_id', user.id)
-        .eq('status', 'success')
-        .order('scanned_at', { ascending: false })
-        .limit(1)
-      if (logs && logs.length > 0) {
-        isFirstScan = false
-        lastScanTime = new Date(logs[0].scanned_at).getTime()
-      }
-    } catch (e) {
-      console.warn('Failed to query email scan logs, assuming first scan', e)
-    }
-
     // Two OR-ed groups: the original bank-alert-style keywords, plus generic
     // receipt-shaped language that direct-vendor emails use instead (a trip
     // receipt or food-delivery order confirmation rarely says "debited" or
@@ -1005,27 +987,28 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     const RECEIPT_KEYWORDS = '(receipt OR invoice OR order OR booking OR trip OR fare OR ride OR subscription OR renewal OR total)'
     const EMAIL_KEYWORDS = `(${BANK_ALERT_KEYWORDS} OR ${RECEIPT_KEYWORDS})`
 
-    const MAX_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000 // never scan back further than 30 days
-    let startLimitTime = 0
+    // ── Scan window — strict rolling 7 days ──────────────────────────
+    // EVERY scan looks back exactly 7 days, first scan or not
+    // (plans/email-scanner-requirements.md, R3). This replaces the previous
+    // scheme of anchoring to the last successful scan with a 26-hour floor and
+    // a 30-day ceiling.
+    //
+    // Overlapping an earlier scan's window costs nothing. R4 ("never
+    // reconsider what was already considered") is enforced downstream by the
+    // existingMessageIds set and, at the database, by
+    // UNIQUE (email_message_id, user_id) — so an already-processed email is
+    // skipped by a set lookup long before it can reach an AI call, and cannot
+    // produce a duplicate row even if two scans race.
+    //
+    // TRADE-OFF, chosen deliberately by the owner over stretching the window
+    // to cover detected gaps: any interruption longer than 7 days — cron
+    // outage, expired or revoked Gmail token, lapsed subscription — puts the
+    // mail in that gap permanently beyond reach, because the Gmail query will
+    // never request it again and dedup cannot recover what was never fetched.
+    // Free users are most exposed, having no automatic scan at all.
+    const SCAN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+    const startLimitTime = Date.now() - SCAN_WINDOW_MS
     let q = ''
-    if (isFirstScan) {
-      // First scan: look back 7 days
-      startLimitTime = Date.now() - 7 * 24 * 60 * 60 * 1000
-    } else {
-      // Subsequent scans: cover everything since the last *successful* scan (with a
-      // small overlap buffer, since Gmail's date-only granularity and delayed bank
-      // emails can otherwise leave same-day messages just outside the window), but
-      // never less than a 26-hour window. Anchoring to "now - 26h" alone (instead of
-      // the last successful scan) silently drops days of transactions whenever the
-      // app isn't opened for more than 26 hours — or whenever the automatic daily
-      // cron is delayed/fails for more than 26 hours — since the Gmail query itself
-      // excludes anything before that cutoff; dedup can't recover emails that were
-      // never fetched.
-      const sinceLastScan = lastScanTime - 2 * 60 * 60 * 1000
-      const rolling26h = Date.now() - 26 * 60 * 60 * 1000
-      startLimitTime = Math.min(sinceLastScan, rolling26h)
-      startLimitTime = Math.max(startLimitTime, Date.now() - MAX_LOOKBACK_MS)
-    }
     // Use Unix epoch (seconds) for precise filtering — Gmail supports this format
     const sinceSeconds = Math.floor(startLimitTime / 1000)
     q = `after:${sinceSeconds} ${EMAIL_KEYWORDS}`
@@ -1033,12 +1016,11 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     let messages: { id: string; threadId: string }[] = []
     let nextPageToken = ''
 
-    // Page size only — NOT a cap on total messages processed. The scan
-    // window (isFirstScan / since-last-successful-scan, computed above)
-    // defines completeness; a message-count cap here would silently
-    // truncate the oldest matches whenever a window has more mail than
-    // the cap, which is exactly when completeness matters most (a first
-    // 7-day scan, or a scan after a gap).
+    // Page size only — NOT a cap on total messages processed. The rolling
+    // 7-day scan window computed above defines completeness; a message-count
+    // cap here would silently truncate the oldest matches whenever a window
+    // has more mail than the cap, which is exactly when completeness matters
+    // most (a first scan, or a busy week).
     do {
       const pageSize = isOwner ? 200 : 100
       const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${pageSize}&q=${encodeURIComponent(q)}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`
@@ -1170,10 +1152,11 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       const mailTime = mail.internalDate ? Number(mail.internalDate) : Date.now()
       if (mailTime < startLimitTime) continue
       const mailDate = new Date(mailTime).toISOString().split('T')[0]
-      if (mailDate < `${activeYear}-01-01`) continue
-      if (mailDate > `${activeYear}-12-31`) continue
 
-      const bodyText = extractEmailBody(mail)
+      // Headers first: they are cheap, and the year-scope gate below needs the
+      // subject and sender to write a useful rejection log. extractEmailBody()
+      // (base64 decode + DOM parse) is the expensive part of this stage and is
+      // deferred until after every cheap gate has had its say.
       const headers = mail.payload?.headers || []
       const subjectHeader = headers.find((h: any) => h.name?.toLowerCase() === 'subject')
       const subject = subjectHeader?.value || ''
@@ -1183,6 +1166,38 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       const senderDomain = senderDomainMatch ? senderDomainMatch[1].toLowerCase() : ''
       const isTrustedSender = TRUSTED_SENDER_DOMAINS.has(senderDomain) ||
         [...TRUSTED_SENDER_DOMAINS].some(d => senderDomain.endsWith('.' + d))
+
+      // ── Year scope ────────────────────────────────────────────────
+      // This used to be two bare `continue`s with no rejection log, and with a
+      // strict 7-day window that made an annual data loss a certainty: a scan
+      // on 3 January covers 27 December onward, so once activeYear rolled over
+      // every late-December transaction was discarded — silently, and
+      // unrecoverably, because the window never reaches back that far again.
+      //
+      // Mail from the immediately preceding year is now KEPT when the window
+      // genuinely straddles 1 January. The transaction row carries its own
+      // date, so it is attributed to the year it actually belongs to.
+      //
+      // The straddle is deliberately narrow — previous year AND today really is
+      // in the active year. That preserves the Settings "start next financial
+      // year" feature: a user who rolls forward early (activeYear 2027 while
+      // today is still 2026) has asked to stop scanning 2026, and this
+      // condition correctly declines to keep importing it.
+      const mailYear = Number(mailDate.slice(0, 4))
+      if (mailYear > activeYear) {
+        logRejection(supabase, user.id, scanLogId, 'after_active_year', senderDomain, subject, `date=${mailDate}`)
+        continue
+      }
+      if (mailYear < activeYear) {
+        const windowStraddlesNewYear =
+          mailYear === activeYear - 1 && new Date().getUTCFullYear() === activeYear
+        if (!windowStraddlesNewYear) {
+          logRejection(supabase, user.id, scanLogId, 'before_active_year', senderDomain, subject, `date=${mailDate}`)
+          continue
+        }
+      }
+
+      const bodyText = extractEmailBody(mail)
       // Strip security/legal footer boilerplate before ANY gate or the AI
       // prompt sees this text — footers were colliding with rejection
       // keywords (e.g. "has not been initiated by you") and silently

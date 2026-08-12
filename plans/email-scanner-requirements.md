@@ -168,6 +168,26 @@ auto-approval.
 
 ---
 
+### D1a — Open risk: the financial-year rollover gate (found while implementing D1)
+
+Separate from the silent drop in section 3, and **not yet addressed.**
+
+`emailScanner.ts` refuses to scan at all once the calendar passes the active
+year's end: `if (today > activeYearEnd) return { error: 'Financial Year N has
+ended. Please start the new financial year in settings...' }`. Clearing it
+requires a manual click in Settings.
+
+Under the old 30-day ceiling that was survivable. With a strict 7-day window it
+is not: from 1 January, scanning is blocked until the user notices the message
+and rolls over, and everything older than 7 days at that moment is gone for
+good. A user who returns from a holiday on 10 January loses the entire period.
+
+Options, for the owner to choose: roll the year over automatically on
+1 January; keep the gate but let the scan run and attribute transactions by
+their own date; or leave it and accept an annual cliff. Deliberately left alone
+for now because the gate is an intentional product decision with UI built
+around it.
+
 ## 3. Pre-existing bug that R3 makes certain
 
 The active-financial-year filter (`emailScanner.ts:1043-1044`) silently drops any email
@@ -188,12 +208,18 @@ instead of dropping it silently.
 
 Dependencies matter more than size here.
 
-1. **D4** (false-positive regression tests) — first, so everything after it is guarded.
-2. **Performance Phase 1** (`email-scanner-performance-plan.md`) — batching and the rules
-   hoist. R2 increases matched emails per scan, so the pipeline must be fast before scope
-   widens or scans will time out again.
-3. **D1 + section 3** (7-day window + year-boundary fix) — small, and D2 depends on it.
-4. **D2** (tier quotas via `scan_mode`).
+1. ~~**D4** (false-positive regression tests)~~ — **DONE.** Added the
+   `offer_or_pre_approval` gate (pre-approved loan offers were slipping past every
+   other defence), 30 regression tests, and prompt-rule pinning. Also repaired the
+   test baseline: missing `.env` was making four test files fail at import, which had
+   been masking two already-expired fixtures.
+2. ~~**Performance Phase 1**~~ — **DONE.** Batched AI classification (5 per call, 2 in
+   flight), merchant rules fetched once per scan, cron on the batch path, proxy IP
+   limiter 20→60/min.
+3. ~~**D1 + section 3**~~ — **DONE.** Strict rolling 7-day window on every scan;
+   prior-year mail kept when the window straddles 1 January; year-scope rejections now
+   logged instead of dropped silently. See **D1a** above for the remaining open risk.
+4. **D2** (tier quotas via `scan_mode`) — next.
 5. **D3** (widen fetch to everything financial) — only after D4 is green.
 6. **D5** (smart merge) — must land with or before D3's vendor-receipt volume increase,
    or duplicates get worse.

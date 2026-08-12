@@ -826,3 +826,237 @@ describe('scanRealGmailInbox — merchant rules are fetched once per scan', () =
     spy.mockRestore()
   })
 })
+
+// ============================================================
+// Scan window — strict rolling 7 days (requirements R3/R4), and the
+// year-boundary handling that a fixed 7-day window makes load-bearing.
+// ============================================================
+
+describe('scanRealGmailInbox — strict 7-day scan window', () => {
+  function mockGmailCapturingQuery(messages: any[] = []) {
+    const captured = { url: '' }
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        captured.url = url
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+    return captured
+  }
+
+  /** The `after:` epoch-seconds value the scanner put in the Gmail query. */
+  function afterSecondsFrom(url: string): number {
+    const m = decodeURIComponent(url).match(/after:(\d+)/)
+    if (!m) throw new Error(`no after: clause in ${url}`)
+    return Number(m[1])
+  }
+
+  it('asks Gmail for exactly the last 7 days on a first scan', async () => {
+    const captured = mockGmailCapturingQuery()
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb([], []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    const expected = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000)
+    expect(Math.abs(afterSecondsFrom(captured.url) - expected)).toBeLessThan(10)
+  })
+
+  it('still asks for 7 days when a recent successful scan exists', async () => {
+    // Previously the window narrowed to "since the last successful scan"
+    // (26h floor). R3 requires the same 7 days every time.
+    const recent = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+    const mockDb = makeMockDb([], [])
+    const baseFrom = mockDb.from
+    mockDb.from = (table: string) => {
+      if (table === 'profiles') {
+        // Premium, so the 24h manual cooldown doesn't short-circuit the scan
+        // before it builds a Gmail query — the window is what's under test here.
+        const handler: any = {
+          select: () => handler, eq: () => handler, order: () => handler, limit: () => handler,
+          single: () => Promise.resolve({ data: { subscription_status: 'active', subscription_expires_at: null }, error: null }),
+          insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }), then: (r: any) => r({ data: [], error: null }) }),
+          then: (r: any) => r({ data: null, error: null }),
+        }
+        return handler
+      }
+      if (table === 'email_scan_logs') {
+        const handler: any = {
+          select: () => handler, eq: () => handler, order: () => handler,
+          limit: () => Promise.resolve({ data: [{ scanned_at: recent }], error: null }),
+          single: () => Promise.resolve({ data: null, error: null }),
+          insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }), then: (r: any) => r({ data: [], error: null }) }),
+          then: (r: any) => r({ data: [{ scanned_at: recent }], error: null }),
+        }
+        return handler
+      }
+      return baseFrom(table)
+    }
+
+    const captured = mockGmailCapturingQuery()
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    const expected = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000)
+    expect(Math.abs(afterSecondsFrom(captured.url) - expected)).toBeLessThan(10)
+  })
+
+  it('drops an email older than the window without an AI call', async () => {
+    const stale = makeAxisEmiGmailMessage('msg-stale-1')
+    stale.internalDate = String(Date.now() - 9 * 24 * 60 * 60 * 1000)
+    mockGmailCapturingQuery([stale])
+
+    const insertedTransactions: any[] = []
+    const askAI = vi.fn(async () => null)
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(insertedTransactions, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: askAI as any,
+    })
+
+    expect(result.error).toBeNull()
+    expect(insertedTransactions.flat()).toHaveLength(0)
+    expect(askAI).not.toHaveBeenCalled()
+  })
+
+  it('does not reprocess an email already attached to a transaction', async () => {
+    // R4. The window deliberately overlaps previous scans; dedup is what makes
+    // that free.
+    const seen = makeAxisEmiGmailMessage('msg-already-seen')
+    mockGmailCapturingQuery([seen])
+
+    const insertedTransactions: any[] = []
+    const mockDb = makeMockDb(insertedTransactions, [])
+    const baseFrom = mockDb.from
+    mockDb.from = (table: string) => {
+      if (table === 'transactions') {
+        const handler: any = {
+          select: () => handler, eq: () => handler, order: () => handler, limit: () => handler,
+          single: () => Promise.resolve({ data: null, error: null }),
+          insert: (row: any) => {
+            insertedTransactions.push(row)
+            return { select: () => ({ single: () => Promise.resolve({ data: [], error: null }) }), then: (r: any) => r({ data: [], error: null }) }
+          },
+          // Dedup preload reports this message id as already imported.
+          then: (r: any) => r({ data: [{ email_message_id: 'msg-already-seen', reference_id: null }], error: null }),
+        }
+        return handler
+      }
+      return baseFrom(table)
+    }
+
+    const askAI = vi.fn(async () => null)
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getUTCFullYear(),
+      askAI: askAI as any,
+    })
+
+    expect(insertedTransactions.flat()).toHaveLength(0)
+    expect(askAI).not.toHaveBeenCalled()
+  })
+})
+
+describe('scanRealGmailInbox — year boundary', () => {
+  function mockGmail(messages: any[]) {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  }
+
+  it('keeps a late-December email when the window straddles 1 January', async () => {
+    // The regression this fix exists for: scanning on 3 January with the
+    // window reaching back into December used to discard every one of those
+    // transactions silently and unrecoverably.
+    const thisYear = new Date().getUTCFullYear()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(Date.UTC(thisYear, 0, 3, 10, 0, 0))) // 3 Jan
+
+    try {
+      const december = makeAxisEmiGmailMessage('msg-dec-31')
+      december.internalDate = String(Date.UTC(thisYear - 1, 11, 29, 10, 0, 0)) // 29 Dec
+      mockGmail([december])
+
+      const insertedTransactions: any[] = []
+      const { scanRealGmailInbox } = await import('./emailScanner')
+      const result = await scanRealGmailInbox({
+        db: makeMockDb(insertedTransactions, []),
+        activeYear: thisYear,
+        askAI: async () => null,
+      })
+
+      expect(result.error).toBeNull()
+      const rows = insertedTransactions.flat()
+      expect(rows).toHaveLength(1)
+      // Attributed to the year it actually belongs to, not the active year.
+      expect(rows[0].date.startsWith(String(thisYear - 1))).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('rejects prior-year mail WITH a log when the user rolled forward early', async () => {
+    // activeYear is next year while today is still this year — the Settings
+    // "start next financial year" flow. The user asked to stop scanning the
+    // current year, so this must not import it, but it must leave a trace.
+    const thisYear = new Date().getUTCFullYear()
+    const current = makeAxisEmiGmailMessage('msg-current-year')
+    mockGmail([current])
+
+    const insertedTransactions: any[] = []
+    const insertedRejections: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb(insertedTransactions, insertedRejections),
+      activeYear: thisYear + 1,
+      askAI: async () => null,
+    })
+
+    expect(insertedTransactions.flat()).toHaveLength(0)
+    const gates = insertedRejections.flat().map((r: any) => r.gate)
+    expect(gates).toContain('before_active_year')
+  })
+
+  it('rejects future-dated mail WITH a log rather than silently', async () => {
+    const thisYear = new Date().getUTCFullYear()
+    const future = makeAxisEmiGmailMessage('msg-future')
+    // Inside the window by clock, but stamped next year (clock skew / spoof).
+    future.internalDate = String(Date.UTC(thisYear + 1, 0, 2, 10, 0, 0))
+    mockGmail([future])
+
+    const insertedTransactions: any[] = []
+    const insertedRejections: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb(insertedTransactions, insertedRejections),
+      activeYear: thisYear,
+      askAI: async () => null,
+    })
+
+    expect(insertedTransactions.flat()).toHaveLength(0)
+    const gates = insertedRejections.flat().map((r: any) => r.gate)
+    expect(gates).toContain('after_active_year')
+  })
+})
