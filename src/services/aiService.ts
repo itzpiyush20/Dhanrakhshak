@@ -389,7 +389,7 @@ const STRICT_RULES_BLOCK = `STRICT RULES — set is_transaction to FALSE for ALL
 - Any email where money movement is in FUTURE tense ("will be debited", "scheduled for")
 - Order confirmation / booking confirmation emails where actual charge is not yet confirmed
 - Emails saying "We received your payment" sent BY a merchant to a customer (this is a payment receipt from the business — the customer paid, so this would be a debit for the customer)
-- Any email about savings, investments, wallet top-up offers, or cashback promotions
+- Marketing for savings products, investment products, wallet top-up offers, or cashback promotions. This covers ADVERTISEMENTS only — an actual SIP debit, mutual-fund purchase, dividend credit, interest credit or insurance premium payment IS a completed transaction and must be captured
 - Statements, summaries, or account overviews
 
 ONLY set is_transaction to TRUE when money has ALREADY moved (past tense):

@@ -94,6 +94,16 @@ describe('analyzeTransactionEmailWithAI — false-positive rules stay in the pro
     ['declined or reversed transactions', /Declined, failed, cancelled, or reversed/i],
   ]
 
+  it('scopes the savings/investment rule to advertisements only (R2)', async () => {
+    // The rule used to read "Any email about savings, investments, ...", broad
+    // enough for the model to reject a genuine SIP debit or dividend credit —
+    // both of which R2 puts in scope. It must stay narrowed to marketing.
+    const prompt = await capturePrompt()
+    expect(prompt).toMatch(/Marketing for savings products, investment products/i)
+    expect(prompt).toMatch(/an actual SIP debit, mutual-fund purchase, dividend credit, interest credit or insurance premium payment IS a completed transaction/i)
+    expect(prompt).not.toMatch(/Any email about savings, investments/i)
+  })
+
   it.each(requiredRules)('keeps the rule for %s', async (_label, pattern) => {
     expect(await capturePrompt()).toMatch(pattern)
   })

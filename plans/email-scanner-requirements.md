@@ -226,7 +226,14 @@ Dependencies matter more than size here.
    countdown is driven by the real allowance instead of "last scan + 24h" — which would
    otherwise have told premium users to wait 22 hours while a scan was actually
    available.
-5. **D3** (widen fetch to everything financial) — next; D4's guards are in place.
+5. ~~**D3** (widen fetch to everything financial)~~ — **DONE.** Added a narrow
+   FINANCIAL_KEYWORDS group (refund, premium, dividend, folio, nach, autopay) covering
+   the cases where money moved but no existing verb appears; deliberately excluded
+   bill/statement/due (reminders, already rejected) and interest (stems to
+   "interested"). Narrowed the prompt's savings/investment rule, which was broad enough
+   to reject genuine SIP debits. Found and fixed a false-negative class on the way:
+   insurance and subscription confirmations state the next due date, which tripped the
+   reminder gate and rejected the whole class.
 6. **D5** (smart merge) — must land with or before D3's vendor-receipt volume increase,
    or duplicates get worse.
 7. **D6** (multi-currency) — independent; sequence by owner priority.

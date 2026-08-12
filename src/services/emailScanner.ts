@@ -133,6 +133,15 @@ const HARD_ACCEPT_SUBJECT_PATTERNS = [
   /\b(upi\s*transaction|upi\s*payment)\b/i,
   /\b(emi\s*debited|loan\s*emi)\b/i,
   /\b(refund\s*credited|refund\s*processed)\b/i,
+  // R2 additions. These subjects are unambiguous payment CONFIRMATIONS, and
+  // they need the hard-accept bypass for a specific reason: insurance and
+  // subscription confirmations routinely state the next due date ("Next due:
+  // 10-08-2027"), which trips the due_or_statement_reminder gate and rejected
+  // the entire class. Hard-accept is narrow enough to be safe here — a genuine
+  // reminder's subject does not say the premium was collected.
+  /\bpremium\s*(?:successfully\s+)?(?:collected|paid|received)\b/i,
+  /\bpremium\s*payment\s*(?:successful|received|confirmation)\b/i,
+  /\bdividend\s*(?:credited|paid)\b/i,
 ]
 
 // ============================================================
@@ -1221,7 +1230,22 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // widen the fetch net without fetching every email in the window.
     const BANK_ALERT_KEYWORDS = '(debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)'
     const RECEIPT_KEYWORDS = '(receipt OR invoice OR order OR booking OR trip OR fare OR ride OR subscription OR renewal OR total)'
-    const EMAIL_KEYWORDS = `(${BANK_ALERT_KEYWORDS} OR ${RECEIPT_KEYWORDS})`
+    // R2 ("everything financial"). Deliberately narrow: these are the cases
+    // where money HAS moved but the email uses none of the verbs above.
+    //   refund    — "your refund has been processed"
+    //   premium   — "premium successfully collected" (insurance)
+    //   dividend / folio — investment payouts and statements carrying no verb
+    //   nach / autopay   — auto-debit confirmations that write "debit", not
+    //                      "debited", so they rely on Gmail stemming otherwise
+    //
+    // Explicitly NOT added, having checked what they would actually buy:
+    //   bill, statement, due — these are reminders, which the AI and the
+    //     regex ladder both reject. A bill that was genuinely PAID already
+    //     matches on "payment"/"paid", so adding them buys nothing but junk.
+    //   interest — Gmail stems it to "interested", which floods the net with
+    //     marketing. Real interest credits match on "credited" already.
+    const FINANCIAL_KEYWORDS = '(refund OR premium OR dividend OR folio OR nach OR autopay)'
+    const EMAIL_KEYWORDS = `(${BANK_ALERT_KEYWORDS} OR ${RECEIPT_KEYWORDS} OR ${FINANCIAL_KEYWORDS})`
 
     // ── Scan window — strict rolling 7 days ──────────────────────────
     // EVERY scan looks back exactly 7 days, first scan or not

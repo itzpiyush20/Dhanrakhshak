@@ -7,6 +7,7 @@ import { makeZomatoOrderGmailMessage } from './__fixtures__/zomatoOrderReceipt'
 import { makeBusinessStandardGmailMessage } from './__fixtures__/businessStandardNewsletter'
 import { makeBulkProseGmailMessage } from './__fixtures__/bulkMailWithPaymentProse'
 import { makeBankMarketingGmailMessage } from './__fixtures__/bankMarketingFromTrustedSender'
+import { makeRefundGmailMessage, makePremiumGmailMessage } from './__fixtures__/refundAndPremium'
 
 vi.mock('./googleAuth', () => ({
   getGoogleToken: () => 'fake-access-token',
@@ -1518,5 +1519,125 @@ describe('scanRealGmailInbox — incremental inserts keep partial results', () =
     expect(result.error).toBeNull()
     // One row conflicted and was skipped; the others were kept.
     expect(perRow).toHaveLength(2)
+  })
+})
+
+// ============================================================
+// D3 — scope widened to "everything financial" (requirement R2).
+//
+// The Gmail query is the hard ceiling on coverage: an email matching none of
+// its keywords is never fetched, so no gate, AI verdict or dedup pass can
+// recover it. These cover the classes that were previously invisible.
+// ============================================================
+
+describe('scanRealGmailInbox — fetch query covers everything financial', () => {
+  async function captureQuery(): Promise<string> {
+    let captured = ''
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        captured = url
+        return { ok: true, status: 200, json: async () => ({ messages: [] }) } as any
+      }
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb([], []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+    return decodeURIComponent(captured)
+  }
+
+  it('asks for refund, insurance premium and investment vocabulary', async () => {
+    const q = await captureQuery()
+    for (const term of ['refund', 'premium', 'dividend', 'folio', 'nach', 'autopay']) {
+      expect(q).toContain(term)
+    }
+  })
+
+  it('keeps the original bank-alert and receipt vocabulary', async () => {
+    const q = await captureQuery()
+    for (const term of ['debited', 'credited', 'salary', 'emi', 'sip', 'receipt', 'invoice', 'subscription', 'renewal']) {
+      expect(q).toContain(term)
+    }
+  })
+
+  it('does not ask for reminder-shaped or stem-noisy terms', async () => {
+    // "bill"/"statement"/"due" only add reminders, which are rejected anyway;
+    // a genuinely paid bill already matches on "payment". "interest" stems to
+    // "interested" and would flood the net with marketing.
+    const q = await captureQuery()
+    expect(q).not.toMatch(/\bOR statement\b/)
+    expect(q).not.toMatch(/\bOR interest\b/)
+    expect(q).not.toMatch(/\bOR due\b/)
+  })
+})
+
+describe('scanRealGmailInbox — newly in-scope financial transactions', () => {
+  function mockGmail(messages: any[]) {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  }
+
+  it('captures a refund whose email never says "credited"', async () => {
+    mockGmail([makeRefundGmailMessage()])
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null, // force the regex ladder — no AI safety net
+    })
+
+    expect(result.error).toBeNull()
+    const rows = inserted.flat()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].amount).toBe(1299)
+  })
+
+  it('captures an insurance premium whose email says "collected", not "debited"', async () => {
+    mockGmail([makePremiumGmailMessage()])
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    const rows = inserted.flat()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].amount).toBe(12500)
+    expect(rows[0].type).toBe('debit')
+  })
+
+  it('still rejects the junk classes now that the net is wider', async () => {
+    // The widened query pulls in more mail, so R1/R13 must still hold.
+    mockGmail([
+      makeBankMarketingGmailMessage('msg-wide-marketing'),
+      makeBusinessStandardGmailMessage('msg-wide-newsletter'),
+    ])
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    expect(inserted.flat()).toHaveLength(0)
   })
 })
