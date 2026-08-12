@@ -30,6 +30,7 @@ function makeTableMock(response: any, opts: { insertCapture?: any[] } = {}) {
     eq: () => handler,
     order: () => handler,
     limit: () => handler,
+    gte: () => handler,
     single: () => Promise.resolve(response),
     insert: (row: any) => {
       opts.insertCapture?.push(row)
@@ -47,7 +48,7 @@ function makeTableMock(response: any, opts: { insertCapture?: any[] } = {}) {
 function makeMockDb(insertedTransactions: any[], insertedRejections: any[]): any {
   const makeTableMock = (response: any, opts: { insertCapture?: any[] } = {}) => {
     const handler: any = {
-      select: () => handler, eq: () => handler, order: () => handler, limit: () => handler,
+      select: () => handler, eq: () => handler, order: () => handler, limit: () => handler, gte: () => handler,
       single: () => Promise.resolve(response),
       insert: (row: any) => {
         opts.insertCapture?.push(row)
@@ -157,7 +158,7 @@ describe('scanRealGmailInbox — fetch query includes receipt-shaped keywords', 
       },
       from: (_table: string) => {
         const handler: any = {
-          select: () => handler, eq: () => handler, order: () => handler, limit: () => handler,
+          select: () => handler, eq: () => handler, order: () => handler, limit: () => handler, gte: () => handler,
           single: () => Promise.resolve({ data: null, error: null }),
           insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: null }) }), then: (r: any) => r({ data: [], error: null }) }),
           then: (resolve: any) => resolve({ data: [], error: null }),
@@ -511,6 +512,7 @@ describe('scanRealGmailInbox — batch insert fault isolation', () => {
           eq: () => baseHandler,
           order: () => baseHandler,
           limit: () => baseHandler,
+          gte: () => baseHandler,
           single: () => Promise.resolve({ data: null, error: null }),
           then: (resolve: any) => resolve({ data: [], error: null }),
         }
@@ -881,7 +883,7 @@ describe('scanRealGmailInbox — strict 7-day scan window', () => {
         // Premium, so the 24h manual cooldown doesn't short-circuit the scan
         // before it builds a Gmail query — the window is what's under test here.
         const handler: any = {
-          select: () => handler, eq: () => handler, order: () => handler, limit: () => handler,
+          select: () => handler, eq: () => handler, order: () => handler, limit: () => handler, gte: () => handler,
           single: () => Promise.resolve({ data: { subscription_status: 'active', subscription_expires_at: null }, error: null }),
           insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }), then: (r: any) => r({ data: [], error: null }) }),
           then: (r: any) => r({ data: null, error: null }),
@@ -890,7 +892,7 @@ describe('scanRealGmailInbox — strict 7-day scan window', () => {
       }
       if (table === 'email_scan_logs') {
         const handler: any = {
-          select: () => handler, eq: () => handler, order: () => handler,
+          select: () => handler, eq: () => handler, order: () => handler, gte: () => handler,
           limit: () => Promise.resolve({ data: [{ scanned_at: recent }], error: null }),
           single: () => Promise.resolve({ data: null, error: null }),
           insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }), then: (r: any) => r({ data: [], error: null }) }),
@@ -944,7 +946,7 @@ describe('scanRealGmailInbox — strict 7-day scan window', () => {
     mockDb.from = (table: string) => {
       if (table === 'transactions') {
         const handler: any = {
-          select: () => handler, eq: () => handler, order: () => handler, limit: () => handler,
+          select: () => handler, eq: () => handler, order: () => handler, limit: () => handler, gte: () => handler,
           single: () => Promise.resolve({ data: null, error: null }),
           insert: (row: any) => {
             insertedTransactions.push(row)
@@ -1058,5 +1060,215 @@ describe('scanRealGmailInbox — year boundary', () => {
     expect(insertedTransactions.flat()).toHaveLength(0)
     const gates = insertedRejections.flat().map((r: any) => r.gate)
     expect(gates).toContain('after_active_year')
+  })
+})
+
+// ============================================================
+// Tiered manual-scan quotas (requirements R6/R7/R8):
+//   free            1 manual scan per day, no automatic scan
+//   premium/trial   daily automatic scan + 2 manual scans per day
+//   owner           daily automatic scan + unlimited manual scans
+//
+// Only manual scans count — the daily automatic scan must never consume a
+// user's manual allowance.
+// ============================================================
+
+describe('isPremiumProfile', () => {
+  it('treats an open-ended active subscription as premium', async () => {
+    const { isPremiumProfile } = await import('./emailScanner')
+    expect(isPremiumProfile({ subscription_status: 'active', subscription_expires_at: null })).toBe(true)
+  })
+
+  it('treats an unexpired active subscription as premium', async () => {
+    const { isPremiumProfile } = await import('./emailScanner')
+    const future = new Date(Date.now() + 86400000).toISOString()
+    expect(isPremiumProfile({ subscription_status: 'active', subscription_expires_at: future })).toBe(true)
+  })
+
+  it('treats a lapsed active subscription as not premium', async () => {
+    const { isPremiumProfile } = await import('./emailScanner')
+    const past = new Date(Date.now() - 86400000).toISOString()
+    expect(isPremiumProfile({ subscription_status: 'active', subscription_expires_at: past })).toBe(false)
+  })
+
+  it('requires an unexpired end date for a trial, unlike an active subscription', async () => {
+    const { isPremiumProfile } = await import('./emailScanner')
+    const future = new Date(Date.now() + 86400000).toISOString()
+    expect(isPremiumProfile({ subscription_status: 'trial', subscription_expires_at: future })).toBe(true)
+    expect(isPremiumProfile({ subscription_status: 'trial', subscription_expires_at: null })).toBe(false)
+  })
+
+  it('treats missing, free and expired profiles as not premium', async () => {
+    const { isPremiumProfile } = await import('./emailScanner')
+    expect(isPremiumProfile(null)).toBe(false)
+    expect(isPremiumProfile({ subscription_status: 'free', subscription_expires_at: null })).toBe(false)
+    expect(isPremiumProfile({ subscription_status: 'expired', subscription_expires_at: null })).toBe(false)
+  })
+})
+
+describe('resolveManualScanLimit', () => {
+  it('gives the owner an unlimited allowance', async () => {
+    const { resolveManualScanLimit } = await import('./emailScanner')
+    expect(resolveManualScanLimit(true, false)).toBe(Infinity)
+    expect(resolveManualScanLimit(true, true)).toBe(Infinity)
+  })
+
+  it('gives premium 2 and free 1', async () => {
+    const { resolveManualScanLimit } = await import('./emailScanner')
+    expect(resolveManualScanLimit(false, true)).toBe(2)
+    expect(resolveManualScanLimit(false, false)).toBe(1)
+  })
+})
+
+describe('computeManualQuotaState', () => {
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3600000).toISOString()
+
+  it('reports an available scan when under the limit', async () => {
+    const { computeManualQuotaState } = await import('./emailScanner')
+    const q = computeManualQuotaState([hoursAgo(3)], 2)
+    expect(q.used).toBe(1)
+    expect(q.remaining).toBe(1)
+    expect(q.nextAvailableAt).toBeNull()
+  })
+
+  it('blocks at the limit and dates the next slot off the oldest counted scan', async () => {
+    // Premium: two scans used, 3h and 20h ago. The next slot opens when the
+    // OLDER one ages out — about 4h away, not 21h.
+    const { computeManualQuotaState } = await import('./emailScanner')
+    const q = computeManualQuotaState([hoursAgo(3), hoursAgo(20)], 2)
+    expect(q.remaining).toBe(0)
+    const hoursUntil = (q.nextAvailableAt!.getTime() - Date.now()) / 3600000
+    expect(hoursUntil).toBeGreaterThan(3.5)
+    expect(hoursUntil).toBeLessThan(4.5)
+  })
+
+  it('dates a free user off their single scan', async () => {
+    const { computeManualQuotaState } = await import('./emailScanner')
+    const q = computeManualQuotaState([hoursAgo(10)], 1)
+    expect(q.remaining).toBe(0)
+    const hoursUntil = (q.nextAvailableAt!.getTime() - Date.now()) / 3600000
+    expect(hoursUntil).toBeGreaterThan(13.5)
+    expect(hoursUntil).toBeLessThan(14.5)
+  })
+
+  it('never blocks an unlimited allowance', async () => {
+    const { computeManualQuotaState } = await import('./emailScanner')
+    const q = computeManualQuotaState([hoursAgo(1), hoursAgo(2), hoursAgo(3)], Infinity)
+    expect(q.remaining).toBe(Infinity)
+    expect(q.nextAvailableAt).toBeNull()
+  })
+
+  it('reports availability when no scans have been used', async () => {
+    const { computeManualQuotaState } = await import('./emailScanner')
+    expect(computeManualQuotaState([], 1).nextAvailableAt).toBeNull()
+  })
+})
+
+describe('scanRealGmailInbox — quota enforcement', () => {
+  /** Mock DB whose email_scan_logs table returns the given manual-scan history. */
+  function makeQuotaDb(manualScanTimes: string[], profile: any) {
+    const chain = (payload: any): any => {
+      const h: any = {
+        select: () => h, eq: () => h, order: () => h, gte: () => h, limit: () => h,
+        single: () => Promise.resolve({ data: profile, error: null }),
+        insert: (row: any) => ({
+          select: () => ({ single: () => Promise.resolve({ data: row, error: null }) }),
+          then: (r: any) => r({ data: [], error: null }),
+        }),
+        update: () => ({ eq: () => ({ then: (r: any) => r({ error: null }) }) }),
+        then: (r: any) => r(payload),
+      }
+      return h
+    }
+    return {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } } }) },
+      from: (table: string) => {
+        if (table === 'profiles') return chain({ data: profile, error: null })
+        if (table === 'email_scan_logs') {
+          return chain({ data: manualScanTimes.map((t) => ({ scanned_at: t })), error: null })
+        }
+        if (table === 'categories') return chain({ data: [{ name: 'Other', is_permanent: true }], error: null })
+        return chain({ data: [], error: null })
+      },
+    } as any
+  }
+
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3600000).toISOString()
+
+  beforeEach(() => {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return { ok: true, status: 200, json: async () => ({ messages: [] }) } as any
+      }
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  })
+
+  it('blocks a free user after 1 manual scan', async () => {
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeQuotaDb([hoursAgo(2)], { subscription_status: 'free', subscription_expires_at: null }),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error?.message).toMatch(/Daily scan limit reached \(1 manual scan per day\)/)
+    // PendingPage keys its cooldown banner off this exact phrase.
+    expect(result.error?.message).toMatch(/Next scan available in/)
+  })
+
+  it('allows a premium user a second manual scan, then blocks the third', async () => {
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const premium = { subscription_status: 'active', subscription_expires_at: null }
+
+    const second = await scanRealGmailInbox({
+      db: makeQuotaDb([hoursAgo(2)], premium),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+    expect(second.error).toBeNull()
+
+    const third = await scanRealGmailInbox({
+      db: makeQuotaDb([hoursAgo(2), hoursAgo(5)], premium),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+    expect(third.error?.message).toMatch(/Daily scan limit reached \(2 manual scans per day\)/)
+    // Premium keeps its automatic scan even while manually rate-limited.
+    expect(third.error?.message).toMatch(/automatic daily scan still runs/)
+  })
+
+  it('never blocks a scheduled scan, however many manual scans were used', async () => {
+    // R7: the automatic daily scan is "in addition to" the manual allowance.
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeQuotaDb([hoursAgo(1), hoursAgo(2), hoursAgo(3)], { subscription_status: 'free', subscription_expires_at: null }),
+      activeYear: new Date().getUTCFullYear(),
+      scanMode: 'scheduled',
+      askAI: async () => null,
+    })
+    expect(result.error).toBeNull()
+  })
+
+  it('records scan_mode on the scan log', async () => {
+    const inserted: any[] = []
+    const db = makeQuotaDb([], { subscription_status: 'free', subscription_expires_at: null })
+    const baseFrom = db.from
+    db.from = (table: string) => {
+      const h = baseFrom(table)
+      if (table === 'email_scan_logs') {
+        const origInsert = h.insert
+        h.insert = (row: any) => { inserted.push(row); return origInsert(row) }
+      }
+      return h
+    }
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db, activeYear: new Date().getUTCFullYear(), scanMode: 'scheduled', askAI: async () => null,
+    })
+
+    expect(inserted.length).toBeGreaterThan(0)
+    expect(inserted[0].scan_mode).toBe('scheduled')
   })
 })

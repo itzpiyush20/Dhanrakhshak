@@ -157,6 +157,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           emails_processed: 0,
           transactions_found: 0,
           status: 'failed',
+          scan_mode: 'scheduled',
           error_message: 'Gmail connection revoked — please reconnect Gmail Inbox.',
         })
         failed++
@@ -166,6 +167,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const { data, error } = await scanRealGmailInbox({
         db: supabaseAdmin,
+        // Scheduled, so it is exempt from the manual quota — a user's daily
+        // automatic scan must never consume their manual allowance (R7).
+        scanMode: 'scheduled' as const,
         userId: row.user_id,
         userEmail: profile.email || undefined,
         accessToken: refreshResult.accessToken,
@@ -183,6 +187,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           emails_processed: 0,
           transactions_found: 0,
           status: 'failed',
+          scan_mode: 'scheduled',
           error_message: error.message || 'Automatic sync failed',
         })
         failed++
@@ -198,6 +203,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         emails_processed: 0,
         transactions_found: 0,
         status: 'failed',
+        scan_mode: 'scheduled',
         error_message: err.message || 'Automatic sync failed',
       })
       failed++

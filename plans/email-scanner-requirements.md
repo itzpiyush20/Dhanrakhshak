@@ -219,8 +219,14 @@ Dependencies matter more than size here.
 3. ~~**D1 + section 3**~~ — **DONE.** Strict rolling 7-day window on every scan;
    prior-year mail kept when the window straddles 1 January; year-scope rejections now
    logged instead of dropped silently. See **D1a** above for the remaining open risk.
-4. **D2** (tier quotas via `scan_mode`) — next.
-5. **D3** (widen fetch to everything financial) — only after D4 is green.
+4. ~~**D2** (tier quotas via `scan_mode`)~~ — **DONE.** Migration `014_scan_mode_quota.sql`
+   (idempotent column + index, no backfill); every scan log now records its mode; the
+   24h cooldown is replaced by a counted allowance that ignores scheduled scans.
+   `getManualScanQuota()` exposes the same computation to the UI, so PendingPage's
+   countdown is driven by the real allowance instead of "last scan + 24h" — which would
+   otherwise have told premium users to wait 22 hours while a scan was actually
+   available.
+5. **D3** (widen fetch to everything financial) — next; D4's guards are in place.
 6. **D5** (smart merge) — must land with or before D3's vendor-receipt volume increase,
    or duplicates get worse.
 7. **D6** (multi-currency) — independent; sequence by owner priority.

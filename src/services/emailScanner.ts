@@ -711,6 +711,44 @@ export async function getScanLogs() {
   return { data: data as EmailScanLog[] | null, error }
 }
 
+/**
+ * The signed-in user's current manual-scan allowance.
+ *
+ * Exists so the UI can show an accurate countdown without reimplementing tier
+ * rules: it resolves the limit and reads the window through the very same
+ * helpers `scanRealGmailInbox` uses to decide whether to block. Read-only —
+ * unlike the scan path it does not correct a lapsed subscription's status.
+ *
+ * Returns null when nobody is signed in.
+ */
+export async function getManualScanQuota(opts?: { db?: SupabaseClient }): Promise<ManualScanQuota | null> {
+  const db = opts?.db || defaultSupabase
+  const { data: { session } } = await db.auth.getSession()
+  const user = session?.user
+  if (!user) return null
+
+  const cleanEmail = user.email?.toLowerCase().trim() || ''
+  const isOwner = OWNER_EMAILS.length > 0 && OWNER_EMAILS.includes(cleanEmail)
+
+  let isPremium = false
+  try {
+    const { data: profile } = await db
+      .from('profiles')
+      .select('subscription_status, subscription_expires_at')
+      .eq('id', user.id)
+      .single()
+    isPremium = isPremiumProfile(profile)
+  } catch {
+    // Unreadable profile is treated as free tier — the stricter assumption.
+  }
+
+  const limit = resolveManualScanLimit(isOwner, isPremium)
+  if (limit === Infinity) {
+    return { used: 0, limit, remaining: Infinity, nextAvailableAt: null }
+  }
+  return computeManualQuotaState(await fetchRecentManualScanTimes(db, user.id), limit)
+}
+
 // ============================================================
 // MAIN ENGINE — Scan Real Gmail Inbox (V2)
 // ============================================================
@@ -734,6 +772,107 @@ interface ScanCandidate {
 
 /** Batches of AI classification in flight at once. */
 const AI_BATCH_CONCURRENCY = 2
+
+// ── Manual scan quotas (plans/email-scanner-requirements.md R6/R7/R8) ──
+// Owner is unlimited and handled separately. Premium and trial share a limit.
+const FREE_MANUAL_SCANS_PER_DAY = 1
+const PREMIUM_MANUAL_SCANS_PER_DAY = 2
+/** Rolling, not calendar-day — matches the previous cooldown's semantics. */
+const MANUAL_QUOTA_WINDOW_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Pure: is this profile row currently entitled to premium behaviour?
+ *
+ * Shared by the scan path and the quota accessor so the definition of
+ * "premium" cannot drift between what the engine enforces and what the UI
+ * displays. Correcting a lapsed subscription's stored status is deliberately
+ * NOT done here — that write stays on the scan path, keeping this safe to call
+ * from a read.
+ */
+export function isPremiumProfile(
+  profile: { subscription_status?: string | null; subscription_expires_at?: string | null } | null | undefined,
+  now: number = Date.now()
+): boolean {
+  if (!profile) return false
+  const expiresAt = profile.subscription_expires_at
+  if (profile.subscription_status === 'active') {
+    // An active subscription with no end date is open-ended.
+    return !expiresAt || new Date(expiresAt).getTime() > now
+  }
+  if (profile.subscription_status === 'trial') {
+    // A trial, unlike an active subscription, must carry an unexpired end date.
+    return !!expiresAt && new Date(expiresAt).getTime() > now
+  }
+  return false
+}
+
+/** Owner is unlimited; premium and trial share a limit; everyone else is free-tier. */
+export function resolveManualScanLimit(isOwner: boolean, isPremium: boolean): number {
+  if (isOwner) return Infinity
+  return isPremium ? PREMIUM_MANUAL_SCANS_PER_DAY : FREE_MANUAL_SCANS_PER_DAY
+}
+
+/** Successful manual scans inside the rolling window, newest first. */
+async function fetchRecentManualScanTimes(db: SupabaseClient, userId: string): Promise<string[]> {
+  const windowStart = new Date(Date.now() - MANUAL_QUOTA_WINDOW_MS).toISOString()
+  const { data } = await db
+    .from('email_scan_logs')
+    .select('scanned_at')
+    .eq('user_id', userId)
+    .eq('status', 'success')
+    // Scheduled scans are excluded on purpose: the daily automatic scan must
+    // not consume a user's manual allowance (R7). Rows predating this column
+    // have scan_mode NULL and so don't count either, which fails open for one
+    // rolling window after deploy rather than locking anyone out.
+    .eq('scan_mode', 'manual')
+    .gte('scanned_at', windowStart)
+    .order('scanned_at', { ascending: false })
+  return (data ?? []).map((r: { scanned_at: string }) => r.scanned_at)
+}
+
+export interface ManualScanQuota {
+  used: number
+  limit: number
+  remaining: number
+  /** When the next manual scan becomes possible, or null if one is available now. */
+  nextAvailableAt: Date | null
+}
+
+/**
+ * Pure quota arithmetic, shared by the engine's blocking decision and the UI's
+ * countdown so the two can never disagree — a countdown that says "22 hours"
+ * while the engine would happily run a scan is exactly the kind of thing that
+ * makes the scanner look broken.
+ *
+ * `scannedAtDesc` is the timestamps of successful MANUAL scans inside the
+ * rolling window, newest first.
+ */
+export function computeManualQuotaState(
+  scannedAtDesc: string[],
+  limit: number,
+  now: number = Date.now()
+): ManualScanQuota {
+  const used = scannedAtDesc.length
+  if (limit === Infinity) {
+    return { used, limit, remaining: Infinity, nextAvailableAt: null }
+  }
+  const remaining = Math.max(0, limit - used)
+  if (remaining > 0) {
+    return { used, limit, remaining, nextAvailableAt: null }
+  }
+  // Rolling window: the next slot opens when the Nth-newest scan ages out, not
+  // when the most recent one does. Newest-first ordering makes that index
+  // (limit - 1) — once it leaves the window only newer ones remain, which is
+  // under the limit.
+  const blocking = scannedAtDesc[limit - 1]
+  const nextAvailableAt = new Date(new Date(blocking).getTime() + MANUAL_QUOTA_WINDOW_MS)
+  return {
+    used,
+    limit,
+    remaining: 0,
+    nextAvailableAt: nextAvailableAt.getTime() > now ? nextAvailableAt : null,
+  }
+}
 
 /**
  * Runs Stage B: classify every candidate, batched and with bounded concurrency.
@@ -819,6 +958,13 @@ export interface ScanGmailOptions {
    * same reduction in calls.
    */
   askAIBatch?: (emails: EmailForAI[], categoryNames?: string[]) => Promise<Map<number, AITransactionResult | null>>
+  /**
+   * Whether this scan was triggered by the user or by the daily cron. Recorded
+   * on the scan log, and decides whether the manual quota applies — scheduled
+   * scans are exempt, so a user's automatic scan never spends their manual
+   * allowance. Defaults to 'manual'.
+   */
+  scanMode?: 'manual' | 'scheduled'
 }
 
 export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
@@ -826,6 +972,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
   // Generated up front so every per-email rejection logged during this scan
   // can reference the scan_log row before that row itself is inserted
   // (which only happens after the whole scan completes, below).
+  const scanMode: 'manual' | 'scheduled' = opts?.scanMode ?? 'manual'
   const scanLogId: string = crypto.randomUUID
     ? crypto.randomUUID()
     : `scan-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -885,7 +1032,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     const cleanEmail = user.email?.toLowerCase().trim() || ''
     const isOwner = OWNER_EMAILS.length > 0 && OWNER_EMAILS.includes(cleanEmail)
 
-    // Check if the user has an active premium subscription to bypass the cooldown
+    // Premium/trial entitlement, which sets the manual-scan limit below.
     let isPremium = false
     try {
       const { data: profile } = await supabase
@@ -893,57 +1040,57 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         .select('subscription_status, subscription_expires_at')
         .eq('id', user.id)
         .single()
-      if (profile) {
-        if (profile.subscription_status === 'active') {
-          if (!profile.subscription_expires_at) {
-            isPremium = true
-          } else if (new Date(profile.subscription_expires_at).getTime() > Date.now()) {
-            isPremium = true
-          } else {
-            supabase
-              .from('profiles')
-              .update({ subscription_status: 'expired', updated_at: new Date().toISOString() })
-              .eq('id', user.id)
-              .then(({ error }: { error: any }) => {
-                if (error) console.warn('Failed to update expired status in email scanner:', error.message)
-              })
-          }
-        } else if (profile.subscription_status === 'trial') {
-          if (profile.subscription_expires_at && new Date(profile.subscription_expires_at).getTime() > Date.now()) {
-            isPremium = true
-          } else {
-            supabase
-              .from('profiles')
-              .update({ subscription_status: 'expired', updated_at: new Date().toISOString() })
-              .eq('id', user.id)
-              .then(({ error }: { error: any }) => {
-                if (error) console.warn('Failed to update expired status in email scanner:', error.message)
-              })
-          }
-        }
+
+      isPremium = isPremiumProfile(profile)
+
+      // A subscription that claims to be active/trial but has passed its end
+      // date gets its stored status corrected. Fire-and-forget: the scan must
+      // not wait on, or fail because of, a bookkeeping write.
+      const claimsEntitlement =
+        profile?.subscription_status === 'active' || profile?.subscription_status === 'trial'
+      if (!isPremium && claimsEntitlement) {
+        supabase
+          .from('profiles')
+          .update({ subscription_status: 'expired', updated_at: new Date().toISOString() })
+          .eq('id', user.id)
+          .then(({ error }: { error: any }) => {
+            if (error) console.warn('Failed to update expired status in email scanner:', error.message)
+          })
       }
     } catch (e) {
       console.warn('Failed to query profile for premium bypass:', e)
     }
 
-    if (!isOwner && !isPremium) {
-      const { data: recentScanLogs } = await supabase
-        .from('email_scan_logs')
-        .select('scanned_at')
-        .eq('user_id', user.id)
-        .eq('status', 'success')
-        .order('scanned_at', { ascending: false })
-        .limit(1)
+    // ── Manual scan quota (R6/R7/R8) ─────────────────────────────────
+    //   free            1 manual scan per day, no automatic scan
+    //   premium/trial   daily automatic scan + 2 manual scans per day
+    //   owner           daily automatic scan + unlimited manual scans
+    //
+    // Only MANUAL scans are counted, so a user's automatic daily scan never
+    // consumes their manual allowance — R7 says the manual scans are "in
+    // addition to" the automatic one. Scheduled scans skip this block entirely;
+    // the cron gates eligibility on its own (owner/premium/trial), which is
+    // what implements "no automatic scan" for free users.
+    const scanLimit = resolveManualScanLimit(isOwner, isPremium)
 
-      if (recentScanLogs && recentScanLogs.length > 0) {
-        const lastScanTime = new Date(recentScanLogs[0].scanned_at).getTime()
-        const hoursSinceLastScan = (Date.now() - lastScanTime) / (60 * 60 * 1000)
-        if (hoursSinceLastScan < 24) {
-          const hoursLeft = Math.ceil(24 - hoursSinceLastScan)
-          return {
-            data: null,
-            error: new Error(`Scan limit reached. Next scan available in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''}. All transactions from your last scan are already captured.`),
-          }
+    if (scanMode === 'manual' && scanLimit !== Infinity) {
+      const timestamps = await fetchRecentManualScanTimes(supabase, user.id)
+      const quota = computeManualQuotaState(timestamps, scanLimit)
+
+      if (quota.remaining === 0 && quota.nextAvailableAt) {
+        const hoursLeft = Math.max(1, Math.ceil((quota.nextAvailableAt.getTime() - Date.now()) / (60 * 60 * 1000)))
+        const plural = (n: number, word: string) => `${n} ${word}${n !== 1 ? 's' : ''}`
+        // "Next scan available" is load-bearing: PendingPage keys its cooldown
+        // banner off that phrase.
+        const suffix = isPremium
+          ? ' Your automatic daily scan still runs.'
+          : ' All transactions from your last scan are already captured.'
+        return {
+          data: null,
+          error: new Error(
+            `Daily scan limit reached (${plural(scanLimit, 'manual scan')} per day). ` +
+            `Next scan available in ${plural(hoursLeft, 'hour')}.${suffix}`
+          ),
         }
       }
     }
@@ -1047,7 +1194,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     if (uniqueMessages.length === 0) {
       const { data: log } = await supabase
         .from('email_scan_logs')
-        .insert({ id: scanLogId, user_id: user.id, emails_processed: 0, transactions_found: 0, status: 'success' })
+        .insert({ id: scanLogId, user_id: user.id, emails_processed: 0, transactions_found: 0, status: 'success', scan_mode: scanMode })
         .select().single()
       return { data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0 }, error: null }
     }
@@ -1617,6 +1764,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           emails_processed: validDetails.length,
           transactions_found: 0,
           status: 'success',
+          scan_mode: scanMode,
           error_message: lowConfidencePendingCount > 0 ? `${lowConfidencePendingCount} email(s) added as pending (low confidence). Samples: ${lowConfidenceEmailsDetails.join('; ')}` : null,
         })
         .select().single()
@@ -1669,6 +1817,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         emails_processed: validDetails.length,
         transactions_found: transactionsToInsert.length,
         status: 'success',
+        scan_mode: scanMode,
         error_message: lowConfidencePendingCount > 0 ? `${lowConfidencePendingCount} email(s) added as pending (confidence < 65). Samples: ${lowConfidenceEmailsDetails.join('; ')}` : null,
       })
       .select().single()
@@ -1705,6 +1854,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         emails_processed: 0,
         transactions_found: 0,
         status: 'failed',
+        scan_mode: scanMode,
         error_message: errorMessage,
       })
     }

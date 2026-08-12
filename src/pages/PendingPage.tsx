@@ -17,6 +17,7 @@ import {
   getNextRefreshTime,
   getLastScheduledRefreshTime,
   applyMerchantRules,
+  getManualScanQuota,
 } from '@/services'
 import { saveMerchantRuleToDb } from '@/services/learningEngine'
 import { useAuth } from '@/context/AuthContext'
@@ -270,26 +271,47 @@ export default function PendingPage() {
   }, [user])
 
   // ── Live countdown timer ─────────────────────────────────
+  // Driven by the real manual-scan quota, not by "last scan + 24h". Those
+  // differ now: premium gets 2 manual scans a day, and the most recent scan may
+  // have been the automatic one, which costs no allowance at all. Deriving the
+  // countdown from the last scan would tell a premium user to wait 22 hours
+  // while the engine would happily run a scan on request.
   useEffect(() => {
-    if (!lastScanLog) return
+    if (!user) return
+    let cancelled = false
+    let interval: ReturnType<typeof setInterval> | undefined
 
-    const lastScanMs = new Date(lastScanLog.scanned_at).getTime()
-    const nextScanMs = lastScanMs + 24 * 60 * 60 * 1000
-
-    const tick = () => {
-      const remaining = nextScanMs - Date.now()
-      if (remaining <= 0) {
+    ;(async () => {
+      const quota = await getManualScanQuota()
+      if (cancelled) return
+      const nextScanMs = quota?.nextAvailableAt?.getTime() ?? null
+      if (!nextScanMs) {
         setNextScanCountdown(null)
         setScanCooldownMessage(null)
         return
       }
-      setNextScanCountdown(msToCountdown(remaining))
-    }
 
-    tick()
-    const interval = setInterval(tick, 1000)
-    return () => clearInterval(interval)
-  }, [lastScanLog])
+      const tick = () => {
+        const remaining = nextScanMs - Date.now()
+        if (remaining <= 0) {
+          setNextScanCountdown(null)
+          setScanCooldownMessage(null)
+          if (interval) clearInterval(interval)
+          return
+        }
+        setNextScanCountdown(msToCountdown(remaining))
+      }
+
+      tick()
+      interval = setInterval(tick, 1000)
+    })()
+
+    return () => {
+      cancelled = true
+      if (interval) clearInterval(interval)
+    }
+    // Re-checked whenever a scan completes, since that is what consumes quota.
+  }, [user, lastScanLog])
 
   // ── "Still working" hint for slow-but-live scans ────────
   useEffect(() => {
