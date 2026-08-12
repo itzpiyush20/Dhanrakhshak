@@ -790,19 +790,24 @@ function extractEmailBody(mail: any): string {
     if (!part) return
     const mimeType = part.mimeType || ''
     const bodyData = part.body?.data || ''
-    // Bounded at the decode call, not after — see decodeBase64Url's comment.
     if (mimeType === 'text/plain' && bodyData) plainText += decodeBase64Url(bodyData, MAX_HTML_PARSE_CHARS) + '\n'
-    else if (mimeType === 'text/html' && bodyData && !plainText) htmlText += decodeBase64Url(bodyData, MAX_HTML_PARSE_CHARS) + '\n'
+    if (mimeType === 'text/html' && bodyData) htmlText += decodeBase64Url(bodyData, MAX_HTML_PARSE_CHARS) + '\n'
     if (part.parts && Array.isArray(part.parts)) part.parts.forEach(traverseParts)
   }
 
   traverseParts(mail.payload)
+
+  const parsedHtml = htmlText.trim() ? stripHtmlTagsFast(htmlText.length > MAX_HTML_PARSE_CHARS ? htmlText.slice(0, MAX_HTML_PARSE_CHARS) : htmlText) : ''
+
+  const plainHasAmount = plainText.trim() ? extractAmountMatches(plainText).length > 0 : false
+  const htmlHasAmount = parsedHtml ? extractAmountMatches(parsedHtml).length > 0 : false
+
+  if (plainHasAmount && (!htmlHasAmount || plainText.length >= parsedHtml.length)) return plainText.trim()
+  if (htmlHasAmount) return parsedHtml.trim()
+  if (plainText.trim() && parsedHtml.trim()) return `${plainText.trim()}\n${parsedHtml.trim()}`
   if (plainText.trim()) return plainText.trim()
-  if (htmlText.trim()) {
-    if (htmlText.length > MAX_HTML_PARSE_CHARS) htmlText = htmlText.slice(0, MAX_HTML_PARSE_CHARS)
-    const textContent = stripHtmlTagsFast(htmlText)
-    if (textContent.trim()) return textContent.trim()
-  }
+  if (parsedHtml.trim()) return parsedHtml.trim()
+
   return mail.snippet || ''
 }
 
