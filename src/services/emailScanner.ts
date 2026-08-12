@@ -148,6 +148,9 @@ const HARD_ACCEPT_SUBJECT_PATTERNS = [
   /\bcharge\s*on\s*(?:your\s*)?(?:credit\s*)?card\b/i,
   /\bspend\s*on\s*(?:your\s*)?(?:card|sbi|hdfc|icici|axis|kotak|onecard|scapia|amex|diners|rupay)\b/i,
   /\bspent\s+(?:on|at)\b/i,
+  /\bpayment\s*(?:received|successful|confirmed|completed|done|processed)\b/i,
+  /\b(?:credit\s*)?card\s*payment\b/i,
+  /\bcred\b/i,
   /\b(?:transaction|txn|debit|credit|payment|spend)\s*(?:alert|notification|update|confirmation)\b/i,
 ]
 

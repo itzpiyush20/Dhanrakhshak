@@ -59,34 +59,35 @@ export function evaluateRegexGates(
   // Deliberately narrow: only unambiguous offer constructions. Broader phrasing
   // like "you are eligible for" was considered and rejected — genuine receipts
   // say things like "eligible for free delivery".
+  const hasDebitConfirmation = /\b(?:debited|charged|deducted|payment\s*(?:successful|done|completed|received|processed|confirmed)|amount\s*debited)\b/i.test(emailContentForParsing)
+  const hasCompletedPaymentEvidence = hasDebitConfirmation || /\b(?:payment\s*(?:received|successful|done|completed|processed|towards|confirmation)|debited|spent|charged|credited|paid)\b/i.test(emailContentForParsing)
+
   const offerMatch = /\bpre[-\s]?(?:approved|qualified|sanctioned)\b|\b(?:credit\s+)?limit\s+(?:has\s+been\s+)?(?:increased|enhanced|upgraded)\b|\bloan\s+offer\b/i.exec(emailContentForParsing)
   if (offerMatch) return { rejected: true, gate: 'offer_or_pre_approval', snippet: offerMatch[0] }
 
   const promoMatch = /\b(?:promo(?:tion)?|coupon|unsubscribe|shop\s+now|buy\s+now|special\s+offer|limited\s+period|earn\s+cashback|get\s+cashback|cashback\s+on\s+your\s+next|exclusive\s+deal)\b/i.exec(emailContentForParsing)
-  if (promoMatch) return { rejected: true, gate: 'promotional_spam', snippet: promoMatch[0] }
+  if (promoMatch && !hasCompletedPaymentEvidence) return { rejected: true, gate: 'promotional_spam', snippet: promoMatch[0] }
 
   const declinedMatch = /\b(?:declined|failed|unsuccessful|rejected|cancelled|void|voided)\b/i.exec(emailContentForParsing)
   if (declinedMatch) return { rejected: true, gate: 'declined_or_void', snippet: declinedMatch[0] }
 
   const pendingInitiation = isGenuinePendingInitiation(emailContentForParsing)
-  if (pendingInitiation.matched) return { rejected: true, gate: 'pending_initiation', snippet: pendingInitiation.snippet }
+  if (pendingInitiation.matched && !hasCompletedPaymentEvidence) return { rejected: true, gate: 'pending_initiation', snippet: pendingInitiation.snippet }
 
   const otpMatch = /\b(?:otp|one\s*time\s*pass(?:word|code)|verification\s*code|verification\s*pin|passcode|security\s*pin|security\s*code|m-?pin|t-?pin|2fa|two\s*factor|auth\s*code|do\s*not\s*share)\b/i.exec(emailContentForParsing)
   if (otpMatch) return { rejected: true, gate: 'otp_or_security_code', snippet: otpMatch[0] }
 
   const orderPlacedMatch = /\b(?:order\s*(?:placed|confirmed|received|acknowledged)|booking\s*(?:confirmed|received)|your\s*order\s*(?:is|has been))\b/i.exec(emailContentForParsing)
-  const hasDebitConfirmation = /\b(?:debited|charged|deducted|payment\s*(?:successful|done|completed|received)|amount\s*debited)\b/i.test(emailContentForParsing)
   if (orderPlacedMatch && !hasDebitConfirmation) {
     return { rejected: true, gate: 'order_placed_no_debit', snippet: orderPlacedMatch[0] }
   }
 
   if (!isHardAccepted) {
-    const hasCompletedPaymentEvidence = hasDebitConfirmation || /\b(?:payment\s*(?:received|successful|done|completed|processed|towards|confirmation)|debited|spent|charged|credited|paid)\b/i.test(emailContentForParsing)
     const dueMatch = /\b(?:reminder|remind|upcoming|due\s+date|minimum\s+due|payment\s+due|overdue|payable|bill\s+generated|monthly\s+statement|e-?statement|estatement)\b/i.exec(emailContentForParsing)
     if (dueMatch && !hasCompletedPaymentEvidence) return { rejected: true, gate: 'due_or_statement_reminder', snippet: dueMatch[0] }
 
     const scheduledMatch = /(?:will\s+be\s+debited|scheduled\s+for|pay\s+before|auto-?debit\s+has\s+been\s+scheduled|is\s+scheduled\s+for)/i.exec(emailContentForParsing)
-    if (scheduledMatch) return { rejected: true, gate: 'scheduled_future_debit', snippet: scheduledMatch[0] }
+    if (scheduledMatch && !hasCompletedPaymentEvidence) return { rejected: true, gate: 'scheduled_future_debit', snippet: scheduledMatch[0] }
 
     const policyMatch = /\b(?:policy\s+update|security\s+policy|terms\s+of\s+service|agreement\s+update|privacy\s+update|will\s+not\s+be\s+charged|no\s+charges\s+apply)\b/i.exec(emailContentForParsing)
     if (policyMatch) return { rejected: true, gate: 'policy_or_no_charge', snippet: policyMatch[0] }
@@ -149,7 +150,10 @@ const PAYMENT_ASSERTION_PATTERNS: RegExp[] = [
   /\bsub\s*total\b/i,
   /\btotal\b/i,
   /\bamount\s+paid\b/i,
-  /\bpayment\s+of\b/i,
+  /\bpayment\s+(?:of|successful|received|confirmed|done|completed|processed|towards)\b/i,
+  /\bcard\s*payment\s*(?:successful|received|done|completed|processed|confirmed|towards)?\b/i,
+  /\bcredit\s*card\s*(?:bill\s*)?payment\b/i,
+  /\bbill\s*payment\s*(?:successful|received|done|completed|processed)?\b/i,
   /\bfare\b/i,
   /\btxn\b/i,
   /\btransaction\s+id\b/i,
