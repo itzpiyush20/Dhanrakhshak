@@ -863,6 +863,14 @@ export default function PendingPage() {
               <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Last Scan Stats</p>
               <p className="text-sm font-bold text-white">{lastScanLog.transactions_found} transactions</p>
               <p className="text-xs text-zinc-500">{lastScanLog.emails_processed} emails processed</p>
+              {/* A failed scan showed "0 transactions" and nothing else, which
+                  is indistinguishable from a scan that simply found nothing.
+                  The engine records the stage it failed in — show it. */}
+              {lastScanLog.status === 'failed' && lastScanLog.error_message && (
+                <p className="text-xs text-[var(--status-danger-text)] mt-1 break-words">
+                  Failed: {lastScanLog.error_message}
+                </p>
+              )}
             </Card>
 
             <Card className="bg-surface-1 border-border-subtle p-4 space-y-1">

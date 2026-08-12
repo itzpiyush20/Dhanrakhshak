@@ -2165,3 +2165,89 @@ describe('scanRealGmailInbox — logs emails with no readable amount', () => {
     expect(gates).not.toContain('no_amount_in_body')
   })
 })
+
+// ============================================================
+// Self-reporting failures. Three rounds of this scanner's production stalls
+// were misdiagnosed because a frozen spinner said nothing about WHERE it
+// stopped. The scan now names its own stage and its own elapsed time.
+// ============================================================
+
+describe('scanRealGmailInbox — failures name their stage', () => {
+  it('records the stage in the error when the scan throws', async () => {
+    // The LIST call is unrecoverable — unlike a single message detail fetch,
+    // which the scan deliberately survives by logging fetch_failed and moving on.
+    global.fetch = vi.fn(async () => { throw new TypeError('Failed to fetch') }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb([], []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).not.toBeNull()
+    expect(result.error!.message).toMatch(/stage: /)
+  })
+
+  it('survives a single message detail fetch failing, without failing the scan', async () => {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'm1', threadId: 't1' }] }) } as any
+      }
+      throw new TypeError('Failed to fetch')
+    }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb([], []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+  })
+
+  it('writes the stage into the failed scan log, not just the returned error', async () => {
+    const logs: any[] = []
+    const chain = (payload: any): any => {
+      const h: any = {
+        select: () => h, eq: () => h, order: () => h, gte: () => h, limit: () => h,
+        single: () => Promise.resolve({ data: null, error: null }),
+        insert: (row: any) => ({
+          select: () => ({ single: () => Promise.resolve({ data: row, error: null }) }),
+          then: (r: any) => r({ data: [], error: null }),
+        }),
+        then: (r: any) => r(payload),
+      }
+      return h
+    }
+    const mockDb: any = {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } } }) },
+      from: (table: string) => {
+        if (table === 'email_scan_logs') {
+          const h = chain({ data: [], error: null })
+          h.insert = (row: any) => { logs.push(row); return { select: () => ({ single: () => Promise.resolve({ data: row, error: null }) }) } }
+          return h
+        }
+        return chain({ data: [], error: null })
+      },
+    }
+
+    global.fetch = vi.fn(async () => { throw new TypeError('Failed to fetch') }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({ db: mockDb, activeYear: new Date().getUTCFullYear(), askAI: async () => null })
+
+    const failed = logs.find((l) => l.status === 'failed')
+    expect(failed).toBeDefined()
+    expect(failed.error_message).toMatch(/stage: /)
+  })
+
+  it('surfaces elapsed time on progress once a scan is not instant', async () => {
+    const { formatScanProgress } = await import('./emailScanner')
+    // Under 3s stays quiet; past it the label carries the number, so a
+    // screenshot distinguishes "slow" from "wedged".
+    expect(formatScanProgress({ phase: 'preparing', current: 0, total: 0, elapsedMs: 500 })).not.toMatch(/\(\d+s\)/)
+    expect(formatScanProgress({ phase: 'preparing', current: 0, total: 0, elapsedMs: 47000 })).toMatch(/\(47s\)/)
+  })
+})

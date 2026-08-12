@@ -788,6 +788,14 @@ const AI_BATCH_CONCURRENCY = 4
 const PRELOAD_TIMEOUT_MS = 12000
 
 /**
+ * Whole-scan ceiling, enforced by the scan itself rather than only by the UI.
+ * Above the manual 90s wrapper so the UI reports first in the normal case; this
+ * exists to stop an abandoned scan running on invisibly and to make it record
+ * the stage it died in.
+ */
+const SCAN_DEADLINE_MS = 150000
+
+/**
  * The subset of a Supabase list response the scan preloads actually read.
  * Declared once so the fallback literals and the generics agree without
  * repeating an inline shape at every call site.
@@ -923,6 +931,8 @@ export interface ScanProgress {
   phase: 'listing' | 'fetching' | 'preparing' | 'filtering' | 'analyzing' | 'saving'
   current: number
   total: number
+  /** Milliseconds since the scan began. Surfaced so a stall is legible. */
+  elapsedMs?: number
 }
 
 /**
@@ -931,6 +941,14 @@ export interface ScanProgress {
  */
 export function formatScanProgress(p: ScanProgress): string {
   const seen = Math.min(p.current, p.total)
+  // Elapsed time is appended to every phase on purpose: without it a slow
+  // stage and a wedged one look identical in a screenshot, which cost several
+  // rounds of misdiagnosis on this scanner.
+  const elapsed = p.elapsedMs && p.elapsedMs >= 3000 ? ` (${Math.round(p.elapsedMs / 1000)}s)` : ''
+  return `${describePhase(p, seen)}${elapsed}`
+}
+
+function describePhase(p: ScanProgress, seen: number): string {
   switch (p.phase) {
     case 'listing':
       return p.total === 0
@@ -1179,10 +1197,35 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
   // "nothing was saved".
   const insertedTxns: any[] = []
 
+  const scanStartedAt = Date.now()
+
+  /**
+   * The stage the scan is currently in. Recorded on the scan log when a scan
+   * fails, so a stall names its own location instead of having to be inferred
+   * from a screenshot of a frozen spinner.
+   */
+  let currentStage = 'starting'
+
+  /**
+   * Self-imposed deadline, checked at every stage boundary.
+   *
+   * The UI already wraps this call in a timeout, but that only abandons the
+   * promise — the scan itself keeps running, invisibly, and writes no log. This
+   * makes the scan terminate itself and record WHERE it ran out of time, which
+   * is the difference between a diagnosable failure and a mystery.
+   */
+  const checkpoint = (stage: string) => {
+    currentStage = stage
+    const elapsed = Date.now() - scanStartedAt
+    if (elapsed > SCAN_DEADLINE_MS) {
+      throw new Error(`Scan exceeded ${Math.round(SCAN_DEADLINE_MS / 1000)}s during "${stage}"`)
+    }
+  }
+
   /** Never let a UI callback's failure break a scan. */
   const emitProgress = (p: ScanProgress) => {
     try {
-      opts?.onProgress?.(p)
+      opts?.onProgress?.({ ...p, elapsedMs: Date.now() - scanStartedAt })
     } catch (e) {
       console.warn('[emailScanner] onProgress callback threw:', e)
     }
@@ -1369,6 +1412,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       if (m && m.id) uniqueMessagesMap.set(m.id, m)
     }
     const uniqueMessages = Array.from(uniqueMessagesMap.values())
+    checkpoint('listing emails')
     emitProgress({ phase: 'listing', current: uniqueMessages.length, total: uniqueMessages.length })
 
     if (uniqueMessages.length === 0) {
@@ -1422,6 +1466,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         throw new Error('TOKEN_EXPIRED')
       }
       validDetails.push(...batchResults.filter(Boolean))
+      checkpoint(`fetching email ${validDetails.length} of ${uniqueMessages.length}`)
       emitProgress({ phase: 'fetching', current: validDetails.length, total: uniqueMessages.length })
     }
 
@@ -1434,6 +1479,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // default timeout, so an unbounded query here is a place the scan can stop
     // dead — and until this marker existed the UI still read "Reading email N
     // of N", making a stall here look identical to a stall in the fetch loop.
+    checkpoint('preparing (loading existing transactions, categories, merchant rules)')
     emitProgress({ phase: 'preparing', current: 0, total: 0 })
 
     // All three preloads are independent, so they run together rather than in
@@ -1625,11 +1671,13 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // Immediately, so the label changes the moment this stage begins rather
     // than only at the first yield — otherwise a stall in the first few emails
     // is indistinguishable from a stall in the previous stage.
+    checkpoint('sorting emails')
     emitProgress({ phase: 'filtering', current: 0, total: validDetails.length })
 
     let stageAProcessed = 0
     for (const mail of validDetails) {
       if (++stageAProcessed % STAGE_A_YIELD_EVERY === 0) {
+        checkpoint(`sorting email ${stageAProcessed} of ${validDetails.length}`)
         emitProgress({ phase: 'filtering', current: stageAProcessed, total: validDetails.length })
         await yieldToEventLoop()
       }
@@ -1731,6 +1779,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // One Gemini call per AI_BATCH_SIZE emails instead of one per email, with
     // a small number of batches in flight at once. This is what takes a
     // 50-email scan from ~100-160s of serial round trips down to ~15-25s.
+    checkpoint(`analyzing ${candidates.length} emails`)
     emitProgress({ phase: 'analyzing', current: 0, total: candidates.length })
     const aiVerdicts = await classifyCandidatesWithAI(candidates, askAIBatch, askAI, categoryNames, emitProgress)
 
@@ -1747,6 +1796,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       // not microtasks. Without this, Stage C blocks exactly as Stage A did,
       // while doing the heavier work of the full regex ladder per email.
       if (++stageCProcessed % STAGE_A_YIELD_EVERY === 0) {
+        checkpoint(`interpreting email ${stageCProcessed} of ${candidates.length}`)
         emitProgress({ phase: 'analyzing', current: stageCProcessed, total: candidates.length })
         await yieldToEventLoop()
       }
@@ -2211,6 +2261,10 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     } else {
       errorMessage = err.message || 'Gmail scan failed. Please try again.'
     }
+
+    // Name the stage. Without this a failed scan log says only that something
+    // went wrong, and the stage has to be guessed from a screenshot.
+    errorMessage += ` (stage: ${currentStage})`
 
     // Incremental flushing means a failure no longer implies nothing was
     // saved. Say so, otherwise the user re-runs assuming they lost everything.
