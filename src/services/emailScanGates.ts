@@ -81,8 +81,9 @@ export function evaluateRegexGates(
   }
 
   if (!isHardAccepted) {
-    const dueMatch = /\b(?:due|reminder|remind|upcoming|due\s+date|minimum\s+due|statement\s+for|payment\s+due|overdue|payable|bill\s+generated|statement\s+of|monthly\s+statement|e-?statement|estatement)\b/i.exec(emailContentForParsing)
-    if (dueMatch) return { rejected: true, gate: 'due_or_statement_reminder', snippet: dueMatch[0] }
+    const hasCompletedPaymentEvidence = hasDebitConfirmation || /\b(?:payment\s*(?:received|successful|done|completed|processed|towards|confirmation)|debited|spent|charged|credited|paid)\b/i.test(emailContentForParsing)
+    const dueMatch = /\b(?:reminder|remind|upcoming|due\s+date|minimum\s+due|payment\s+due|overdue|payable|bill\s+generated|monthly\s+statement|e-?statement|estatement)\b/i.exec(emailContentForParsing)
+    if (dueMatch && !hasCompletedPaymentEvidence) return { rejected: true, gate: 'due_or_statement_reminder', snippet: dueMatch[0] }
 
     const scheduledMatch = /(?:will\s+be\s+debited|scheduled\s+for|pay\s+before|auto-?debit\s+has\s+been\s+scheduled|is\s+scheduled\s+for)/i.exec(emailContentForParsing)
     if (scheduledMatch) return { rejected: true, gate: 'scheduled_future_debit', snippet: scheduledMatch[0] }

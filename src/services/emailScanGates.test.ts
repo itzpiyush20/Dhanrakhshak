@@ -343,3 +343,17 @@ describe('genuine transactions still survive every gate (over-blocking guard)', 
     expect(evaluateRegexGates('SIP debit', content, true).rejected).toBe(false)
   })
 })
+
+describe('credit card bill payment & spend alert gates', () => {
+  it('does not reject a credit card bill payment receipt when body contains statement/due words', () => {
+    const content = 'Payment of Rs 15,000 received towards SBI Credit Card ending 1234 on 12-08-2026. Total Amount Due: Rs 0.00. Statement date: 15th.'
+    const result = evaluateRegexGates('Payment Received for SBI Credit Card', content, false)
+    expect(result.rejected).toBe(false)
+  })
+
+  it('does not reject a credit card spend alert when body contains available limit and statement info', () => {
+    const content = 'Rs. 2,450.00 spent on your HDFC Bank Credit Card ending 5678 at Zomato. Available credit limit: Rs 1,45,000. View e-statement online.'
+    const result = evaluateRegexGates('Transaction alert for HDFC Credit Card', content, false)
+    expect(result.rejected).toBe(false)
+  })
+})

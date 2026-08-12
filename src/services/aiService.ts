@@ -379,7 +379,7 @@ function buildCategoryListText(categoryNames?: string[]): string {
  */
 const STRICT_RULES_BLOCK = `STRICT RULES — set is_transaction to FALSE for ALL of:
 - OTPs, login alerts, verification codes, security alerts
-- Payment reminders, bill generation, due dates, upcoming scheduled debits
+- Payment reminders (UPCOMING bills not yet paid), bill generation notices, due dates for future payments, upcoming scheduled debits
 - Declined, failed, cancelled, or reversed transactions
 - Promotional emails, cashback OFFERS (not credits), discount codes, coupons
 - Subscription or product marketing showing pricing tiers, percentage discounts ("save 41%"), struck-through "was" prices, or "Subscribe Now"/"Upgrade Now"/"Choose your plan" calls to action — an advertisement for a purchase the reader has NOT made is not a receipt, and its prices are not transaction amounts
@@ -391,10 +391,12 @@ const STRICT_RULES_BLOCK = `STRICT RULES — set is_transaction to FALSE for ALL
 - Any email where money movement is in FUTURE tense ("will be debited", "scheduled for")
 - Order confirmation / booking confirmation emails where actual charge is not yet confirmed
 - Marketing for savings products, investment products, wallet top-up offers, or cashback promotions. This covers ADVERTISEMENTS only — an actual SIP debit, mutual-fund purchase, dividend credit, interest credit or insurance premium payment IS a completed transaction and must be captured
-- Statements, summaries, or account overviews
+- Statements, summaries, or account overviews (with NO specific completed transaction reported)
 
 ONLY set is_transaction to TRUE when money has ALREADY moved (past tense):
-- Debited, credited, paid, transferred, withdrawn, charged, received (when bank is informing customer of credit), deposited, settled`
+- Debited, credited, paid, transferred, withdrawn, charged, received (when bank is informing customer of credit/payment received), deposited, settled
+- Completed Credit Card expenses and charges (e.g. "spent on card", "charged to card", "debited from credit card", "transaction alert for card")
+- Completed Credit Card bill payments (e.g. "payment received towards credit card", "credit card bill payment successful", "payment of Rs X processed for card")`
 
 /**
  * The extraction contract. `dateInstruction` differs between the single and

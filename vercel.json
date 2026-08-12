@@ -15,10 +15,6 @@
   ],
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    },
-    {
       "source": "/((?!api/|@|.*\\.[a-zA-Z0-9]+$).*)",
       "destination": "/index.html"
     }

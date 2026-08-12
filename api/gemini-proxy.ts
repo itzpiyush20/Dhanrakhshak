@@ -34,7 +34,9 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers.origin || ''
-  if (origin === ALLOWED_ORIGIN) {
+  if (origin && (origin.endsWith('.vercel.app') || origin.startsWith('http://localhost:') || origin === ALLOWED_ORIGIN)) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+  } else if (!origin) {
     res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
   }
   res.setHeader('Access-Control-Allow-Credentials', 'true')

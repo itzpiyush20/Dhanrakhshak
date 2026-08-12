@@ -49,7 +49,7 @@ const TRUSTED_SENDER_DOMAINS = new Set([
   'sbi.co.in', 'onlinesbi.com', 'sbicards.com', 'sbicard.com', 'sbicard.in',
   'pnb.co.in', 'punjabnationalbank.in', 'pnbcard.in',
   'canarabank.com', 'canarabank.in',
-  'bankofbaroda.in', 'bankofbaroda.com', 'bobibanking.com',
+  'bankofbaroda.in', 'bankofbaroda.com', 'bobibanking.com', 'bobcards.in',
   'bankofindia.co.in', 'bankofindia.com',
   'unionbankofindia.org', 'unionbankofindia.com', 'unionbank.co.in',
   'indianbank.in', 'indianbank.co.in',
@@ -76,7 +76,7 @@ const TRUSTED_SENDER_DOMAINS = new Set([
   'kvb.co.in', 'kvbmail.com',
   'karnatakabank.com', 'karnatakabank.co.in',
   // Credit Card Issuers
-  'sbicard.com', 'sbicards.com',
+  'sbicard.com', 'sbicards.com', 'sbicard.in',
   'citi.com', 'citibank.co.in', 'citibank.com',
   'americanexpress.com', 'aexp.com',
   'hsbc.co.in', 'hsbc.com',
@@ -135,15 +135,19 @@ const HARD_ACCEPT_SUBJECT_PATTERNS = [
   /\b(upi\s*transaction|upi\s*payment)\b/i,
   /\b(emi\s*debited|loan\s*emi)\b/i,
   /\b(refund\s*credited|refund\s*processed)\b/i,
-  // R2 additions. These subjects are unambiguous payment CONFIRMATIONS, and
-  // they need the hard-accept bypass for a specific reason: insurance and
-  // subscription confirmations routinely state the next due date ("Next due:
-  // 10-08-2027"), which trips the due_or_statement_reminder gate and rejected
-  // the entire class. Hard-accept is narrow enough to be safe here — a genuine
-  // reminder's subject does not say the premium was collected.
   /\bpremium\s*(?:successfully\s+)?(?:collected|paid|received)\b/i,
   /\bpremium\s*payment\s*(?:successful|received|confirmation)\b/i,
   /\bdividend\s*(?:credited|paid)\b/i,
+  // Credit Card Bill Payments & Card Transactions
+  /\bcredit\s*card\s*bill\s*(?:paid|payment|received|successful|confirmation)\b/i,
+  /\bcard\s*payment\s*(?:received|successful|confirmed|completed|towards|processed)\b/i,
+  /\bpayment\s*(?:received|successful|confirmed|completed|processed)\s*(?:towards|for)?\s*(?:your\s*)?(?:credit\s*)?card\b/i,
+  /\bcred\b.*(?:bill|payment)\b/i,
+  /\b(?:card|credit\s*card)\s*(?:transaction|spend|charge|alert|notification)\b/i,
+  /\btransaction\s*on\s*(?:your\s*)?(?:credit\s*)?card\b/i,
+  /\bcharge\s*on\s*(?:your\s*)?(?:credit\s*)?card\b/i,
+  /\bspend\s*on\s*(?:your\s*)?(?:card|sbi|hdfc|icici|axis|kotak|onecard|scapia|amex|diners|rupay)\b/i,
+  /\b(?:transaction|txn|debit|credit|payment|spend)\s*(?:alert|notification|update|confirmation)\b/i,
 ]
 
 // ============================================================
@@ -428,6 +432,11 @@ const KNOWN_MERCHANTS: { pattern: RegExp; name: string; category: string; descri
   { pattern: /swiggy\s*genie/i, name: 'Swiggy Genie', category: 'Transport', description: 'Swiggy Genie Delivery' },
   { pattern: /tata\s*cliq|tatacliq/i, name: 'Tata CLiQ', category: 'Shopping', description: 'Tata CLiQ Purchase' },
   { pattern: /lenskart/i, name: 'Lenskart', category: 'Health', description: 'Lenskart Eyewear' },
+  { pattern: /cred\b.*credit\s*card|credit\s*card\s*payment|card\s*payment\s*towards/i, name: 'Credit Card Payment', category: 'Utilities & Bills', description: 'Credit Card Bill Payment' },
+  { pattern: /sbi\s*card\s*payment|sbicard\s*payment/i, name: 'SBI Card Bill', category: 'Utilities & Bills', description: 'SBI Credit Card Bill Payment' },
+  { pattern: /hdfc\s*bank\s*credit\s*card\s*payment|hdfc\s*cc\s*payment/i, name: 'HDFC Credit Card Bill', category: 'Utilities & Bills', description: 'HDFC Credit Card Bill Payment' },
+  { pattern: /icici\s*bank\s*credit\s*card\s*payment|icici\s*cc\s*payment/i, name: 'ICICI Credit Card Bill', category: 'Utilities & Bills', description: 'ICICI Credit Card Bill Payment' },
+  { pattern: /axis\s*bank\s*credit\s*card\s*payment|axis\s*cc\s*payment/i, name: 'Axis Credit Card Bill', category: 'Utilities & Bills', description: 'Axis Credit Card Bill Payment' },
   { pattern: /classplus|unacademy|byjus|byju/i, name: 'EdTech Platform', category: 'Education', description: 'Online Education' },
 ]
 
@@ -470,7 +479,7 @@ type PaymentMode = 'upi' | 'credit_card' | 'debit_card' | 'neft' | 'rtgs' | 'imp
 
 function detectPaymentMode(text: string): PaymentMode {
   const t = text.toLowerCase()
-  if (/\bcredit\s*card\b|\bcc\b/.test(t)) return 'credit_card'
+  if (/\b(?:credit\s*card|cc|sbi\s*card|onecard|scapia|amex|american\s*express|rupay\s*credit|visa\s*credit|mastercard\s*credit|card\s*ending)\b/.test(t)) return 'credit_card'
   if (/\bdebit\s*card\b/.test(t)) return 'debit_card'
 
   const hasUpiVpa = (() => {
@@ -736,25 +745,20 @@ function extractEmailBody(mail: any): string {
     const bodyData = part.body?.data || ''
     // Bounded at the decode call, not after — see decodeBase64Url's comment.
     if (mimeType === 'text/plain' && bodyData) plainText += decodeBase64Url(bodyData, MAX_HTML_PARSE_CHARS) + '\n'
-    else if (mimeType === 'text/html' && bodyData) htmlText += decodeBase64Url(bodyData, MAX_HTML_PARSE_CHARS) + '\n'
+    else if (mimeType === 'text/html' && bodyData && !plainText) htmlText += decodeBase64Url(bodyData, MAX_HTML_PARSE_CHARS) + '\n'
     if (part.parts && Array.isArray(part.parts)) part.parts.forEach(traverseParts)
   }
 
   traverseParts(mail.payload)
   if (plainText.trim()) return plainText.trim()
   if (htmlText.trim()) {
-    // A genuine bank alert's HTML is a few KB; an image-heavy marketing
-    // template can run into hundreds of KB. Same reasoning as
-    // stripBoilerplate's tail bound: this caps the ONE thing that can make a
-    // single email expensive enough to block the main thread for seconds,
-    // which no per-email yield elsewhere in the scan can rescue. DOMParser
-    // handles a truncated/malformed document fine — browsers are lenient by
-    // design — so this only risks losing trailing footer text on already-huge
-    // marketing mail, never on a real transaction email.
     if (htmlText.length > MAX_HTML_PARSE_CHARS) htmlText = htmlText.slice(0, MAX_HTML_PARSE_CHARS)
     try {
-      const doc = new DOMParser().parseFromString(htmlText, 'text/html')
-      const textContent = doc.body.textContent || doc.body.innerText || ''
+      const textContent = htmlText
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
       if (textContent.trim()) return textContent.trim()
     } catch {
       const textContent = htmlText.replace(/<[^>]*>/g, ' ')
@@ -848,7 +852,7 @@ const PRELOAD_TIMEOUT_MS = 12000
  * exists to stop an abandoned scan running on invisibly and to make it record
  * the stage it died in.
  */
-const SCAN_DEADLINE_MS = 150000
+const SCAN_DEADLINE_MS = 300000
 
 /**
  * The subset of a Supabase list response the scan preloads actually read.
