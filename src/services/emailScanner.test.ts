@@ -1376,6 +1376,30 @@ describe('scanRealGmailInbox — progress reporting', () => {
     expect(timerFiredDuringScan).toBe(true)
   })
 
+  it('keeps yielding through Stage C, where the regex ladder runs', async () => {
+    // Stage C awaits absorbIntoExistingPayment, but that resolves
+    // synchronously whenever no merge partner is found — a microtask, which
+    // does NOT let the browser paint. Same freeze as Stage A had, in the
+    // stage that does more work per email.
+    const messages = Array.from({ length: 30 }, (_, i) => makeAxisEmiGmailMessage(`msg-stagec-${i}`))
+    mockGmail(messages)
+
+    let ticks = 0
+    const interval = setInterval(() => { ticks++ }, 1)
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb([], []),
+      activeYear: new Date().getUTCFullYear(),
+      // Resolves synchronously, so Stage B contributes no macrotask yields of
+      // its own — any ticks observed must come from Stage A and Stage C.
+      askAIBatch: async (emails) => new Map(emails.map((e) => [e.index, null])),
+    })
+    clearInterval(interval)
+
+    expect(ticks).toBeGreaterThan(0)
+  })
+
   it('reports filtering progress while sorting a large batch', async () => {
     const messages = Array.from({ length: 25 }, (_, i) => makeAxisEmiGmailMessage(`msg-filter-${i}`))
     mockGmail(messages)

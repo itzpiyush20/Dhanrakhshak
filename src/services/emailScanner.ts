@@ -1675,7 +1675,19 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // Unchanged logic: take the AI verdict (or its absence) and run the same
     // AI-result handling and regex ladder as before. Everything here is cheap
     // and stays sequential so accumulation order is deterministic.
+    let stageCProcessed = 0
     for (const candidate of candidates) {
+      // Same macrotask yield as Stage A, and needed for the same reason. The
+      // `await absorbIntoExistingPayment(...)` below looks like it yields, but
+      // on the common path (no merge partner found) it resolves synchronously,
+      // which only queues a MICROtask — and browsers paint between macrotasks,
+      // not microtasks. Without this, Stage C blocks exactly as Stage A did,
+      // while doing the heavier work of the full regex ladder per email.
+      if (++stageCProcessed % STAGE_A_YIELD_EVERY === 0) {
+        emitProgress({ phase: 'analyzing', current: stageCProcessed, total: candidates.length })
+        await yieldToEventLoop()
+      }
+
       // `mail` and `strippedBodyText` are deliberately not destructured here:
       // both are consumed in Stage A (header/body extraction) and Stage B (the
       // AI prompt), and nothing in Stage C reads them.
