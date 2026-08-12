@@ -59,8 +59,8 @@ export function evaluateRegexGates(
   // Deliberately narrow: only unambiguous offer constructions. Broader phrasing
   // like "you are eligible for" was considered and rejected — genuine receipts
   // say things like "eligible for free delivery".
-  const hasDebitConfirmation = /\b(?:debited|charged|deducted|payment\s*(?:successful|done|completed|received|processed|confirmed)|amount\s*debited)\b/i.test(emailContentForParsing)
-  const hasCompletedPaymentEvidence = hasDebitConfirmation || /\b(?:payment\s*(?:received|successful|done|completed|processed|towards|confirmation)|debited|spent|charged|credited|paid)\b/i.test(emailContentForParsing)
+  const hasDebitConfirmation = /\b(?:debited|charged|deducted|payment\s*(?:is|was|has\s+been)?\s*(?:successful|done|completed|received|processed|confirmed)|amount\s*debited)\b/i.test(emailContentForParsing)
+  const hasCompletedPaymentEvidence = hasDebitConfirmation || /\b(?:payment\s*(?:is|was|has\s+been)?\s*(?:received|successful|done|completed|processed|towards|confirmation)|debited|spent|charged|credited|paid)\b/i.test(emailContentForParsing)
 
   const offerMatch = /\bpre[-\s]?(?:approved|qualified|sanctioned)\b|\b(?:credit\s+)?limit\s+(?:has\s+been\s+)?(?:increased|enhanced|upgraded)\b|\bloan\s+offer\b/i.exec(emailContentForParsing)
   if (offerMatch) return { rejected: true, gate: 'offer_or_pre_approval', snippet: offerMatch[0] }
@@ -150,10 +150,11 @@ const PAYMENT_ASSERTION_PATTERNS: RegExp[] = [
   /\bsub\s*total\b/i,
   /\btotal\b/i,
   /\bamount\s+paid\b/i,
-  /\bpayment\s+(?:of|successful|received|confirmed|done|completed|processed|towards)\b/i,
-  /\bcard\s*payment\s*(?:successful|received|done|completed|processed|confirmed|towards)?\b/i,
+  /\bpayment\s*(?:is|was|has\s+been)?\s*(?:of|successful|received|confirmed|done|completed|processed|towards)\b/i,
+  /\bcard\s*payment\s*(?:is|was|has\s+been)?\s*(?:successful|received|done|completed|processed|confirmed|towards)?\b/i,
   /\bcredit\s*card\s*(?:bill\s*)?payment\b/i,
-  /\bbill\s*payment\s*(?:successful|received|done|completed|processed)?\b/i,
+  /\bbill\s*payment\s*(?:is|was|has\s+been)?\s*(?:successful|received|done|completed|processed|confirmed)?\b/i,
+  /\bpayment\s*(?:is|was|has\s+been)?\s*(?:received|successful|confirmed|completed|processed)\s*(?:towards|for)?\s*(?:your\s*)?(?:credit\s*)?card\b/i,
   /\bfare\b/i,
   /\btxn\b/i,
   /\btransaction\s+id\b/i,

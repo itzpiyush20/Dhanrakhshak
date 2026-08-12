@@ -84,6 +84,17 @@ describe('evaluateRegexGates', () => {
     const result = evaluateRegexGates('Order Confirmation', content, false)
     expect(result.rejected).toBe(false)
   })
+
+  it('does not reject credit card bill payment confirmation with "was successful"', () => {
+    const content = 'Piyush, here is your payment confirmation. Your credit card payment of Rs 15,000 was successful. Do not share your OTP with anyone.'
+    const result = evaluateRegexGates('your credit card bill payment was successful', content, true)
+    expect(result.rejected).toBe(false)
+  })
+
+  it('hasPaymentAssertion returns true for "payment was successful" and "credit card bill payment"', () => {
+    expect(hasPaymentAssertion('your credit card bill payment was successful')).toBe(true)
+    expect(hasPaymentAssertion('Payment of Rs 15000 was successful towards your SBI Card')).toBe(true)
+  })
 })
 
 describe('logRejection', () => {
