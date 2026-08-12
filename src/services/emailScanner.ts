@@ -86,20 +86,25 @@ const TRUSTED_SENDER_DOMAINS = new Set([
   'paytm.com', 'paytmbank.com',
   'amazonpay.in',
   'googlepay.com', 'google.com',
-  'cred.club',
+  'cred.club', 'cred.in',
   'razorpay.com',
   'cashfree.com',
+  'billdesk.com', 'billdesk.co.in',
+  'payu.in', 'payu.com',
+  'ccavenue.com',
   'mobikwik.com',
   'freecharge.in',
   'jiomoney.com',
   'nsdl.co.in',
   'npci.org.in',
   'onecard.in', 'getonecard.app',
-  'sliceit.com',
+  'sliceit.com', 'slice.in', 'slice.club',
   'uni.cards', 'unicards.in',
   'scapia.cards', 'scapia.app',
   'jupiter.money',
   'fi.money',
+  'super.money',
+  'pop.money',
   // Notifications / alerts subdomains (common pattern)
   'alerts.hdfcbank.com', 'alerts.icicibank.com', 'alerts.axisbank.com',
   // IRCTC / Railways
@@ -656,7 +661,8 @@ interface ConfidenceSignals {
 
 function computeConfidence(signals: ConfidenceSignals): number {
   let score = 0
-  if (signals.trustedSender) score += 35
+  const isEffectivelyTrusted = signals.trustedSender || signals.hardAcceptSubject || signals.hasReferenceId
+  if (isEffectivelyTrusted) score += 35
   if (signals.hardAcceptSubject) score += 20
   if (signals.hasTransactionKeyword) score += 20
   if (signals.hasAmount) score += 15
@@ -665,7 +671,7 @@ function computeConfidence(signals: ConfidenceSignals): number {
   if (signals.hasReferenceId) score += 5
   if (signals.debitCreditClear) score += 5
 
-  if (!signals.trustedSender) {
+  if (!isEffectivelyTrusted) {
     score -= 15
   }
   if (signals.isLargeAmount) score -= 5
