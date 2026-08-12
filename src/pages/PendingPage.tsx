@@ -381,7 +381,15 @@ export default function PendingPage() {
         .limit(1)
 
       const lastScan = scanLogs && scanLogs.length > 0 ? new Date(scanLogs[0].scanned_at) : null
-      if (lastScan) setLastScanLog(scanLogs![0])
+      // Deliberately does NOT call setLastScanLog. This query is filtered to
+      // status='success' because the inactivity/auto-sync decisions below need
+      // the last SUCCESSFUL scan — but it used to also drive the "Last Scan"
+      // card, racing fetchLastScanLog (which is unfiltered) on mount and
+      // usually winning. The card was therefore pinned to the last successful
+      // scan, so a failing scan showed nothing at all: its row was hidden here,
+      // and its error banner was lost on the next refresh. The card renders
+      // `status === 'failed' && error_message`, which is the whole diagnostic —
+      // it just never got the failed row to render.
 
       const now = new Date()
 
