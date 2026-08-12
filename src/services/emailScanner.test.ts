@@ -1272,3 +1272,251 @@ describe('scanRealGmailInbox — quota enforcement', () => {
     expect(inserted[0].scan_mode).toBe('scheduled')
   })
 })
+
+// ============================================================
+// Phase 2 — visible progress and durable partial results.
+//
+// Before this, nothing was written until the whole per-email loop finished, so
+// a scan that timed out at email 40 of 50 saved NOTHING and the retry re-paid
+// the AI cost for every one of them.
+// ============================================================
+
+describe('scanRealGmailInbox — progress reporting', () => {
+  function mockGmail(messages: any[]) {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  }
+
+  it('reports listing, fetching, analyzing and saving in order', async () => {
+    const messages = Array.from({ length: 3 }, (_, i) => makeAxisEmiGmailMessage(`msg-prog-${i}`))
+    mockGmail(messages)
+
+    const phases: string[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb([], []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+      onProgress: (p) => phases.push(p.phase),
+    })
+
+    expect(phases[0]).toBe('listing')
+    expect(phases).toContain('fetching')
+    expect(phases).toContain('analyzing')
+    expect(phases).toContain('saving')
+    // Phases never run backwards.
+    const order = ['listing', 'fetching', 'analyzing', 'saving']
+    const seen = phases.map((p) => order.indexOf(p))
+    expect(seen).toEqual([...seen].sort((a, b) => a - b))
+  })
+
+  it('reports totals that match the mail actually found', async () => {
+    const messages = Array.from({ length: 4 }, (_, i) => makeAxisEmiGmailMessage(`msg-total-${i}`))
+    mockGmail(messages)
+
+    const events: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb([], []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+      onProgress: (p) => events.push(p),
+    })
+
+    expect(events.find((e) => e.phase === 'listing').total).toBe(4)
+    const fetching = events.filter((e) => e.phase === 'fetching')
+    expect(fetching[fetching.length - 1].current).toBe(4)
+  })
+
+  it('does not fail the scan when the progress callback throws', async () => {
+    mockGmail([makeAxisEmiGmailMessage('msg-throwing-cb')])
+
+    const insertedTransactions: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(insertedTransactions, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+      onProgress: () => { throw new Error('UI blew up') },
+    })
+
+    expect(result.error).toBeNull()
+    expect(insertedTransactions.flat()).toHaveLength(1)
+  })
+
+  it('formats each phase into readable copy', async () => {
+    const { formatScanProgress } = await import('./emailScanner')
+    expect(formatScanProgress({ phase: 'listing', current: 0, total: 0 })).toMatch(/No new emails/i)
+    expect(formatScanProgress({ phase: 'listing', current: 7, total: 7 })).toMatch(/Found 7 emails/i)
+    expect(formatScanProgress({ phase: 'fetching', current: 3, total: 9 })).toMatch(/Reading email 3 of 9/i)
+    expect(formatScanProgress({ phase: 'analyzing', current: 5, total: 9 })).toMatch(/Analyzing email 5 of 9/i)
+    expect(formatScanProgress({ phase: 'saving', current: 2, total: 9 })).toMatch(/Saving/i)
+  })
+})
+
+describe('scanRealGmailInbox — incremental inserts keep partial results', () => {
+  it('writes transactions in chunks rather than one insert at the end', async () => {
+    // 25 parsed transactions at a chunk size of 10 → 3 writes, not 1.
+    const messages = Array.from({ length: 25 }, (_, i) => makeAxisEmiGmailMessage(`msg-chunk-${i}`))
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const insertCalls: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(insertCalls, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    const batches = insertCalls.filter((rows) => Array.isArray(rows))
+    expect(batches.length).toBeGreaterThan(1)
+    expect(insertCalls.flat()).toHaveLength(25)
+  })
+
+  it('keeps already-flushed transactions when the scan dies partway, and says so', async () => {
+    const messages = Array.from({ length: 25 }, (_, i) => makeAxisEmiGmailMessage(`msg-die-${i}`))
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const persisted: any[] = []
+    let writes = 0
+    const chain = (payload: any): any => {
+      const h: any = {
+        select: () => h, eq: () => h, order: () => h, gte: () => h, limit: () => h,
+        single: () => Promise.resolve({ data: null, error: null }),
+        insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }), then: (r: any) => r({ data: [], error: null }) }),
+        then: (r: any) => r(payload),
+      }
+      return h
+    }
+    const mockDb: any = {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } } }) },
+      from: (table: string) => {
+        if (table === 'categories') return chain({ data: [{ name: 'Other', is_permanent: true }], error: null })
+        if (table === 'transactions') {
+          const h = chain({ data: [], error: null })
+          h.insert = (rows: any) => {
+            const arr = Array.isArray(rows) ? rows : [rows]
+            writes++
+            // Second chunk hits an unrecoverable database error.
+            if (writes === 2) {
+              return { select: () => Promise.resolve({ data: null, error: { code: '08006', message: 'connection failure' } }) }
+            }
+            persisted.push(...arr)
+            return { select: () => Promise.resolve({ data: arr, error: null }) }
+          }
+          return h
+        }
+        return chain({ data: [], error: null })
+      },
+    }
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    // The scan fails...
+    expect(result.error).not.toBeNull()
+    // ...but the first chunk survived, instead of the whole scan being lost.
+    expect(persisted).toHaveLength(10)
+    // ...and the user is told, so they don't assume they lost everything.
+    expect(result.error!.message).toMatch(/10 transactions found before the error were already saved/i)
+  })
+
+  it('still isolates a unique-constraint conflict within a chunk', async () => {
+    // The 23505 row-by-row fallback must survive being moved into the shared
+    // chunk helper — it is what makes concurrent and retried scans safe.
+    const messages = Array.from({ length: 3 }, (_, i) => makeAxisEmiGmailMessage(`msg-conflict-${i}`))
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const perRow: any[] = []
+    let perRowAttempts = 0
+    const chain = (payload: any): any => {
+      const h: any = {
+        select: () => h, eq: () => h, order: () => h, gte: () => h, limit: () => h,
+        single: () => Promise.resolve({ data: null, error: null }),
+        insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }), then: (r: any) => r({ data: [], error: null }) }),
+        then: (r: any) => r(payload),
+      }
+      return h
+    }
+    const mockDb: any = {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } } }) },
+      from: (table: string) => {
+        if (table === 'categories') return chain({ data: [{ name: 'Other', is_permanent: true }], error: null })
+        if (table === 'transactions') {
+          const h = chain({ data: [], error: null })
+          h.insert = (rows: any) => {
+            const arr = Array.isArray(rows) ? rows : [rows]
+            if (arr.length > 1) {
+              return { select: () => Promise.resolve({ data: null, error: { code: '23505', message: 'duplicate key' } }) }
+            }
+            // Per-row retry: exactly the SECOND row was already inserted by a
+            // concurrent scan; the first and third must still go through.
+            perRowAttempts++
+            if (perRowAttempts === 2) {
+              return { select: () => Promise.resolve({ data: null, error: { code: '23505', message: 'duplicate key' } }) }
+            }
+            perRow.push(arr[0])
+            return { select: () => Promise.resolve({ data: arr, error: null }) }
+          }
+          return h
+        }
+        return chain({ data: [], error: null })
+      },
+    }
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    // One row conflicted and was skipped; the others were kept.
+    expect(perRow).toHaveLength(2)
+  })
+})

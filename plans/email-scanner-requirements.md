@@ -231,8 +231,9 @@ Dependencies matter more than size here.
    or duplicates get worse.
 7. **D6** (multi-currency) — independent; sequence by owner priority.
 8. **D7** (rejection logging for missing amounts) — trivial, anytime.
-9. **Performance Phase 2** (progress + incremental inserts) — do before D3 if first-scan
-   volume grows enough to risk timeouts.
+9. ~~**Performance Phase 2** (progress + incremental inserts)~~ — **DONE**, moved ahead of
+   D3 at the owner's direction: incremental flushing is what stops a larger post-D3 scan
+   from losing everything if it dies partway.
 
 ---
 

@@ -18,6 +18,7 @@ import {
   getLastScheduledRefreshTime,
   applyMerchantRules,
   getManualScanQuota,
+  formatScanProgress,
 } from '@/services'
 import { saveMerchantRuleToDb } from '@/services/learningEngine'
 import { useAuth } from '@/context/AuthContext'
@@ -190,8 +191,10 @@ export default function PendingPage() {
 
   // Shows a "still working" hint once a scan runs past a few seconds, so a
   // legitimately slow scan (large inbox, many AI classification calls) isn't
-  // indistinguishable from a frozen one.
+  // indistinguishable from a frozen one. Superseded by live progress as soon
+  // as the engine reports its first phase.
   const [scanTakingLong, setScanTakingLong] = useState(false)
+  const [scanProgress, setScanProgress] = useState<string | null>(null)
 
   // ── Fetch last scan log ──────────────────────────────────
   const fetchLastScanLog = useCallback(async () => {
@@ -651,6 +654,7 @@ export default function PendingPage() {
 
   const handleScan = async () => {
     setScanning(true)
+    setScanProgress(null)
     setScanSuccessMessage(null)
     setScanCooldownMessage(null)
     setError(null)
@@ -663,7 +667,11 @@ export default function PendingPage() {
         return
       }
 
-      const res = await withTimeout(scanRealGmailInbox(), 90000, 'Gmail scan')
+      const res = await withTimeout(
+        scanRealGmailInbox({ onProgress: (p) => setScanProgress(formatScanProgress(p)) }),
+        90000,
+        'Gmail scan'
+      )
 
       if (res.error) {
         const msg = res.error.message || ''
@@ -709,9 +717,18 @@ export default function PendingPage() {
       await fetchUnconfirmedCategorizations()
     } catch (err: any) {
       console.error('Scan error:', err)
-      setError(err.message || 'Scan failed. Please try again.')
+      const msg: string = err.message || 'Scan failed. Please try again.'
+      // withTimeout's generic copy tells the user to refresh the page, which is
+      // wrong advice here — the scan keeps running, and thanks to incremental
+      // flushing whatever it already found is saved.
+      setError(
+        msg.includes('timed out')
+          ? 'Scan is taking longer than expected. Anything already found has been saved — scan again to pick up where it left off.'
+          : msg
+      )
     } finally {
       setScanning(false)
+      setScanProgress(null)
     }
   }
 
@@ -807,9 +824,9 @@ export default function PendingPage() {
                 <Sparkles className="h-4 w-4 text-brand-300" /> Scan Bank Alerts
               </Button>
             </div>
-            {(scanning || syncingBackground) && scanTakingLong ? (
+            {(scanning || syncingBackground) && (scanProgress || scanTakingLong) ? (
               <span role="status" className="text-xs text-zinc-500">
-                Still scanning your inbox — large inboxes can take up to a minute…
+                {scanProgress ?? 'Still scanning your inbox — large inboxes can take up to a minute…'}
               </span>
             ) : (
               <span className="text-xs font-semibold text-brand-300 font-mono bg-surface-2 border border-border-subtle/50 px-2 py-0.5 rounded-md flex items-center gap-1">

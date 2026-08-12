@@ -43,6 +43,7 @@ import {
   getNextRefreshTime,
   getLastScheduledRefreshTime,
   scanRealGmailInbox,
+  formatScanProgress,
   seedSandboxData,
 } from '@/services'
 import { migrateLocalStorageRulesToDB } from '@/services/learningEngine'
@@ -163,7 +164,9 @@ export default function DashboardPage() {
   const [syncError, setSyncError] = useState<string | null>(null)
   // Shows a "still working" hint once a manual sync runs past a few seconds,
   // so a legitimately slow scan isn't indistinguishable from a frozen one.
+  // Superseded by live progress once the engine reports its first phase.
   const [scanTakingLong, setScanTakingLong] = useState(false)
+  const [scanProgress, setScanProgress] = useState<string | null>(null)
 
   // Widget customization states
   const [showConfigModal, setShowConfigModal] = useState(false)
@@ -524,6 +527,7 @@ export default function DashboardPage() {
 
   const handleManualBannerSync = async () => {
     setSyncingBackground(true)
+    setScanProgress(null)
     setSyncError(null)
     try {
       // Use hasGoogleToken from AuthContext — same reactive source as PendingPage
@@ -532,7 +536,11 @@ export default function DashboardPage() {
         return
       }
 
-      const res = await withTimeout(scanRealGmailInbox(), 90000, 'Gmail scan')
+      const res = await withTimeout(
+        scanRealGmailInbox({ onProgress: (p) => setScanProgress(formatScanProgress(p)) }),
+        90000,
+        'Gmail scan'
+      )
       if (res.error) {
         // If token expired, update AuthContext state so the whole app knows
         if (res.error.message?.includes('expired') || res.error.message?.includes('TOKEN_EXPIRED')) {
@@ -570,9 +578,17 @@ export default function DashboardPage() {
       })
       fetchDashboardData(dateFilter)
     } catch (e: any) {
-      setSyncError(e.message || 'Sync failed. Please try again.')
+      const msg: string = e.message || 'Sync failed. Please try again.'
+      // withTimeout's generic copy says to refresh the page; wrong here, since
+      // the scan keeps running and incremental flushing preserves its results.
+      setSyncError(
+        msg.includes('timed out')
+          ? 'Sync is taking longer than expected. Anything already found has been saved — sync again to pick up where it left off.'
+          : msg
+      )
     } finally {
       setSyncingBackground(false)
+      setScanProgress(null)
     }
   }
 
@@ -754,9 +770,9 @@ export default function DashboardPage() {
                       ? `Your transaction tracker is active in full trial mode. Last sync: ${lastScanTime ? lastScanTime.toLocaleString('en-IN') : 'Never'}. Click Sync Now to fetch new alerts.`
                       : `Your transaction tracker has not refreshed in the last 24 hours (last sync: ${lastScanTime ? lastScanTime.toLocaleString('en-IN') : 'Never'}). Click Sync Now to import the latest bank alerts.`}
                   </p>
-                  {syncingBackground && scanTakingLong && (
+                  {syncingBackground && (scanProgress || scanTakingLong) && (
                     <p role="status" className="text-xs text-zinc-500 mt-1">
-                      Still syncing — large inboxes can take up to a minute…
+                      {scanProgress ?? 'Still syncing — large inboxes can take up to a minute…'}
                     </p>
                   )}
                 </div>

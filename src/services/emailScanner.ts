@@ -812,6 +812,72 @@ export function resolveManualScanLimit(isOwner: boolean, isPremium: boolean): nu
   return isPremium ? PREMIUM_MANUAL_SCANS_PER_DAY : FREE_MANUAL_SCANS_PER_DAY
 }
 
+/** Transactions written per flush. Small enough that a dying scan loses little. */
+const INSERT_CHUNK_SIZE = 10
+
+/**
+ * Insert a chunk of transactions, isolating the batch from a single
+ * conflicting row. Extracted so the incremental flushes and the final flush
+ * share one implementation.
+ *
+ * The 23505 fallback is load-bearing for concurrent and retried scans — do not
+ * simplify it away.
+ */
+async function insertTransactionsChunk(db: SupabaseClient, rows: TransactionInsert[]): Promise<any[]> {
+  if (rows.length === 0) return []
+
+  const { data: batchInserted, error: batchError } = await db.from('transactions').insert(rows).select()
+  if (!batchError) return batchInserted || []
+
+  // 23505 = Postgres unique_violation. transactions_email_message_id_user_id_key
+  // (schema.sql:493-495) exists precisely to stop two concurrent scans from
+  // double-inserting the same email — but a batch insert throws on the WHOLE
+  // batch if even one row trips it, discarding every unrelated legitimate
+  // transaction alongside it. Fall back to inserting row-by-row so only the
+  // actually-conflicting row (already inserted by the other scan) is skipped.
+  if (batchError.code === '23505') {
+    const inserted: any[] = []
+    for (const txn of rows) {
+      const { data: rowData, error: rowError } = await db.from('transactions').insert(txn).select()
+      if (rowError) {
+        if (rowError.code === '23505') continue // already inserted by a concurrent scan — not a fault
+        throw rowError // any other error on an individual row still fails loud
+      }
+      if (rowData) inserted.push(...rowData)
+    }
+    return inserted
+  }
+
+  throw batchError // non-conflict error — unchanged fail-loud behavior
+}
+
+/** Progress signal emitted during a scan so the UI can show real state. */
+export interface ScanProgress {
+  phase: 'listing' | 'fetching' | 'analyzing' | 'saving'
+  current: number
+  total: number
+}
+
+/**
+ * Human-readable one-liner for a progress event, shared by both scan buttons
+ * so they describe the same scan the same way.
+ */
+export function formatScanProgress(p: ScanProgress): string {
+  const seen = Math.min(p.current, p.total)
+  switch (p.phase) {
+    case 'listing':
+      return p.total === 0
+        ? 'No new emails to check…'
+        : `Found ${p.total} email${p.total === 1 ? '' : 's'} to check…`
+    case 'fetching':
+      return `Reading email ${seen} of ${p.total}…`
+    case 'analyzing':
+      return `Analyzing email ${seen} of ${p.total}…`
+    case 'saving':
+      return 'Saving transactions…'
+  }
+}
+
 /** Successful manual scans inside the rolling window, newest first. */
 async function fetchRecentManualScanTimes(db: SupabaseClient, userId: string): Promise<string[]> {
   const windowStart = new Date(Date.now() - MANUAL_QUOTA_WINDOW_MS).toISOString()
@@ -887,7 +953,8 @@ async function classifyCandidatesWithAI(
   candidates: ScanCandidate[],
   askAIBatch: NonNullable<ScanGmailOptions['askAIBatch']>,
   askAI: NonNullable<ScanGmailOptions['askAI']>,
-  categoryNames: string[]
+  categoryNames: string[],
+  emitProgress: (p: ScanProgress) => void = () => {}
 ): Promise<Map<string, AITransactionResult | null>> {
   const verdicts = new Map<string, AITransactionResult | null>()
   if (candidates.length === 0) return verdicts
@@ -929,6 +996,7 @@ async function classifyCandidatesWithAI(
     for (const { chunk, byIndex } of settled) {
       chunk.forEach((c, idx) => verdicts.set(c.mailMessageId, byIndex.get(idx) ?? null))
     }
+    emitProgress({ phase: 'analyzing', current: verdicts.size, total: candidates.length })
   }
 
   return verdicts
@@ -965,6 +1033,13 @@ export interface ScanGmailOptions {
    * allowance. Defaults to 'manual'.
    */
   scanMode?: 'manual' | 'scheduled'
+  /**
+   * Progress reporter, so the UI can show real state instead of an
+   * indeterminate spinner. Invoked on the listing, fetching, analyzing and
+   * saving phases. Exceptions thrown here are swallowed — a broken progress
+   * indicator must never fail a scan.
+   */
+  onProgress?: (progress: ScanProgress) => void
 }
 
 export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
@@ -1025,6 +1100,20 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     return {
       data: null,
       error: new Error('Gmail Inbox not connected. Please click "Connect Gmail Inbox" on the Pending Alerts page to authorise Gmail scanning.'),
+    }
+  }
+
+  // Declared outside the try so the catch can report how much survived an
+  // interrupted scan — with incremental flushing, "it failed" no longer means
+  // "nothing was saved".
+  const insertedTxns: any[] = []
+
+  /** Never let a UI callback's failure break a scan. */
+  const emitProgress = (p: ScanProgress) => {
+    try {
+      opts?.onProgress?.(p)
+    } catch (e) {
+      console.warn('[emailScanner] onProgress callback threw:', e)
     }
   }
 
@@ -1190,6 +1279,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       if (m && m.id) uniqueMessagesMap.set(m.id, m)
     }
     const uniqueMessages = Array.from(uniqueMessagesMap.values())
+    emitProgress({ phase: 'listing', current: uniqueMessages.length, total: uniqueMessages.length })
 
     if (uniqueMessages.length === 0) {
       const { data: log } = await supabase
@@ -1242,6 +1332,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         throw new Error('TOKEN_EXPIRED')
       }
       validDetails.push(...batchResults.filter(Boolean))
+      emitProgress({ phase: 'fetching', current: validDetails.length, total: uniqueMessages.length })
     }
 
     const { data: existingTxns, error: existingTxnsError } = await supabase
@@ -1277,7 +1368,19 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // mid-scan.
     const merchantRules = await getMerchantRulesFromDB(user.id, supabase)
 
+    // Everything parsed this scan, for the counts on the scan log.
     const transactionsToInsert: TransactionInsert[] = []
+    // Parsed but not yet written. Drained by flushPending().
+    let pendingFlush: TransactionInsert[] = []
+
+    const flushPending = async () => {
+      if (pendingFlush.length === 0) return
+      const rows = pendingFlush
+      pendingFlush = []
+      emitProgress({ phase: 'saving', current: insertedTxns.length, total: transactionsToInsert.length })
+      insertedTxns.push(...(await insertTransactionsChunk(supabase, rows)))
+    }
+
     // Renamed from skippedConfidence: these emails are no longer skipped —
     // they're inserted as pending transactions with their low score
     // preserved, so the name should say what actually happens to them now.
@@ -1389,7 +1492,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // One Gemini call per AI_BATCH_SIZE emails instead of one per email, with
     // a small number of batches in flight at once. This is what takes a
     // 50-email scan from ~100-160s of serial round trips down to ~15-25s.
-    const aiVerdicts = await classifyCandidatesWithAI(candidates, askAIBatch, askAI, categoryNames)
+    const aiVerdicts = await classifyCandidatesWithAI(candidates, askAIBatch, askAI, categoryNames, emitProgress)
 
     // ── Stage C — per-email interpretation ───────────────────────────
     // Unchanged logic: take the AI verdict (or its absence) and run the same
@@ -1752,8 +1855,17 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
 
       if (parsedTxn) {
         transactionsToInsert.push(parsedTxn)
+        pendingFlush.push(parsedTxn)
+        // Write as we go. Previously nothing was saved until the whole loop
+        // finished, so a scan that timed out at email 40 of 50 saved NOTHING
+        // and the retry re-paid the AI cost for every one of them. Flushing in
+        // chunks means an interrupted scan keeps what it already found, and
+        // the retry skips those by dedup.
+        if (pendingFlush.length >= INSERT_CHUNK_SIZE) await flushPending()
       }
     }
+
+    await flushPending()
 
     if (transactionsToInsert.length === 0) {
       const { data: log } = await supabase
@@ -1771,37 +1883,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       return { data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0 }, error: null }
     }
 
-    let insertedTxns: any[] = []
-    const { data: batchInsertedTxns, error: batchTxnError } = await supabase
-      .from('transactions')
-      .insert(transactionsToInsert)
-      .select()
-
-    if (batchTxnError) {
-      // 23505 = Postgres unique_violation. transactions_email_message_id_user_id_key
-      // (schema.sql:493-495) exists precisely to stop two concurrent scans from
-      // double-inserting the same email — but a batch insert throws on the WHOLE
-      // batch if even one row trips it, discarding every unrelated legitimate
-      // transaction alongside it. Fall back to inserting row-by-row so only the
-      // actually-conflicting row (already inserted by the other scan) is skipped.
-      if (batchTxnError.code === '23505') {
-        for (const txn of transactionsToInsert) {
-          const { data: rowData, error: rowError } = await supabase
-            .from('transactions')
-            .insert(txn)
-            .select()
-          if (rowError) {
-            if (rowError.code === '23505') continue // already inserted by a concurrent scan — not a fault
-            throw rowError // any other error on an individual row still fails loud
-          }
-          if (rowData) insertedTxns.push(...rowData)
-        }
-      } else {
-        throw batchTxnError // non-conflict error — unchanged fail-loud behavior
-      }
-    } else {
-      insertedTxns = batchInsertedTxns || []
-    }
+    // Rows are already written — Stage C flushed them in chunks as it went.
 
     try {
       // Cards sync disabled
@@ -1845,6 +1927,13 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       errorMessage = 'Could not reach Google APIs. Check your internet connection or disable any ad-blockers / Brave shields that may be blocking Google requests.'
     } else {
       errorMessage = err.message || 'Gmail scan failed. Please try again.'
+    }
+
+    // Incremental flushing means a failure no longer implies nothing was
+    // saved. Say so, otherwise the user re-runs assuming they lost everything.
+    if (insertedTxns.length > 0) {
+      const n = insertedTxns.length
+      errorMessage += ` ${n} transaction${n === 1 ? '' : 's'} found before the error ${n === 1 ? 'was' : 'were'} already saved.`
     }
 
     if (!opts?.userId) {

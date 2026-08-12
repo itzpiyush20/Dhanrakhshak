@@ -85,7 +85,7 @@ crucial feature — is the scan most likely to time out. That is the bug behind
 
 ---
 
-## Phase 1 — Make the scan fast (batch AI + hoist rules)
+## Phase 1 — Make the scan fast (batch AI + hoist rules)  ✅ DONE
 
 **Goal:** 50-email scan drops from ~100-160s to ~15-25s. No behavioral change to
 classification outcomes other than speed and fewer quota units burned.
@@ -189,7 +189,7 @@ pins the limit.
 
 ---
 
-## Phase 2 — Make progress visible and partial results durable
+## Phase 2 — Make progress visible and partial results durable  ✅ DONE
 
 **Goal:** the user watches the scan happen, and a scan that dies mid-way keeps
 everything found so far. This replaces the static 6s hint with the real thing.
