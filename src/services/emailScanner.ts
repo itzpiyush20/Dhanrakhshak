@@ -87,6 +87,7 @@ const TRUSTED_SENDER_DOMAINS = new Set([
   'amazonpay.in',
   'googlepay.com', 'google.com',
   'cred.club', 'cred.in',
+  'cheq.one', 'cheq.in',
   'razorpay.com',
   'cashfree.com',
   'billdesk.com', 'billdesk.co.in',
@@ -2192,6 +2193,13 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           const precedingText = emailContentForParsing.substring(preStart, m.index).toLowerCase()
           const postEnd = Math.min(emailContentForParsing.length, m.index + m.text.length + 50)
           const succeedingText = emailContentForParsing.substring(m.index + m.text.length, postEnd).toLowerCase()
+          const isPaymentOrPaidAmount = /\b(?:payment\s*(?:of|received|successful|done|completed|towards|credited|processed)?|paid|received|debited|spent|credited)\b/i.test(precedingText)
+
+          if (isPaymentOrPaidAmount) {
+            return !(/avail(?:able)?\s+limit|credit\s+limit|reward\s+points/i.test(precedingText) ||
+              /avail(?:able)?\s+limit|reward\s+points/i.test(succeedingText))
+          }
+
           return !(/bal(?:ance)?|avail(?:able)?|limit|outstanding|ledger|total\s+due|minimum\s+due|reward|cashback\s+of|earn|bonus/i.test(precedingText) ||
             /bal(?:ance)?|avail(?:able)?|limit|outstanding|ledger|reward|bonus/i.test(succeedingText))
         })
@@ -2247,7 +2255,8 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         const debitWords = [
           'debited', 'debited for', 'spent', 'paid', 'paid to', 'withdrawn', 'charged',
           'payment to', 'sent to', 'transfer to', 'purchased at', 'debit',
-          'order placed', 'checkout', 'billed', 'invoice'
+          'order placed', 'checkout', 'billed', 'invoice', 'bill payment', 'payment received',
+          'card payment', 'payment towards', 'payment for', 'payment of', 'towards card', 'towards credit card'
         ]
         const creditWords = ['credited', 'credited to', 'received', 'received from', 'added', 'refund', 'refunded', 'cashback', 'deposited', 'salary', 'credit', 'reversed']
 

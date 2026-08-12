@@ -94,6 +94,7 @@ const CANONICAL_MAP: Array<{ patterns: RegExp[]; canonical: string; category: st
   { patterns: [/phonepe|phone\s*pe/i], canonical: 'PhonePe', category: 'Other' },
   { patterns: [/\bbharatpe\b/i], canonical: 'BharatPe', category: 'Other' },
   { patterns: [/\bcred\b/i], canonical: 'CRED', category: 'Other' },
+  { patterns: [/\bcheq\b/i], canonical: 'CHEQ', category: 'Other' },
 ]
 
 /** Flat list of canonical brand names, for autocomplete/suggestion UIs. Derived from CANONICAL_MAP so it can never drift out of sync with what normalizeMerchant() actually recognizes. */
