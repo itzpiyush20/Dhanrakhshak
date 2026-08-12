@@ -1,3 +1,4 @@
+import { HOME_CURRENCY } from '../utils/index.js'
 // ============================================
 // Transaction Service — CRUD operations
 // All Supabase calls for transactions
@@ -115,21 +116,37 @@ export async function deleteTransaction(id: string) {
 export async function getSummary(range: { dateFrom: string; dateTo: string }) {
   const { data, error } = await supabase
     .from('transactions')
-    .select('amount, type, category')
+    .select('amount, currency, type, category')
     .eq('approval_status', 'approved')
     .gte('date', range.dateFrom)
     .lte('date', range.dateTo)
 
   if (error || !data) return { data: null, error }
 
-  const total_income = data
+  // Headline totals cover the home currency ONLY. Summing rupees with dollars
+  // produces a number that means nothing, and the app deliberately holds no
+  // exchange rates (see src/services/currency.ts). Foreign spend is reported
+  // separately below rather than being folded in or silently dropped.
+  const homeRows = data.filter((t) => (t.currency ?? HOME_CURRENCY) === HOME_CURRENCY)
+  const foreignRows = data.filter((t) => (t.currency ?? HOME_CURRENCY) !== HOME_CURRENCY)
+
+  const other_currency_totals: Record<string, { income: number; expenses: number }> = {}
+  for (const t of foreignRows) {
+    const code = t.currency as string
+    const bucket = other_currency_totals[code] ?? { income: 0, expenses: 0 }
+    if (t.type === 'credit') bucket.income += Number(t.amount)
+    else if (t.category !== 'Credit Card Bill Payment') bucket.expenses += Number(t.amount)
+    other_currency_totals[code] = bucket
+  }
+
+  const total_income = homeRows
     .filter((t) => t.type === 'credit')
     .reduce((sum, t) => sum + Number(t.amount), 0)
 
   // Credit card bill payments are excluded from all expense totals — the
   // purchases they cover were already counted as expenses when they happened,
   // so counting the bill payment too would double-book that spend.
-  const expenseTxns = data.filter((t) => t.type === 'debit' && t.category !== 'Credit Card Bill Payment')
+  const expenseTxns = homeRows.filter((t) => t.type === 'debit' && t.category !== 'Credit Card Bill Payment')
 
   const total_expenses = expenseTxns.reduce((sum, t) => sum + Number(t.amount), 0)
 
@@ -158,6 +175,8 @@ export async function getSummary(range: { dateFrom: string; dateTo: string }) {
       total_expenses,
       savings: total_income - total_expenses,
       category_breakdown,
+      /** Per-currency totals for anything outside the home currency. */
+      other_currency_totals,
     },
     error: null,
   }
@@ -191,7 +210,7 @@ export async function getHistoricalAnalytics(monthsCount = 6) {
 
   const { data, error } = await supabase
     .from('transactions')
-    .select('amount, type, date, category')
+    .select('amount, currency, type, date, category')
     .eq('user_id', user.id)
     .eq('approval_status', 'approved')
     .gte('date', startDate)
@@ -205,7 +224,11 @@ export async function getHistoricalAnalytics(monthsCount = 6) {
       month: 'short',
     })
 
-    const monthTxns = data.filter((t) => t.date.startsWith(m))
+    // Home currency only, for the same reason as getSummary: a month's
+    // "spend" that mixes rupees and dollars is not a number.
+    const monthTxns = data.filter(
+      (t) => t.date.startsWith(m) && (t.currency ?? HOME_CURRENCY) === HOME_CURRENCY
+    )
     
     const income = monthTxns
       .filter((t) => t.type === 'credit')

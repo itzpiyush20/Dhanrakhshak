@@ -64,6 +64,7 @@ export interface Database {
           id: string
           user_id: string
           amount: number
+          currency: string
           type: 'debit' | 'credit'
           category: string
           description: string
@@ -82,6 +83,7 @@ export interface Database {
           confidence_score: number | null
           event_type: 'debit' | 'credit' | 'refund' | 'emi' | 'sip' | 'salary' | 'chargeback' | 'subscription' | 'transfer' | 'insurance' | 'loan_repayment' | 'atm_withdrawal' | null
           email_message_id: string | null
+          merged_email_message_ids: string[] | null
           tags: string[] | null
           is_returnable: boolean
           counterparty: string | null
@@ -95,6 +97,8 @@ export interface Database {
         Insert: {
           user_id: string
           amount: number
+          /** ISO 4217. Omit to accept the database default of 'INR'. */
+          currency?: string
           type: 'debit' | 'credit'
           category: string
           description: string
@@ -113,6 +117,7 @@ export interface Database {
           confidence_score?: number | null
           event_type?: 'debit' | 'credit' | 'refund' | 'emi' | 'sip' | 'salary' | 'chargeback' | 'subscription' | 'transfer' | 'insurance' | 'loan_repayment' | 'atm_withdrawal' | null
           email_message_id?: string | null
+          merged_email_message_ids?: string[] | null
           tags?: string[] | null
           is_returnable?: boolean
           counterparty?: string | null
@@ -123,6 +128,7 @@ export interface Database {
         }
         Update: {
           amount?: number
+          currency?: string
           type?: 'debit' | 'credit'
           category?: string
           description?: string
@@ -137,6 +143,8 @@ export interface Database {
           transaction_time?: string | null
           confidence_score?: number | null
           event_type?: string | null
+          reference_id?: string | null
+          merged_email_message_ids?: string[] | null
           tags?: string[] | null
           is_returnable?: boolean
           counterparty?: string | null

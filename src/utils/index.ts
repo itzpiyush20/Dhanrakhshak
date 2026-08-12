@@ -3,33 +3,61 @@
 // Designed for Indian locale (INR, dd/mm/yyyy)
 // ============================================
 
-const INR_FORMATTER = new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 2,
-})
+/** The app's home currency. Amounts default here when none is recorded. */
+export const HOME_CURRENCY = 'INR'
 
-const INR_COMPACT_FORMATTER = new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-  notation: 'compact',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 1,
-})
+// Intl.NumberFormat construction is not cheap and these run inside render
+// paths and list loops, so formatters are built once per currency/style.
+const formatterCache = new Map<string, Intl.NumberFormat>()
+
+function formatterFor(currency: string, compact: boolean): Intl.NumberFormat {
+  const key = `${currency}:${compact}`
+  const cached = formatterCache.get(key)
+  if (cached) return cached
+
+  // Indian digit grouping (lakh/crore) is right for rupees and wrong for
+  // everything else.
+  const locale = currency === HOME_CURRENCY ? 'en-IN' : 'en-US'
+  let formatter: Intl.NumberFormat
+  try {
+    formatter = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      ...(compact ? { notation: 'compact' as const, maximumFractionDigits: 1 } : { maximumFractionDigits: 2 }),
+      minimumFractionDigits: 0,
+    })
+  } catch {
+    // An unrecognised code must not crash a render — fall back to the home
+    // currency's formatting with the code shown alongside.
+    formatter = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: HOME_CURRENCY,
+      ...(compact ? { notation: 'compact' as const, maximumFractionDigits: 1 } : { maximumFractionDigits: 2 }),
+      minimumFractionDigits: 0,
+    })
+  }
+  formatterCache.set(key, formatter)
+  return formatter
+}
 
 export function getGlobalCurrencySymbol(): string {
   return '₹'
 }
 
-/** Format amount as ₹1,23,456.78 */
-export function formatCurrency(amount: number): string {
-  return INR_FORMATTER.format(amount)
+/**
+ * Format an amount in its own currency, e.g. ₹1,23,456.78 or $50.00.
+ *
+ * `currency` defaults to the home currency, so every existing call site keeps
+ * its exact previous behaviour; pass a transaction's `currency` column to have
+ * a foreign charge render as what it actually is.
+ */
+export function formatCurrency(amount: number, currency: string = HOME_CURRENCY): string {
+  return formatterFor(currency || HOME_CURRENCY, false).format(amount)
 }
 
-/** Format large amounts as ₹1.2L */
-export function formatCurrencyCompact(amount: number): string {
-  return INR_COMPACT_FORMATTER.format(amount)
+/** Format large amounts compactly, e.g. ₹1.2L or $1.2K */
+export function formatCurrencyCompact(amount: number, currency: string = HOME_CURRENCY): string {
+  return formatterFor(currency || HOME_CURRENCY, true).format(amount)
 }
 
 /**
@@ -48,6 +76,17 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, label = 'Request
       )
     }),
   ]).finally(() => clearTimeout(timer))
+}
+
+/**
+ * fetch() with an AbortController-based timeout, so a stalled request fails
+ * fast instead of hanging indefinitely (browsers don't time out fetch on
+ * their own). Defaults to 20s.
+ */
+export function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, ms = 20000): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), ms)
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timeoutId))
 }
 
 /**

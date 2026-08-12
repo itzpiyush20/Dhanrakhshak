@@ -5,7 +5,7 @@
 // is absent or request fails
 // ============================================
 
-import { formatCurrency } from '../utils/index.js'
+import { formatCurrency, fetchWithTimeout } from '../utils/index.js'
 import { supabase } from './supabase.js'
 
 const GEMINI_PROXY_URL = '/api/gemini-proxy'
@@ -15,11 +15,15 @@ async function callGeminiProxy(body: Record<string, unknown>): Promise<any> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session?.access_token) throw new Error('Not authenticated')
 
-  const response = await fetch(GEMINI_PROXY_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-    body: JSON.stringify(body),
-  })
+  const response = await fetchWithTimeout(
+    GEMINI_PROXY_URL,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify(body),
+    },
+    25000
+  )
 
   if (!response.ok) throw new Error(`Gemini proxy error: ${response.status}`)
   return response.json()
@@ -329,6 +333,8 @@ export interface AITransactionResult {
   is_transaction: boolean
   transaction_type: 'debit' | 'credit' | null
   amount: number | null
+  /** ISO 4217 code. Absent or null means the app's home currency. */
+  currency?: string | null
   merchant: string | null
   category: string | null
   description: string | null
@@ -354,33 +360,24 @@ export interface AITransactionResult {
   confidence_score: number
 }
 
+/** Max characters of body text sent to the model, per email. */
+const AI_BODY_CHAR_LIMIT = 1500
+
+function buildCategoryListText(categoryNames?: string[]): string {
+  return categoryNames && categoryNames.length > 0
+    ? categoryNames.map((c) => `'${c}'`).join(', ')
+    : `'Food & Dining', 'Groceries', 'Transport', 'Utilities & Bills', 'Shopping', 'Entertainment', 'Subscriptions', 'Salary', 'Travel', 'Health', 'Investments', 'Other'`
+}
+
 /**
- * Use Gemini AI to verify if an email represents a completed transaction
- * and extract structured metadata.
+ * The classification rules, shared verbatim by the single-email and batch
+ * prompts so the two can never drift apart.
+ *
+ * Do not edit this text without a requirement that explicitly calls for it —
+ * it encodes hard-won classification fixes, and `aiService.test.ts` pins
+ * individual rules precisely so an accidental deletion fails the build.
  */
-export async function analyzeTransactionEmailWithAI(
-  subject: string,
-  body: string,
-  emailDate: string,
-  callGemini: (body: Record<string, unknown>) => Promise<any> = callGeminiProxy,
-  categoryNames?: string[]
-): Promise<AITransactionResult | null> {
-  try {
-    const categoryListText = categoryNames && categoryNames.length > 0
-      ? categoryNames.map((c) => `'${c}'`).join(', ')
-      : `'Food & Dining', 'Groceries', 'Transport', 'Utilities & Bills', 'Shopping', 'Entertainment', 'Subscriptions', 'Salary', 'Travel', 'Health', 'Investments', 'Other'`
-
-    const prompt = `
-Analyze the following bank/payment email to determine if it describes a COMPLETED financial transaction.
-
-Subject: "${subject}"
-Date: "${emailDate}"
-Body:
-"""
-${body.substring(0, 1500)}
-"""
-
-STRICT RULES — set is_transaction to FALSE for ALL of:
+const STRICT_RULES_BLOCK = `STRICT RULES — set is_transaction to FALSE for ALL of:
 - OTPs, login alerts, verification codes, security alerts
 - Payment reminders, bill generation, due dates, upcoming scheduled debits
 - Declined, failed, cancelled, or reversed transactions
@@ -393,16 +390,22 @@ STRICT RULES — set is_transaction to FALSE for ALL of:
 - Auto-debit SCHEDULED notices (money not yet moved)
 - Any email where money movement is in FUTURE tense ("will be debited", "scheduled for")
 - Order confirmation / booking confirmation emails where actual charge is not yet confirmed
-- Emails saying "We received your payment" sent BY a merchant to a customer (this is a payment receipt from the business — the customer paid, so this would be a debit for the customer)
-- Any email about savings, investments, wallet top-up offers, or cashback promotions
+- Marketing for savings products, investment products, wallet top-up offers, or cashback promotions. This covers ADVERTISEMENTS only — an actual SIP debit, mutual-fund purchase, dividend credit, interest credit or insurance premium payment IS a completed transaction and must be captured
 - Statements, summaries, or account overviews
 
 ONLY set is_transaction to TRUE when money has ALREADY moved (past tense):
-- Debited, credited, paid, transferred, withdrawn, charged, received (when bank is informing customer of credit), deposited, settled
+- Debited, credited, paid, transferred, withdrawn, charged, received (when bank is informing customer of credit), deposited, settled`
 
-If TRUE, extract:
+/**
+ * The extraction contract. `dateInstruction` differs between the single and
+ * batch prompts (one email date vs "that email's own Date"), so it is a
+ * parameter rather than baked in.
+ */
+function buildExtractionSpec(categoryListText: string, dateInstruction: string): string {
+  return `If TRUE, extract:
 - transaction_type: 'debit' (money out) or 'credit' (money in)
-- amount: exact transaction amount in INR as a number. Do NOT use balance or limit amounts.
+- amount: exact transaction amount as a number, in whatever currency the email states. Do NOT use balance or limit amounts.
+- currency: ISO 4217 code for that amount — 'INR' for Rs/₹/Rupees, 'USD' for $, 'EUR' for €, 'GBP' for £, and so on. Use 'INR' when the email states no currency at all. NEVER convert the amount between currencies; report the number exactly as written alongside its own currency code.
 - merchant: clean merchant/vendor name (e.g. 'Swiggy', 'Amazon', 'Airtel'). Strip suffixes like 'Ltd', 'Pvt', 'Private Limited'.
 - category: one of ${categoryListText}
   - 'Transport' = day-to-day local commute: cabs/auto (Uber, Ola, Rapido), metro, bus, fuel/petrol/diesel, tolls (FASTag), parking, train tickets (IRCTC) for regular travel
@@ -415,14 +418,16 @@ If TRUE, extract:
 - card_brand: card network only if explicitly mentioned — one of 'Visa', 'Mastercard', 'RuPay', 'American Express', 'Diners'. null if not found.
 - transaction_time: time of transaction in HH:MM (24h) format if mentioned. null if not found.
 - reference_id: UPI transaction ID or NEFT UTR number for deduplication. null if not found.
-- date: transaction date in YYYY-MM-DD. Use email date "${emailDate}" if not specified.
-- confidence_score: 0-100. Use 90+ only for clear bank-sent transaction alerts. Use 60-89 for likely transactions. Use 0-59 for uncertain cases (these will be reviewed or rejected).
+- date: transaction date in YYYY-MM-DD. ${dateInstruction}
+- confidence_score: 0-100. Use 90+ only for clear bank-sent transaction alerts. Use 60-89 for likely transactions. Use 0-59 for uncertain cases (these will be reviewed or rejected).`
+}
 
-Return ONLY JSON, no markdown:
-{
+/** Shape of a positive result, shown to the model as the output contract. */
+const POSITIVE_EXAMPLE = `{
   "is_transaction": true,
   "transaction_type": "debit",
   "amount": 450.00,
+  "currency": "INR",
   "merchant": "Swiggy",
   "category": "Food & Dining",
   "description": "Swiggy food order",
@@ -433,12 +438,14 @@ Return ONLY JSON, no markdown:
   "reference_id": "123456789012",
   "date": "YYYY-MM-DD",
   "confidence_score": 95
-}
-If NOT a completed transaction:
-{
+}`
+
+/** Shape of a negative result. */
+const NEGATIVE_EXAMPLE = `{
   "is_transaction": false,
   "transaction_type": null,
   "amount": null,
+  "currency": null,
   "merchant": null,
   "category": null,
   "description": null,
@@ -449,7 +456,45 @@ If NOT a completed transaction:
   "reference_id": null,
   "date": null,
   "confidence_score": 0
+}`
+
+/** True when the parsed value has the minimum shape of a usable AI verdict. */
+function isUsableResult(value: unknown): value is AITransactionResult {
+  return !!value && typeof value === 'object' && typeof (value as AITransactionResult).is_transaction === 'boolean'
 }
+
+/**
+ * Use Gemini AI to verify if an email represents a completed transaction
+ * and extract structured metadata.
+ */
+export async function analyzeTransactionEmailWithAI(
+  subject: string,
+  body: string,
+  emailDate: string,
+  callGemini: (body: Record<string, unknown>) => Promise<any> = callGeminiProxy,
+  categoryNames?: string[]
+): Promise<AITransactionResult | null> {
+  try {
+    const categoryListText = buildCategoryListText(categoryNames)
+
+    const prompt = `
+Analyze the following bank/payment email to determine if it describes a COMPLETED financial transaction.
+
+Subject: "${subject}"
+Date: "${emailDate}"
+Body:
+"""
+${body.substring(0, AI_BODY_CHAR_LIMIT)}
+"""
+
+${STRICT_RULES_BLOCK}
+
+${buildExtractionSpec(categoryListText, `Use email date "${emailDate}" if not specified.`)}
+
+Return ONLY JSON, no markdown:
+${POSITIVE_EXAMPLE}
+If NOT a completed transaction:
+${NEGATIVE_EXAMPLE}
 `
 
     const data = await callGemini({
@@ -468,12 +513,131 @@ If NOT a completed transaction:
     if (!jsonMatch) return null
     const result: AITransactionResult = JSON.parse(jsonMatch[0])
 
-    if (result && typeof result.is_transaction === 'boolean') {
+    if (isUsableResult(result)) {
       return result
     }
     return null
   } catch (e) {
     console.warn('[AI] Gemini email parsing failed:', e)
     return null
+  }
+}
+
+/** One email queued for batch classification. `index` is caller-assigned and echoed back. */
+export interface EmailForAI {
+  index: number
+  subject: string
+  body: string
+  emailDate: string
+}
+
+/** Emails per Gemini call. Above ~5 the model starts truncating later entries. */
+export const AI_BATCH_SIZE = 5
+
+/**
+ * Classify several emails in ONE Gemini call.
+ *
+ * The scanner previously spent one round trip per email, sequentially, which
+ * put a 50-email scan at 100-160s and made timeouts routine. Batching cuts
+ * both wall-clock time and the user's daily AI quota by ~5x.
+ *
+ * Returns a Map keyed by the caller's `index`. A `null` value means "no AI
+ * verdict for this email" — exactly what a failed single-email call has always
+ * meant — and the caller falls through to the regex ladder. This function
+ * never throws: a failed batch degrades to per-email calls, and if those fail
+ * too, every entry maps to null.
+ */
+export async function analyzeTransactionEmailBatchWithAI(
+  emails: EmailForAI[],
+  callGemini: (body: Record<string, unknown>) => Promise<any> = callGeminiProxy,
+  categoryNames?: string[]
+): Promise<Map<number, AITransactionResult | null>> {
+  const results = new Map<number, AITransactionResult | null>()
+  if (emails.length === 0) return results
+  for (const e of emails) results.set(e.index, null)
+
+  // Positions in THIS prompt are always 0..n-1. The model echoes those back,
+  // and we translate to the caller's indices ourselves rather than trusting it
+  // to reproduce arbitrary numbers.
+  const emailBlocks = emails
+    .map((e, i) => `EMAIL ${i}:
+Subject: "${e.subject}"
+Date: "${e.emailDate}"
+Body:
+"""
+${e.body.substring(0, AI_BODY_CHAR_LIMIT)}
+"""`)
+    .join('\n\n')
+
+  const prompt = `
+Analyze EACH of the following ${emails.length} bank/payment emails to determine if it describes a COMPLETED financial transaction.
+Judge every email INDEPENDENTLY — one email's verdict must never influence another's.
+
+${emailBlocks}
+
+${STRICT_RULES_BLOCK}
+
+${buildExtractionSpec(buildCategoryListText(categoryNames), `Use that email's own Date value if not specified.`)}
+
+Return ONLY a JSON array, no markdown, containing EXACTLY ${emails.length} objects — one per email, for every index from 0 to ${emails.length - 1}.
+Each object carries its "email_index" plus the same fields as this example:
+${POSITIVE_EXAMPLE}
+An email that is NOT a completed transaction uses:
+${NEGATIVE_EXAMPLE}
+
+Example of the array shape for 2 emails:
+[{"email_index": 0, "is_transaction": true, "amount": 450.00, "merchant": "Swiggy", "confidence_score": 95}, {"email_index": 1, "is_transaction": false, "amount": null, "confidence_score": 0}]
+`
+
+  try {
+    const data = await callGemini({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.1,
+        // Scales with batch size — 500 was sized for a single result.
+        maxOutputTokens: 2000,
+        topP: 0.9,
+        responseMimeType: 'application/json',
+      },
+      purpose: 'scan',
+    })
+
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    const arrayMatch = text.match(/\[[\s\S]*\]/)
+    if (!arrayMatch) throw new Error('batch response contained no JSON array')
+
+    const parsed = JSON.parse(arrayMatch[0])
+    if (!Array.isArray(parsed)) throw new Error('batch response was not an array')
+
+    for (const entry of parsed) {
+      const promptIndex = entry?.email_index
+      if (typeof promptIndex !== 'number' || promptIndex < 0 || promptIndex >= emails.length) continue
+      if (!isUsableResult(entry)) continue
+      // Drop the routing field so callers get a clean AITransactionResult.
+      const result: AITransactionResult & { email_index?: number } = { ...entry }
+      delete result.email_index
+      results.set(emails[promptIndex].index, result)
+    }
+
+    return results
+  } catch (e) {
+    // Batch failed wholesale. Fall back to the proven single-email path rather
+    // than dropping the whole chunk onto the regex ladder.
+    console.warn('[AI] Batch classification failed, falling back to single calls:', e)
+    for (const email of emails) {
+      try {
+        const single = await analyzeTransactionEmailWithAI(
+          email.subject,
+          email.body,
+          email.emailDate,
+          callGemini,
+          categoryNames
+        )
+        results.set(email.index, single)
+      } catch {
+        results.set(email.index, null)
+      }
+    }
+    return results
   }
 }

@@ -7,6 +7,7 @@ import { makeZomatoOrderGmailMessage } from './__fixtures__/zomatoOrderReceipt'
 import { makeBusinessStandardGmailMessage } from './__fixtures__/businessStandardNewsletter'
 import { makeBulkProseGmailMessage } from './__fixtures__/bulkMailWithPaymentProse'
 import { makeBankMarketingGmailMessage } from './__fixtures__/bankMarketingFromTrustedSender'
+import { makeRefundGmailMessage, makePremiumGmailMessage } from './__fixtures__/refundAndPremium'
 
 vi.mock('./googleAuth', () => ({
   getGoogleToken: () => 'fake-access-token',
@@ -14,11 +15,15 @@ vi.mock('./googleAuth', () => ({
   tryRefreshGoogleToken: async () => null,
 }))
 
-vi.mock('./learningEngine', () => ({
-  applyMerchantRulesFromDB: async () => {
-    throw new Error('no DB rule — force fallback to local applyMerchantRules')
-  },
-}))
+// No merchant rules stored for these users, so every email falls through to
+// the local applyMerchantRules heuristics — the same outcome the previous
+// mock forced by making the DB lookup throw. applyMerchantRulesFromRows is
+// left as the real implementation because that fall-through IS the behaviour
+// under test.
+vi.mock('./learningEngine', async () => {
+  const actual = await vi.importActual<typeof import('./learningEngine')>('./learningEngine')
+  return { ...actual, getMerchantRulesFromDB: async () => [] }
+})
 
 function makeTableMock(response: any, opts: { insertCapture?: any[] } = {}) {
   const handler: any = {
@@ -26,6 +31,7 @@ function makeTableMock(response: any, opts: { insertCapture?: any[] } = {}) {
     eq: () => handler,
     order: () => handler,
     limit: () => handler,
+    gte: () => handler,
     single: () => Promise.resolve(response),
     insert: (row: any) => {
       opts.insertCapture?.push(row)
@@ -43,7 +49,7 @@ function makeTableMock(response: any, opts: { insertCapture?: any[] } = {}) {
 function makeMockDb(insertedTransactions: any[], insertedRejections: any[]): any {
   const makeTableMock = (response: any, opts: { insertCapture?: any[] } = {}) => {
     const handler: any = {
-      select: () => handler, eq: () => handler, order: () => handler, limit: () => handler,
+      select: () => handler, eq: () => handler, order: () => handler, limit: () => handler, gte: () => handler,
       single: () => Promise.resolve(response),
       insert: (row: any) => {
         opts.insertCapture?.push(row)
@@ -153,7 +159,7 @@ describe('scanRealGmailInbox — fetch query includes receipt-shaped keywords', 
       },
       from: (_table: string) => {
         const handler: any = {
-          select: () => handler, eq: () => handler, order: () => handler, limit: () => handler,
+          select: () => handler, eq: () => handler, order: () => handler, limit: () => handler, gte: () => handler,
           single: () => Promise.resolve({ data: null, error: null }),
           insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: null }) }), then: (r: any) => r({ data: [], error: null }) }),
           then: (resolve: any) => resolve({ data: [], error: null }),
@@ -507,6 +513,7 @@ describe('scanRealGmailInbox — batch insert fault isolation', () => {
           eq: () => baseHandler,
           order: () => baseHandler,
           limit: () => baseHandler,
+          gte: () => baseHandler,
           single: () => Promise.resolve({ data: null, error: null }),
           then: (resolve: any) => resolve({ data: [], error: null }),
         }
@@ -603,5 +610,1491 @@ describe('scanRealGmailInbox — batch insert fault isolation', () => {
     const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
 
     expect(result.error).not.toBeNull()
+  })
+})
+
+// ============================================================
+// Stage B — batched AI classification.
+//
+// The scanner used to spend one sequential Gemini round trip per email, which
+// put a 50-email scan at 100-160s and made timeouts routine. These tests pin
+// the batching contract: emails are grouped, gates still run BEFORE any AI
+// call is made, and an AI outage still degrades to the regex ladder rather
+// than dropping mail.
+// ============================================================
+
+describe('scanRealGmailInbox — batched AI classification', () => {
+  function makeMessages(n: number) {
+    // Distinct ids so dedup and verdict-mapping are exercised properly.
+    return Array.from({ length: n }, (_, i) => makeAxisEmiGmailMessage(`msg-batch-${i}`))
+  }
+
+  function mockGmail(messages: any[]) {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  }
+
+  it('groups 12 emails into 3 batch calls instead of 12 single calls', async () => {
+    const messages = makeMessages(12)
+    mockGmail(messages)
+    const mockDb = makeMockDb([], [])
+
+    const batchSizes: number[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getFullYear(),
+      askAIBatch: async (emails) => {
+        batchSizes.push(emails.length)
+        return new Map(emails.map((e) => [e.index, null]))
+      },
+    })
+
+    // AI_BATCH_SIZE is 5 → 5 + 5 + 2
+    expect(batchSizes).toEqual([5, 5, 2])
+  })
+
+  it('maps each batch verdict back to the right email', async () => {
+    const messages = makeMessages(3)
+    mockGmail(messages)
+    const insertedTransactions: any[] = []
+    const mockDb = makeMockDb(insertedTransactions, [])
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getFullYear(),
+      askAIBatch: async (emails) =>
+        new Map(
+          emails.map((e) => [
+            e.index,
+            // Give each email a distinct amount keyed off its position.
+            {
+              is_transaction: true,
+              transaction_type: 'debit',
+              amount: 100 + e.index,
+              merchant: `Merchant${e.index}`,
+              category: 'Other',
+              description: 'd',
+              payment_mode: 'upi',
+              card_issuer: null,
+              card_brand: null,
+              transaction_time: null,
+              reference_id: null,
+              date: e.emailDate,
+              confidence_score: 95,
+            } as any,
+          ])
+        ),
+    })
+
+    const rows = insertedTransactions.flat()
+    expect(rows).toHaveLength(3)
+    // Every verdict landed on a distinct email, none duplicated or lost.
+    expect(new Set(rows.map((r: any) => r.amount)).size).toBe(3)
+    expect(rows.every((r: any) => r.merchant.startsWith('Merchant'))).toBe(true)
+  })
+
+  it('never sends gate-rejected junk to the AI', async () => {
+    // One genuine debit alert plus two pieces of bulk marketing. Only the
+    // genuine one may reach Stage B — junk must never cost an AI call or a
+    // slice of the daily quota.
+    const messages = [
+      makeAxisEmiGmailMessage('msg-genuine-1'),
+      makeBankMarketingGmailMessage('msg-marketing-1'),
+      makeBusinessStandardGmailMessage('msg-newsletter-1'),
+    ]
+    mockGmail(messages)
+    const mockDb = makeMockDb([], [])
+
+    const seenSubjects: string[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getFullYear(),
+      askAIBatch: async (emails) => {
+        emails.forEach((e) => seenSubjects.push(e.subject))
+        return new Map(emails.map((e) => [e.index, null]))
+      },
+    })
+
+    expect(seenSubjects).toHaveLength(1)
+    expect(seenSubjects[0]).toMatch(/Debit transaction alert/i)
+  })
+
+  it('makes no AI call at all when every email is gate-rejected', async () => {
+    mockGmail([makeBankMarketingGmailMessage('msg-marketing-only')])
+    const mockDb = makeMockDb([], [])
+
+    const askAIBatch = vi.fn(async (emails: any[]) => new Map(emails.map((e) => [e.index, null])))
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({ db: mockDb, activeYear: new Date().getFullYear(), askAIBatch: askAIBatch as any })
+
+    expect(askAIBatch).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the regex ladder when the batch analyzer throws', async () => {
+    // AI failure must never surface as a scan failure or a dropped email.
+    mockGmail([makeAxisEmiGmailMessage('msg-ai-down-1')])
+    const insertedTransactions: any[] = []
+    const mockDb = makeMockDb(insertedTransactions, [])
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getFullYear(),
+      askAIBatch: async () => { throw new Error('gemini down') },
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    // The Axis EMI email is still captured, by regex.
+    const rows = insertedTransactions.flat()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].amount).toBe(42293)
+  })
+
+  it('degrades a thrown batch to per-email single calls before giving up', async () => {
+    mockGmail(makeMessages(3))
+    const mockDb = makeMockDb([], [])
+
+    let singleCalls = 0
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getFullYear(),
+      askAIBatch: async () => { throw new Error('batch unavailable') },
+      askAI: async () => { singleCalls++; return null },
+    })
+
+    expect(singleCalls).toBe(3)
+  })
+
+  it('routes through the batch path even when only askAI is supplied', async () => {
+    // Back-compat: every pre-existing caller passes askAI alone and must keep
+    // working, with unchanged one-call-per-email semantics.
+    mockGmail(makeMessages(4))
+    const mockDb = makeMockDb([], [])
+
+    let singleCalls = 0
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getFullYear(),
+      askAI: async () => { singleCalls++; return null },
+    })
+
+    expect(result.error).toBeNull()
+    expect(singleCalls).toBe(4)
+  })
+})
+
+describe('scanRealGmailInbox — merchant rules are fetched once per scan', () => {
+  it('reads merchant_rules once regardless of how many emails are scanned', async () => {
+    // Previously this table was re-read for every email in the loop.
+    const messages = Array.from({ length: 8 }, (_, i) => makeAxisEmiGmailMessage(`msg-rules-${i}`))
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const learningEngine = await import('./learningEngine')
+    const spy = vi.spyOn(learningEngine, 'getMerchantRulesFromDB')
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb([], []),
+      activeYear: new Date().getFullYear(),
+      askAIBatch: async (emails) => new Map(emails.map((e) => [e.index, null])),
+    })
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    spy.mockRestore()
+  })
+})
+
+// ============================================================
+// Scan window — strict rolling 7 days (requirements R3/R4), and the
+// year-boundary handling that a fixed 7-day window makes load-bearing.
+// ============================================================
+
+describe('scanRealGmailInbox — strict 7-day scan window', () => {
+  function mockGmailCapturingQuery(messages: any[] = []) {
+    const captured = { url: '' }
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        captured.url = url
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+    return captured
+  }
+
+  /** The `after:` epoch-seconds value the scanner put in the Gmail query. */
+  function afterSecondsFrom(url: string): number {
+    const m = decodeURIComponent(url).match(/after:(\d+)/)
+    if (!m) throw new Error(`no after: clause in ${url}`)
+    return Number(m[1])
+  }
+
+  it('asks Gmail for exactly the last 7 days on a first scan', async () => {
+    const captured = mockGmailCapturingQuery()
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb([], []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    const expected = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000)
+    expect(Math.abs(afterSecondsFrom(captured.url) - expected)).toBeLessThan(10)
+  })
+
+  it('still asks for 7 days when a recent successful scan exists', async () => {
+    // Previously the window narrowed to "since the last successful scan"
+    // (26h floor). R3 requires the same 7 days every time.
+    const recent = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+    const mockDb = makeMockDb([], [])
+    const baseFrom = mockDb.from
+    mockDb.from = (table: string) => {
+      if (table === 'profiles') {
+        // Premium, so the 24h manual cooldown doesn't short-circuit the scan
+        // before it builds a Gmail query — the window is what's under test here.
+        const handler: any = {
+          select: () => handler, eq: () => handler, order: () => handler, limit: () => handler, gte: () => handler,
+          single: () => Promise.resolve({ data: { subscription_status: 'active', subscription_expires_at: null }, error: null }),
+          insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }), then: (r: any) => r({ data: [], error: null }) }),
+          then: (r: any) => r({ data: null, error: null }),
+        }
+        return handler
+      }
+      if (table === 'email_scan_logs') {
+        const handler: any = {
+          select: () => handler, eq: () => handler, order: () => handler, gte: () => handler,
+          limit: () => Promise.resolve({ data: [{ scanned_at: recent }], error: null }),
+          single: () => Promise.resolve({ data: null, error: null }),
+          insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }), then: (r: any) => r({ data: [], error: null }) }),
+          then: (r: any) => r({ data: [{ scanned_at: recent }], error: null }),
+        }
+        return handler
+      }
+      return baseFrom(table)
+    }
+
+    const captured = mockGmailCapturingQuery()
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    const expected = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000)
+    expect(Math.abs(afterSecondsFrom(captured.url) - expected)).toBeLessThan(10)
+  })
+
+  it('drops an email older than the window without an AI call', async () => {
+    const stale = makeAxisEmiGmailMessage('msg-stale-1')
+    stale.internalDate = String(Date.now() - 9 * 24 * 60 * 60 * 1000)
+    mockGmailCapturingQuery([stale])
+
+    const insertedTransactions: any[] = []
+    const askAI = vi.fn(async () => null)
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(insertedTransactions, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: askAI as any,
+    })
+
+    expect(result.error).toBeNull()
+    expect(insertedTransactions.flat()).toHaveLength(0)
+    expect(askAI).not.toHaveBeenCalled()
+  })
+
+  it('does not reprocess an email already attached to a transaction', async () => {
+    // R4. The window deliberately overlaps previous scans; dedup is what makes
+    // that free.
+    const seen = makeAxisEmiGmailMessage('msg-already-seen')
+    mockGmailCapturingQuery([seen])
+
+    const insertedTransactions: any[] = []
+    const mockDb = makeMockDb(insertedTransactions, [])
+    const baseFrom = mockDb.from
+    mockDb.from = (table: string) => {
+      if (table === 'transactions') {
+        const handler: any = {
+          select: () => handler, eq: () => handler, order: () => handler, limit: () => handler, gte: () => handler,
+          single: () => Promise.resolve({ data: null, error: null }),
+          insert: (row: any) => {
+            insertedTransactions.push(row)
+            return { select: () => ({ single: () => Promise.resolve({ data: [], error: null }) }), then: (r: any) => r({ data: [], error: null }) }
+          },
+          // Dedup preload reports this message id as already imported.
+          then: (r: any) => r({ data: [{ email_message_id: 'msg-already-seen', reference_id: null }], error: null }),
+        }
+        return handler
+      }
+      return baseFrom(table)
+    }
+
+    const askAI = vi.fn(async () => null)
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getUTCFullYear(),
+      askAI: askAI as any,
+    })
+
+    expect(insertedTransactions.flat()).toHaveLength(0)
+    expect(askAI).not.toHaveBeenCalled()
+  })
+})
+
+describe('scanRealGmailInbox — year boundary', () => {
+  function mockGmail(messages: any[]) {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  }
+
+  it('keeps a late-December email when the window straddles 1 January', async () => {
+    // The regression this fix exists for: scanning on 3 January with the
+    // window reaching back into December used to discard every one of those
+    // transactions silently and unrecoverably.
+    const thisYear = new Date().getUTCFullYear()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(Date.UTC(thisYear, 0, 3, 10, 0, 0))) // 3 Jan
+
+    try {
+      const december = makeAxisEmiGmailMessage('msg-dec-31')
+      december.internalDate = String(Date.UTC(thisYear - 1, 11, 29, 10, 0, 0)) // 29 Dec
+      mockGmail([december])
+
+      const insertedTransactions: any[] = []
+      const { scanRealGmailInbox } = await import('./emailScanner')
+      const result = await scanRealGmailInbox({
+        db: makeMockDb(insertedTransactions, []),
+        activeYear: thisYear,
+        askAI: async () => null,
+      })
+
+      expect(result.error).toBeNull()
+      const rows = insertedTransactions.flat()
+      expect(rows).toHaveLength(1)
+      // Attributed to the year it actually belongs to, not the active year.
+      expect(rows[0].date.startsWith(String(thisYear - 1))).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('rejects prior-year mail WITH a log when the user rolled forward early', async () => {
+    // activeYear is next year while today is still this year — the Settings
+    // "start next financial year" flow. The user asked to stop scanning the
+    // current year, so this must not import it, but it must leave a trace.
+    const thisYear = new Date().getUTCFullYear()
+    const current = makeAxisEmiGmailMessage('msg-current-year')
+    mockGmail([current])
+
+    const insertedTransactions: any[] = []
+    const insertedRejections: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb(insertedTransactions, insertedRejections),
+      activeYear: thisYear + 1,
+      askAI: async () => null,
+    })
+
+    expect(insertedTransactions.flat()).toHaveLength(0)
+    const gates = insertedRejections.flat().map((r: any) => r.gate)
+    expect(gates).toContain('before_active_year')
+  })
+
+  it('rejects future-dated mail WITH a log rather than silently', async () => {
+    const thisYear = new Date().getUTCFullYear()
+    const future = makeAxisEmiGmailMessage('msg-future')
+    // Inside the window by clock, but stamped next year (clock skew / spoof).
+    future.internalDate = String(Date.UTC(thisYear + 1, 0, 2, 10, 0, 0))
+    mockGmail([future])
+
+    const insertedTransactions: any[] = []
+    const insertedRejections: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb(insertedTransactions, insertedRejections),
+      activeYear: thisYear,
+      askAI: async () => null,
+    })
+
+    expect(insertedTransactions.flat()).toHaveLength(0)
+    const gates = insertedRejections.flat().map((r: any) => r.gate)
+    expect(gates).toContain('after_active_year')
+  })
+})
+
+// ============================================================
+// Tiered manual-scan quotas (requirements R6/R7/R8):
+//   free            1 manual scan per day, no automatic scan
+//   premium/trial   daily automatic scan + 2 manual scans per day
+//   owner           daily automatic scan + unlimited manual scans
+//
+// Only manual scans count — the daily automatic scan must never consume a
+// user's manual allowance.
+// ============================================================
+
+describe('isPremiumProfile', () => {
+  it('treats an open-ended active subscription as premium', async () => {
+    const { isPremiumProfile } = await import('./emailScanner')
+    expect(isPremiumProfile({ subscription_status: 'active', subscription_expires_at: null })).toBe(true)
+  })
+
+  it('treats an unexpired active subscription as premium', async () => {
+    const { isPremiumProfile } = await import('./emailScanner')
+    const future = new Date(Date.now() + 86400000).toISOString()
+    expect(isPremiumProfile({ subscription_status: 'active', subscription_expires_at: future })).toBe(true)
+  })
+
+  it('treats a lapsed active subscription as not premium', async () => {
+    const { isPremiumProfile } = await import('./emailScanner')
+    const past = new Date(Date.now() - 86400000).toISOString()
+    expect(isPremiumProfile({ subscription_status: 'active', subscription_expires_at: past })).toBe(false)
+  })
+
+  it('requires an unexpired end date for a trial, unlike an active subscription', async () => {
+    const { isPremiumProfile } = await import('./emailScanner')
+    const future = new Date(Date.now() + 86400000).toISOString()
+    expect(isPremiumProfile({ subscription_status: 'trial', subscription_expires_at: future })).toBe(true)
+    expect(isPremiumProfile({ subscription_status: 'trial', subscription_expires_at: null })).toBe(false)
+  })
+
+  it('treats missing, free and expired profiles as not premium', async () => {
+    const { isPremiumProfile } = await import('./emailScanner')
+    expect(isPremiumProfile(null)).toBe(false)
+    expect(isPremiumProfile({ subscription_status: 'free', subscription_expires_at: null })).toBe(false)
+    expect(isPremiumProfile({ subscription_status: 'expired', subscription_expires_at: null })).toBe(false)
+  })
+})
+
+describe('resolveManualScanLimit', () => {
+  it('gives the owner an unlimited allowance', async () => {
+    const { resolveManualScanLimit } = await import('./emailScanner')
+    expect(resolveManualScanLimit(true, false)).toBe(Infinity)
+    expect(resolveManualScanLimit(true, true)).toBe(Infinity)
+  })
+
+  it('gives premium 2 and free 1', async () => {
+    const { resolveManualScanLimit } = await import('./emailScanner')
+    expect(resolveManualScanLimit(false, true)).toBe(2)
+    expect(resolveManualScanLimit(false, false)).toBe(1)
+  })
+})
+
+describe('computeManualQuotaState', () => {
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3600000).toISOString()
+
+  it('reports an available scan when under the limit', async () => {
+    const { computeManualQuotaState } = await import('./emailScanner')
+    const q = computeManualQuotaState([hoursAgo(3)], 2)
+    expect(q.used).toBe(1)
+    expect(q.remaining).toBe(1)
+    expect(q.nextAvailableAt).toBeNull()
+  })
+
+  it('blocks at the limit and dates the next slot off the oldest counted scan', async () => {
+    // Premium: two scans used, 3h and 20h ago. The next slot opens when the
+    // OLDER one ages out — about 4h away, not 21h.
+    const { computeManualQuotaState } = await import('./emailScanner')
+    const q = computeManualQuotaState([hoursAgo(3), hoursAgo(20)], 2)
+    expect(q.remaining).toBe(0)
+    const hoursUntil = (q.nextAvailableAt!.getTime() - Date.now()) / 3600000
+    expect(hoursUntil).toBeGreaterThan(3.5)
+    expect(hoursUntil).toBeLessThan(4.5)
+  })
+
+  it('dates a free user off their single scan', async () => {
+    const { computeManualQuotaState } = await import('./emailScanner')
+    const q = computeManualQuotaState([hoursAgo(10)], 1)
+    expect(q.remaining).toBe(0)
+    const hoursUntil = (q.nextAvailableAt!.getTime() - Date.now()) / 3600000
+    expect(hoursUntil).toBeGreaterThan(13.5)
+    expect(hoursUntil).toBeLessThan(14.5)
+  })
+
+  it('never blocks an unlimited allowance', async () => {
+    const { computeManualQuotaState } = await import('./emailScanner')
+    const q = computeManualQuotaState([hoursAgo(1), hoursAgo(2), hoursAgo(3)], Infinity)
+    expect(q.remaining).toBe(Infinity)
+    expect(q.nextAvailableAt).toBeNull()
+  })
+
+  it('reports availability when no scans have been used', async () => {
+    const { computeManualQuotaState } = await import('./emailScanner')
+    expect(computeManualQuotaState([], 1).nextAvailableAt).toBeNull()
+  })
+})
+
+describe('scanRealGmailInbox — quota enforcement', () => {
+  /** Mock DB whose email_scan_logs table returns the given manual-scan history. */
+  function makeQuotaDb(manualScanTimes: string[], profile: any) {
+    const chain = (payload: any): any => {
+      const h: any = {
+        select: () => h, eq: () => h, order: () => h, gte: () => h, limit: () => h,
+        single: () => Promise.resolve({ data: profile, error: null }),
+        insert: (row: any) => ({
+          select: () => ({ single: () => Promise.resolve({ data: row, error: null }) }),
+          then: (r: any) => r({ data: [], error: null }),
+        }),
+        update: () => ({ eq: () => ({ then: (r: any) => r({ error: null }) }) }),
+        then: (r: any) => r(payload),
+      }
+      return h
+    }
+    return {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } } }) },
+      from: (table: string) => {
+        if (table === 'profiles') return chain({ data: profile, error: null })
+        if (table === 'email_scan_logs') {
+          return chain({ data: manualScanTimes.map((t) => ({ scanned_at: t })), error: null })
+        }
+        if (table === 'categories') return chain({ data: [{ name: 'Other', is_permanent: true }], error: null })
+        return chain({ data: [], error: null })
+      },
+    } as any
+  }
+
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3600000).toISOString()
+
+  beforeEach(() => {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return { ok: true, status: 200, json: async () => ({ messages: [] }) } as any
+      }
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  })
+
+  it('blocks a free user after 1 manual scan', async () => {
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeQuotaDb([hoursAgo(2)], { subscription_status: 'free', subscription_expires_at: null }),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error?.message).toMatch(/Daily scan limit reached \(1 manual scan per day\)/)
+    // PendingPage keys its cooldown banner off this exact phrase.
+    expect(result.error?.message).toMatch(/Next scan available in/)
+  })
+
+  it('allows a premium user a second manual scan, then blocks the third', async () => {
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const premium = { subscription_status: 'active', subscription_expires_at: null }
+
+    const second = await scanRealGmailInbox({
+      db: makeQuotaDb([hoursAgo(2)], premium),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+    expect(second.error).toBeNull()
+
+    const third = await scanRealGmailInbox({
+      db: makeQuotaDb([hoursAgo(2), hoursAgo(5)], premium),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+    expect(third.error?.message).toMatch(/Daily scan limit reached \(2 manual scans per day\)/)
+    // Premium keeps its automatic scan even while manually rate-limited.
+    expect(third.error?.message).toMatch(/automatic daily scan still runs/)
+  })
+
+  it('never blocks a scheduled scan, however many manual scans were used', async () => {
+    // R7: the automatic daily scan is "in addition to" the manual allowance.
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeQuotaDb([hoursAgo(1), hoursAgo(2), hoursAgo(3)], { subscription_status: 'free', subscription_expires_at: null }),
+      activeYear: new Date().getUTCFullYear(),
+      scanMode: 'scheduled',
+      askAI: async () => null,
+    })
+    expect(result.error).toBeNull()
+  })
+
+  it('records scan_mode on the scan log', async () => {
+    const inserted: any[] = []
+    const db = makeQuotaDb([], { subscription_status: 'free', subscription_expires_at: null })
+    const baseFrom = db.from
+    db.from = (table: string) => {
+      const h = baseFrom(table)
+      if (table === 'email_scan_logs') {
+        const origInsert = h.insert
+        h.insert = (row: any) => { inserted.push(row); return origInsert(row) }
+      }
+      return h
+    }
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db, activeYear: new Date().getUTCFullYear(), scanMode: 'scheduled', askAI: async () => null,
+    })
+
+    expect(inserted.length).toBeGreaterThan(0)
+    expect(inserted[0].scan_mode).toBe('scheduled')
+  })
+})
+
+// ============================================================
+// Phase 2 — visible progress and durable partial results.
+//
+// Before this, nothing was written until the whole per-email loop finished, so
+// a scan that timed out at email 40 of 50 saved NOTHING and the retry re-paid
+// the AI cost for every one of them.
+// ============================================================
+
+describe('scanRealGmailInbox — progress reporting', () => {
+  function mockGmail(messages: any[]) {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  }
+
+  it('reports listing, fetching, analyzing and saving in order', async () => {
+    const messages = Array.from({ length: 3 }, (_, i) => makeAxisEmiGmailMessage(`msg-prog-${i}`))
+    mockGmail(messages)
+
+    const phases: string[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb([], []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+      onProgress: (p) => phases.push(p.phase),
+    })
+
+    expect(phases[0]).toBe('listing')
+    expect(phases).toContain('fetching')
+    expect(phases).toContain('analyzing')
+    expect(phases).toContain('saving')
+    // Phases never run backwards.
+    const order = ['listing', 'fetching', 'analyzing', 'saving']
+    const seen = phases.map((p) => order.indexOf(p))
+    expect(seen).toEqual([...seen].sort((a, b) => a - b))
+  })
+
+  it('reports totals that match the mail actually found', async () => {
+    const messages = Array.from({ length: 4 }, (_, i) => makeAxisEmiGmailMessage(`msg-total-${i}`))
+    mockGmail(messages)
+
+    const events: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb([], []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+      onProgress: (p) => events.push(p),
+    })
+
+    expect(events.find((e) => e.phase === 'listing').total).toBe(4)
+    const fetching = events.filter((e) => e.phase === 'fetching')
+    expect(fetching[fetching.length - 1].current).toBe(4)
+  })
+
+  it('does not fail the scan when the progress callback throws', async () => {
+    mockGmail([makeAxisEmiGmailMessage('msg-throwing-cb')])
+
+    const insertedTransactions: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(insertedTransactions, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+      onProgress: () => { throw new Error('UI blew up') },
+    })
+
+    expect(result.error).toBeNull()
+    expect(insertedTransactions.flat()).toHaveLength(1)
+  })
+
+  it('formats each phase into readable copy', async () => {
+    const { formatScanProgress } = await import('./emailScanner')
+    expect(formatScanProgress({ phase: 'listing', current: 0, total: 0 })).toMatch(/No new emails/i)
+    expect(formatScanProgress({ phase: 'listing', current: 7, total: 7 })).toMatch(/Found 7 emails/i)
+    expect(formatScanProgress({ phase: 'fetching', current: 3, total: 9 })).toMatch(/Reading email 3 of 9/i)
+    expect(formatScanProgress({ phase: 'analyzing', current: 5, total: 9 })).toMatch(/Analyzing email 5 of 9/i)
+    expect(formatScanProgress({ phase: 'saving', current: 2, total: 9 })).toMatch(/Saving/i)
+  })
+})
+
+describe('scanRealGmailInbox — incremental inserts keep partial results', () => {
+  it('writes transactions in chunks rather than one insert at the end', async () => {
+    // 25 parsed transactions at a chunk size of 10 → 3 writes, not 1.
+    const messages = Array.from({ length: 25 }, (_, i) => makeAxisEmiGmailMessage(`msg-chunk-${i}`))
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const insertCalls: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(insertCalls, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    const batches = insertCalls.filter((rows) => Array.isArray(rows))
+    expect(batches.length).toBeGreaterThan(1)
+    expect(insertCalls.flat()).toHaveLength(25)
+  })
+
+  it('keeps already-flushed transactions when the scan dies partway, and says so', async () => {
+    const messages = Array.from({ length: 25 }, (_, i) => makeAxisEmiGmailMessage(`msg-die-${i}`))
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const persisted: any[] = []
+    let writes = 0
+    const chain = (payload: any): any => {
+      const h: any = {
+        select: () => h, eq: () => h, order: () => h, gte: () => h, limit: () => h,
+        single: () => Promise.resolve({ data: null, error: null }),
+        insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }), then: (r: any) => r({ data: [], error: null }) }),
+        then: (r: any) => r(payload),
+      }
+      return h
+    }
+    const mockDb: any = {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } } }) },
+      from: (table: string) => {
+        if (table === 'categories') return chain({ data: [{ name: 'Other', is_permanent: true }], error: null })
+        if (table === 'transactions') {
+          const h = chain({ data: [], error: null })
+          h.insert = (rows: any) => {
+            const arr = Array.isArray(rows) ? rows : [rows]
+            writes++
+            // Second chunk hits an unrecoverable database error.
+            if (writes === 2) {
+              return { select: () => Promise.resolve({ data: null, error: { code: '08006', message: 'connection failure' } }) }
+            }
+            persisted.push(...arr)
+            return { select: () => Promise.resolve({ data: arr, error: null }) }
+          }
+          return h
+        }
+        return chain({ data: [], error: null })
+      },
+    }
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    // The scan fails...
+    expect(result.error).not.toBeNull()
+    // ...but the first chunk survived, instead of the whole scan being lost.
+    expect(persisted).toHaveLength(10)
+    // ...and the user is told, so they don't assume they lost everything.
+    expect(result.error!.message).toMatch(/10 transactions found before the error were already saved/i)
+  })
+
+  it('still isolates a unique-constraint conflict within a chunk', async () => {
+    // The 23505 row-by-row fallback must survive being moved into the shared
+    // chunk helper — it is what makes concurrent and retried scans safe.
+    const messages = Array.from({ length: 3 }, (_, i) => makeAxisEmiGmailMessage(`msg-conflict-${i}`))
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const perRow: any[] = []
+    let perRowAttempts = 0
+    const chain = (payload: any): any => {
+      const h: any = {
+        select: () => h, eq: () => h, order: () => h, gte: () => h, limit: () => h,
+        single: () => Promise.resolve({ data: null, error: null }),
+        insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }), then: (r: any) => r({ data: [], error: null }) }),
+        then: (r: any) => r(payload),
+      }
+      return h
+    }
+    const mockDb: any = {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } } }) },
+      from: (table: string) => {
+        if (table === 'categories') return chain({ data: [{ name: 'Other', is_permanent: true }], error: null })
+        if (table === 'transactions') {
+          const h = chain({ data: [], error: null })
+          h.insert = (rows: any) => {
+            const arr = Array.isArray(rows) ? rows : [rows]
+            if (arr.length > 1) {
+              return { select: () => Promise.resolve({ data: null, error: { code: '23505', message: 'duplicate key' } }) }
+            }
+            // Per-row retry: exactly the SECOND row was already inserted by a
+            // concurrent scan; the first and third must still go through.
+            perRowAttempts++
+            if (perRowAttempts === 2) {
+              return { select: () => Promise.resolve({ data: null, error: { code: '23505', message: 'duplicate key' } }) }
+            }
+            perRow.push(arr[0])
+            return { select: () => Promise.resolve({ data: arr, error: null }) }
+          }
+          return h
+        }
+        return chain({ data: [], error: null })
+      },
+    }
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: mockDb,
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    // One row conflicted and was skipped; the others were kept.
+    expect(perRow).toHaveLength(2)
+  })
+})
+
+// ============================================================
+// D3 — scope widened to "everything financial" (requirement R2).
+//
+// The Gmail query is the hard ceiling on coverage: an email matching none of
+// its keywords is never fetched, so no gate, AI verdict or dedup pass can
+// recover it. These cover the classes that were previously invisible.
+// ============================================================
+
+describe('scanRealGmailInbox — fetch query covers everything financial', () => {
+  async function captureQuery(): Promise<string> {
+    let captured = ''
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        captured = url
+        return { ok: true, status: 200, json: async () => ({ messages: [] }) } as any
+      }
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb([], []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+    return decodeURIComponent(captured)
+  }
+
+  it('asks for refund, insurance premium and investment vocabulary', async () => {
+    const q = await captureQuery()
+    for (const term of ['refund', 'premium', 'dividend', 'folio', 'nach', 'autopay']) {
+      expect(q).toContain(term)
+    }
+  })
+
+  it('keeps the original bank-alert and receipt vocabulary', async () => {
+    const q = await captureQuery()
+    for (const term of ['debited', 'credited', 'salary', 'emi', 'sip', 'receipt', 'invoice', 'subscription', 'renewal']) {
+      expect(q).toContain(term)
+    }
+  })
+
+  it('does not ask for reminder-shaped or stem-noisy terms', async () => {
+    // "bill"/"statement"/"due" only add reminders, which are rejected anyway;
+    // a genuinely paid bill already matches on "payment". "interest" stems to
+    // "interested" and would flood the net with marketing.
+    const q = await captureQuery()
+    expect(q).not.toMatch(/\bOR statement\b/)
+    expect(q).not.toMatch(/\bOR interest\b/)
+    expect(q).not.toMatch(/\bOR due\b/)
+  })
+})
+
+describe('scanRealGmailInbox — newly in-scope financial transactions', () => {
+  function mockGmail(messages: any[]) {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  }
+
+  it('captures a refund whose email never says "credited"', async () => {
+    mockGmail([makeRefundGmailMessage()])
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null, // force the regex ladder — no AI safety net
+    })
+
+    expect(result.error).toBeNull()
+    const rows = inserted.flat()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].amount).toBe(1299)
+  })
+
+  it('captures an insurance premium whose email says "collected", not "debited"', async () => {
+    mockGmail([makePremiumGmailMessage()])
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    const rows = inserted.flat()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].amount).toBe(12500)
+    expect(rows[0].type).toBe('debit')
+  })
+
+  it('still rejects the junk classes now that the net is wider', async () => {
+    // The widened query pulls in more mail, so R1/R13 must still hold.
+    mockGmail([
+      makeBankMarketingGmailMessage('msg-wide-marketing'),
+      makeBusinessStandardGmailMessage('msg-wide-newsletter'),
+    ])
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    expect(inserted.flat()).toHaveLength(0)
+  })
+})
+
+// ============================================================
+// D5 / R10 — a bank alert and the merchant's receipt for ONE payment become
+// one transaction. Covers both directions: two emails in the same scan, and a
+// new email matching a transaction stored by an earlier scan.
+// ============================================================
+
+describe('scanRealGmailInbox — smart-merges duplicate payments', () => {
+  function toBase64Url(text: string): string {
+    return Buffer.from(text, 'utf-8').toString('base64url')
+  }
+
+  /** A minimal payment email with controllable merchant/amount/reference. */
+  function paymentMessage(id: string, subject: string, body: string) {
+    return {
+      id,
+      threadId: `thread-${id}`,
+      snippet: body.slice(0, 80),
+      internalDate: String(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      payload: {
+        headers: [
+          { name: 'Subject', value: subject },
+          { name: 'From', value: 'Alerts <alerts@hdfcbank.com>' },
+        ],
+        mimeType: 'text/plain',
+        body: { data: toBase64Url(body) },
+      },
+    }
+  }
+
+  const BANK_ALERT = paymentMessage(
+    'msg-bank-alert',
+    'Debit transaction alert',
+    'Rs.450.00 has been debited from your HDFC Bank A/c XX4471 at SWIGGY on 10-08-26. UPI Ref 445566778899.'
+  )
+  const MERCHANT_RECEIPT = paymentMessage(
+    'msg-merchant-receipt',
+    'Your Swiggy order receipt',
+    'Thanks for ordering from Swiggy. Total paid Rs.450.00 for your order. We hope you enjoyed your meal.'
+  )
+
+  function mockGmail(messages: any[]) {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  }
+
+  /** Mock DB seeded with pre-existing transactions, capturing inserts and updates. */
+  function makeMergeDb(existing: any[], inserted: any[], updates: any[]) {
+    const chain = (payload: any): any => {
+      const h: any = {
+        select: () => h, eq: () => h, order: () => h, gte: () => h, limit: () => h,
+        single: () => Promise.resolve({ data: null, error: null }),
+        insert: (row: any) => ({
+          select: () => ({ single: () => Promise.resolve({ data: row, error: null }) }),
+          then: (r: any) => r({ data: [], error: null }),
+        }),
+        update: (patch: any) => ({ eq: (_c: any, id: any) => { updates.push({ id, patch }); return Promise.resolve({ error: null }) } }),
+        then: (r: any) => r(payload),
+      }
+      return h
+    }
+    return {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } } }) },
+      from: (table: string) => {
+        if (table === 'categories') return chain({ data: [{ name: 'Food & Dining', is_permanent: false }, { name: 'Other', is_permanent: true }], error: null })
+        if (table === 'transactions') {
+          const h = chain({ data: existing, error: null })
+          h.insert = (rows: any) => {
+            const arr = Array.isArray(rows) ? rows : [rows]
+            inserted.push(...arr)
+            return { select: () => Promise.resolve({ data: arr.map((r: any, i: number) => ({ ...r, id: `new-${inserted.length}-${i}` })), error: null }) }
+          }
+          h.update = (patch: any) => ({ eq: (_col: any, id: any) => { updates.push({ id, patch }); return Promise.resolve({ error: null }) } })
+          return h
+        }
+        return chain({ data: [], error: null })
+      },
+    } as any
+  }
+
+  it('folds a bank alert and a merchant receipt in the same scan into one transaction', async () => {
+    mockGmail([BANK_ALERT, MERCHANT_RECEIPT])
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMergeDb([], inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    // Two emails in, ONE transaction out.
+    expect(inserted).toHaveLength(1)
+    expect(result.data?.mergedDuplicateCount).toBe(1)
+    // And it keeps the richer detail from both sides.
+    expect(inserted[0].amount).toBe(450)
+    expect(inserted[0].reference_id).toBe('445566778899')
+    // The absorbed email is recorded so a later scan cannot resurrect it.
+    expect(inserted[0].merged_email_message_ids).toContain('msg-merchant-receipt')
+  })
+
+  it('does not merge two same-amount payments to different merchants', async () => {
+    const swiggy = paymentMessage('msg-swiggy', 'Debit transaction alert',
+      'Rs.450.00 debited from your A/c XX4471 at SWIGGY on 10-08-26. UPI Ref 111111111111.')
+    const zomato = paymentMessage('msg-zomato', 'Debit transaction alert',
+      'Rs.450.00 debited from your A/c XX4471 at ZOMATO on 10-08-26. UPI Ref 222222222222.')
+    mockGmail([swiggy, zomato])
+
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMergeDb([], inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    expect(inserted).toHaveLength(2)
+    expect(result.data?.mergedDuplicateCount).toBe(0)
+  })
+
+  it('merges a receipt against a transaction stored by an earlier scan', async () => {
+    const today = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const storedBankAlert = {
+      id: 'stored-1',
+      amount: 450,
+      type: 'debit',
+      date: today,
+      merchant: 'HDFC Bank', // weak label — the receipt should improve it
+      description: 'Bank transaction',
+      reference_id: null,
+      payment_mode: 'unknown',
+      card_issuer: null,
+      card_brand: null,
+      transaction_time: null,
+      confidence_score: 60,
+      approval_status: 'pending',
+      category_confirmed_at: null,
+      email_message_id: 'msg-old-bank-alert',
+      merged_email_message_ids: null,
+    }
+
+    // Receipt names the merchant, so the pair corresponds via the reference id
+    // the bank alert carries... which it does not here, so use a named receipt
+    // whose merchant matches a NON-weak stored label instead.
+    storedBankAlert.merchant = 'Swiggy'
+    mockGmail([MERCHANT_RECEIPT])
+
+    const inserted: any[] = []
+    const updates: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMergeDb([storedBankAlert], inserted, updates),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    // No new row — the receipt was absorbed into the stored transaction.
+    expect(inserted).toHaveLength(0)
+    expect(result.data?.mergedDuplicateCount).toBe(1)
+    // The absorbed id is recorded against the stored row.
+    expect(updates).toHaveLength(1)
+    expect(updates[0].patch.merged_email_message_ids).toContain('msg-merchant-receipt')
+  })
+
+  it('never rewrites a transaction the user has already acted on', async () => {
+    const today = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const approved = {
+      id: 'stored-approved',
+      amount: 450, type: 'debit', date: today,
+      merchant: 'Swiggy',
+      description: 'My own edited description',
+      reference_id: null, payment_mode: 'unknown',
+      card_issuer: null, card_brand: null, transaction_time: null,
+      confidence_score: 95,
+      approval_status: 'approved',          // user approved it
+      category_confirmed_at: '2026-08-11T00:00:00Z', // and confirmed the category
+      email_message_id: 'msg-old-approved',
+      merged_email_message_ids: null,
+    }
+    mockGmail([MERCHANT_RECEIPT])
+
+    const inserted: any[] = []
+    const updates: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMergeDb([approved], inserted, updates),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    // Still absorbed (no duplicate), but the only change is bookkeeping.
+    expect(inserted).toHaveLength(0)
+    expect(updates).toHaveLength(1)
+    expect(Object.keys(updates[0].patch)).toEqual(['merged_email_message_ids'])
+  })
+
+  it('treats an already-absorbed email id as seen on the next scan', async () => {
+    const today = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const stored = {
+      id: 'stored-merged',
+      amount: 450, type: 'debit', date: today,
+      merchant: 'Swiggy', description: 'Swiggy order',
+      reference_id: '445566778899', payment_mode: 'upi',
+      card_issuer: 'HDFC', card_brand: null, transaction_time: null,
+      confidence_score: 90,
+      approval_status: 'pending', category_confirmed_at: null,
+      email_message_id: 'msg-bank-alert',
+      merged_email_message_ids: ['msg-merchant-receipt'],
+    }
+    mockGmail([MERCHANT_RECEIPT])
+
+    const inserted: any[] = []
+    const updates: any[] = []
+    const askAI = vi.fn(async () => null)
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMergeDb([stored], inserted, updates),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: askAI as any,
+    })
+
+    // Dedup catches it before any work — no insert, no update, no AI call.
+    expect(inserted).toHaveLength(0)
+    expect(updates).toHaveLength(0)
+    expect(askAI).not.toHaveBeenCalled()
+  })
+})
+
+// ============================================================
+// D6 / R11 — foreign-currency transactions are captured as what they are.
+//
+// The bug: amount extraction only recognised rupee markers, while the AI path
+// returns a bare number for ANY currency. A USD 50 charge was therefore either
+// invisible or stored indistinguishably from Rs.50 — a wrong number in the
+// ledger, worse than a missing one.
+// ============================================================
+
+describe('scanRealGmailInbox — foreign currency', () => {
+  function toBase64Url(text: string): string {
+    return Buffer.from(text, 'utf-8').toString('base64url')
+  }
+
+  function chargeMessage(id: string, subject: string, body: string) {
+    return {
+      id,
+      threadId: `thread-${id}`,
+      snippet: body.slice(0, 80),
+      internalDate: String(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      payload: {
+        headers: [
+          { name: 'Subject', value: subject },
+          { name: 'From', value: 'Alerts <alerts@hdfcbank.com>' },
+        ],
+        mimeType: 'text/plain',
+        body: { data: toBase64Url(body) },
+      },
+    }
+  }
+
+  function mockGmail(messages: any[]) {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }),
+        } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  }
+
+  it('stores a USD charge as USD, not as rupees', async () => {
+    mockGmail([chargeMessage('msg-usd', 'Debit transaction alert',
+      'Your card ending 4471 was charged $50.00 at NETFLIX.COM on 10-08-26.')])
+
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null, // regex path
+    })
+
+    expect(result.error).toBeNull()
+    const rows = inserted.flat()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].amount).toBe(50)
+    expect(rows[0].currency).toBe('USD')
+  })
+
+  it('still stores a rupee charge as INR', async () => {
+    mockGmail([chargeMessage('msg-inr', 'Debit transaction alert',
+      'Rs.450.00 has been debited from your A/c XX4471 at SWIGGY on 10-08-26.')])
+
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    const rows = inserted.flat()
+    expect(rows[0].amount).toBe(450)
+    expect(rows[0].currency).toBe('INR')
+  })
+
+  it('records the currency the AI reports', async () => {
+    mockGmail([chargeMessage('msg-ai-eur', 'Payment confirmation',
+      'Your payment has been processed successfully.')])
+
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => ({
+        is_transaction: true, transaction_type: 'debit', amount: 12.99, currency: 'EUR',
+        merchant: 'Spotify', category: 'Subscriptions', description: 'Spotify',
+        payment_mode: 'credit_card', card_issuer: null, card_brand: null,
+        transaction_time: null, reference_id: null, date: null, confidence_score: 92,
+      } as any),
+    })
+
+    const rows = inserted.flat()
+    expect(rows[0].currency).toBe('EUR')
+    expect(rows[0].amount).toBe(12.99)
+  })
+
+  it('falls back to INR when the AI omits a currency', async () => {
+    // The model returns a bare number for any currency, so an unstated one
+    // must resolve explicitly rather than being left undefined.
+    mockGmail([chargeMessage('msg-ai-nocur', 'Payment confirmation',
+      'Your payment has been processed successfully.')])
+
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => ({
+        is_transaction: true, transaction_type: 'debit', amount: 300,
+        merchant: 'Airtel', category: 'Other', description: 'Airtel',
+        payment_mode: 'upi', card_issuer: null, card_brand: null,
+        transaction_time: null, reference_id: null, date: null, confidence_score: 88,
+      } as any),
+    })
+
+    expect(inserted.flat()[0].currency).toBe('INR')
+  })
+
+  it('does not merge same-amount payments in different currencies', async () => {
+    // $50 and Rs.50 on the same day to the same merchant are not one payment.
+    mockGmail([
+      chargeMessage('msg-cur-usd', 'Debit transaction alert', 'Charged $50.00 at SWIGGY on 10-08-26.'),
+      chargeMessage('msg-cur-inr', 'Debit transaction alert', 'Rs.50.00 debited at SWIGGY on 10-08-26.'),
+    ])
+
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb(inserted, []),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    const rows = inserted.flat()
+    expect(rows).toHaveLength(2)
+    expect(new Set(rows.map((r: any) => r.currency))).toEqual(new Set(['USD', 'INR']))
+  })
+})
+
+// ============================================================
+// D7 / R12 — attachment-only bills are skipped, but not silently.
+// The skip itself is the owner's decision; logging it makes the cost of that
+// decision measurable in the rejection audit trail.
+// ============================================================
+
+describe('scanRealGmailInbox — logs emails with no readable amount', () => {
+  function toBase64Url(t: string) { return Buffer.from(t, 'utf-8').toString('base64url') }
+
+  function msg(id: string, subject: string, body: string) {
+    return {
+      id, threadId: `t-${id}`, snippet: body.slice(0, 60),
+      internalDate: String(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      payload: {
+        headers: [
+          { name: 'Subject', value: subject },
+          { name: 'From', value: 'Billing <billing@tatapower.com>' },
+        ],
+        mimeType: 'text/plain',
+        body: { data: toBase64Url(body) },
+      },
+    }
+  }
+
+  function mockGmail(messages: any[]) {
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return { ok: true, status: 200, json: async () => ({ messages: messages.map((m) => ({ id: m.id, threadId: m.threadId })) }) } as any
+      }
+      const hit = messages.find((m) => url.includes(`/messages/${m.id}`))
+      if (hit) return { ok: true, status: 200, json: async () => hit } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  }
+
+  it('logs no_amount_in_body when the amount is only in an attachment', async () => {
+    mockGmail([msg('msg-pdf-bill', 'Your electricity bill payment receipt',
+      'Thank you. Your payment receipt is attached as a PDF. Please find the details enclosed.')])
+
+    const inserted: any[] = []
+    const rejections: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(inserted, rejections),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    expect(inserted.flat()).toHaveLength(0)
+    expect(rejections.flat().map((r: any) => r.gate)).toContain('no_amount_in_body')
+  })
+
+  it('distinguishes balance-only amounts from no amount at all', async () => {
+    mockGmail([msg('msg-balance-only', 'Account update',
+      'Your payment was processed. Available balance Rs.9,999.00. Reward points balance Rs.250.00.')])
+
+    const inserted: any[] = []
+    const rejections: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    await scanRealGmailInbox({
+      db: makeMockDb(inserted, rejections),
+      activeYear: new Date().getUTCFullYear(),
+      askAI: async () => null,
+    })
+
+    expect(inserted.flat()).toHaveLength(0)
+    const gates = rejections.flat().map((r: any) => r.gate)
+    expect(gates).toContain('only_balance_or_reward_amounts')
+    expect(gates).not.toContain('no_amount_in_body')
   })
 })

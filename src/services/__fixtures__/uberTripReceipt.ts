@@ -7,6 +7,8 @@
 // debit/credit classifier, and confidence scoring all previously assumed
 // would never happen.
 
+import { daysAgoMs } from './_fixtureClock'
+
 export const UBER_TRIP_SUBJECT = '[Personal] Your Monday evening trip with Uber'
 
 export const UBER_TRIP_FROM = 'Uber Receipts <noreply@uber.com>'
@@ -43,7 +45,7 @@ export function makeUberTripGmailMessage(id = 'msg-uber-trip-1') {
     id,
     threadId: 'thread-uber-trip-1',
     snippet: 'Thanks for riding, Piyush. We hope you enjoyed your ride this evening. Total ₹224.76...',
-    internalDate: String(Date.UTC(2026, 7, 10, 16, 55, 17)),
+    internalDate: daysAgoMs(2),
     payload: {
       headers: [
         { name: 'Subject', value: UBER_TRIP_SUBJECT },

@@ -17,6 +17,8 @@ import {
   getNextRefreshTime,
   getLastScheduledRefreshTime,
   applyMerchantRules,
+  getManualScanQuota,
+  formatScanProgress,
 } from '@/services'
 import { saveMerchantRuleToDb } from '@/services/learningEngine'
 import { useAuth } from '@/context/AuthContext'
@@ -153,6 +155,7 @@ export default function PendingPage() {
     autoApproved: number
     pendingReview: number
     lowConfidence: number
+    merged: number
   } | null>(null)
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -186,6 +189,13 @@ export default function PendingPage() {
   // Scan dashboard state
   const [lastScanLog, setLastScanLog] = useState<any>(null)
   const [nextScanCountdown, setNextScanCountdown] = useState<string | null>(null)
+
+  // Shows a "still working" hint once a scan runs past a few seconds, so a
+  // legitimately slow scan (large inbox, many AI classification calls) isn't
+  // indistinguishable from a frozen one. Superseded by live progress as soon
+  // as the engine reports its first phase.
+  const [scanTakingLong, setScanTakingLong] = useState(false)
+  const [scanProgress, setScanProgress] = useState<string | null>(null)
 
   // ── Fetch last scan log ──────────────────────────────────
   const fetchLastScanLog = useCallback(async () => {
@@ -265,26 +275,57 @@ export default function PendingPage() {
   }, [user])
 
   // ── Live countdown timer ─────────────────────────────────
+  // Driven by the real manual-scan quota, not by "last scan + 24h". Those
+  // differ now: premium gets 2 manual scans a day, and the most recent scan may
+  // have been the automatic one, which costs no allowance at all. Deriving the
+  // countdown from the last scan would tell a premium user to wait 22 hours
+  // while the engine would happily run a scan on request.
   useEffect(() => {
-    if (!lastScanLog) return
+    if (!user) return
+    let cancelled = false
+    let interval: ReturnType<typeof setInterval> | undefined
 
-    const lastScanMs = new Date(lastScanLog.scanned_at).getTime()
-    const nextScanMs = lastScanMs + 24 * 60 * 60 * 1000
-
-    const tick = () => {
-      const remaining = nextScanMs - Date.now()
-      if (remaining <= 0) {
+    ;(async () => {
+      const quota = await getManualScanQuota()
+      if (cancelled) return
+      const nextScanMs = quota?.nextAvailableAt?.getTime() ?? null
+      if (!nextScanMs) {
         setNextScanCountdown(null)
         setScanCooldownMessage(null)
         return
       }
-      setNextScanCountdown(msToCountdown(remaining))
-    }
 
-    tick()
-    const interval = setInterval(tick, 1000)
-    return () => clearInterval(interval)
-  }, [lastScanLog])
+      const tick = () => {
+        const remaining = nextScanMs - Date.now()
+        if (remaining <= 0) {
+          setNextScanCountdown(null)
+          setScanCooldownMessage(null)
+          if (interval) clearInterval(interval)
+          return
+        }
+        setNextScanCountdown(msToCountdown(remaining))
+      }
+
+      tick()
+      interval = setInterval(tick, 1000)
+    })()
+
+    return () => {
+      cancelled = true
+      if (interval) clearInterval(interval)
+    }
+    // Re-checked whenever a scan completes, since that is what consumes quota.
+  }, [user, lastScanLog])
+
+  // ── "Still working" hint for slow-but-live scans ────────
+  useEffect(() => {
+    if (!scanning && !syncingBackground) {
+      setScanTakingLong(false)
+      return
+    }
+    const timer = setTimeout(() => setScanTakingLong(true), 6000)
+    return () => clearTimeout(timer)
+  }, [scanning, syncingBackground])
 
   const fetchPendingData = useCallback(async () => {
     setLoading(true)
@@ -614,6 +655,7 @@ export default function PendingPage() {
 
   const handleScan = async () => {
     setScanning(true)
+    setScanProgress(null)
     setScanSuccessMessage(null)
     setScanCooldownMessage(null)
     setError(null)
@@ -626,7 +668,11 @@ export default function PendingPage() {
         return
       }
 
-      const res = await scanRealGmailInbox()
+      const res = await withTimeout(
+        scanRealGmailInbox({ onProgress: (p) => setScanProgress(formatScanProgress(p)) }),
+        90000,
+        'Gmail scan'
+      )
 
       if (res.error) {
         const msg = res.error.message || ''
@@ -661,10 +707,11 @@ export default function PendingPage() {
       const autoApproved = res.data?.autoApprovedCount || 0
       const pendingCount = count - autoApproved
       const lowConfidence = (res.data as any)?.lowConfidencePendingCount || 0
+      const merged = (res.data as any)?.mergedDuplicateCount || 0
 
       // Per-transaction detail already lives in the auto-categorization review
       // modal below — this stays a short, glanceable summary, not a repeat dump.
-      setScanSuccessMessage({ total: count, autoApproved, pendingReview: pendingCount, lowConfidence })
+      setScanSuccessMessage({ total: count, autoApproved, pendingReview: pendingCount, lowConfidence, merged })
 
       await fetchPendingData()
       const freshScanLog = await fetchLastScanLog()
@@ -672,9 +719,18 @@ export default function PendingPage() {
       await fetchUnconfirmedCategorizations()
     } catch (err: any) {
       console.error('Scan error:', err)
-      setError(err.message || 'Scan failed. Please try again.')
+      const msg: string = err.message || 'Scan failed. Please try again.'
+      // withTimeout's generic copy tells the user to refresh the page, which is
+      // wrong advice here — the scan keeps running, and thanks to incremental
+      // flushing whatever it already found is saved.
+      setError(
+        msg.includes('timed out')
+          ? 'Scan is taking longer than expected. Anything already found has been saved — scan again to pick up where it left off.'
+          : msg
+      )
     } finally {
       setScanning(false)
+      setScanProgress(null)
     }
   }
 
@@ -770,9 +826,15 @@ export default function PendingPage() {
                 <Sparkles className="h-4 w-4 text-brand-300" /> Scan Bank Alerts
               </Button>
             </div>
-            <span className="text-xs font-semibold text-brand-300 font-mono bg-surface-2 border border-border-subtle/50 px-2 py-0.5 rounded-md flex items-center gap-1">
-              <Calendar className="h-3 w-3 text-brand-300 shrink-0" /> Next Refresh: {getNextRefreshTime(dailyScanTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
-            </span>
+            {(scanning || syncingBackground) && (scanProgress || scanTakingLong) ? (
+              <span role="status" className="text-xs text-zinc-500">
+                {scanProgress ?? 'Still scanning your inbox — large inboxes can take up to a minute…'}
+              </span>
+            ) : (
+              <span className="text-xs font-semibold text-brand-300 font-mono bg-surface-2 border border-border-subtle/50 px-2 py-0.5 rounded-md flex items-center gap-1">
+                <Calendar className="h-3 w-3 text-brand-300 shrink-0" /> Next Refresh: {getNextRefreshTime(dailyScanTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
+              </span>
+            )}
           </div>
         </div>
 
@@ -903,7 +965,11 @@ export default function PendingPage() {
               <div>
                 <p className="font-semibold">
                   {scanSuccessMessage.total === 0
-                    ? 'Sync complete — no new transactions found.'
+                    ? scanSuccessMessage.merged > 0
+                      // Every email matched a transaction already on file. Say so
+                      // — "no new transactions" alone reads like the scan failed.
+                      ? `Sync complete — ${scanSuccessMessage.merged} receipt${scanSuccessMessage.merged === 1 ? '' : 's'} matched transactions you already have.`
+                      : 'Sync complete — no new transactions found.'
                     : `${scanSuccessMessage.total} new transaction${scanSuccessMessage.total === 1 ? '' : 's'} found.`}
                 </p>
                 {scanSuccessMessage.total > 0 && (
@@ -911,6 +977,7 @@ export default function PendingPage() {
                     {scanSuccessMessage.autoApproved} auto-approved
                     {scanSuccessMessage.pendingReview > 0 ? `, ${scanSuccessMessage.pendingReview} waiting below for your review` : ''}
                     {scanSuccessMessage.lowConfidence > 0 ? ` · ${scanSuccessMessage.lowConfidence} flagged low-confidence (please review)` : ''}
+                    {scanSuccessMessage.merged > 0 ? ` · ${scanSuccessMessage.merged} duplicate receipt${scanSuccessMessage.merged === 1 ? '' : 's'} merged` : ''}
                   </p>
                 )}
               </div>
@@ -1169,7 +1236,7 @@ export default function PendingPage() {
                           : 'text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border-[var(--status-positive-border)] shadow-sm shadow-[var(--status-positive-text)]/5'
                       }`}
                     >
-                      {formatCurrency(Number(txn.amount))}
+                      {formatCurrency(Number(txn.amount), txn.currency)}
                     </span>
                   </div>
 
@@ -1331,7 +1398,7 @@ export default function PendingPage() {
 
                 <div className="flex items-center gap-2 shrink-0 justify-between sm:justify-end">
                   <span className="text-sm font-bold text-[var(--status-positive-text)] font-mono pr-1">
-                    {formatCurrency(Number(txn.amount))}
+                    {formatCurrency(Number(txn.amount), txn.currency)}
                   </span>
 
                   <select

@@ -7,12 +7,20 @@
 import { supabase as defaultSupabase } from './supabase.js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
-import { extractBankName, retryWithBackoff } from '../utils/index.js'
-import { applyMerchantRulesFromDB } from './learningEngine.js'
+import { extractBankName, retryWithBackoff, fetchWithTimeout } from '../utils/index.js'
+import { getMerchantRulesFromDB, applyMerchantRulesFromRows } from './learningEngine.js'
 import { getGoogleToken, clearGoogleToken, tryRefreshGoogleToken } from './googleAuth.js'
-import { analyzeTransactionEmailWithAI } from './aiService.js'
+import {
+  analyzeTransactionEmailWithAI,
+  analyzeTransactionEmailBatchWithAI,
+  AI_BATCH_SIZE,
+  type EmailForAI,
+  type AITransactionResult,
+} from './aiService.js'
 import { stripBoilerplate } from './emailBoilerplate.js'
 import { evaluateRegexGates, logRejection, isBulkMarketingEmail, hasPaymentAssertion } from './emailScanGates.js'
+import { isSamePayment, mergePayments, isWeakMerchantLabel, type MergeableTransaction } from './paymentMerge.js'
+import { extractAmountMatches, isHomeCurrency, DEFAULT_CURRENCY } from './currency.js'
 
 type EmailScanLog = Database['public']['Tables']['email_scan_logs']['Row']
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert']
@@ -127,6 +135,15 @@ const HARD_ACCEPT_SUBJECT_PATTERNS = [
   /\b(upi\s*transaction|upi\s*payment)\b/i,
   /\b(emi\s*debited|loan\s*emi)\b/i,
   /\b(refund\s*credited|refund\s*processed)\b/i,
+  // R2 additions. These subjects are unambiguous payment CONFIRMATIONS, and
+  // they need the hard-accept bypass for a specific reason: insurance and
+  // subscription confirmations routinely state the next due date ("Next due:
+  // 10-08-2027"), which trips the due_or_statement_reminder gate and rejected
+  // the entire class. Hard-accept is narrow enough to be safe here — a genuine
+  // reminder's subject does not say the premium was collected.
+  /\bpremium\s*(?:successfully\s+)?(?:collected|paid|received)\b/i,
+  /\bpremium\s*payment\s*(?:successful|received|confirmation)\b/i,
+  /\bdividend\s*(?:credited|paid)\b/i,
 ]
 
 // ============================================================
@@ -705,9 +722,324 @@ export async function getScanLogs() {
   return { data: data as EmailScanLog[] | null, error }
 }
 
+/**
+ * The signed-in user's current manual-scan allowance.
+ *
+ * Exists so the UI can show an accurate countdown without reimplementing tier
+ * rules: it resolves the limit and reads the window through the very same
+ * helpers `scanRealGmailInbox` uses to decide whether to block. Read-only —
+ * unlike the scan path it does not correct a lapsed subscription's status.
+ *
+ * Returns null when nobody is signed in.
+ */
+export async function getManualScanQuota(opts?: { db?: SupabaseClient }): Promise<ManualScanQuota | null> {
+  const db = opts?.db || defaultSupabase
+  const { data: { session } } = await db.auth.getSession()
+  const user = session?.user
+  if (!user) return null
+
+  const cleanEmail = user.email?.toLowerCase().trim() || ''
+  const isOwner = OWNER_EMAILS.length > 0 && OWNER_EMAILS.includes(cleanEmail)
+
+  let isPremium = false
+  try {
+    const { data: profile } = await db
+      .from('profiles')
+      .select('subscription_status, subscription_expires_at')
+      .eq('id', user.id)
+      .single()
+    isPremium = isPremiumProfile(profile)
+  } catch {
+    // Unreadable profile is treated as free tier — the stricter assumption.
+  }
+
+  const limit = resolveManualScanLimit(isOwner, isPremium)
+  if (limit === Infinity) {
+    return { used: 0, limit, remaining: Infinity, nextAvailableAt: null }
+  }
+  return computeManualQuotaState(await fetchRecentManualScanTimes(db, user.id), limit)
+}
+
 // ============================================================
 // MAIN ENGINE — Scan Real Gmail Inbox (V2)
 // ============================================================
+/**
+ * An email that survived Stage A's cheap gates and is worth an AI opinion.
+ * Carries everything Stage C needs so the body/header work is done exactly once.
+ */
+interface ScanCandidate {
+  mail: any
+  mailMessageId: string
+  mailDate: string
+  bodyText: string
+  strippedBodyText: string
+  subject: string
+  fromValue: string
+  senderDomain: string
+  isTrustedSender: boolean
+  emailContentForParsing: string
+  isBulkMail: boolean
+}
+
+/** Batches of AI classification in flight at once. */
+const AI_BATCH_CONCURRENCY = 2
+
+// ── Manual scan quotas (plans/email-scanner-requirements.md R6/R7/R8) ──
+// Owner is unlimited and handled separately. Premium and trial share a limit.
+const FREE_MANUAL_SCANS_PER_DAY = 1
+const PREMIUM_MANUAL_SCANS_PER_DAY = 2
+/** Rolling, not calendar-day — matches the previous cooldown's semantics. */
+const MANUAL_QUOTA_WINDOW_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Pure: is this profile row currently entitled to premium behaviour?
+ *
+ * Shared by the scan path and the quota accessor so the definition of
+ * "premium" cannot drift between what the engine enforces and what the UI
+ * displays. Correcting a lapsed subscription's stored status is deliberately
+ * NOT done here — that write stays on the scan path, keeping this safe to call
+ * from a read.
+ */
+export function isPremiumProfile(
+  profile: { subscription_status?: string | null; subscription_expires_at?: string | null } | null | undefined,
+  now: number = Date.now()
+): boolean {
+  if (!profile) return false
+  const expiresAt = profile.subscription_expires_at
+  if (profile.subscription_status === 'active') {
+    // An active subscription with no end date is open-ended.
+    return !expiresAt || new Date(expiresAt).getTime() > now
+  }
+  if (profile.subscription_status === 'trial') {
+    // A trial, unlike an active subscription, must carry an unexpired end date.
+    return !!expiresAt && new Date(expiresAt).getTime() > now
+  }
+  return false
+}
+
+/** Owner is unlimited; premium and trial share a limit; everyone else is free-tier. */
+export function resolveManualScanLimit(isOwner: boolean, isPremium: boolean): number {
+  if (isOwner) return Infinity
+  return isPremium ? PREMIUM_MANUAL_SCANS_PER_DAY : FREE_MANUAL_SCANS_PER_DAY
+}
+
+/** Transactions written per flush. Small enough that a dying scan loses little. */
+const INSERT_CHUNK_SIZE = 10
+
+/**
+ * Insert a chunk of transactions, isolating the batch from a single
+ * conflicting row. Extracted so the incremental flushes and the final flush
+ * share one implementation.
+ *
+ * The 23505 fallback is load-bearing for concurrent and retried scans — do not
+ * simplify it away.
+ */
+async function insertTransactionsChunk(db: SupabaseClient, rows: TransactionInsert[]): Promise<any[]> {
+  if (rows.length === 0) return []
+
+  const { data: batchInserted, error: batchError } = await db.from('transactions').insert(rows).select()
+  if (!batchError) return batchInserted || []
+
+  // 23505 = Postgres unique_violation. transactions_email_message_id_user_id_key
+  // (schema.sql:493-495) exists precisely to stop two concurrent scans from
+  // double-inserting the same email — but a batch insert throws on the WHOLE
+  // batch if even one row trips it, discarding every unrelated legitimate
+  // transaction alongside it. Fall back to inserting row-by-row so only the
+  // actually-conflicting row (already inserted by the other scan) is skipped.
+  if (batchError.code === '23505') {
+    const inserted: any[] = []
+    for (const txn of rows) {
+      const { data: rowData, error: rowError } = await db.from('transactions').insert(txn).select()
+      if (rowError) {
+        if (rowError.code === '23505') continue // already inserted by a concurrent scan — not a fault
+        throw rowError // any other error on an individual row still fails loud
+      }
+      if (rowData) inserted.push(...rowData)
+    }
+    return inserted
+  }
+
+  throw batchError // non-conflict error — unchanged fail-loud behavior
+}
+
+/** A stored transaction considered as a merge partner for a newly parsed one. */
+type StoredMergeCandidate = MergeableTransaction & {
+  id: string
+  approval_status?: string | null
+  category_confirmed_at?: string | null
+  merged_email_message_ids?: string[] | null
+}
+
+/** Narrow a parsed insert to the fields payment matching actually reads. */
+function toMergeable(t: TransactionInsert): MergeableTransaction {
+  return {
+    amount: t.amount,
+    currency: t.currency ?? null,
+    type: t.type,
+    date: t.date,
+    merchant: t.merchant ?? null,
+    description: t.description ?? null,
+    reference_id: t.reference_id ?? null,
+    payment_mode: t.payment_mode ?? null,
+    card_issuer: t.card_issuer ?? null,
+    card_brand: t.card_brand ?? null,
+    transaction_time: t.transaction_time ?? null,
+    confidence_score: t.confidence_score ?? null,
+    email_message_id: t.email_message_id ?? null,
+  }
+}
+
+/** Progress signal emitted during a scan so the UI can show real state. */
+export interface ScanProgress {
+  phase: 'listing' | 'fetching' | 'analyzing' | 'saving'
+  current: number
+  total: number
+}
+
+/**
+ * Human-readable one-liner for a progress event, shared by both scan buttons
+ * so they describe the same scan the same way.
+ */
+export function formatScanProgress(p: ScanProgress): string {
+  const seen = Math.min(p.current, p.total)
+  switch (p.phase) {
+    case 'listing':
+      return p.total === 0
+        ? 'No new emails to check…'
+        : `Found ${p.total} email${p.total === 1 ? '' : 's'} to check…`
+    case 'fetching':
+      return `Reading email ${seen} of ${p.total}…`
+    case 'analyzing':
+      return `Analyzing email ${seen} of ${p.total}…`
+    case 'saving':
+      return 'Saving transactions…'
+  }
+}
+
+/** Successful manual scans inside the rolling window, newest first. */
+async function fetchRecentManualScanTimes(db: SupabaseClient, userId: string): Promise<string[]> {
+  const windowStart = new Date(Date.now() - MANUAL_QUOTA_WINDOW_MS).toISOString()
+  const { data } = await db
+    .from('email_scan_logs')
+    .select('scanned_at')
+    .eq('user_id', userId)
+    .eq('status', 'success')
+    // Scheduled scans are excluded on purpose: the daily automatic scan must
+    // not consume a user's manual allowance (R7). Rows predating this column
+    // have scan_mode NULL and so don't count either, which fails open for one
+    // rolling window after deploy rather than locking anyone out.
+    .eq('scan_mode', 'manual')
+    .gte('scanned_at', windowStart)
+    .order('scanned_at', { ascending: false })
+  return (data ?? []).map((r: { scanned_at: string }) => r.scanned_at)
+}
+
+export interface ManualScanQuota {
+  used: number
+  limit: number
+  remaining: number
+  /** When the next manual scan becomes possible, or null if one is available now. */
+  nextAvailableAt: Date | null
+}
+
+/**
+ * Pure quota arithmetic, shared by the engine's blocking decision and the UI's
+ * countdown so the two can never disagree — a countdown that says "22 hours"
+ * while the engine would happily run a scan is exactly the kind of thing that
+ * makes the scanner look broken.
+ *
+ * `scannedAtDesc` is the timestamps of successful MANUAL scans inside the
+ * rolling window, newest first.
+ */
+export function computeManualQuotaState(
+  scannedAtDesc: string[],
+  limit: number,
+  now: number = Date.now()
+): ManualScanQuota {
+  const used = scannedAtDesc.length
+  if (limit === Infinity) {
+    return { used, limit, remaining: Infinity, nextAvailableAt: null }
+  }
+  const remaining = Math.max(0, limit - used)
+  if (remaining > 0) {
+    return { used, limit, remaining, nextAvailableAt: null }
+  }
+  // Rolling window: the next slot opens when the Nth-newest scan ages out, not
+  // when the most recent one does. Newest-first ordering makes that index
+  // (limit - 1) — once it leaves the window only newer ones remain, which is
+  // under the limit.
+  const blocking = scannedAtDesc[limit - 1]
+  const nextAvailableAt = new Date(new Date(blocking).getTime() + MANUAL_QUOTA_WINDOW_MS)
+  return {
+    used,
+    limit,
+    remaining: 0,
+    nextAvailableAt: nextAvailableAt.getTime() > now ? nextAvailableAt : null,
+  }
+}
+
+/**
+ * Runs Stage B: classify every candidate, batched and with bounded concurrency.
+ * Returns a map of Gmail message id → verdict, where a missing/null entry means
+ * "no AI opinion" and Stage C falls through to the regex ladder.
+ *
+ * Never throws. `analyzeTransactionEmailBatchWithAI` already degrades a failed
+ * batch to single calls internally; the extra guard here covers an injected
+ * batch function (tests, cron) that doesn't.
+ */
+async function classifyCandidatesWithAI(
+  candidates: ScanCandidate[],
+  askAIBatch: NonNullable<ScanGmailOptions['askAIBatch']>,
+  askAI: NonNullable<ScanGmailOptions['askAI']>,
+  categoryNames: string[],
+  emitProgress: (p: ScanProgress) => void = () => {}
+): Promise<Map<string, AITransactionResult | null>> {
+  const verdicts = new Map<string, AITransactionResult | null>()
+  if (candidates.length === 0) return verdicts
+
+  const chunks: ScanCandidate[][] = []
+  for (let i = 0; i < candidates.length; i += AI_BATCH_SIZE) {
+    chunks.push(candidates.slice(i, i + AI_BATCH_SIZE))
+  }
+
+  for (let i = 0; i < chunks.length; i += AI_BATCH_CONCURRENCY) {
+    const inFlight = chunks.slice(i, i + AI_BATCH_CONCURRENCY)
+    const settled = await Promise.all(
+      inFlight.map(async (chunk) => {
+        const emails: EmailForAI[] = chunk.map((c, idx) => ({
+          index: idx,
+          subject: c.subject,
+          body: c.strippedBodyText,
+          emailDate: c.mailDate,
+        }))
+        try {
+          return { chunk, byIndex: await askAIBatch(emails, categoryNames) }
+        } catch (err) {
+          // An injected batch fn that throws — degrade to single calls rather
+          // than dropping the whole chunk onto the regex ladder.
+          console.warn('[emailScanner] AI batch failed, falling back to single calls:', err)
+          const byIndex = new Map<number, AITransactionResult | null>()
+          for (let idx = 0; idx < chunk.length; idx++) {
+            try {
+              byIndex.set(idx, await askAI(chunk[idx].subject, chunk[idx].strippedBodyText, chunk[idx].mailDate, categoryNames))
+            } catch {
+              byIndex.set(idx, null)
+            }
+          }
+          return { chunk, byIndex }
+        }
+      })
+    )
+
+    for (const { chunk, byIndex } of settled) {
+      chunk.forEach((c, idx) => verdicts.set(c.mailMessageId, byIndex.get(idx) ?? null))
+    }
+    emitProgress({ phase: 'analyzing', current: verdicts.size, total: candidates.length })
+  }
+
+  return verdicts
+}
+
 export interface ScanGmailOptions {
   /** Supabase client to use for all DB reads/writes during this scan. Defaults to the browser singleton. */
   db?: SupabaseClient
@@ -718,8 +1050,34 @@ export interface ScanGmailOptions {
   accessToken?: string
   /** Active financial year to scope the scan to. Defaults to the browser's localStorage value (or 2026). */
   activeYear?: number
-  /** AI email analyzer to use. Defaults to the proxy-based `analyzeTransactionEmailWithAI`. */
+  /**
+   * Single-email AI analyzer. Defaults to the proxy-based
+   * `analyzeTransactionEmailWithAI`. Still used as the per-email fallback when
+   * a batch call fails, so it remains the safety net even though the batch
+   * path below does the bulk of the work.
+   */
   askAI?: (subject: string, body: string, emailDate: string, categoryNames?: string[]) => ReturnType<typeof analyzeTransactionEmailWithAI>
+  /**
+   * Batched AI analyzer — classifies up to AI_BATCH_SIZE emails per call.
+   * Defaults to the proxy-based `analyzeTransactionEmailBatchWithAI`. The cron
+   * path injects a variant backed by its direct Gemini client so it gets the
+   * same reduction in calls.
+   */
+  askAIBatch?: (emails: EmailForAI[], categoryNames?: string[]) => Promise<Map<number, AITransactionResult | null>>
+  /**
+   * Whether this scan was triggered by the user or by the daily cron. Recorded
+   * on the scan log, and decides whether the manual quota applies — scheduled
+   * scans are exempt, so a user's automatic scan never spends their manual
+   * allowance. Defaults to 'manual'.
+   */
+  scanMode?: 'manual' | 'scheduled'
+  /**
+   * Progress reporter, so the UI can show real state instead of an
+   * indeterminate spinner. Invoked on the listing, fetching, analyzing and
+   * saving phases. Exceptions thrown here are swallowed — a broken progress
+   * indicator must never fail a scan.
+   */
+  onProgress?: (progress: ScanProgress) => void
 }
 
 export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
@@ -727,12 +1085,31 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
   // Generated up front so every per-email rejection logged during this scan
   // can reference the scan_log row before that row itself is inserted
   // (which only happens after the whole scan completes, below).
+  const scanMode: 'manual' | 'scheduled' = opts?.scanMode ?? 'manual'
   const scanLogId: string = crypto.randomUUID
     ? crypto.randomUUID()
     : `scan-${Date.now()}-${Math.random().toString(36).slice(2)}`
   const askAI = opts?.askAI ||
     ((subject: string, body: string, emailDate: string, categoryNames?: string[]) =>
       analyzeTransactionEmailWithAI(subject, body, emailDate, undefined, categoryNames))
+  // When a caller supplies only `askAI` (every existing test, and any older
+  // caller), synthesise a batch fn from it so behaviour is unchanged for them:
+  // same one-call-per-email semantics, just routed through the staged pipeline.
+  const askAIBatch = opts?.askAIBatch ||
+    (opts?.askAI
+      ? async (emails: EmailForAI[], categoryNames?: string[]) => {
+          const out = new Map<number, AITransactionResult | null>()
+          for (const e of emails) {
+            try {
+              out.set(e.index, await askAI(e.subject, e.body, e.emailDate, categoryNames))
+            } catch {
+              out.set(e.index, null)
+            }
+          }
+          return out
+        }
+      : (emails: EmailForAI[], categoryNames?: string[]) =>
+          analyzeTransactionEmailBatchWithAI(emails, undefined, categoryNames))
 
   let user: { id: string; email?: string } | undefined
   let providerToken: string | null = null
@@ -764,11 +1141,25 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     }
   }
 
+  // Declared outside the try so the catch can report how much survived an
+  // interrupted scan — with incremental flushing, "it failed" no longer means
+  // "nothing was saved".
+  const insertedTxns: any[] = []
+
+  /** Never let a UI callback's failure break a scan. */
+  const emitProgress = (p: ScanProgress) => {
+    try {
+      opts?.onProgress?.(p)
+    } catch (e) {
+      console.warn('[emailScanner] onProgress callback threw:', e)
+    }
+  }
+
   try {
     const cleanEmail = user.email?.toLowerCase().trim() || ''
     const isOwner = OWNER_EMAILS.length > 0 && OWNER_EMAILS.includes(cleanEmail)
 
-    // Check if the user has an active premium subscription to bypass the cooldown
+    // Premium/trial entitlement, which sets the manual-scan limit below.
     let isPremium = false
     try {
       const { data: profile } = await supabase
@@ -776,57 +1167,57 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         .select('subscription_status, subscription_expires_at')
         .eq('id', user.id)
         .single()
-      if (profile) {
-        if (profile.subscription_status === 'active') {
-          if (!profile.subscription_expires_at) {
-            isPremium = true
-          } else if (new Date(profile.subscription_expires_at).getTime() > Date.now()) {
-            isPremium = true
-          } else {
-            supabase
-              .from('profiles')
-              .update({ subscription_status: 'expired', updated_at: new Date().toISOString() })
-              .eq('id', user.id)
-              .then(({ error }: { error: any }) => {
-                if (error) console.warn('Failed to update expired status in email scanner:', error.message)
-              })
-          }
-        } else if (profile.subscription_status === 'trial') {
-          if (profile.subscription_expires_at && new Date(profile.subscription_expires_at).getTime() > Date.now()) {
-            isPremium = true
-          } else {
-            supabase
-              .from('profiles')
-              .update({ subscription_status: 'expired', updated_at: new Date().toISOString() })
-              .eq('id', user.id)
-              .then(({ error }: { error: any }) => {
-                if (error) console.warn('Failed to update expired status in email scanner:', error.message)
-              })
-          }
-        }
+
+      isPremium = isPremiumProfile(profile)
+
+      // A subscription that claims to be active/trial but has passed its end
+      // date gets its stored status corrected. Fire-and-forget: the scan must
+      // not wait on, or fail because of, a bookkeeping write.
+      const claimsEntitlement =
+        profile?.subscription_status === 'active' || profile?.subscription_status === 'trial'
+      if (!isPremium && claimsEntitlement) {
+        supabase
+          .from('profiles')
+          .update({ subscription_status: 'expired', updated_at: new Date().toISOString() })
+          .eq('id', user.id)
+          .then(({ error }: { error: any }) => {
+            if (error) console.warn('Failed to update expired status in email scanner:', error.message)
+          })
       }
     } catch (e) {
       console.warn('Failed to query profile for premium bypass:', e)
     }
 
-    if (!isOwner && !isPremium) {
-      const { data: recentScanLogs } = await supabase
-        .from('email_scan_logs')
-        .select('scanned_at')
-        .eq('user_id', user.id)
-        .eq('status', 'success')
-        .order('scanned_at', { ascending: false })
-        .limit(1)
+    // ── Manual scan quota (R6/R7/R8) ─────────────────────────────────
+    //   free            1 manual scan per day, no automatic scan
+    //   premium/trial   daily automatic scan + 2 manual scans per day
+    //   owner           daily automatic scan + unlimited manual scans
+    //
+    // Only MANUAL scans are counted, so a user's automatic daily scan never
+    // consumes their manual allowance — R7 says the manual scans are "in
+    // addition to" the automatic one. Scheduled scans skip this block entirely;
+    // the cron gates eligibility on its own (owner/premium/trial), which is
+    // what implements "no automatic scan" for free users.
+    const scanLimit = resolveManualScanLimit(isOwner, isPremium)
 
-      if (recentScanLogs && recentScanLogs.length > 0) {
-        const lastScanTime = new Date(recentScanLogs[0].scanned_at).getTime()
-        const hoursSinceLastScan = (Date.now() - lastScanTime) / (60 * 60 * 1000)
-        if (hoursSinceLastScan < 24) {
-          const hoursLeft = Math.ceil(24 - hoursSinceLastScan)
-          return {
-            data: null,
-            error: new Error(`Scan limit reached. Next scan available in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''}. All transactions from your last scan are already captured.`),
-          }
+    if (scanMode === 'manual' && scanLimit !== Infinity) {
+      const timestamps = await fetchRecentManualScanTimes(supabase, user.id)
+      const quota = computeManualQuotaState(timestamps, scanLimit)
+
+      if (quota.remaining === 0 && quota.nextAvailableAt) {
+        const hoursLeft = Math.max(1, Math.ceil((quota.nextAvailableAt.getTime() - Date.now()) / (60 * 60 * 1000)))
+        const plural = (n: number, word: string) => `${n} ${word}${n !== 1 ? 's' : ''}`
+        // "Next scan available" is load-bearing: PendingPage keys its cooldown
+        // banner off that phrase.
+        const suffix = isPremium
+          ? ' Your automatic daily scan still runs.'
+          : ' All transactions from your last scan are already captured.'
+        return {
+          data: null,
+          error: new Error(
+            `Daily scan limit reached (${plural(scanLimit, 'manual scan')} per day). ` +
+            `Next scan available in ${plural(hoursLeft, 'hour')}.${suffix}`
+          ),
         }
       }
     }
@@ -861,24 +1252,6 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       }
     }
 
-    let isFirstScan = true
-    let lastScanTime = 0
-    try {
-      const { data: logs } = await supabase
-        .from('email_scan_logs')
-        .select('scanned_at')
-        .eq('user_id', user.id)
-        .eq('status', 'success')
-        .order('scanned_at', { ascending: false })
-        .limit(1)
-      if (logs && logs.length > 0) {
-        isFirstScan = false
-        lastScanTime = new Date(logs[0].scanned_at).getTime()
-      }
-    } catch (e) {
-      console.warn('Failed to query email scan logs, assuming first scan', e)
-    }
-
     // Two OR-ed groups: the original bank-alert-style keywords, plus generic
     // receipt-shaped language that direct-vendor emails use instead (a trip
     // receipt or food-delivery order confirmation rarely says "debited" or
@@ -886,29 +1259,45 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // widen the fetch net without fetching every email in the window.
     const BANK_ALERT_KEYWORDS = '(debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)'
     const RECEIPT_KEYWORDS = '(receipt OR invoice OR order OR booking OR trip OR fare OR ride OR subscription OR renewal OR total)'
-    const EMAIL_KEYWORDS = `(${BANK_ALERT_KEYWORDS} OR ${RECEIPT_KEYWORDS})`
+    // R2 ("everything financial"). Deliberately narrow: these are the cases
+    // where money HAS moved but the email uses none of the verbs above.
+    //   refund    — "your refund has been processed"
+    //   premium   — "premium successfully collected" (insurance)
+    //   dividend / folio — investment payouts and statements carrying no verb
+    //   nach / autopay   — auto-debit confirmations that write "debit", not
+    //                      "debited", so they rely on Gmail stemming otherwise
+    //
+    // Explicitly NOT added, having checked what they would actually buy:
+    //   bill, statement, due — these are reminders, which the AI and the
+    //     regex ladder both reject. A bill that was genuinely PAID already
+    //     matches on "payment"/"paid", so adding them buys nothing but junk.
+    //   interest — Gmail stems it to "interested", which floods the net with
+    //     marketing. Real interest credits match on "credited" already.
+    const FINANCIAL_KEYWORDS = '(refund OR premium OR dividend OR folio OR nach OR autopay)'
+    const EMAIL_KEYWORDS = `(${BANK_ALERT_KEYWORDS} OR ${RECEIPT_KEYWORDS} OR ${FINANCIAL_KEYWORDS})`
 
-    const MAX_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000 // never scan back further than 30 days
-    let startLimitTime = 0
+    // ── Scan window — strict rolling 7 days ──────────────────────────
+    // EVERY scan looks back exactly 7 days, first scan or not
+    // (plans/email-scanner-requirements.md, R3). This replaces the previous
+    // scheme of anchoring to the last successful scan with a 26-hour floor and
+    // a 30-day ceiling.
+    //
+    // Overlapping an earlier scan's window costs nothing. R4 ("never
+    // reconsider what was already considered") is enforced downstream by the
+    // existingMessageIds set and, at the database, by
+    // UNIQUE (email_message_id, user_id) — so an already-processed email is
+    // skipped by a set lookup long before it can reach an AI call, and cannot
+    // produce a duplicate row even if two scans race.
+    //
+    // TRADE-OFF, chosen deliberately by the owner over stretching the window
+    // to cover detected gaps: any interruption longer than 7 days — cron
+    // outage, expired or revoked Gmail token, lapsed subscription — puts the
+    // mail in that gap permanently beyond reach, because the Gmail query will
+    // never request it again and dedup cannot recover what was never fetched.
+    // Free users are most exposed, having no automatic scan at all.
+    const SCAN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+    const startLimitTime = Date.now() - SCAN_WINDOW_MS
     let q = ''
-    if (isFirstScan) {
-      // First scan: look back 7 days
-      startLimitTime = Date.now() - 7 * 24 * 60 * 60 * 1000
-    } else {
-      // Subsequent scans: cover everything since the last *successful* scan (with a
-      // small overlap buffer, since Gmail's date-only granularity and delayed bank
-      // emails can otherwise leave same-day messages just outside the window), but
-      // never less than a 26-hour window. Anchoring to "now - 26h" alone (instead of
-      // the last successful scan) silently drops days of transactions whenever the
-      // app isn't opened for more than 26 hours — or whenever the automatic daily
-      // cron is delayed/fails for more than 26 hours — since the Gmail query itself
-      // excludes anything before that cutoff; dedup can't recover emails that were
-      // never fetched.
-      const sinceLastScan = lastScanTime - 2 * 60 * 60 * 1000
-      const rolling26h = Date.now() - 26 * 60 * 60 * 1000
-      startLimitTime = Math.min(sinceLastScan, rolling26h)
-      startLimitTime = Math.max(startLimitTime, Date.now() - MAX_LOOKBACK_MS)
-    }
     // Use Unix epoch (seconds) for precise filtering — Gmail supports this format
     const sinceSeconds = Math.floor(startLimitTime / 1000)
     q = `after:${sinceSeconds} ${EMAIL_KEYWORDS}`
@@ -916,16 +1305,15 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     let messages: { id: string; threadId: string }[] = []
     let nextPageToken = ''
 
-    // Page size only — NOT a cap on total messages processed. The scan
-    // window (isFirstScan / since-last-successful-scan, computed above)
-    // defines completeness; a message-count cap here would silently
-    // truncate the oldest matches whenever a window has more mail than
-    // the cap, which is exactly when completeness matters most (a first
-    // 7-day scan, or a scan after a gap).
+    // Page size only — NOT a cap on total messages processed. The rolling
+    // 7-day scan window computed above defines completeness; a message-count
+    // cap here would silently truncate the oldest matches whenever a window
+    // has more mail than the cap, which is exactly when completeness matters
+    // most (a first scan, or a busy week).
     do {
       const pageSize = isOwner ? 200 : 100
       const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${pageSize}&q=${encodeURIComponent(q)}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`
-      const listRes = await fetch(url, { headers: { Authorization: `Bearer ${providerToken}` } })
+      const listRes = await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${providerToken}` } }, 20000)
 
       if (listRes.status === 401 || listRes.status === 403) {
         clearGoogleToken()
@@ -944,11 +1332,12 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       if (m && m.id) uniqueMessagesMap.set(m.id, m)
     }
     const uniqueMessages = Array.from(uniqueMessagesMap.values())
+    emitProgress({ phase: 'listing', current: uniqueMessages.length, total: uniqueMessages.length })
 
     if (uniqueMessages.length === 0) {
       const { data: log } = await supabase
         .from('email_scan_logs')
-        .insert({ id: scanLogId, user_id: user.id, emails_processed: 0, transactions_found: 0, status: 'success' })
+        .insert({ id: scanLogId, user_id: user.id, emails_processed: 0, transactions_found: 0, status: 'success', scan_mode: scanMode })
         .select().single()
       return { data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0 }, error: null }
     }
@@ -962,9 +1351,10 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         batch.map(async (m: { id: string }) => {
           try {
             const res = await retryWithBackoff(async () => {
-              const r = await fetch(
+              const r = await fetchWithTimeout(
                 `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}`,
-                { headers: { Authorization: `Bearer ${providerToken}` } }
+                { headers: { Authorization: `Bearer ${providerToken}` } },
+                20000
               )
               // 401/403 are auth failures, not transient — surface immediately,
               // don't burn retries on a token that isn't coming back this batch.
@@ -995,23 +1385,45 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         throw new Error('TOKEN_EXPIRED')
       }
       validDetails.push(...batchResults.filter(Boolean))
+      emitProgress({ phase: 'fetching', current: validDetails.length, total: uniqueMessages.length })
     }
 
+    // Scoped to the scan window plus a margin, rather than every transaction
+    // the user has ever had. Nothing older can collide: the Gmail query cannot
+    // reach past the window, so neither a message id nor a reference id from
+    // outside it can appear in this scan. The margin covers the ±1 day
+    // tolerance that payment merging allows.
+    const dedupFrom = new Date(startLimitTime - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     const { data: existingTxns, error: existingTxnsError } = await supabase
       .from('transactions')
-      .select('email_message_id, reference_id')
+      .select('id, amount, currency, type, date, merchant, description, reference_id, payment_mode, card_issuer, card_brand, transaction_time, confidence_score, approval_status, category_confirmed_at, email_message_id, merged_email_message_ids')
       .eq('user_id', user.id)
+      .gte('date', dedupFrom)
 
     if (existingTxnsError) {
       console.error('[emailScanner] Failed to load existing transactions for dedup:', existingTxnsError)
     }
 
-    const existingMessageIds = new Set<string>(
-      (existingTxns ?? []).map((t: any) => t.email_message_id).filter((id: any): id is string => !!id)
-    )
+    // Absorbed ids count as seen. Without this a merged-away email would be
+    // re-classified and re-inserted on every scan for the rest of the window,
+    // recreating the duplicate the merge removed.
+    const existingMessageIds = new Set<string>()
+    for (const t of existingTxns ?? []) {
+      if (t.email_message_id) existingMessageIds.add(t.email_message_id)
+      for (const merged of (t as any).merged_email_message_ids ?? []) {
+        if (merged) existingMessageIds.add(merged)
+      }
+    }
     const existingRefIds = new Set<string>(
       (existingTxns ?? []).map((t: any) => t.reference_id).filter((r: any): r is string => !!r)
     )
+
+    // Stored transactions a newly parsed one might turn out to duplicate.
+    // Grows as this scan flushes, so a payment split across two emails is
+    // caught whether its partner is pre-existing or was written moments ago.
+    const mergeCandidates: StoredMergeCandidate[] = [
+      ...((existingTxns ?? []) as unknown as StoredMergeCandidate[]),
+    ]
 
     // Fetch the user's real categories once per scan (not once per email) — used to
     // (1) feed the AI prompt the user's actual category names instead of the old
@@ -1024,12 +1436,109 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     const categoryNames = (userCategories || []).map((c: any) => c.name)
     const fallbackCategoryName = (userCategories || []).find((c: any) => c.is_permanent)?.name || 'Other'
 
+    // Fetched ONCE per scan, not once per email. applyMerchantRulesFromDB used
+    // to re-read this entire table for every email in the loop below — on a
+    // 50-email scan that was 50 full table reads for data that cannot change
+    // mid-scan.
+    const merchantRules = await getMerchantRulesFromDB(user.id, supabase)
+
+    // Everything parsed this scan, for the counts on the scan log.
     const transactionsToInsert: TransactionInsert[] = []
+    // Parsed but not yet written. Drained by flushPending().
+    let pendingFlush: TransactionInsert[] = []
+
+    const flushPending = async () => {
+      if (pendingFlush.length === 0) return
+      const rows = pendingFlush
+      pendingFlush = []
+      emitProgress({ phase: 'saving', current: insertedTxns.length, total: transactionsToInsert.length })
+      const written = await insertTransactionsChunk(supabase, rows)
+      insertedTxns.push(...written)
+      // Now visible to later merges in this same scan.
+      mergeCandidates.push(...(written as unknown as StoredMergeCandidate[]))
+    }
+
+    /**
+     * Fold a newly parsed transaction into an existing one when they describe
+     * the same payment (R10) — a bank alert and the merchant's own receipt.
+     * Returns true when it was absorbed and must not be inserted separately.
+     */
+    const absorbIntoExistingPayment = async (candidate: TransactionInsert): Promise<boolean> => {
+      // 1. Against this scan's unwritten buffer — merge in place, no DB work.
+      const bufferedIndex = pendingFlush.findIndex((p) => isSamePayment(p, candidate))
+      if (bufferedIndex >= 0) {
+        const existing = pendingFlush[bufferedIndex]
+        const merged = mergePayments(existing, candidate)
+        const absorbedId =
+          merged.email_message_id === existing.email_message_id
+            ? candidate.email_message_id
+            : existing.email_message_id
+        merged.merged_email_message_ids = [
+          ...(existing.merged_email_message_ids ?? []),
+          ...(candidate.merged_email_message_ids ?? []),
+          absorbedId,
+        ].filter((id): id is string => !!id)
+        pendingFlush[bufferedIndex] = merged
+        return true
+      }
+
+      // 2. Against transactions already stored (pre-existing, or flushed
+      //    earlier in this scan).
+      const stored = mergeCandidates.find((c) => isSamePayment(c, candidate))
+      if (!stored) return false
+
+      const patch: Record<string, unknown> = {
+        merged_email_message_ids: [
+          ...(stored.merged_email_message_ids ?? []),
+          candidate.email_message_id,
+        ].filter(Boolean),
+      }
+
+      // Enrich ONLY a row the user has not acted on yet, and only by filling
+      // gaps — never overwriting a populated field. A transaction they have
+      // already approved or re-categorised must not be rewritten underneath
+      // them just because a second email turned up.
+      const untouched = stored.approval_status === 'pending' && !stored.category_confirmed_at
+      if (untouched) {
+        const merged = mergePayments(stored, toMergeable(candidate))
+        if (!stored.reference_id && merged.reference_id) patch.reference_id = merged.reference_id
+        if ((!stored.payment_mode || stored.payment_mode === 'unknown') && merged.payment_mode) {
+          patch.payment_mode = merged.payment_mode
+        }
+        if (!stored.card_issuer && merged.card_issuer) patch.card_issuer = merged.card_issuer
+        if (!stored.card_brand && merged.card_brand) patch.card_brand = merged.card_brand
+        if (!stored.transaction_time && merged.transaction_time) patch.transaction_time = merged.transaction_time
+        if (isWeakMerchantLabel(stored.merchant) && !isWeakMerchantLabel(merged.merchant)) {
+          patch.merchant = merged.merchant
+          if (merged.description) patch.description = merged.description
+        }
+      }
+
+      const { error: patchError } = await supabase.from('transactions').update(patch).eq('id', stored.id)
+      if (patchError) {
+        // Losing the enrichment is survivable; losing the transaction is not.
+        // Report it as absorbed anyway so a duplicate is not inserted.
+        console.warn('[emailScanner] Failed to merge into existing transaction:', patchError.message)
+      } else {
+        Object.assign(stored, patch)
+      }
+      return true
+    }
+
     // Renamed from skippedConfidence: these emails are no longer skipped —
     // they're inserted as pending transactions with their low score
     // preserved, so the name should say what actually happens to them now.
     let lowConfidencePendingCount = 0
     const lowConfidenceEmailsDetails: string[] = []
+    /** Emails folded into an existing transaction instead of becoming a new one. */
+    let mergedDuplicateCount = 0
+
+    // ── Stage A — cheap per-email gates ──────────────────────────────
+    // Everything here is synchronous string work and set lookups. Gate order
+    // is unchanged and load-bearing: dedup → date window → bulk-marketing.
+    // Junk MUST be rejected here, before Stage B spends an AI call and a slice
+    // of the user's daily quota on it.
+    const candidates: ScanCandidate[] = []
 
     for (const mail of validDetails) {
       const mailMessageId: string = mail.id || ''
@@ -1039,10 +1548,11 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       const mailTime = mail.internalDate ? Number(mail.internalDate) : Date.now()
       if (mailTime < startLimitTime) continue
       const mailDate = new Date(mailTime).toISOString().split('T')[0]
-      if (mailDate < `${activeYear}-01-01`) continue
-      if (mailDate > `${activeYear}-12-31`) continue
 
-      const bodyText = extractEmailBody(mail)
+      // Headers first: they are cheap, and the year-scope gate below needs the
+      // subject and sender to write a useful rejection log. extractEmailBody()
+      // (base64 decode + DOM parse) is the expensive part of this stage and is
+      // deferred until after every cheap gate has had its say.
       const headers = mail.payload?.headers || []
       const subjectHeader = headers.find((h: any) => h.name?.toLowerCase() === 'subject')
       const subject = subjectHeader?.value || ''
@@ -1052,6 +1562,38 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       const senderDomain = senderDomainMatch ? senderDomainMatch[1].toLowerCase() : ''
       const isTrustedSender = TRUSTED_SENDER_DOMAINS.has(senderDomain) ||
         [...TRUSTED_SENDER_DOMAINS].some(d => senderDomain.endsWith('.' + d))
+
+      // ── Year scope ────────────────────────────────────────────────
+      // This used to be two bare `continue`s with no rejection log, and with a
+      // strict 7-day window that made an annual data loss a certainty: a scan
+      // on 3 January covers 27 December onward, so once activeYear rolled over
+      // every late-December transaction was discarded — silently, and
+      // unrecoverably, because the window never reaches back that far again.
+      //
+      // Mail from the immediately preceding year is now KEPT when the window
+      // genuinely straddles 1 January. The transaction row carries its own
+      // date, so it is attributed to the year it actually belongs to.
+      //
+      // The straddle is deliberately narrow — previous year AND today really is
+      // in the active year. That preserves the Settings "start next financial
+      // year" feature: a user who rolls forward early (activeYear 2027 while
+      // today is still 2026) has asked to stop scanning 2026, and this
+      // condition correctly declines to keep importing it.
+      const mailYear = Number(mailDate.slice(0, 4))
+      if (mailYear > activeYear) {
+        logRejection(supabase, user.id, scanLogId, 'after_active_year', senderDomain, subject, `date=${mailDate}`)
+        continue
+      }
+      if (mailYear < activeYear) {
+        const windowStraddlesNewYear =
+          mailYear === activeYear - 1 && new Date().getUTCFullYear() === activeYear
+        if (!windowStraddlesNewYear) {
+          logRejection(supabase, user.id, scanLogId, 'before_active_year', senderDomain, subject, `date=${mailDate}`)
+          continue
+        }
+      }
+
+      const bodyText = extractEmailBody(mail)
       // Strip security/legal footer boilerplate before ANY gate or the AI
       // prompt sees this text — footers were colliding with rejection
       // keywords (e.g. "has not been initiated by you") and silently
@@ -1077,12 +1619,47 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         continue
       }
 
+      candidates.push({
+        mail,
+        mailMessageId,
+        mailDate,
+        bodyText,
+        strippedBodyText,
+        subject,
+        fromValue,
+        senderDomain,
+        isTrustedSender,
+        emailContentForParsing,
+        isBulkMail,
+      })
+    }
+
+    // ── Stage B — batched AI classification ──────────────────────────
+    // One Gemini call per AI_BATCH_SIZE emails instead of one per email, with
+    // a small number of batches in flight at once. This is what takes a
+    // 50-email scan from ~100-160s of serial round trips down to ~15-25s.
+    const aiVerdicts = await classifyCandidatesWithAI(candidates, askAIBatch, askAI, categoryNames, emitProgress)
+
+    // ── Stage C — per-email interpretation ───────────────────────────
+    // Unchanged logic: take the AI verdict (or its absence) and run the same
+    // AI-result handling and regex ladder as before. Everything here is cheap
+    // and stays sequential so accumulation order is deterministic.
+    for (const candidate of candidates) {
+      // `mail` and `strippedBodyText` are deliberately not destructured here:
+      // both are consumed in Stage A (header/body extraction) and Stage B (the
+      // AI prompt), and nothing in Stage C reads them.
+      const {
+        mailMessageId, mailDate, bodyText,
+        subject, fromValue, senderDomain, isTrustedSender,
+        emailContentForParsing, isBulkMail,
+      } = candidate
+
       let parsedTxn: TransactionInsert | null = null
       let aiConfidentReject = false
 
       {
-        try {
-          const aiResult = await askAI(subject, strippedBodyText, mailDate, categoryNames)
+        {
+          const aiResult = aiVerdicts.get(mailMessageId) ?? null
           if (aiResult) {
             if (aiResult.is_transaction && aiResult.amount && aiResult.amount > 0) {
               if (aiResult.reference_id && existingRefIds.has(aiResult.reference_id)) {
@@ -1092,7 +1669,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
               const resolvedMerchant = aiResult.merchant || 'Other'
               let ruleResult
               try {
-                ruleResult = await applyMerchantRulesFromDB(user.id, resolvedMerchant, bodyText, aiResult.category || fallbackCategoryName, supabase)
+                ruleResult = applyMerchantRulesFromRows(merchantRules, resolvedMerchant, bodyText, aiResult.category || fallbackCategoryName)
               } catch {
                 ruleResult = { category: aiResult.category || fallbackCategoryName, approval_status: 'pending', confidence: aiResult.confidence_score }
               }
@@ -1116,6 +1693,10 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
               parsedTxn = {
                 user_id: user.id,
                 amount: aiResult.amount,
+                // The model reports a bare number for any currency, so an
+                // unstated currency must fall back explicitly rather than
+                // being left undefined and defaulted by the database.
+                currency: aiResult.currency || DEFAULT_CURRENCY,
                 type: aiResult.transaction_type || 'debit',
                 category: resolvedCategory,
                 merchant: resolvedMerchant,
@@ -1143,8 +1724,6 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
               aiConfidentReject = aiResult.is_transaction === false
             }
           }
-        } catch (aiErr) {
-          console.warn('[emailScanner] AI parsing failed, falling back to heuristics:', aiErr)
         }
       }
 
@@ -1168,20 +1747,21 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           continue
         }
 
-        const amountMatches: { value: number; index: number; text: string }[] = []
-        const prefixRegex = /(?:Rs\.?\s*|INR\s*|₹\s*|Rupees?\s*)([0-9,]+(?:\.[0-9]{1,2})?)/gi
-        const suffixRegex = /\b([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:Rs\.?|INR|₹|Rupees?)/gi
-        let amtMatch
-        while ((amtMatch = prefixRegex.exec(emailContentForParsing)) !== null) {
-          const value = Number(amtMatch[1].replace(/,/g, ''))
-          if (!isNaN(value) && value > 0 && value <= 99999999) amountMatches.push({ value, index: amtMatch.index, text: amtMatch[0] })
-        }
-        while ((amtMatch = suffixRegex.exec(emailContentForParsing)) !== null) {
-          const value = Number(amtMatch[1].replace(/,/g, ''))
-          if (!isNaN(value) && value > 0 && value <= 99999999) amountMatches.push({ value, index: amtMatch.index, text: amtMatch[0] })
-        }
+        // Currency-aware (R11). Previously this only recognised rupee markers,
+        // so a foreign charge either found no amount at all or — on the AI
+        // path — was stored as a bare number and rendered as rupees.
+        const amountMatches = extractAmountMatches(emailContentForParsing)
 
-        if (amountMatches.length === 0) continue
+        if (amountMatches.length === 0) {
+          // R12: bills and premiums whose amount lives only in a PDF or an
+          // image are skipped, not OCR'd. Logging the skip changes nothing the
+          // user has to act on, but it puts the cost of that decision in the
+          // rejection audit trail so it can be measured later instead of
+          // guessed at. This path used to be a bare `continue` — the one
+          // rejection point in the file that left no trace.
+          logRejection(supabase, user.id, scanLogId, 'no_amount_in_body', senderDomain, subject, subject.substring(0, 120))
+          continue
+        }
 
         const filteredAmounts = amountMatches.filter(m => {
           const preStart = Math.max(0, m.index - 80)
@@ -1192,7 +1772,13 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
             /bal(?:ance)?|avail(?:able)?|limit|outstanding|ledger|reward|bonus/i.test(succeedingText))
         })
 
-        if (filteredAmounts.length === 0) continue
+        if (filteredAmounts.length === 0) {
+          // Amounts were present but every one sat next to balance/limit/reward
+          // wording, so none of them represents money that moved. Distinct from
+          // no_amount_in_body, and worth telling apart in the audit trail.
+          logRejection(supabase, user.id, scanLogId, 'only_balance_or_reward_amounts', senderDomain, subject, subject.substring(0, 120))
+          continue
+        }
 
         // `payment(?!s\b)` excludes the plural "Payments" section header
         // (a false match that used to win the amount-proximity tie-break
@@ -1216,6 +1802,10 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         }
 
         if (isNaN(amount) || amount <= 0) continue
+
+        // Take the currency from the amount that actually won, so a foreign
+        // charge is never quietly filed as rupees.
+        const currency = resolvedMatch.currency
 
         const winStart = Math.max(0, resolvedMatch.index - 120)
         const winEnd = Math.min(emailContentForParsing.length, resolvedMatch.index + resolvedMatch.text.length + 120)
@@ -1363,7 +1953,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
 
         let ruleResult: RuleMatchResult
         try {
-          ruleResult = await applyMerchantRulesFromDB(user.id, merchant, emailContentForParsing, category, supabase)
+          ruleResult = applyMerchantRulesFromRows(merchantRules, merchant, emailContentForParsing, category)
         } catch {
           ruleResult = applyMerchantRules(merchant, emailContentForParsing, category)
         }
@@ -1384,7 +1974,8 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           hasMerchant: !isGenericMerchant,
           hasPaymentMode: paymentMode !== 'unknown',
           hasReferenceId: !!reference_id,
-          isLargeAmount: amount > 100000,
+          // A rupee threshold — meaningless against USD or EUR magnitudes.
+          isLargeAmount: isHomeCurrency(currency) && amount > 100000,
           debitCreditClear,
         })
 
@@ -1407,6 +1998,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         parsedTxn = {
           user_id: user.id,
           amount,
+          currency,
           type: txType,
           category: finalCategory,
           merchant,
@@ -1425,9 +2017,25 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       }
 
       if (parsedTxn) {
+        // R10: a bank alert and the merchant's receipt for one payment become
+        // one transaction, not two.
+        if (await absorbIntoExistingPayment(parsedTxn)) {
+          mergedDuplicateCount++
+          continue
+        }
+
         transactionsToInsert.push(parsedTxn)
+        pendingFlush.push(parsedTxn)
+        // Write as we go. Previously nothing was saved until the whole loop
+        // finished, so a scan that timed out at email 40 of 50 saved NOTHING
+        // and the retry re-paid the AI cost for every one of them. Flushing in
+        // chunks means an interrupted scan keeps what it already found, and
+        // the retry skips those by dedup.
+        if (pendingFlush.length >= INSERT_CHUNK_SIZE) await flushPending()
       }
     }
+
+    await flushPending()
 
     if (transactionsToInsert.length === 0) {
       const { data: log } = await supabase
@@ -1438,43 +2046,20 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
           emails_processed: validDetails.length,
           transactions_found: 0,
           status: 'success',
+          scan_mode: scanMode,
           error_message: lowConfidencePendingCount > 0 ? `${lowConfidencePendingCount} email(s) added as pending (low confidence). Samples: ${lowConfidenceEmailsDetails.join('; ')}` : null,
         })
         .select().single()
-      return { data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0 }, error: null }
-    }
-
-    let insertedTxns: any[] = []
-    const { data: batchInsertedTxns, error: batchTxnError } = await supabase
-      .from('transactions')
-      .insert(transactionsToInsert)
-      .select()
-
-    if (batchTxnError) {
-      // 23505 = Postgres unique_violation. transactions_email_message_id_user_id_key
-      // (schema.sql:493-495) exists precisely to stop two concurrent scans from
-      // double-inserting the same email — but a batch insert throws on the WHOLE
-      // batch if even one row trips it, discarding every unrelated legitimate
-      // transaction alongside it. Fall back to inserting row-by-row so only the
-      // actually-conflicting row (already inserted by the other scan) is skipped.
-      if (batchTxnError.code === '23505') {
-        for (const txn of transactionsToInsert) {
-          const { data: rowData, error: rowError } = await supabase
-            .from('transactions')
-            .insert(txn)
-            .select()
-          if (rowError) {
-            if (rowError.code === '23505') continue // already inserted by a concurrent scan — not a fault
-            throw rowError // any other error on an individual row still fails loud
-          }
-          if (rowData) insertedTxns.push(...rowData)
-        }
-      } else {
-        throw batchTxnError // non-conflict error — unchanged fail-loud behavior
+      // mergedDuplicateCount can be non-zero here: every email may have been
+      // folded into a transaction an earlier scan already stored, which is a
+      // successful outcome, not an empty scan.
+      return {
+        data: { transactions: [], log: log as EmailScanLog, autoApprovedCount: 0, mergedDuplicateCount },
+        error: null,
       }
-    } else {
-      insertedTxns = batchInsertedTxns || []
     }
+
+    // Rows are already written — Stage C flushed them in chunks as it went.
 
     try {
       // Cards sync disabled
@@ -1490,6 +2075,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         emails_processed: validDetails.length,
         transactions_found: transactionsToInsert.length,
         status: 'success',
+        scan_mode: scanMode,
         error_message: lowConfidencePendingCount > 0 ? `${lowConfidencePendingCount} email(s) added as pending (confidence < 65). Samples: ${lowConfidenceEmailsDetails.join('; ')}` : null,
       })
       .select().single()
@@ -1504,6 +2090,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         log: scanLog as EmailScanLog,
         autoApprovedCount,
         lowConfidencePendingCount,
+        mergedDuplicateCount,
       },
       error: null,
     }
@@ -1519,6 +2106,13 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
       errorMessage = err.message || 'Gmail scan failed. Please try again.'
     }
 
+    // Incremental flushing means a failure no longer implies nothing was
+    // saved. Say so, otherwise the user re-runs assuming they lost everything.
+    if (insertedTxns.length > 0) {
+      const n = insertedTxns.length
+      errorMessage += ` ${n} transaction${n === 1 ? '' : 's'} found before the error ${n === 1 ? 'was' : 'were'} already saved.`
+    }
+
     if (!opts?.userId) {
       await supabase.from('email_scan_logs').insert({
         id: scanLogId,
@@ -1526,6 +2120,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         emails_processed: 0,
         transactions_found: 0,
         status: 'failed',
+        scan_mode: scanMode,
         error_message: errorMessage,
       })
     }

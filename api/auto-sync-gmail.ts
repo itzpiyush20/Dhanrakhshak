@@ -26,7 +26,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { scanRealGmailInbox } from '../src/services/emailScanner.js'
-import { analyzeTransactionEmailWithAI } from '../src/services/aiService.js'
+import { analyzeTransactionEmailWithAI, analyzeTransactionEmailBatchWithAI } from '../src/services/aiService.js'
 
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL || '',
@@ -157,6 +157,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           emails_processed: 0,
           transactions_found: 0,
           status: 'failed',
+          scan_mode: 'scheduled',
           error_message: 'Gmail connection revoked — please reconnect Gmail Inbox.',
         })
         failed++
@@ -166,10 +167,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const { data, error } = await scanRealGmailInbox({
         db: supabaseAdmin,
+        // Scheduled, so it is exempt from the manual quota — a user's daily
+        // automatic scan must never consume their manual allowance (R7).
+        scanMode: 'scheduled' as const,
         userId: row.user_id,
         userEmail: profile.email || undefined,
         accessToken: refreshResult.accessToken,
+        // Batch is the primary path (one Gemini call per 5 emails); askAI stays
+        // as the per-email fallback the batch helper degrades to. Because the
+        // run-wide cap below counts CALLS, batching stretches the same cap
+        // roughly 5x further in emails processed.
         askAI: (subject, body, emailDate) => analyzeTransactionEmailWithAI(subject, body, emailDate, callGeminiDirect),
+        askAIBatch: (emails, categoryNames) => analyzeTransactionEmailBatchWithAI(emails, callGeminiDirect, categoryNames),
       })
 
       if (error) {
@@ -178,6 +187,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           emails_processed: 0,
           transactions_found: 0,
           status: 'failed',
+          scan_mode: 'scheduled',
           error_message: error.message || 'Automatic sync failed',
         })
         failed++
@@ -193,6 +203,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         emails_processed: 0,
         transactions_found: 0,
         status: 'failed',
+        scan_mode: 'scheduled',
         error_message: err.message || 'Automatic sync failed',
       })
       failed++

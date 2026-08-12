@@ -33,6 +33,10 @@ export {
   getMerchantSettings,
   saveMerchantSetting,
   applyMerchantRules,
+  getManualScanQuota,
+  formatScanProgress,
+  type ManualScanQuota,
+  type ScanProgress,
 } from './emailScanner'
 export {
   getProfile,

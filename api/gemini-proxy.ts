@@ -16,7 +16,13 @@ function isRateLimited(ip: string): boolean {
     rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 })
     return false
   }
-  if (entry.count >= 20) return true
+  // Pre-auth abuse shield only — real cost control is the per-user daily quota
+  // in Postgres below. Raised from 20 when the scanner moved to batched
+  // classification: a legitimate large scan now issues its calls in a short
+  // burst rather than spread over minutes of serial waiting, and at 20/min it
+  // would 429 itself. A 429 here is invisible to the user (the AI layer
+  // degrades to regex), so throttling a real scan silently costs accuracy.
+  if (entry.count >= 60) return true
   entry.count++
   return false
 }
@@ -107,6 +113,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'contents array is required' })
   }
 
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 20000)
+
   try {
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -114,6 +123,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents, generationConfig, safetySettings }),
+        signal: controller.signal,
       }
     )
 
@@ -125,6 +135,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(data)
   } catch (error: any) {
     console.error('Gemini proxy error:', error)
-    return res.status(500).json({ error: error.message || 'AI request failed' })
+    const isTimeout = error?.name === 'AbortError'
+    return res.status(isTimeout ? 504 : 500).json({ error: isTimeout ? 'Gemini API request timed out' : (error.message || 'AI request failed') })
+  } finally {
+    clearTimeout(timeoutId)
   }
 }

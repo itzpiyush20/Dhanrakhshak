@@ -43,6 +43,7 @@ import {
   getNextRefreshTime,
   getLastScheduledRefreshTime,
   scanRealGmailInbox,
+  formatScanProgress,
   seedSandboxData,
 } from '@/services'
 import { migrateLocalStorageRulesToDB } from '@/services/learningEngine'
@@ -63,6 +64,8 @@ interface SummaryData {
     count: number
     percentage: number
   }>
+  /** Totals for currencies outside INR, kept out of the figures above. */
+  other_currency_totals?: Record<string, { income: number; expenses: number }>
 }
 
 interface SyncSummary {
@@ -161,6 +164,11 @@ export default function DashboardPage() {
   const [showInactivityBanner, setShowInactivityBanner] = useState(false)
   const [syncingBackground, setSyncingBackground] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
+  // Shows a "still working" hint once a manual sync runs past a few seconds,
+  // so a legitimately slow scan isn't indistinguishable from a frozen one.
+  // Superseded by live progress once the engine reports its first phase.
+  const [scanTakingLong, setScanTakingLong] = useState(false)
+  const [scanProgress, setScanProgress] = useState<string | null>(null)
 
   // Widget customization states
   const [showConfigModal, setShowConfigModal] = useState(false)
@@ -350,6 +358,16 @@ export default function DashboardPage() {
     }
   }, [user, checkScheduledTasks])
 
+  // ── "Still working" hint for slow-but-live manual syncs ──
+  useEffect(() => {
+    if (!syncingBackground) {
+      setScanTakingLong(false)
+      return
+    }
+    const timer = setTimeout(() => setScanTakingLong(true), 6000)
+    return () => clearTimeout(timer)
+  }, [syncingBackground])
+
   const refreshStreak = useCallback(async () => {
     if (!user) return
     const { data } = await getLoggingStreak()
@@ -511,6 +529,7 @@ export default function DashboardPage() {
 
   const handleManualBannerSync = async () => {
     setSyncingBackground(true)
+    setScanProgress(null)
     setSyncError(null)
     try {
       // Use hasGoogleToken from AuthContext — same reactive source as PendingPage
@@ -519,7 +538,11 @@ export default function DashboardPage() {
         return
       }
 
-      const res = await scanRealGmailInbox()
+      const res = await withTimeout(
+        scanRealGmailInbox({ onProgress: (p) => setScanProgress(formatScanProgress(p)) }),
+        90000,
+        'Gmail scan'
+      )
       if (res.error) {
         // If token expired, update AuthContext state so the whole app knows
         if (res.error.message?.includes('expired') || res.error.message?.includes('TOKEN_EXPIRED')) {
@@ -557,9 +580,17 @@ export default function DashboardPage() {
       })
       fetchDashboardData(dateFilter)
     } catch (e: any) {
-      setSyncError(e.message || 'Sync failed. Please try again.')
+      const msg: string = e.message || 'Sync failed. Please try again.'
+      // withTimeout's generic copy says to refresh the page; wrong here, since
+      // the scan keeps running and incremental flushing preserves its results.
+      setSyncError(
+        msg.includes('timed out')
+          ? 'Sync is taking longer than expected. Anything already found has been saved — sync again to pick up where it left off.'
+          : msg
+      )
     } finally {
       setSyncingBackground(false)
+      setScanProgress(null)
     }
   }
 
@@ -727,6 +758,28 @@ export default function DashboardPage() {
           </Card>
         )}
 
+        {/* Foreign spend is deliberately excluded from the INR figures above —
+            the app holds no exchange rates, and summing mixed currencies would
+            produce a meaningless number. Excluding it silently would be its own
+            kind of wrong, so it is reported here instead. */}
+        {summary?.other_currency_totals && Object.keys(summary.other_currency_totals).length > 0 && (
+          <div role="note" className="rounded-2xl border border-border-subtle bg-surface-1 p-4 text-sm animate-fade-in">
+            <p className="font-semibold text-zinc-200">Also spent in other currencies</p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              Not included in the totals above — Dhanrakshak does not convert between currencies.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+              {Object.entries(summary.other_currency_totals).map(([code, totals]) => (
+                <span key={code} className="text-sm font-mono text-zinc-300">
+                  {totals.expenses > 0 && <>{formatCurrency(totals.expenses, code)} spent</>}
+                  {totals.expenses > 0 && totals.income > 0 && ' · '}
+                  {totals.income > 0 && <>{formatCurrency(totals.income, code)} received</>}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {showInactivityBanner && (
           <div role="alert" className="rounded-2xl bg-[var(--status-warning-subtle)] border border-[var(--status-warning-border)] p-4 text-sm text-[var(--status-warning-text)] flex flex-col gap-3 animate-fade-in shadow-md">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -741,6 +794,11 @@ export default function DashboardPage() {
                       ? `Your transaction tracker is active in full trial mode. Last sync: ${lastScanTime ? lastScanTime.toLocaleString('en-IN') : 'Never'}. Click Sync Now to fetch new alerts.`
                       : `Your transaction tracker has not refreshed in the last 24 hours (last sync: ${lastScanTime ? lastScanTime.toLocaleString('en-IN') : 'Never'}). Click Sync Now to import the latest bank alerts.`}
                   </p>
+                  {syncingBackground && (scanProgress || scanTakingLong) && (
+                    <p role="status" className="text-xs text-zinc-500 mt-1">
+                      {scanProgress ?? 'Still syncing — large inboxes can take up to a minute…'}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -1189,7 +1247,7 @@ export default function DashboardPage() {
                           isDebit ? 'text-[var(--status-danger-text)]' : 'text-[var(--status-positive-text)]'
                         }`}
                       >
-                        {isDebit ? '-' : '+'}{formatCurrency(Number(txn.amount))}
+                        {isDebit ? '-' : '+'}{formatCurrency(Number(txn.amount), txn.currency)}
                       </span>
                     </div>
                   )
@@ -1265,7 +1323,7 @@ export default function DashboardPage() {
                           </span>
                         </div>
                         <span className="text-xs font-bold shrink-0 text-[var(--status-danger-text)]">
-                          -{formatCurrency(Number(txn.amount))}
+                          -{formatCurrency(Number(txn.amount), txn.currency)}
                         </span>
                       </div>
                     ))}

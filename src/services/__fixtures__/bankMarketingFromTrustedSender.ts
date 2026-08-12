@@ -6,6 +6,8 @@
 // their real transaction alerts, and that marketing carries the same
 // List-Unsubscribe signal any other bulk mail does.
 
+import { daysAgoMs } from './_fixtureClock'
+
 export const BANK_MARKETING_SUBJECT = 'Get up to Rs.5000 cashback on your new HDFC Credit Card'
 
 export const BANK_MARKETING_FROM = 'HDFC Bank Offers <offers@alerts.hdfcbank.com>'
@@ -30,7 +32,7 @@ export function makeBankMarketingGmailMessage(id = 'msg-bank-marketing-1') {
     id,
     threadId: 'thread-bank-marketing-1',
     snippet: 'Apply for the new HDFC Millennia Credit Card and get up to Rs.5000 cashback on your first purchase...',
-    internalDate: String(Date.UTC(2026, 7, 10, 11, 0, 0)),
+    internalDate: daysAgoMs(2),
     payload: {
       headers: [
         { name: 'Subject', value: BANK_MARKETING_SUBJECT },

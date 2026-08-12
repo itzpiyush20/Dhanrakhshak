@@ -6,6 +6,8 @@
 // pricing table, not a payment. Retains the pricing table and the newsletter
 // footer that make it identifiable as bulk marketing.
 
+import { daysAgoMs } from './_fixtureClock'
+
 export const BS_NEWSLETTER_SUBJECT = 'Blueprint Magazine- August issue is Live'
 
 export const BS_NEWSLETTER_FROM = 'Business Standard <bsemailservices@business-standard.net.in>'
@@ -53,7 +55,7 @@ export function makeBusinessStandardGmailMessage(id = 'msg-bs-newsletter-1') {
     id,
     threadId: 'thread-bs-newsletter-1',
     snippet: "The headlines report what happened. Blueprint explains why - the calculations, the alliances, the long game behind the day's news. save 41% ₹ 6000 Blueprint Digital ₹ 3500 annual (digital only) ₹",
-    internalDate: String(Date.UTC(2026, 7, 10, 9, 11, 32)),
+    internalDate: daysAgoMs(2),
     payload: {
       headers: [
         { name: 'Subject', value: BS_NEWSLETTER_SUBJECT },

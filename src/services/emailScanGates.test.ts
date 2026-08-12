@@ -5,6 +5,18 @@ import { UBER_TRIP_BODY } from './__fixtures__/uberTripReceipt'
 import { ZOMATO_ORDER_BODY } from './__fixtures__/zomatoOrderReceipt'
 import { UNKNOWN_VENDOR_BODY } from './__fixtures__/unknownVendorReceipt'
 import { BANK_MARKETING_BODY } from './__fixtures__/bankMarketingFromTrustedSender'
+import {
+  COUPON_IMAGE_BODY,
+  COUPON_IMAGE_BODY_NO_BULK_MARKERS,
+  COUPON_IMAGE_HEADERS,
+} from './__fixtures__/couponCodeImagePromo'
+import {
+  LOAN_OFFER_BODY,
+  LOAN_OFFER_HEADERS,
+  LOAN_OFFER_SUBJECT,
+  CREDIT_LIMIT_OFFER_BODY,
+  CREDIT_LIMIT_OFFER_SUBJECT,
+} from './__fixtures__/preApprovedLoanOffer'
 import { stripBoilerplate } from './emailBoilerplate'
 
 describe('isGenuinePendingInitiation', () => {
@@ -186,5 +198,148 @@ describe('bulk-mail gate — trusted-sender marketing', () => {
 
   it('has no payment assertion in bank marketing copy', () => {
     expect(hasPaymentAssertion(BANK_MARKETING_BODY)).toBe(false)
+  })
+})
+
+// ============================================================
+// Owner-specified false-positive classes (requirements R1/R13,
+// plans/email-scanner-requirements.md). These must stay rejected as the
+// scanner's scope widens to "everything financial" — widening the Gmail
+// fetch query pulls in far more of exactly this kind of mail.
+// ============================================================
+
+describe('false positives — coupon-code and image-only promotions', () => {
+  it('rejects an image-only coupon promo via the bulk-mail gate', () => {
+    // Almost all content is inside <img> tags, so the surviving text is thin.
+    // The structural List-Unsubscribe signal is what carries this rejection.
+    expect(isBulkMarketingEmail(COUPON_IMAGE_HEADERS, COUPON_IMAGE_BODY)).toBe(true)
+    expect(hasPaymentAssertion(COUPON_IMAGE_BODY)).toBe(false)
+  })
+
+  it('rejects the same promo on text alone when the bulk headers are absent', () => {
+    // Not every promo sender sets List-Unsubscribe — the text gates must
+    // stand on their own.
+    expect(isBulkMarketingEmail([], COUPON_IMAGE_BODY_NO_BULK_MARKERS)).toBe(false)
+    const result = evaluateRegexGates('', COUPON_IMAGE_BODY_NO_BULK_MARKERS, false)
+    expect(result.rejected).toBe(true)
+    expect(result.gate).toBe('promotional_spam')
+  })
+
+  it('does not treat a discount amount as a payment assertion', () => {
+    // "Flat ₹500 off on orders above ₹2,000" must never read as money moved —
+    // this is the bait that turns a coupon into a phantom ₹500 transaction.
+    expect(hasPaymentAssertion('Flat ₹500 off on orders above ₹2,000. Use code SAVE500')).toBe(false)
+  })
+})
+
+describe('false positives — OTPs and security codes', () => {
+  const otpVariants = [
+    'Your OTP for login is 482913. Do not share this OTP with anyone.',
+    'Use verification code 738201 to complete your registration.',
+    '918273 is your one time password. Valid for 10 minutes.',
+    'Your security PIN for the transaction is 4471.',
+    'Enter auth code 220913 to authorise this request.',
+  ]
+
+  it.each(otpVariants)('rejects: %s', (content) => {
+    const result = evaluateRegexGates('Verification', content, false)
+    expect(result.rejected).toBe(true)
+    expect(result.gate).toBe('otp_or_security_code')
+  })
+
+  it('rejects an OTP even when the subject would otherwise be hard-accepted', () => {
+    // isHardAccepted bypasses the reminder/statement gates but must NOT
+    // bypass the OTP gate — an OTP is never a transaction.
+    const content = 'Your OTP for the debit of Rs.5000 is 482913. Do not share this OTP.'
+    const result = evaluateRegexGates('Debit transaction alert', content, true)
+    expect(result.rejected).toBe(true)
+    expect(result.gate).toBe('otp_or_security_code')
+  })
+})
+
+describe('false positives — pre-approved loan and credit-limit offers', () => {
+  it('rejects a pre-approved loan offer', () => {
+    // Dangerous shape: trusted sender, a large rupee amount, and the word
+    // "credited" in the FUTURE tense ("will be credited"). Without a gate
+    // for offer language this becomes a phantom Rs.5,00,000 credit whenever
+    // the AI is unavailable and the regex ladder runs.
+    const content = LOAN_OFFER_BODY.substring(0, 2000)
+    const result = evaluateRegexGates(LOAN_OFFER_SUBJECT, content, false)
+    expect(result.rejected).toBe(true)
+    expect(result.gate).toBe('offer_or_pre_approval')
+  })
+
+  it('rejects a pre-approved loan offer even from a hard-accepted subject', () => {
+    const content = LOAN_OFFER_BODY.substring(0, 2000)
+    const result = evaluateRegexGates(LOAN_OFFER_SUBJECT, content, true)
+    expect(result.rejected).toBe(true)
+  })
+
+  it('rejects a credit-limit increase offer', () => {
+    const content = CREDIT_LIMIT_OFFER_BODY.substring(0, 2000)
+    const result = evaluateRegexGates(CREDIT_LIMIT_OFFER_SUBJECT, content, false)
+    expect(result.rejected).toBe(true)
+  })
+
+  it('bulk-mail gate also catches the credit-limit offer', () => {
+    // Belt and braces: the opt-out footer marks it bulk, and no payment
+    // assertion appears anywhere in the copy.
+    expect(isBulkMarketingEmail([], CREDIT_LIMIT_OFFER_BODY)).toBe(true)
+    expect(hasPaymentAssertion(CREDIT_LIMIT_OFFER_BODY)).toBe(false)
+  })
+
+  it('loan-offer copy is bulk-flagged but DOES carry a payment assertion', () => {
+    // Documents precisely why the dedicated offer gate is needed: "will be
+    // credited" trips hasPaymentAssertion, so the bulk-mail gate alone lets
+    // this through.
+    expect(isBulkMarketingEmail(LOAN_OFFER_HEADERS, LOAN_OFFER_BODY)).toBe(true)
+    expect(hasPaymentAssertion(LOAN_OFFER_BODY)).toBe(true)
+  })
+})
+
+describe('false positives — cashback offers vs genuine cashback credits', () => {
+  it('rejects a cashback OFFER', () => {
+    const content = 'Earn cashback of up to Rs.500 on your next UPI payment. Offer valid till 31 Aug.'
+    const result = evaluateRegexGates('Cashback offer', content, false)
+    expect(result.rejected).toBe(true)
+  })
+
+  it('does NOT reject a genuine cashback CREDIT', () => {
+    // The distinction the owner cares about: real money arriving must survive.
+    const content = 'Rs.50 cashback has been credited to your Paytm wallet for transaction ID 8891203.'
+    const result = evaluateRegexGates('Cashback credited', content, false)
+    expect(result.rejected).toBe(false)
+  })
+})
+
+describe('genuine transactions still survive every gate (over-blocking guard)', () => {
+  it('accepts the real receipt fixtures', () => {
+    for (const body of [UBER_TRIP_BODY, ZOMATO_ORDER_BODY, UNKNOWN_VENDOR_BODY]) {
+      const content = stripBoilerplate(body).substring(0, 2000)
+      expect(evaluateRegexGates('', content, true).rejected).toBe(false)
+    }
+  })
+
+  it('accepts a plain bank debit alert', () => {
+    const content = 'Rs.1,250.00 has been debited from your HDFC Bank A/c XX4471 on 10-08-26 at SWIGGY. UPI Ref 445566778899.'
+    expect(evaluateRegexGates('Debit alert', content, true).rejected).toBe(false)
+  })
+
+  it('accepts a salary credit', () => {
+    const content = 'Rs.85,000.00 credited to your account XX4471 towards SALARY for AUG 2026. Ref NEFT8891203.'
+    expect(evaluateRegexGates('Salary credit', content, true).rejected).toBe(false)
+  })
+
+  it('accepts an insurance premium debit', () => {
+    // In scope under R2 ("everything financial") — must not be caught by the
+    // new offer gate, which keys on pre-approval language, not on the word
+    // "premium".
+    const content = 'Your premium of Rs.12,500 towards policy 8891203 has been successfully debited via NACH mandate.'
+    expect(evaluateRegexGates('Premium paid', content, true).rejected).toBe(false)
+  })
+
+  it('accepts a SIP / mutual fund debit', () => {
+    const content = 'Rs.5,000 has been debited towards your SIP in Axis Bluechip Fund. Folio 8891203.'
+    expect(evaluateRegexGates('SIP debit', content, true).rejected).toBe(false)
   })
 })
