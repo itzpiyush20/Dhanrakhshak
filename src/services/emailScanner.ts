@@ -948,8 +948,14 @@ export function resolveManualScanLimit(isOwner: boolean, isPremium: boolean): nu
 // time instead bounds the block by wall-clock rather than by item count, so the
 // worst case is one email's work plus the budget, no matter how the per-email
 // cost varies or how many emails there are.
-const STAGE_YIELD_BUDGET_MS = 40
-const yieldToEventLoop = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+const STAGE_YIELD_BUDGET_MS = 16
+const yieldToEventLoop = () => new Promise<void>((resolve) => {
+  if (typeof requestAnimationFrame !== 'undefined') {
+    requestAnimationFrame(() => setTimeout(resolve, 0))
+  } else {
+    setTimeout(resolve, 0)
+  }
+})
 
 /**
  * An email slower than this gets named in the console with its size and sender.

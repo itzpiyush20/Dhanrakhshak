@@ -20,19 +20,6 @@ const BOILERPLATE_SENTENCE_PATTERNS: RegExp[] = [
   // "please do not share your ... OTP/CVV/PIN/password ..."
   /\bplease\s+do\s+not\s+share\s+your[^.]*\./gi,
   /\bdo\s+not\s+share\s+(?:your|these|this|such)[^.]*?(?:otp|cvv|pin|password|card\s*number|details)[^.]*\./gi,
-  // "X employees/representatives will NEVER ask you for your personal
-  // information i.e. ... etc." (Zomato-style). Unlike every other pattern
-  // here, this one can't be scoped with `[^.]*\.` because the fixture's
-  // sentence contains an embedded "i.e." abbreviation — a bare `[^.]` class
-  // treats that internal period as the sentence end and truncates the
-  // match early. `[\s\S]` is used instead to cross that period, but an
-  // unbounded `[\s\S]*?` would let the match run across sentence AND
-  // paragraph breaks looking for a later "etc.", risking real transaction
-  // content being swallowed on emails shaped differently. The `{0,300}`
-  // cap keeps it "deliberately conservative" per the header above: enough
-  // room for one sentence with an inline abbreviation, not enough to reach
-  // into an unrelated paragraph. If "etc." isn't found within that span,
-  // the pattern simply doesn't match (fails closed).
   /\b\S+\s+(?:employees|representatives)?\s*(?:or\s+representatives)?\s+will\s+never\s+ask\s+you\s+for\s+your\s+personal\s+information\b[\s\S]{0,300}?etc\.?/gi,
   // RBI / fraud advisory boilerplate
   /\bRBI\s+never\s+deals\s+with\s+individuals[^.]*\./gi,
