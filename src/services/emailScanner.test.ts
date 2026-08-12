@@ -180,7 +180,7 @@ describe('scanRealGmailInbox — fetch query includes receipt-shaped keywords', 
     await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
 
     const decodedQuery = decodeURIComponent(capturedUrl.match(/[?&]q=([^&]+)/)?.[1] || '')
-    expect(decodedQuery).toMatch(/debited OR credited/i)
+    expect(decodedQuery).toMatch(/debited\b.*credited/i)
     expect(decodedQuery).toMatch(/receipt OR invoice OR order OR booking OR trip OR fare OR ride OR subscription OR renewal OR total/i)
   })
 })

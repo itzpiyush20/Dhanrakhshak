@@ -1528,7 +1528,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // receipt or food-delivery order confirmation rarely says "debited" or
     // "paid" — it says "receipt", "order", "trip", "total"). Together these
     // widen the fetch net without fetching every email in the window.
-    const BANK_ALERT_KEYWORDS = '(debited OR credited OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)'
+    const BANK_ALERT_KEYWORDS = '(debited OR debit OR credited OR credit OR spent OR paid OR payment OR txn OR transaction OR transfer OR received OR withdrawn OR charged OR card OR cred OR neft OR imps OR rtgs OR netbanking OR upi OR emi OR sip OR salary)'
     const RECEIPT_KEYWORDS = '(receipt OR invoice OR order OR booking OR trip OR fare OR ride OR subscription OR renewal OR total)'
     // R2 ("everything financial"). Deliberately narrow: these are the cases
     // where money HAS moved but the email uses none of the verbs above.
@@ -1716,11 +1716,6 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         if (merged) existingMessageIds.add(merged)
       }
     }
-    for (const r of existingRejections ?? []) {
-      if ((r as any)?.email_message_id) existingMessageIds.add((r as any).email_message_id)
-    }
-    const localScannedIds = getLocalScannedMessageIds(user.id)
-    localScannedIds.forEach((id) => existingMessageIds.add(id))
     const existingRefIds = new Set<string>(
       (existingTxns ?? []).map((t: any) => t.reference_id).filter((r: any): r is string => !!r)
     )
