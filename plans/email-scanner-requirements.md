@@ -267,6 +267,65 @@ Dependencies matter more than size here.
 
 ---
 
+## 4a. Field-verified recall failures (2026-08-13)
+
+Everything in section 4 was DONE and the whole suite was green, yet most
+transactions were still not being detected. The gap was that no test used real
+current mail. Running the scanner's own Gmail query against the live inbox
+(201 threads in the 7-day window) and replaying the actual bodies through the
+engine found five defects, each reproduced before being fixed. All are now
+pinned by `emailScanner.liveAlerts.test.ts`, which runs **with the AI disabled**
+— the regex ladder has to stand on its own, because a 429 or an exhausted daily
+quota is routine and that is exactly when it runs.
+
+| # | Symptom | Cause |
+|---|---|---|
+| F1 | Every HDFC credit-card alert dropped as `no_amount_in_body` | `Rs. 2247.97` — a space after the dot — matched no amount pattern. The trailing `\b` in `\b(?:Rs\.?)\b` cannot hold between `.` and ` `, so the engine fell back to a bare `Rs` and the following `\s*` met a `.`. `Rs.500` and `Rs 500` both worked, which is why it was never noticed |
+| F2 | Every ICICI credit-card alert rejected as `otp_or_security_code` | ICICI closes every alert with "Never share your OTP, URN, CVV or passwords". `stripBoilerplate` knew "please do not share" but not "never share", and ICICI writes "has been used for a transaction of INR X" — never debited/paid/charged — so the gate's payment-evidence escape hatch stayed shut. This is the highest-volume alert in a card user's inbox |
+| F3 | Bank alerts filed under Transport | "(Toll Free)" in the helpline footer matched the Transport context keyword `toll`. A UPI transfer to a person and a Claude subscription charge both became Transport |
+| F4 | Merchant stored as `1930 3` | The loose bare-`at` merchant pattern scanned the whole body and captured the cyber-crime helpline number. Merchant extraction now reads the amount's own neighbourhood first, and rejects a candidate with no letters in it |
+| F5 | Bank alerts scored as untrusted senders | Indian banks migrated to the RBI-restricted `bank.in` zone. Live mail arrives from `alerts@hdfcbank.bank.in`, `credit_cards@icici.bank.in`, `alerts.sbi.bank.in`, `digital.axisbankmail.bank.in`; only `axis.bank.in` had ever been added, by hand. The rest took −15 instead of +35 — a 50-point swing across the confidence floor. `*.bank.in` is now trusted as a zone, which is sound because only RBI-regulated banks can hold one |
+
+Three further defects were structural rather than per-email:
+
+- **S1 — three concurrent scans.** DashboardPage's mount sync, PendingPage's
+  mount sync and the manual button each started a full scan, unaware of the
+  others. Dashboard → Pending → "Sync Now" ran three passes over the same ~200
+  messages at once: Gmail fetches contending for the browser's ~6 connections
+  per origin, and enough Gemini calls to cross the proxy's 60/min IP limit —
+  whose 429s are invisible and silently drop every affected email to the regex
+  ladder that F1–F5 were breaking. A later caller now joins the running scan
+  and receives its progress events. **This is the main reason a scan appeared
+  not to respond**, and it also explains why the regex-ladder bugs above were
+  reachable at all.
+- **S2 — the background sync spent the manual allowance.** DashboardPage called
+  `scanRealGmailInbox()` with no `scanMode`, which defaults to `'manual'`. An
+  unprompted sync on mount consumed the free tier's one daily scan, and the
+  user was then told the limit was reached by a scan they never ran.
+- **S3 — `scheduled` was an unenforced label.** Both pages tag their background
+  sync `'scheduled'` to keep it off the manual quota, but nothing checked
+  entitlement, so free users got an automatic daily scan (contradicting R6)
+  that no quota counted. Now enforced in the engine, not per page.
+
+### Still open after this pass
+
+1. **`includeSpamTrash=true`** (commit `0515498`) widens the fetch into the
+   folder that is almost entirely marketing — the exact class R1 gives zero
+   tolerance for. The gates still run, and no false positive has been observed,
+   but this is the one change pulling against R1 and it is worth a decision.
+2. **Migration `017`** is not in `DEPLOY_014_TO_016.sql`. If it has not been
+   applied, every rejection insert used to fail silently and the audit trail —
+   the only tool for diagnosing a recall gap — was empty. The flush now retries
+   without the column on `42703`, so this no longer blocks anything, but `017`
+   should still be applied.
+3. **Performance Phase 3 is entirely undone**: no `maxDuration` on either
+   serverless function, and the Gemini proxy's quota counter is still a
+   non-atomic read-then-write that loses increments under the concurrency
+   Phase 1 introduced.
+4. **D1a** (financial-year rollover gate) remains as described above.
+
+---
+
 ## 5. Standing guardrails
 
 1. Never auto-approve (R9 / D8) — tests assert it.

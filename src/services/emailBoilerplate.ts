@@ -20,6 +20,13 @@ const BOILERPLATE_SENTENCE_PATTERNS: RegExp[] = [
   // "please do not share your ... OTP/CVV/PIN/password ..."
   /\bplease\s+do\s+not\s+share\s+your[^.]*\./gi,
   /\bdo\s+not\s+share\s+(?:your|these|this|such)[^.]*?(?:otp|cvv|pin|password|card\s*number|details)[^.]*\./gi,
+  // "Never share your OTP, URN, CVV or passwords with anyone ..." — ICICI Bank
+  // closes EVERY credit-card transaction alert with this sentence. The two
+  // patterns above only cover the "do not share" phrasing, so the word "OTP"
+  // survived into the gated text and `otp_or_security_code` rejected the whole
+  // class: every ICICI card transaction the user makes. `urn` is listed
+  // alongside the usual secrets because ICICI names it in the same sentence.
+  /\b(?:never|do\s+not|don'?t)\s+share\s+(?:your|these|this|such)?[^.]*?(?:otp|cvv|urn|pin|password|card\s*number|details)[^.]*\./gi,
   /\b\S+\s+(?:employees|representatives)?\s*(?:or\s+representatives)?\s+will\s+never\s+ask\s+you\s+for\s+your\s+personal\s+information\b[\s\S]{0,300}?etc\.?/gi,
   // RBI / fraud advisory boilerplate
   /\bRBI\s+never\s+deals\s+with\s+individuals[^.]*\./gi,
@@ -38,6 +45,13 @@ const BOILERPLATE_SENTENCE_PATTERNS: RegExp[] = [
   // Non-transactional helpline instructions
   /\bplease\s+SMS\s+\S+[^.]*\./gi,
   /\bshould\s+you\s+wish\s+to\s+reach\s+us[^.]*\./gi,
+  // "(Toll Free)" / "Toll-free, across India" next to a helpline number.
+  // Not a rejection problem but a categorisation one: the word "toll" is a
+  // Transport keyword, so this footer filed every Axis and HDFC alert — a UPI
+  // transfer to a person, a Claude subscription charge — under Transport.
+  // Only the exact "toll free" phrasing is removed; a genuine FASTag toll
+  // debit never says it.
+  /\btoll[-\s]?free\b/gi,
 ]
 
 // Every pattern above targets footer material — security disclaimers, "do not

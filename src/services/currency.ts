@@ -17,17 +17,26 @@ export const DEFAULT_CURRENCY = 'INR'
 /**
  * Symbols and codes mapped to ISO 4217, longest-first so that "US$" and "S$"
  * are recognised before a bare "$", and "AED" before a stray "D".
+ *
+ * Each alphabetic code carries its own trailing `\.?` AFTER the word boundary,
+ * never inside it. Writing it as `\b(?:Rs\.?)\b` — which this list used to —
+ * silently cannot match "Rs. 500": the trailing `\b` fails between "." and the
+ * following space (both non-word), so the engine backtracks to a bare "Rs",
+ * and the `\s*` that follows in `extractAmountMatches` then has to consume a
+ * "." it cannot. The result was that "Rs.500" and "Rs 500" parsed while
+ * "Rs. 500" — HDFC Bank's format on every credit-card alert it sends — found
+ * no amount at all and the email was dropped as `no_amount_in_body`.
  */
 const CURRENCY_TOKENS: Array<{ pattern: string; code: string }> = [
-  { pattern: '\\b(?:Rs\\.?|INR|Rupees?)\\b|₹', code: 'INR' },
-  { pattern: '\\bUSD\\b|US\\$', code: 'USD' },
-  { pattern: '\\bSGD\\b|S\\$', code: 'SGD' },
-  { pattern: '\\bAUD\\b|A\\$', code: 'AUD' },
-  { pattern: '\\bCAD\\b|C\\$', code: 'CAD' },
-  { pattern: '\\bAED\\b|Dhs\\.?', code: 'AED' },
-  { pattern: '\\bEUR\\b|€', code: 'EUR' },
-  { pattern: '\\bGBP\\b|£', code: 'GBP' },
-  { pattern: '\\bJPY\\b|¥', code: 'JPY' },
+  { pattern: '\\b(?:Rs|INR|Rupees?)\\b\\.?|₹', code: 'INR' },
+  { pattern: '\\bUSD\\b\\.?|US\\$', code: 'USD' },
+  { pattern: '\\bSGD\\b\\.?|S\\$', code: 'SGD' },
+  { pattern: '\\bAUD\\b\\.?|A\\$', code: 'AUD' },
+  { pattern: '\\bCAD\\b\\.?|C\\$', code: 'CAD' },
+  { pattern: '\\bAED\\b\\.?|Dhs\\.?', code: 'AED' },
+  { pattern: '\\bEUR\\b\\.?|€', code: 'EUR' },
+  { pattern: '\\bGBP\\b\\.?|£', code: 'GBP' },
+  { pattern: '\\bJPY\\b\\.?|¥', code: 'JPY' },
   // Bare $ last: every more specific dollar variant has already matched.
   { pattern: '\\$', code: 'USD' },
 ]

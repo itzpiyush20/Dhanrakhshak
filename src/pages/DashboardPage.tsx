@@ -307,7 +307,14 @@ export default function DashboardPage() {
             // This is a useState<boolean> that updates reactively when the token
             // is saved (on sign-in) or cleared (on expiry / sign-out).
             if (hasGoogleToken) {
-              const res = await withTimeout(scanRealGmailInbox(), 30000, 'Gmail scan')
+              // scanMode MUST be 'scheduled'. Omitting it defaults the scan to
+              // 'manual', so this background sync — which fires on mount,
+              // unprompted — was spending the user's manual allowance (R6: one
+              // per day on free). The user then pressed "Sync Now" and was told
+              // the daily scan limit was already reached, by a scan they never
+              // asked for and never saw. PendingPage's equivalent sync already
+              // passes this.
+              const res = await withTimeout(scanRealGmailInbox({ scanMode: 'scheduled' }), 30000, 'Gmail scan')
               if (res && !res.error) {
                 const { data: newLogs } = await supabase
                   .from('email_scan_logs')

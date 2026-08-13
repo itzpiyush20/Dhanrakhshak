@@ -51,6 +51,35 @@ describe('evaluateRegexGates', () => {
     expect(result.gate).toBe('otp_or_security_code')
   })
 
+  // ICICI Bank closes EVERY credit-card transaction alert with this advisory.
+  // It is the highest-volume alert in a card user's inbox, and the OTP gate was
+  // rejecting the entire class on the strength of that one sentence.
+  it('does not treat "Never share your OTP" advice as an OTP email', () => {
+    const content =
+      'Your ICICI Bank Credit Card XX2000 has been used for a transaction of INR 286.47 on Aug 10, 2026. ' +
+      'Never share your OTP, URN, CVV or passwords with anyone even if the person claims to be a bank employee.'
+    const result = evaluateRegexGates('Transaction alert for your ICICI Bank Credit Card', content, true)
+    expect(result.rejected).toBe(false)
+  })
+
+  it('still rejects an OTP email that also carries a do-not-share advisory', () => {
+    // The advisory must not become a way to smuggle a real OTP mail through:
+    // this one states the code itself, which no advisory sentence precedes.
+    const content = 'Use verification code 934112 to complete your login. Never share your OTP with anyone.'
+    const result = evaluateRegexGates('Your verification code', content, false)
+    expect(result.rejected).toBe(true)
+    expect(result.gate).toBe('otp_or_security_code')
+  })
+
+  it('counts "used for a transaction of" as completed payment evidence', () => {
+    // ICICI never writes debited/paid/charged, so without this the gates that
+    // are guarded by payment evidence all fired on its alerts.
+    const content =
+      'Your ICICI Bank Credit Card XX9001 has been used for a transaction of INR 33.00. ' +
+      'In case you have not done this transaction, to report it please call on 18002662.'
+    expect(evaluateRegexGates('Transaction alert', content, true).rejected).toBe(false)
+  })
+
   it('still rejects a promotional cashback offer', () => {
     const content = 'Get cashback on your next purchase! Limited period offer, shop now.'
     const result = evaluateRegexGates('Exclusive cashback offer', content, false)

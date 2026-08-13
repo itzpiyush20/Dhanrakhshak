@@ -36,6 +36,33 @@ export function isGenuinePendingInitiation(text: string): { matched: boolean; sn
   return { matched: false, snippet: null }
 }
 
+const SECURITY_CODE_RE = /\b(?:otp|one\s*time\s*pass(?:word|code)|verification\s*code|verification\s*pin|passcode|security\s*pin|security\s*code|m-?pin|t-?pin|2fa|two\s*factor|auth\s*code)\b/gi
+
+/**
+ * True only when a security-code word is the email's SUBJECT, not a warning
+ * about one.
+ *
+ * Every Indian bank closes its transaction alerts with an advisory —
+ * "Never share your OTP, URN, CVV or passwords with anyone" (ICICI),
+ * "Please do not share your ... OTP" (Axis). `stripBoilerplate` removes the
+ * phrasings it knows, but it can only know the ones already seen, and a single
+ * unrecognised variant was enough to reject an entire bank's transaction mail
+ * through the OTP gate. This is the same negation-awareness
+ * `isGenuinePendingInitiation` already applies to "initiated": look back a
+ * short span for the advisory verb and skip the match if one is there.
+ */
+export function findNonAdvisorySecurityCode(text: string): { matched: boolean; snippet: string | null } {
+  SECURITY_CODE_RE.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = SECURITY_CODE_RE.exec(text)) !== null) {
+    const before = text.substring(Math.max(0, m.index - 60), m.index)
+    if (/\b(?:never|not|don'?t|do\s+not|avoid)\b[\s\S]{0,40}\b(?:share|disclose|reveal|give|provide|ask(?:ing)?\s+for)\b[\s\S]{0,30}$/i.test(before)) continue
+    if (/\b(?:share|disclose|reveal)\s+(?:your\s+)?$/i.test(before) && /\b(?:never|not|don'?t)\b/i.test(before)) continue
+    return { matched: true, snippet: m[0] }
+  }
+  return { matched: false, snippet: null }
+}
+
 /**
  * Runs the full regex rejection-gate chain against already boilerplate-
  * stripped email content. Returns the first gate that rejects, or
@@ -59,7 +86,11 @@ export function evaluateRegexGates(
   // Deliberately narrow: only unambiguous offer constructions. Broader phrasing
   // like "you are eligible for" was considered and rejected — genuine receipts
   // say things like "eligible for free delivery".
-  const hasDebitConfirmation = /\b(?:debited|charged|deducted|payment\s*(?:is|was|has\s+been)?\s*(?:successful|done|completed|received|processed|confirmed)|amount\s*debited)\b/i.test(emailContentForParsing)
+  // "has been used for a transaction of INR X" is ICICI Bank's wording on every
+  // credit-card alert, and it contains none of debited/paid/charged/spent — so
+  // without it these alerts counted as having NO payment evidence, and every
+  // gate below that is guarded by that flag fired on them.
+  const hasDebitConfirmation = /\b(?:debited|charged|deducted|payment\s*(?:is|was|has\s+been)?\s*(?:successful|done|completed|received|processed|confirmed)|amount\s*debited|used\s+for\s+a\s+transaction)\b/i.test(emailContentForParsing)
   const hasCompletedPaymentEvidence = hasDebitConfirmation || /\b(?:payment\s*(?:is|was|has\s+been)?\s*(?:received|successful|done|completed|processed|towards|confirmation)|debited|spent|charged|credited|paid)\b/i.test(emailContentForParsing)
 
   const offerMatch = /\bpre[-\s]?(?:approved|qualified|sanctioned)\b|\b(?:credit\s+)?limit\s+(?:has\s+been\s+)?(?:increased|enhanced|upgraded)\b|\bloan\s+offer\b/i.exec(emailContentForParsing)
@@ -74,8 +105,10 @@ export function evaluateRegexGates(
   const pendingInitiation = isGenuinePendingInitiation(emailContentForParsing)
   if (pendingInitiation.matched && !hasCompletedPaymentEvidence) return { rejected: true, gate: 'pending_initiation', snippet: pendingInitiation.snippet }
 
-  const otpMatch = /\b(?:otp|one\s*time\s*pass(?:word|code)|verification\s*code|verification\s*pin|passcode|security\s*pin|security\s*code|m-?pin|t-?pin|2fa|two\s*factor|auth\s*code)\b/i.exec(emailContentForParsing)
-  if (otpMatch && !hasCompletedPaymentEvidence) return { rejected: true, gate: 'otp_or_security_code', snippet: otpMatch[0] }
+  const otpMatch = findNonAdvisorySecurityCode(emailContentForParsing)
+  if (otpMatch.matched && !hasCompletedPaymentEvidence) {
+    return { rejected: true, gate: 'otp_or_security_code', snippet: otpMatch.snippet }
+  }
 
   const orderPlacedMatch = /\b(?:order\s*(?:placed|confirmed|received|acknowledged)|booking\s*(?:confirmed|received)|your\s*order\s*(?:is|has been))\b/i.exec(emailContentForParsing)
   if (orderPlacedMatch && !hasDebitConfirmation) {

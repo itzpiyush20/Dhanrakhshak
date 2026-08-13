@@ -42,6 +42,27 @@ describe('extractAmountMatches', () => {
     expect(extractAmountMatches('450.00 INR debited')[0]).toMatchObject({ value: 450, currency: 'INR' })
   })
 
+  // "Rs." followed by a SPACE used to match nothing at all, while "Rs.450" and
+  // "Rs 450" both worked. HDFC Bank writes every credit-card alert that way, so
+  // the whole class was rejected as `no_amount_in_body` — which in the audit
+  // trail is indistinguishable from "the amount was only in a PDF", the one
+  // skip the product deliberately does not act on. The cause was the trailing
+  // `\b` in `\b(?:Rs\.?)\b`: it cannot hold between "." and " ", so the engine
+  // backtracked to a bare "Rs" and the following `\s*` was left facing a ".".
+  it('reads a rupee amount with a space after the abbreviation dot', () => {
+    expect(extractAmountMatches('Rs. 2247.97 has been debited')[0])
+      .toMatchObject({ value: 2247.97, currency: 'INR' })
+    expect(extractAmountMatches('INR. 53.00 was debited')[0])
+      .toMatchObject({ value: 53, currency: 'INR' })
+    expect(extractAmountMatches('USD. 49.00 charged')[0])
+      .toMatchObject({ value: 49, currency: 'USD' })
+  })
+
+  it('resolves a currency token that carries its trailing dot', () => {
+    expect(currencyCodeFor('Rs.')).toBe('INR')
+    expect(currencyCodeFor('USD.')).toBe('USD')
+  })
+
   it('reads a dollar amount as USD, not as rupees', () => {
     // The bug this whole change exists for: $50 used to be either invisible
     // or stored indistinguishably from ₹50.

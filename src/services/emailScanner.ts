@@ -596,6 +596,12 @@ function extractMerchantFromSnippet(snippet: string): { name: string; category: 
 
 function extractDynamicMerchant(snippet: string): string {
   const patterns = [
+    // "debited from your HDFC Bank Credit Card ending 7185 towards ANTHROPIC*
+    // CLAUDE SUB" — the merchant follows "towards", which none of the patterns
+    // below reach. Without it HDFC alerts fell through to the loose bare-"at"
+    // pattern further down and captured "1930 3" out of the cyber-crime
+    // helpline sentence ("Call the National Cyber Crime Helpline at 1930").
+    /(?:towards|in\s+favou?r\s+of)\s+([A-Za-z][\w\s&.*'-]{1,30}?)(?:\s*(?:\.|,|\s+on\s|\s+Ref|\s+UPI|\s+via|\s+using|\s*$))/i,
     /(?:transferred|sent|paid)\s+(?:Rs\.?\s*|INR\s*|₹\s*)?[0-9,]+(?:\.[0-9]+)?\s+to\s+([A-Za-z0-9][\w\s&.\-]{1,30}?)(?:\s*(?:\.|,|\s+Ref|\s+UPI|\s+on|\s+via|\s+using|\s*$))/i,
     /(?:debited|charged)\s+(?:Rs\.?\s*|INR\s*|₹\s*)?[0-9,]+(?:\.[0-9]+)?\s+(?:at|on|for)\s+([A-Za-z0-9][\w\s&.\-]{1,30}?)(?:\s*(?:\.|,|\s+Ref|\s+on|\s+via|\s+using|\s*$))/i,
     /(?:merchant|vendor|biller|payee|recipient)[:\s]+([A-Za-z0-9][\w\s&.\-]{1,30}?)(?:\s*(?:\.|,|\r|\n|$))/i,
@@ -612,8 +618,16 @@ function extractDynamicMerchant(snippet: string): string {
     if (match && match[1]) {
       let merchant = match[1].trim()
         .replace(/\b(ref|on|using|by|upi|refno|xx|account|ref\s*no|UPI\s*Ref)\b.*/i, '')
+        // "ANTHROPIC* CLAUDE SUB" — card networks pad the descriptor with '*'.
+        .replace(/[*]+/g, ' ')
+        .replace(/\s+/g, ' ')
         .trim()
       if (merchant.length < 2) continue
+      // A capture with no letters is never a merchant name — it is a phone
+      // number, a time, or a reference picked up by one of the looser patterns
+      // below. Falling through to the next pattern (and ultimately to the bank
+      // name) beats storing "1930 3" as the payee.
+      if (!/[A-Za-z]/.test(merchant)) continue
       if (/^(rs|inr|the|and|for|was|ref|upi)$/i.test(merchant)) continue
       return merchant
         .split(/\s+/)
@@ -987,8 +1001,30 @@ const SLOW_EMAIL_WARN_MS = 400
  * throwaway strings, for every email in every scan. Same result, without the
  * per-email allocation.
  */
+/**
+ * `bank.in` is a closed zone: under the RBI's 2025 directive it is operated by
+ * IDRBT and issued only to RBI-regulated banks, so a `*.bank.in` sender is a
+ * bank by construction and does not need enumerating.
+ *
+ * This matters because Indian banks have MIGRATED here. The whitelist below
+ * lists hdfcbank.com and icicibank.com, but the live mail now arrives from
+ * alerts@hdfcbank.bank.in, credit_cards@icici.bank.in, cbssbi.cas@alerts.sbi.bank.in
+ * and info@digital.axisbankmail.bank.in — none of which the old list matched
+ * (only axis.bank.in had been added, by hand, after one bug report). Every
+ * other bank's alerts were therefore scored as untrusted: -15 instead of +35,
+ * a 50-point swing that pushed them under the confidence floor.
+ *
+ * Trust here only contributes to the confidence score — it does not bypass any
+ * rejection gate — so admitting a bank's marketing mail alongside its alerts
+ * costs nothing: the bulk-mail and offer gates still reject it on content.
+ */
+function isRegulatedBankDomain(senderDomain: string): boolean {
+  return senderDomain === 'bank.in' || senderDomain.endsWith('.bank.in')
+}
+
 function isTrustedSenderDomain(senderDomain: string): boolean {
   if (!senderDomain) return false
+  if (isRegulatedBankDomain(senderDomain)) return true
   if (TRUSTED_SENDER_DOMAINS.has(senderDomain)) return true
   let rest = senderDomain
   for (let dot = rest.indexOf('.'); dot !== -1; dot = rest.indexOf('.')) {
@@ -1282,8 +1318,57 @@ export interface ScanGmailOptions {
   onProgress?: (progress: ScanProgress) => void
 }
 
+/**
+ * The browser scan currently running, if any, plus the progress callbacks of
+ * everyone waiting on it.
+ *
+ * Three entry points start a scan and none of them knew about the others:
+ * DashboardPage's mount sync, PendingPage's mount sync, and the manual button.
+ * Navigating Dashboard → Pending → "Sync Now" therefore ran three full scans
+ * at once over the same inbox. On a real 7-day window (~200 messages for this
+ * inbox) that triples the Gmail detail fetches competing for the browser's ~6
+ * connections per origin, triples the Gemini calls — pushing straight through
+ * the proxy's 60/min IP limit, whose 429s are invisible and silently drop every
+ * affected email to the regex ladder — and leaves the tab unresponsive. Which
+ * is what "the scanner does not respond" looks like from the outside.
+ *
+ * Later callers join the running scan instead of starting another. Their
+ * progress callbacks are attached to it, so a manual click during a background
+ * sync still shows live progress rather than a dead spinner.
+ *
+ * Server-side (cron) callers are exempt: one invocation legitimately scans many
+ * users, and they pass `userId` explicitly.
+ */
+let inFlightBrowserScan: ReturnType<typeof runGmailScan> | null = null
+const inFlightProgressListeners = new Set<(p: ScanProgress) => void>()
+
 export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
+  const isServerSide = !!opts?.userId
+  if (!isServerSide) {
+    if (inFlightBrowserScan) {
+      const listener = opts?.onProgress
+      if (listener) inFlightProgressListeners.add(listener)
+      try {
+        return await inFlightBrowserScan
+      } finally {
+        if (listener) inFlightProgressListeners.delete(listener)
+      }
+    }
+    const run = runGmailScan(opts)
+    inFlightBrowserScan = run
+    try {
+      return await run
+    } finally {
+      inFlightBrowserScan = null
+      inFlightProgressListeners.clear()
+    }
+  }
+  return runGmailScan(opts)
+}
+
+async function runGmailScan(opts?: ScanGmailOptions) {
   const supabase = opts?.db || defaultSupabase
+  const isServerSide = !!opts?.userId
   // Generated up front so every per-email rejection logged during this scan
   // can reference the scan_log row before that row itself is inserted
   // (which only happens after the whole scan completes, below).
@@ -1375,10 +1460,21 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
 
   /** Never let a UI callback's failure break a scan. */
   const emitProgress = (p: ScanProgress) => {
+    const event = { ...p, elapsedMs: Date.now() - scanStartedAt }
     try {
-      opts?.onProgress?.({ ...p, elapsedMs: Date.now() - scanStartedAt })
+      opts?.onProgress?.(event)
     } catch (e) {
       console.warn('[emailScanner] onProgress callback threw:', e)
+    }
+    // Callers that joined this scan while it was already running (see
+    // inFlightBrowserScan) get the same events, so their spinner is live too.
+    for (const listener of inFlightProgressListeners) {
+      if (listener === opts?.onProgress) continue
+      try {
+        listener(event)
+      } catch (e) {
+        console.warn('[emailScanner] joined onProgress callback threw:', e)
+      }
     }
   }
 
@@ -1396,34 +1492,8 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
    * writing once, after the parent row exists, fixes the FK violation and
    * collapses N failing requests into one that succeeds.
    */
-  const getLocalScannedMessageIds = (userId: string): Set<string> => {
-    try {
-      const raw = localStorage.getItem(`dhanrakshak_scanned_msg_ids_${userId}`)
-      if (!raw) return new Set()
-      const arr = JSON.parse(raw)
-      return new Set(Array.isArray(arr) ? arr : [])
-    } catch {
-      return new Set()
-    }
-  }
-
-  const saveLocalScannedMessageIds = (userId: string, newIds: string[]): void => {
-    try {
-      if (!newIds || newIds.length === 0) return
-      const current = getLocalScannedMessageIds(userId)
-      newIds.forEach((id) => { if (id) current.add(id) })
-      const list = Array.from(current).slice(-2000)
-      localStorage.setItem(`dhanrakshak_scanned_msg_ids_${userId}`, JSON.stringify(list))
-    } catch {
-      // Ignore localStorage errors
-    }
-  }
-
   const rejectionBuffer: { gate: string; senderDomain: string; subject: string; matchedSnippet: string; emailMessageId?: string }[] = []
   const bufferRejection = (gate: string, senderDomain: string, subject: string, matchedSnippet: string, emailMessageId?: string) => {
-    if (emailMessageId && user?.id) {
-      saveLocalScannedMessageIds(user.id, [emailMessageId])
-    }
     rejectionBuffer.push({ gate, senderDomain, subject, matchedSnippet, emailMessageId })
   }
   /** Writes every buffered rejection, chunked so one oversized batch can't lose them all. */
@@ -1440,8 +1510,27 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     }))
     const REJECTION_FLUSH_CHUNK = 500
     for (let i = 0; i < rows.length; i += REJECTION_FLUSH_CHUNK) {
-      const { error } = await supabase.from('email_scan_rejections').insert(rows.slice(i, i + REJECTION_FLUSH_CHUNK))
-      if (error) console.warn('[emailScanner] Failed to flush rejection batch:', error.message)
+      const chunk = rows.slice(i, i + REJECTION_FLUSH_CHUNK)
+      const { error } = await supabase.from('email_scan_rejections').insert(chunk)
+      if (!error) continue
+      // 42703 = undefined_column. `email_message_id` arrives with migration
+      // 017, which is NOT in the 014-016 deploy bundle — so on a database where
+      // 017 has not been applied yet, EVERY rejection insert fails and the
+      // audit trail the user debugs recall gaps with is silently empty. Retry
+      // without the column rather than losing the rows.
+      if ((error as { code?: string }).code === '42703') {
+        const withoutMessageId = chunk.map((row) => {
+          const copy: Record<string, unknown> = { ...row }
+          delete copy.email_message_id
+          return copy
+        })
+        const { error: retryError } = await supabase
+          .from('email_scan_rejections')
+          .insert(withoutMessageId)
+        if (retryError) console.warn('[emailScanner] Failed to flush rejection batch:', retryError.message)
+        continue
+      }
+      console.warn('[emailScanner] Failed to flush rejection batch:', error.message)
     }
   }
 
@@ -1489,6 +1578,22 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     // the cron gates eligibility on its own (owner/premium/trial), which is
     // what implements "no automatic scan" for free users.
     const scanLimit = resolveManualScanLimit(isOwner, isPremium)
+
+    // A browser-initiated scan may only call itself 'scheduled' if the user is
+    // actually entitled to an automatic scan. Both pages run a background sync
+    // on mount and label it 'scheduled' to keep it off the manual allowance —
+    // correct for premium and owner, but for a free user R6 says there is no
+    // automatic scan at all, so that label turned into a standing exemption
+    // from the quota the tier is defined by. Enforced here rather than in the
+    // pages because there are three call sites and only this one is reachable
+    // by all of them. The cron path (userId supplied) does its own eligibility
+    // check against the same tiers and is left alone.
+    if (scanMode === 'scheduled' && !isServerSide && !isOwner && !isPremium) {
+      return {
+        data: null,
+        error: new Error('Automatic scanning is a premium feature. Use Sync Now for your daily manual scan.'),
+      }
+    }
 
     if (scanMode === 'manual' && scanLimit !== Infinity) {
       const timestamps = await fetchRecentManualScanTimes(supabase, user.id)
@@ -1600,7 +1705,7 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     let nextPageToken = ''
 
     // Page size only — NOT a cap on total messages processed. The rolling
-    // 30-day scan window computed above defines completeness; a message-count
+    // 7-day scan window computed above defines completeness; a message-count
     // cap here would silently truncate the oldest matches whenever a window
     // has more mail than the cap, which is exactly when completeness matters
     // most (a first scan, or a busy week).
@@ -1693,7 +1798,14 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
 
     const dedupFrom = new Date(startLimitTime - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-    const [existingTxnsRes, existingRejectionsRes, userCategoriesRes, merchantRules] = await Promise.all([
+    // The `email_scan_rejections` preload that used to sit here was dropped.
+    // Its result stopped being read when re-evaluating previously rejected mail
+    // against updated rules was made possible (commit 77e14e2) — but the query
+    // itself stayed, so every scan still paid an unbounded, unindexed read of
+    // the user's entire rejection history (which the daily cleanup cron keeps
+    // 30 days of, thousands of rows) and then discarded it, inside the
+    // "Preparing…" stage that has no timeout of its own beyond 12s.
+    const [existingTxnsRes, userCategoriesRes, merchantRules] = await Promise.all([
       preloadOrDefault<PreloadRows>(
         supabase
           .from('transactions')
@@ -1704,14 +1816,6 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         'Loading existing transactions'
       ),
       preloadOrDefault<PreloadRows>(
-        supabase
-          .from('email_scan_rejections')
-          .select('email_message_id')
-          .eq('user_id', user.id),
-        { data: [], error: null },
-        'Loading rejected transactions'
-      ),
-      preloadOrDefault<PreloadRows>(
         supabase.from('categories').select('name, is_permanent').eq('user_id', user.id),
         { data: [], error: null },
         'Loading categories'
@@ -1720,7 +1824,6 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
     ])
 
     const existingTxns = existingTxnsRes.data
-    const existingRejections = existingRejectionsRes.data
     if (existingTxnsRes.error) {
       console.error('[emailScanner] Failed to load existing transactions for dedup:', existingTxnsRes.error)
     }
@@ -2348,7 +2451,15 @@ export async function scanRealGmailInbox(opts?: ScanGmailOptions) {
         // Scanning fullText is how a news story about Ola Electric became an
         // "Ola Cab Ride" transaction.
         const knownMerchant = extractMerchantFromSnippet(`${subject} ${windowContent}`)
-        const dynamicMerchant = extractDynamicMerchant(emailContentForParsing)
+        // Same reasoning as knownMerchant above, applied to the dynamic
+        // patterns: read the amount's own neighbourhood first (case preserved —
+        // two of the patterns key off capitals), and only widen to the whole
+        // parsed body when that finds nothing. Scanning the full body first is
+        // how a bank's helpline and fraud-reporting footer, which sits far from
+        // the amount, got mistaken for the payee.
+        const windowRaw = emailContentForParsing.substring(winStart, winEnd)
+        const dynamicMerchant =
+          extractDynamicMerchant(windowRaw) || extractDynamicMerchant(emailContentForParsing)
         const subjectMerchant = subject ? extractDynamicMerchant(subject) : ''
 
         let merchant = ''

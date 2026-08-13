@@ -1241,9 +1241,10 @@ describe('scanRealGmailInbox — quota enforcement', () => {
 
   it('never blocks a scheduled scan, however many manual scans were used', async () => {
     // R7: the automatic daily scan is "in addition to" the manual allowance.
+    // Premium, because R6 gives a free user no automatic scan to exempt.
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
-      db: makeQuotaDb([hoursAgo(1), hoursAgo(2), hoursAgo(3)], { subscription_status: 'free', subscription_expires_at: null }),
+      db: makeQuotaDb([hoursAgo(1), hoursAgo(2), hoursAgo(3)], { subscription_status: 'active', subscription_expires_at: null }),
       activeYear: new Date().getUTCFullYear(),
       scanMode: 'scheduled',
       askAI: async () => null,
@@ -1251,9 +1252,24 @@ describe('scanRealGmailInbox — quota enforcement', () => {
     expect(result.error).toBeNull()
   })
 
+  it('refuses a browser scan that calls itself scheduled without auto-scan entitlement', async () => {
+    // R6: free tier has no automatic scan. Both pages run a background sync on
+    // mount labelled 'scheduled' to keep it off the manual allowance — which,
+    // unenforced, handed free users a daily scan the tier does not include and
+    // that no quota counted.
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeQuotaDb([], { subscription_status: 'free', subscription_expires_at: null }),
+      activeYear: new Date().getUTCFullYear(),
+      scanMode: 'scheduled',
+      askAI: async () => null,
+    })
+    expect(result.error?.message).toMatch(/Automatic scanning is a premium feature/)
+  })
+
   it('records scan_mode on the scan log', async () => {
     const inserted: any[] = []
-    const db = makeQuotaDb([], { subscription_status: 'free', subscription_expires_at: null })
+    const db = makeQuotaDb([], { subscription_status: 'active', subscription_expires_at: null })
     const baseFrom = db.from
     db.from = (table: string) => {
       const h = baseFrom(table)
