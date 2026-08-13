@@ -3,7 +3,7 @@
 // Displays stats, spending breakdown, recent txns
 // ============================================
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
 import { Card, Button, EmptyState, Modal, DateFilterPicker, TransactionIdentity } from '@/components/ui'
@@ -256,8 +256,22 @@ export default function DashboardPage() {
     }
   }, [])
 
+  /**
+   * The user this mount has already run the scheduled-task check for.
+   *
+   * `checkScheduledTasks` closes over `dateFilter`, so every change of the
+   * date filter rebuilt the callback and re-fired the effect below — meaning
+   * a background Gmail scan was attempted again on each filter switch, along
+   * with the several Supabase queries the check makes first. The in-flight
+   * guard in `scanRealGmailInbox` stopped those from becoming concurrent
+   * scans, but the right fix is not to ask: this is a once-per-visit task.
+   */
+  const scheduledTasksRanForUser = useRef<string | null>(null)
+
   const checkScheduledTasks = useCallback(async () => {
     if (!user) return
+    if (scheduledTasksRanForUser.current === user.id) return
+    scheduledTasksRanForUser.current = user.id
     try {
       const currentYear = new Date().getFullYear()
       // 1. Check if there are transactions from prior years

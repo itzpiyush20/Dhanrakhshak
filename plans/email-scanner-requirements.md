@@ -309,20 +309,87 @@ Three further defects were structural rather than per-email:
 
 ### Still open after this pass
 
-1. **`includeSpamTrash=true`** (commit `0515498`) widens the fetch into the
-   folder that is almost entirely marketing — the exact class R1 gives zero
-   tolerance for. The gates still run, and no false positive has been observed,
-   but this is the one change pulling against R1 and it is worth a decision.
+1. ~~**`includeSpamTrash=true`**~~ — **DECIDED 2026-08-13: removed.** Owner chose
+   to exclude both Spam and Trash. Accepted trade-off, stated at the time: a
+   bank alert Gmail misfiles into Spam is now unreachable, and under R3's strict
+   7-day window it becomes permanently unreachable once it ages out.
 2. **Migration `017`** is not in `DEPLOY_014_TO_016.sql`. If it has not been
    applied, every rejection insert used to fail silently and the audit trail —
    the only tool for diagnosing a recall gap — was empty. The flush now retries
    without the column on `42703`, so this no longer blocks anything, but `017`
    should still be applied.
-3. **Performance Phase 3 is entirely undone**: no `maxDuration` on either
-   serverless function, and the Gemini proxy's quota counter is still a
-   non-atomic read-then-write that loses increments under the concurrency
-   Phase 1 introduced.
+3. ~~**Performance Phase 3**~~ — **`maxDuration` DONE** (§4b below). The
+   **non-atomic quota counter remains open**: the proxy still does a
+   read-then-write that loses increments under concurrency. Deliberately not
+   fixed in the same pass — the fix needs a new migration, and making the one
+   currently-broken path depend on an unapplied migration is exactly the trap
+   `017` fell into. It fails *open* (under-counts, so users get more calls than
+   the 500/day limit), so it is a cost issue, not a correctness one.
 4. **D1a** (financial-year rollover gate) remains as described above.
+
+---
+
+## 4b. The scanner's AI had been dead for ten weeks (2026-08-13)
+
+Everything in sections 4 and 4a was done and green, and the scanner was still
+"slow and not giving the desired output". The cause was not in any of the logic
+those sections cover.
+
+**Production Vercel logs showed every single `/api/gemini-proxy` call returning
+404.** Google shut `gemini-2.0-flash` down on **1 June 2026**. The model id was
+a string literal in two API handlers, so from that date
+`generativelanguage.googleapis.com` answered every request with 404 NOT_FOUND.
+
+The 404 then travelled a path built entirely out of graceful degradation:
+
+| Layer | Behaviour | Effect |
+|---|---|---|
+| `gemini-proxy.ts` | forwarded Gemini's status verbatim | a dead model became indistinguishable, in the Vercel request log, from the route not existing |
+| `analyzeTransactionEmailBatchWithAI` | `isFatalProxyError` matched `404` → all verdicts `null` | no retry, no error |
+| `scanRealGmailInbox` | `null` verdict ⇒ use the regex ladder (guardrail 3) | correct per-email rule |
+| scan log | `status: 'success'` | **nothing anywhere said the AI was gone** |
+
+So for ~10 weeks every email was classified by regex alone, and the app
+reported clean successes. R1/R2 accuracy, merchant naming and categorisation
+were all running on the fallback that sections 4/4a had been hardening —
+which is why that hardening kept looking necessary.
+
+**Fixes**
+
+| # | Fix |
+|---|---|
+| G1 | `api/_lib/geminiModel.ts` — one definition of the model id, imported by both handlers, overridable via the `GEMINI_MODEL` env var. Default is now `gemini-3.5-flash-lite` (owner's choice). A future retirement is a dashboard change, not a pull request |
+| G2 | The proxy no longer forwards upstream status blindly: a Gemini 404 becomes a `502` with `code: 'MODEL_NOT_FOUND'` and a loud `console.error` naming the model and the env var; 429 still passes through as 429 |
+| G3 | **A scan that gets no AI verdict for *any* email now records it on the scan log**, and PendingPage renders notes on successful scans (it previously rendered them only on failures, so this class of note was written and never shown). Guardrail 3 is untouched — the scan still succeeds and still keeps every transaction |
+| G4 | `thinkingConfig: { thinkingBudget: 0 }` on both scan prompts. Every Gemini model from 2.5 on reasons by default and bills thinking against `maxOutputTokens`, so a 500/2000-token classification call can spend its whole budget thinking and return an empty string — reproducing this exact silent failure on a *live* model |
+
+### The other half: why it was slow
+
+`analyzeTransactionEmailBatchWithAI` retried a failed batch as N sequential
+single calls, excluding only 404/503/401. So a **429 or a 504 fanned one failed
+call out into five doomed serial ones** — five times the latency and five times
+the rate-limit burn, with each new 429 provoking the next fan-out. At
+concurrency 4 that is 20 pointless serial round trips per wave.
+
+504s were routine, because **neither serverless function declared
+`maxDuration`**: Vercel's 10s default was *shorter* than the proxy's own 20s
+AbortController and the client's 25s wait, so the platform always won the race
+and killed the function mid-call.
+
+- Per-email retry is now attempted **only** for content faults (the model
+  answered with unparseable JSON — splitting the batch genuinely helps).
+  Transport and service failures return immediately.
+- `maxDuration = 60` on both functions, and the timeout ladder is now strictly
+  nested: **platform 60s > client 35s > proxy abort 30s**, so a slow call yields
+  a clean attributable 504 from our own code.
+
+### Also in this pass
+
+- Five silent `continue`s in Stage C now log rejections
+  (`duplicate_reference_id` ×2, `unusable_amount`, `trivial_credit_amount`,
+  `amount_below_one`), continuing D7's principle that no rejection is invisible.
+- DashboardPage's scheduled-task check ran again on every date-filter change,
+  re-attempting a background scan each time; it is now once per visit.
 
 ---
 

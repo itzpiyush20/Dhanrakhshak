@@ -27,6 +27,26 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { scanRealGmailInbox } from '../src/services/emailScanner.js'
 import { analyzeTransactionEmailWithAI, analyzeTransactionEmailBatchWithAI } from '../src/services/aiService.js'
+import {
+  geminiEndpoint,
+  isModelNotFoundStatus,
+  modelNotFoundMessage,
+  resolveGeminiModel,
+} from './_lib/geminiModel.js'
+
+/**
+ * This cron scans every eligible user sequentially in one invocation. Without
+ * an explicit duration it ran under Vercel's 10s default, which a single
+ * user's scan can exceed on its own — so the run was being killed partway
+ * through, silently, with later users never scanned at all.
+ *
+ * 60s is the Hobby-plan ceiling without Fluid Compute. If the eligible user
+ * base outgrows one 60s window, the fix is Fluid Compute (maxDuration up to
+ * 300) plus the per-user time budget described in
+ * plans/email-scanner-performance-plan.md §3.1 — not a larger number here,
+ * which would fail the build on Hobby.
+ */
+export const maxDuration = 60
 
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL || '',
@@ -89,11 +109,31 @@ function makeCallGeminiDirect() {
       throw new Error(`auto-sync-gmail: Gemini call cap (${MAX_GEMINI_CALLS_PER_RUN}) reached for this run`)
     }
     callCount++
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
-    )
-    if (!res.ok) throw new Error(`Gemini API error: ${res.status}`)
+    const model = resolveGeminiModel()
+    // Bounded like the proxy's call. An unbounded fetch here could consume the
+    // whole cron window on one hung request and starve every remaining user.
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30_000)
+    let res: Response
+    try {
+      res = await fetch(geminiEndpoint(GEMINI_API_KEY, model), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timeoutId)
+    }
+    if (!res.ok) {
+      // Same reasoning as the proxy: a retired model id is a configuration
+      // fault that must be shouted about, not folded into the generic
+      // "AI unavailable, use regex" path that hides it indefinitely.
+      if (isModelNotFoundStatus(res.status)) {
+        console.error(`[auto-sync-gmail] FATAL CONFIG ERROR: ${modelNotFoundMessage(model)}`)
+      }
+      throw new Error(`Gemini API error: ${res.status}`)
+    }
     return res.json()
   }
 }

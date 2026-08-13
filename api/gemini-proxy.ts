@@ -1,5 +1,31 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import {
+  geminiEndpoint,
+  isModelNotFoundStatus,
+  modelNotFoundMessage,
+  resolveGeminiModel,
+} from './_lib/geminiModel.js'
+
+/**
+ * Without this, Vercel applies its default function duration (10s on Hobby),
+ * which was SHORTER than this handler's own 20s AbortController and shorter
+ * than the client's 25s wait. The platform therefore always won the race and
+ * killed the function mid-Gemini-call, returning an opaque timeout the client
+ * could not tell apart from a real AI failure.
+ *
+ * The ladder is now strictly nested, longest first:
+ *   platform (60s)  >  this handler's abort (30s)  >  client fetch (35s)
+ * so a slow Gemini call produces a clean, attributable 504 from OUR code
+ * rather than an infrastructure kill.
+ *
+ * 60 is the ceiling on Vercel's Hobby plan without Fluid Compute; raising it
+ * further requires a plan/Fluid change, not just a bigger number here.
+ */
+export const maxDuration = 60
+
+/** Must stay below `maxDuration` so this handler, not the platform, times out first. */
+const GEMINI_ABORT_MS = 30_000
 
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL || '',
@@ -108,21 +134,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 20000)
+  const timeoutId = setTimeout(() => controller.abort(), GEMINI_ABORT_MS)
+  const model = resolveGeminiModel()
 
   try {
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents, generationConfig, safetySettings }),
-        signal: controller.signal,
-      }
-    )
+    const geminiRes = await fetch(geminiEndpoint(GEMINI_API_KEY, model), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents, generationConfig, safetySettings }),
+      signal: controller.signal,
+    })
 
     if (!geminiRes.ok) {
-      return res.status(geminiRes.status).json({ error: `Gemini API error: ${geminiRes.status}` })
+      // A retired model id is reported separately and LOUDLY. This exact case
+      // — gemini-2.0-flash shut down on 1 June 2026 — disabled AI
+      // classification for ~10 weeks without a single visible symptom, because
+      // Google's 404 was forwarded verbatim and every layer below is designed
+      // to shrug off a missing AI verdict.
+      if (isModelNotFoundStatus(geminiRes.status)) {
+        const message = modelNotFoundMessage(model)
+        console.error(`[gemini-proxy] FATAL CONFIG ERROR: ${message}`)
+        return res.status(502).json({ error: message, code: 'MODEL_NOT_FOUND' })
+      }
+
+      const detail = await geminiRes.text().catch(() => '')
+      console.error(
+        `[gemini-proxy] Gemini API error ${geminiRes.status} for model "${model}": ${detail.slice(0, 500)}`
+      )
+
+      // Upstream 429 is passed through as 429 so the caller can back off, but
+      // every other upstream failure becomes 502. Forwarding Gemini's status
+      // verbatim is what made the outage above so hard to see: a 404 from
+      // Google is indistinguishable, in the Vercel request log, from this
+      // route not existing at all.
+      const status = geminiRes.status === 429 ? 429 : 502
+      return res.status(status).json({ error: `Gemini API error: ${geminiRes.status}`, model })
     }
 
     const data = await geminiRes.json()

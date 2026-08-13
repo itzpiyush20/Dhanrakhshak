@@ -879,6 +879,17 @@ export default function PendingPage() {
                   Failed: {lastScanLog.error_message}
                 </p>
               )}
+              {/* A SUCCESSFUL scan can still carry a note — low-confidence
+                  rows, or the AI being unavailable so everything fell back to
+                  regex matching. Those notes were written to the log but
+                  rendered nowhere, which is how a ten-week AI outage stayed
+                  invisible: the scan said "success" and no one could see that
+                  every email had been categorised by the fallback. */}
+              {lastScanLog.status === 'success' && lastScanLog.error_message && (
+                <p className="text-xs text-[var(--status-warning-text)] mt-1 break-words">
+                  {lastScanLog.error_message}
+                </p>
+              )}
             </Card>
 
             <Card className="bg-surface-1 border-border-subtle p-4 space-y-1">

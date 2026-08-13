@@ -233,11 +233,38 @@ describe('analyzeTransactionEmailBatchWithAI', () => {
     expect(out.get(101)?.merchant).toBe('Fallback')
   })
 
-  it('falls back to per-email calls when the batch call throws', async () => {
+  // Transport/service failures must NOT fan out into per-email retries.
+  // Re-asking a rate-limited, timed-out or dead endpoint five more times
+  // cannot succeed; it just multiplies the latency and the rate-limit burn,
+  // and each extra 429 provokes the next fan-out. This used to happen for
+  // every status except 404/503/401 — including the 504s that Vercel's
+  // default function timeout produced routinely.
+  it.each([
+    ['a rate limit', 'Gemini proxy error: 429'],
+    ['a function timeout', 'Gemini proxy error: 504'],
+    ['an upstream failure', 'Gemini proxy error: 502'],
+    ['a retired model', 'MODEL_NOT_FOUND: Gemini model "gemini-x" was not found (404).'],
+    ['a network abort', 'The operation was aborted.'],
+  ])('does not retry per-email when the batch fails with %s', async (_label, message) => {
+    const call = vi.fn().mockRejectedValue(new Error(message))
+
+    const out = await analyzeTransactionEmailBatchWithAI(makeEmails(3), call)
+
+    expect(call).toHaveBeenCalledTimes(1)
+    expect(out.get(100)).toBeNull()
+    expect(out.get(101)).toBeNull()
+    expect(out.get(102)).toBeNull()
+  })
+
+  it('still retries per-email when the model returns unparseable JSON', async () => {
     let callCount = 0
     const call = vi.fn().mockImplementation(async () => {
       callCount++
-      if (callCount === 1) throw new Error('429 rate limited')
+      // Bracketed but malformed — reaches JSON.parse and throws there, which
+      // is a content fault and must still earn the per-email retry.
+      if (callCount === 1) {
+        return { candidates: [{ content: { parts: [{ text: '[{"email_index": 0, "is_transaction": }]' }] } }] }
+      }
       return {
         candidates: [{ content: { parts: [{ text: JSON.stringify({
           is_transaction: false, amount: null, confidence_score: 0,
@@ -247,6 +274,7 @@ describe('analyzeTransactionEmailBatchWithAI', () => {
 
     const out = await analyzeTransactionEmailBatchWithAI(makeEmails(1), call)
 
+    expect(call).toHaveBeenCalledTimes(2) // 1 batch + 1 single
     expect(out.get(100)?.is_transaction).toBe(false)
   })
 
@@ -286,5 +314,29 @@ describe('analyzeTransactionEmailBatchWithAI', () => {
     expect(prompt).toMatch(/EMAIL 0:/)
     expect(prompt).toMatch(/EMAIL 1:/)
     expect(captured.generationConfig.maxOutputTokens).toBe(2000)
+  })
+
+  // Every Gemini model from 2.5 onward reasons by default and bills those
+  // thinking tokens against maxOutputTokens. A classification call capped at
+  // 500/2000 tokens can spend the lot thinking and return an EMPTY string,
+  // which this module reads as "no verdict" and the scanner silently answers
+  // with the regex ladder — the same invisible degradation that hid the
+  // gemini-2.0-flash retirement for ten weeks. Pinned on both scan prompts.
+  it('disables model thinking on the batch prompt so output tokens are not eaten', async () => {
+    let captured: any = null
+    await analyzeTransactionEmailBatchWithAI(makeEmails(2), async (body: any) => {
+      captured = body
+      return geminiArrayResponse([])
+    })
+    expect(captured.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 })
+  })
+
+  it('disables model thinking on the single-email prompt too', async () => {
+    let captured: any = null
+    await analyzeTransactionEmailWithAI('s', 'b', '2026-08-13', async (body: any) => {
+      captured = body
+      return { candidates: [{ content: { parts: [{ text: '{"is_transaction":false}' }] } }] }
+    })
+    expect(captured.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 })
   })
 })

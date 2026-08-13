@@ -1049,6 +1049,12 @@ function bulkScanText(body: string): string {
 const INSERT_CHUNK_SIZE = 10
 
 /**
+ * Prefix marking a scan-log note as "the AI was down, output is degraded".
+ * The UI matches on it to style the note as a warning, so keep the two in step.
+ */
+export const AI_UNAVAILABLE_NOTE = 'AI classification was unavailable for this scan.'
+
+/**
  * Insert a chunk of transactions, isolating the batch from a single
  * conflicting row. Extracted so the incremental flushes and the final flush
  * share one implementation.
@@ -1711,7 +1717,18 @@ async function runGmailScan(opts?: ScanGmailOptions) {
     // most (a first scan, or a busy week).
     do {
       const pageSize = isOwner ? 200 : 100
-      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${pageSize}&includeSpamTrash=true&q=${encodeURIComponent(q)}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`
+      // Spam and Trash are deliberately NOT searched (owner decision,
+      // 2026-08-13). `includeSpamTrash=true` pulled the scan into the two
+      // folders that are almost entirely marketing — the exact class R1 gives
+      // zero tolerance to — and made every scan pay to fetch and parse them.
+      // Trash was the indefensible half: an email the user deliberately
+      // deleted should never come back as a transaction.
+      //
+      // Accepted trade-off, flagged to the owner when this was decided: a
+      // genuine bank alert that Gmail misfiles into Spam is now unreachable,
+      // and under the strict rolling 7-day window (R3) it becomes
+      // permanently unreachable once it ages out.
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${pageSize}&q=${encodeURIComponent(q)}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`
       // Retried on the same terms as the per-message fetches below, which have
       // had this since the start. Without it, ONE transient network failure on
       // this very first call — a dropped connection, an ERR_QUIC_PROTOCOL_ERROR,
@@ -2171,6 +2188,49 @@ async function runGmailScan(opts?: ScanGmailOptions) {
     emitProgress({ phase: 'analyzing', current: 0, total: candidates.length })
     const aiVerdicts = await classifyCandidatesWithAI(candidates, askAIBatch, askAI, categoryNames, emitProgress)
 
+    // ── AI health ────────────────────────────────────────────────────
+    // A null verdict means "the AI had no opinion on this email", and every
+    // layer below is built to shrug that off and fall through to the regex
+    // ladder. That per-email tolerance is deliberate and stays (guardrail 3) —
+    // but it also made a TOTAL outage indistinguishable from a quiet day.
+    //
+    // It is not hypothetical: Google retired gemini-2.0-flash on 1 June 2026,
+    // every call 404'd from then on, and the scanner reported perfect success
+    // for ten weeks while classifying every single email with regex alone. The
+    // only visible symptom was that the output quietly got worse.
+    //
+    // A healthy classifier essentially never abstains on ALL of them. So that
+    // exact condition is recorded on the scan log, where the user can see it.
+    const aiNoVerdictCount = candidates.filter((c) => !aiVerdicts.get(c.mailMessageId)).length
+    const aiUnavailable = candidates.length > 0 && aiNoVerdictCount === candidates.length
+    if (aiUnavailable) {
+      console.error(
+        `[emailScanner] AI classification returned no verdict for any of ${candidates.length} emails — ` +
+        `falling back to regex matching for the whole scan. Check the GEMINI_MODEL configuration and /api/gemini-proxy logs.`
+      )
+    }
+
+    /**
+     * Notes worth showing the user on an otherwise successful scan. Kept in
+     * one place because the scan log is written from several exits.
+     */
+    const buildScanNote = (): string | null => {
+      const notes: string[] = []
+      if (aiUnavailable) {
+        notes.push(
+          `${AI_UNAVAILABLE_NOTE} All ${candidates.length} email(s) were categorised by fallback matching, ` +
+          `which is less accurate. Transactions were still captured.`
+        )
+      }
+      if (lowConfidencePendingCount > 0) {
+        notes.push(
+          `${lowConfidencePendingCount} email(s) added as pending (low confidence). ` +
+          `Samples: ${lowConfidenceEmailsDetails.join('; ')}`
+        )
+      }
+      return notes.length > 0 ? notes.join(' ') : null
+    }
+
     // ── Stage C — per-email interpretation ───────────────────────────
     // Unchanged logic: take the AI verdict (or its absence) and run the same
     // AI-result handling and regex ladder as before. Everything here is cheap
@@ -2212,6 +2272,11 @@ async function runGmailScan(opts?: ScanGmailOptions) {
           if (aiResult) {
             if (aiResult.is_transaction && aiResult.amount && aiResult.amount > 0) {
               if (aiResult.reference_id && existingRefIds.has(aiResult.reference_id)) {
+                // Logged rather than dropped silently: a reference-id collision
+                // is the one rejection a user is most likely to dispute ("my
+                // transaction is missing"), and the audit trail is the only
+                // tool for answering that.
+                bufferRejection('duplicate_reference_id', senderDomain, subject, `ref=${aiResult.reference_id}`, mailMessageId)
                 continue
               }
 
@@ -2356,7 +2421,10 @@ async function runGmailScan(opts?: ScanGmailOptions) {
           })
         }
 
-        if (isNaN(amount) || amount <= 0) continue
+        if (isNaN(amount) || amount <= 0) {
+          bufferRejection('unusable_amount', senderDomain, subject, `amount=${amount}`, mailMessageId)
+          continue
+        }
 
         // Take the currency from the amount that actually won, so a foreign
         // charge is never quietly filed as rupees.
@@ -2433,9 +2501,15 @@ async function runGmailScan(opts?: ScanGmailOptions) {
         const debitCreditClear = Math.abs(debitScore - creditScore) >= 10
 
         if (amount < 10 && txType === 'credit') {
-          if (!/salary|refund|reversed/i.test(emailContentForParsing)) continue
+          if (!/salary|refund|reversed/i.test(emailContentForParsing)) {
+            bufferRejection('trivial_credit_amount', senderDomain, subject, `amount=${amount}`, mailMessageId)
+            continue
+          }
         }
-        if (amount < 1) continue
+        if (amount < 1) {
+          bufferRejection('amount_below_one', senderDomain, subject, `amount=${amount}`, mailMessageId)
+          continue
+        }
 
         const paymentMode = detectPaymentMode(emailContentForParsing)
         const cardLast4 = extractCardLast4(emailContentForParsing)
@@ -2515,7 +2589,10 @@ async function runGmailScan(opts?: ScanGmailOptions) {
         )
         const reference_id = refMatch ? (refMatch[1] || refMatch[2]) : null
 
-        if (reference_id && existingRefIds.has(reference_id)) continue
+        if (reference_id && existingRefIds.has(reference_id)) {
+          bufferRejection('duplicate_reference_id', senderDomain, subject, `ref=${reference_id}`, mailMessageId)
+          continue
+        }
 
         let ruleResult: RuleMatchResult
         try {
@@ -2613,7 +2690,7 @@ async function runGmailScan(opts?: ScanGmailOptions) {
           transactions_found: 0,
           status: 'success',
           scan_mode: scanMode,
-          error_message: lowConfidencePendingCount > 0 ? `${lowConfidencePendingCount} email(s) added as pending (low confidence). Samples: ${lowConfidenceEmailsDetails.join('; ')}` : null,
+          error_message: buildScanNote(),
         })
         .select().single()
       // Only valid once the row above exists — the FK this satisfies is the
@@ -2645,7 +2722,7 @@ async function runGmailScan(opts?: ScanGmailOptions) {
         transactions_found: transactionsToInsert.length,
         status: 'success',
         scan_mode: scanMode,
-        error_message: lowConfidencePendingCount > 0 ? `${lowConfidencePendingCount} email(s) added as pending (confidence < 65). Samples: ${lowConfidenceEmailsDetails.join('; ')}` : null,
+        error_message: buildScanNote(),
       })
       .select().single()
 

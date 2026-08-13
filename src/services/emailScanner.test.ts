@@ -2409,7 +2409,12 @@ describe('scanRealGmailInbox — bounded cost on an oversized HTML email', () =>
     expect(result.error).toBeNull()
     expect(inserted.flat()).toHaveLength(1)
     expect(inserted.flat()[0].amount).toBe(450)
-  })
+    // Explicit vitest timeout: building the ~160MB fixture above costs a
+    // couple of seconds on its own and is charged to the test's own budget,
+    // which left barely any margin under the 5s default and made this fail
+    // spuriously on a loaded machine. The behavioural assertion is still the
+    // 5s one above — it starts timing after the fixture exists.
+  }, 30000)
 })
 
 // ============================================================
@@ -2485,5 +2490,102 @@ describe('scanRealGmailInbox — skips already-processed mail before fetching it
     // The two seen ids cost no network round trip at all — not "were fetched
     // and then skipped", which is what the old ordering did.
     expect(bodyFetches).toEqual(['msg-fresh'])
+  })
+})
+
+// ============================================================
+// A total AI outage must be visible.
+//
+// `null` from the classifier means "no AI opinion on this email", and the
+// engine deliberately answers that with the regex ladder rather than dropping
+// the email (guardrail 3). That per-email tolerance is correct — but it also
+// meant a classifier that was answering NOTHING, ever, looked exactly like a
+// classifier having a quiet day. Google retired gemini-2.0-flash on
+// 1 June 2026; every call 404'd from then on; the scanner logged ten weeks of
+// clean successes while categorising every email with regex alone. The only
+// symptom was that the output quietly got worse.
+// ============================================================
+describe('scanRealGmailInbox — AI outage is recorded, not swallowed', () => {
+  const scanLogInserts: any[] = []
+
+  function makeLogCapturingDb(insertedTransactions: any[]): any {
+    // Reads and inserts must answer differently. The manual-quota check reads
+    // email_scan_logs and maps over `data`, so a read has to yield an array;
+    // the scan-log insert then reads back a single row.
+    const table = (readResponse: any, capture?: any[], insertResponse: any = readResponse) => {
+      const handler: any = {
+        select: () => handler, eq: () => handler, order: () => handler, limit: () => handler, gte: () => handler,
+        single: () => Promise.resolve(readResponse),
+        update: () => handler,
+        insert: (row: any) => {
+          capture?.push(row)
+          return { select: () => ({ single: () => Promise.resolve(insertResponse) }), then: (r: any) => r(insertResponse) }
+        },
+        then: (r: any) => r(readResponse),
+      }
+      return handler
+    }
+    return {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'user-1', email: 'test@example.com' }, access_token: 'tok' } } }) },
+      from: (name: string) => {
+        if (name === 'email_scan_logs') {
+          return table({ data: [], error: null }, scanLogInserts, { data: { id: 'log-1' }, error: null })
+        }
+        if (name === 'transactions') return table({ data: [], error: null }, insertedTransactions)
+        if (name === 'categories') return table({ data: [{ name: 'Other', is_permanent: true }], error: null })
+        return table({ data: [], error: null })
+      },
+    }
+  }
+
+  beforeEach(() => {
+    scanLogInserts.length = 0
+    const msg = makeAxisEmiGmailMessage('msg-ai-health-1')
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/messages?')) {
+        return { ok: true, status: 200, json: async () => ({ messages: [{ id: msg.id, threadId: msg.threadId }] }) } as any
+      }
+      if (url.includes(`/messages/${msg.id}`)) return { ok: true, status: 200, json: async () => msg } as any
+      throw new Error(`Unexpected fetch URL in test: ${url}`)
+    }) as any
+  })
+
+  it('flags the scan log when the AI gave no verdict on a single email', async () => {
+    const inserted: any[] = []
+    const { scanRealGmailInbox, AI_UNAVAILABLE_NOTE } = await import('./emailScanner')
+
+    const result = await scanRealGmailInbox({
+      db: makeLogCapturingDb(inserted),
+      activeYear: new Date().getFullYear(),
+      askAIBatch: async (emails) => new Map(emails.map((e) => [e.index, null])),
+      askAI: async () => null,
+    })
+
+    // Guardrail 3 still holds: the scan succeeds and the transaction survives.
+    expect(result.error).toBeNull()
+    expect(inserted.flat()).toHaveLength(1)
+
+    const log = scanLogInserts.flat().find((r: any) => r.status === 'success')
+    expect(log.error_message).toContain(AI_UNAVAILABLE_NOTE)
+  })
+
+  it('leaves the note off when the AI did answer', async () => {
+    const inserted: any[] = []
+    const { scanRealGmailInbox, AI_UNAVAILABLE_NOTE } = await import('./emailScanner')
+
+    await scanRealGmailInbox({
+      db: makeLogCapturingDb(inserted),
+      activeYear: new Date().getFullYear(),
+      askAIBatch: async (emails) =>
+        new Map(emails.map((e) => [e.index, {
+          is_transaction: true, transaction_type: 'debit', amount: 5000, currency: 'INR',
+          merchant: 'Axis', category: 'Other', description: 'EMI', payment_mode: 'net_banking',
+          card_issuer: null, card_brand: null, transaction_time: null, reference_id: null,
+          date: null, confidence_score: 95,
+        } as any])),
+    })
+
+    const log = scanLogInserts.flat().find((r: any) => r.status === 'success')
+    expect(log.error_message ?? '').not.toContain(AI_UNAVAILABLE_NOTE)
   })
 })

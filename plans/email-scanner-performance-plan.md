@@ -234,7 +234,23 @@ has been saved — scan again to continue where it left off.` (True once 2.2 lan
 
 ---
 
-## Phase 3 — Server-side hardening (cron + proxy)
+## Phase 3 — Server-side hardening (cron + proxy)  ⚠️ 3.1 DONE, 3.2 OPEN
+
+> **3.1 landed 2026-08-13** as part of the AI-outage fix — see
+> `email-scanner-requirements.md` §4b. `maxDuration = 60` is now declared on
+> both `api/gemini-proxy.ts` and `api/auto-sync-gmail.ts` (60, not the 300
+> below: 300 fails the build on the Hobby plan without Fluid Compute), the
+> cron's Gemini fetch has a 30s AbortController, and the timeout ladder is
+> nested platform 60s > client 35s > proxy abort 30s. The per-user time budget
+> and oldest-first ordering described below are **not** done and still matter
+> once the eligible user base outgrows one 60s window.
+>
+> **3.2 is still open**, deliberately. It needs a new migration, and the pass
+> that fixed the outage was not the place to make the one broken path depend on
+> an unapplied migration — that is precisely how migration `017` caused a
+> silently empty audit trail. The counter fails *open* (lost increments mean
+> users get more calls than the 500/day limit), so it costs money, not
+> correctness.
 
 The daily cron is the path that keeps inboxes fresh so manual scans stay small — if it
 dies, every manual scan becomes a large scan. Today it processes **all** users

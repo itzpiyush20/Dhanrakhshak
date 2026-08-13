@@ -10,6 +10,13 @@ import { supabase } from './supabase.js'
 
 const GEMINI_PROXY_URL = '/api/gemini-proxy'
 
+/**
+ * Must sit ABOVE the proxy's own 30s AbortController and BELOW the platform's
+ * 60s `maxDuration`, so the proxy reports its own clean timeout before this
+ * gives up, and the platform never has to kill anything.
+ */
+const GEMINI_PROXY_TIMEOUT_MS = 35000
+
 /** Calls our server-side Gemini proxy so the API key never reaches the client bundle. */
 async function callGeminiProxy(body: Record<string, unknown>): Promise<any> {
   const { data: { session } } = await supabase.auth.getSession()
@@ -22,12 +29,43 @@ async function callGeminiProxy(body: Record<string, unknown>): Promise<any> {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify(body),
     },
-    25000
+    GEMINI_PROXY_TIMEOUT_MS
   )
 
-  if (!response.ok) throw new Error(`Gemini proxy error: ${response.status}`)
+  if (!response.ok) {
+    // The proxy sends a `code` for faults an operator has to fix (a retired
+    // model id, most importantly). Surface it verbatim instead of collapsing
+    // every failure to a bare status — the whole reason the 2.0-flash
+    // shutdown went unnoticed for 10 weeks is that its 404 arrived here
+    // stripped of any explanation and was then treated as routine.
+    const detail = await response.json().catch(() => null) as { error?: string; code?: string } | null
+    if (detail?.code === 'MODEL_NOT_FOUND') {
+      console.error(`[AI] ${detail.error}`)
+      throw new Error(`MODEL_NOT_FOUND: ${detail.error}`)
+    }
+    throw new Error(`Gemini proxy error: ${response.status}`)
+  }
   return response.json()
 }
+
+/**
+ * Generation settings shared by both scan prompts.
+ *
+ * `thinkingBudget: 0` is not an optimisation — it is a correctness guard.
+ * Gemini 2.5 and every 3.x model reason by default, and those thinking tokens
+ * are billed against `maxOutputTokens`. A classification call capped at 500 or
+ * 2000 tokens can therefore spend its entire budget thinking and return an
+ * EMPTY string, which this module reads as "no JSON found" → `null` → the
+ * regex ladder. That is the identical silent-degradation shape that hid the
+ * gemini-2.0-flash retirement, so it is pinned here rather than left to the
+ * model's default.
+ */
+const SCAN_GENERATION_BASE = {
+  temperature: 0.1,
+  topP: 0.9,
+  responseMimeType: 'application/json',
+  thinkingConfig: { thinkingBudget: 0 },
+} as const
 
 export interface FinancialContext {
   month: string
@@ -501,12 +539,7 @@ ${NEGATIVE_EXAMPLE}
 
     const data = await callGemini({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 500,
-        topP: 0.9,
-        responseMimeType: 'application/json',
-      },
+      generationConfig: { ...SCAN_GENERATION_BASE, maxOutputTokens: 500 },
       purpose: 'scan',
     })
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
@@ -522,6 +555,19 @@ ${NEGATIVE_EXAMPLE}
   } catch (e) {
     console.warn('[AI] Gemini email parsing failed:', e)
     return null
+  }
+}
+
+/**
+ * The model replied, but its output could not be read as the expected JSON
+ * array. Distinguished from a transport/service failure because only THIS
+ * case is worth retrying as individual, smaller prompts — see the catch block
+ * in `analyzeTransactionEmailBatchWithAI`.
+ */
+class ContentError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ContentError'
   }
 }
 
@@ -595,21 +641,28 @@ Example of the array shape for 2 emails:
     const data = await callGemini({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.1,
+        ...SCAN_GENERATION_BASE,
         // Scales with batch size — 500 was sized for a single result.
         maxOutputTokens: 2000,
-        topP: 0.9,
-        responseMimeType: 'application/json',
       },
       purpose: 'scan',
     })
 
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
     const arrayMatch = text.match(/\[[\s\S]*\]/)
-    if (!arrayMatch) throw new Error('batch response contained no JSON array')
+    if (!arrayMatch) throw new ContentError('batch response contained no JSON array')
 
-    const parsed = JSON.parse(arrayMatch[0])
-    if (!Array.isArray(parsed)) throw new Error('batch response was not an array')
+    // A truncated or malformed array is a content fault, not a transport one —
+    // JSON.parse's own SyntaxError must not be mistaken for the service being
+    // down, or these emails would skip the single-call retry that fixes them.
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(arrayMatch[0])
+    } catch (parseErr) {
+      const detail = parseErr instanceof Error ? parseErr.message : String(parseErr)
+      throw new ContentError(`batch response was not valid JSON: ${detail}`)
+    }
+    if (!Array.isArray(parsed)) throw new ContentError('batch response was not an array')
 
     for (const entry of parsed) {
       const promptIndex = entry?.email_index
@@ -624,11 +677,25 @@ Example of the array shape for 2 emails:
     return results
   } catch (e: any) {
     console.warn('[AI] Batch classification failed:', e)
-    const isFatalProxyError = /404|503|401|Not authenticated/i.test(e?.message || '')
-    if (isFatalProxyError) {
+
+    // Retry the emails individually ONLY when the batch itself was the
+    // problem — the model answered, but with something this code could not
+    // parse (truncation, prose around the JSON, a malformed array). Splitting
+    // such a batch genuinely helps: each email gets a smaller, simpler prompt.
+    //
+    // Every other failure is the transport or the service: a dead model, an
+    // auth failure, a rate limit, a function timeout, the network. Re-asking
+    // the SAME broken endpoint five more times cannot succeed. It used to,
+    // though — the old guard only excluded 404/503/401, so a 429 or a 504 (the
+    // Vercel function timeout, routine before `maxDuration` was set) turned
+    // one failed call into five sequential ones. With four batches in flight
+    // that is 20 doomed serial round trips per wave: five times the latency,
+    // five times the rate-limit burn, and each new 429 provoking yet another
+    // fan-out. It made a brief hiccup look like a hung scanner.
+    if (!(e instanceof ContentError)) {
       return results
     }
-    // Fall back to single calls only for transient content/JSON parsing failures
+
     for (const email of emails) {
       try {
         const single = await analyzeTransactionEmailWithAI(
