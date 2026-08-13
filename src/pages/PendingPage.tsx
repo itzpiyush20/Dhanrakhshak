@@ -21,6 +21,7 @@ import {
   formatScanProgress,
 } from '@/services'
 import { saveMerchantRuleToDb } from '@/services/learningEngine'
+import { mergePayments } from '@/services/paymentMerge'
 import { useAuth } from '@/context/AuthContext'
 import { formatCurrency, formatDate, parsePaymentSource, formatPaymentSource, isCardPayment, withTimeout, getCurrentMonth, resolveTransactionIdentity } from '@/utils'
 import type { Database } from '@/types/database'
@@ -49,6 +50,7 @@ import {
   AlertCircle,
   Sparkles,
   CheckCircle2,
+  CopyCheck,
 } from 'lucide-react'
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row']
@@ -135,6 +137,12 @@ function formatCardDetails(txn: TransactionRow): string | null {
   return null
 }
 
+/** Message off a thrown Error or a Supabase error object, with a fallback. */
+function errorMessage(err: unknown, fallback: string): string {
+  const message = (err as { message?: unknown } | null)?.message
+  return typeof message === 'string' && message ? message : fallback
+}
+
 /** Format countdown from ms remaining */
 function msToCountdown(ms: number): string {
   if (ms <= 0) return '00:00:00'
@@ -182,6 +190,9 @@ export default function PendingPage() {
 
   // Scan rate-limit / cooldown state
   const [scanCooldownMessage, setScanCooldownMessage] = useState<string | null>(null)
+
+  // Which flagged row currently has a merge / keep-both write in flight.
+  const [duplicateActionId, setDuplicateActionId] = useState<string | null>(null)
 
   // Premium gate state
   const [isPremiumRequired, setIsPremiumRequired] = useState(false)
@@ -623,6 +634,108 @@ export default function PendingPage() {
         },
       },
     })
+  }
+
+  // ── Possible-duplicate resolution ────────────────────────
+  // The scanner flags a row it could not PROVE is the same payment as another
+  // (see src/services/paymentMerge.ts). Both rows are inserted and the newer
+  // one carries `possible_duplicate_of`; the decision is the user's.
+
+  /** "Keep both" — clear the flag so the hint never comes back for this pair. */
+  const handleKeepBothDuplicates = async (txn: TransactionRow) => {
+    setDuplicateActionId(txn.id)
+    try {
+      const { error: updateErr } = await updateTransaction(txn.id, { possible_duplicate_of: null })
+      if (updateErr) throw updateErr
+      setPendingTxns((prev) =>
+        prev.map((t) => (t.id === txn.id ? { ...t, possible_duplicate_of: null } : t))
+      )
+      showToast('Kept both transactions.', 'success')
+    } catch (err) {
+      console.error('Error clearing duplicate flag:', err)
+      showToast(errorMessage(err, 'Failed to update transaction.'), 'error')
+    } finally {
+      setDuplicateActionId(null)
+    }
+  }
+
+  /**
+   * "Merge" — union the pair into the richer row and delete the other. The
+   * survivor stays PENDING: merging is a de-duplication decision, never an
+   * approval.
+   */
+  const handleMergeDuplicates = async (txn: TransactionRow, partner: TransactionRow) => {
+    setDuplicateActionId(txn.id)
+    try {
+      // mergePayments builds on whichever record carries more identifying
+      // detail, so the row it returns tells us which one survives.
+      const merged = mergePayments(txn, partner)
+      const survivor = merged.id === partner.id ? partner : txn
+      const absorbed = survivor.id === txn.id ? partner : txn
+
+      // Carry the absorbed row's Gmail message ids onto the survivor, or the
+      // next scan would see that email as unknown and recreate the row the
+      // user just merged away.
+      const messageIds = [
+        ...(survivor.merged_email_message_ids ?? []),
+        ...(absorbed.merged_email_message_ids ?? []),
+        absorbed.email_message_id,
+      ].filter((id): id is string => !!id)
+
+      const mergedRow: TransactionRow = {
+        ...merged,
+        approval_status: 'pending',
+        possible_duplicate_of: null,
+        merged_email_message_ids: messageIds.length > 0 ? messageIds : null,
+      }
+
+      const { error: updateErr } = await updateTransaction(survivor.id, {
+        merchant: mergedRow.merchant,
+        description: mergedRow.description,
+        reference_id: mergedRow.reference_id,
+        payment_mode: mergedRow.payment_mode,
+        card_issuer: mergedRow.card_issuer,
+        card_brand: mergedRow.card_brand,
+        transaction_time: mergedRow.transaction_time,
+        confidence_score: mergedRow.confidence_score,
+        merged_email_message_ids: mergedRow.merged_email_message_ids,
+        // Explicit, not incidental: a merged row still needs the user's yes.
+        approval_status: 'pending',
+        possible_duplicate_of: null,
+      })
+      if (updateErr) throw updateErr
+
+      // Only after the survivor holds the union is it safe to drop the other.
+      const { error: deleteErr } = await deleteTransaction(absorbed.id)
+      if (deleteErr) throw deleteErr
+
+      setPendingTxns((prev) =>
+        prev.filter((t) => t.id !== absorbed.id).map((t) => (t.id === survivor.id ? mergedRow : t))
+      )
+      setTotalPendingCount((prev) => Math.max(0, prev - 1))
+      setTotalPendingValue((prev) => Math.max(0, prev - Number(absorbed.amount)))
+      setEditingFields((prev) => {
+        const next = { ...prev }
+        delete next[absorbed.id]
+        next[survivor.id] = {
+          category: prev[survivor.id]?.category ?? mergedRow.category,
+          description: parseShortDescription(
+            mergedRow.description || '',
+            mergedRow.notes || '',
+            mergedRow.merchant || ''
+          ),
+        }
+        return next
+      })
+      showToast('Transactions merged.', 'success')
+    } catch (err) {
+      console.error('Error merging duplicate transactions:', err)
+      showToast(errorMessage(err, 'Failed to merge transactions.'), 'error')
+      // A half-applied merge must not stay on screen — reload the truth.
+      await fetchPendingData()
+    } finally {
+      setDuplicateActionId(null)
+    }
   }
 
   const handleAutoCategorySelect = (txnId: string, newCategory: string) => {
@@ -1235,6 +1348,14 @@ export default function PendingPage() {
                 txn.category
               )
 
+              // Only the flagged row shows the hint, and only while the row it
+              // points at is still on screen. If the partner was already
+              // approved, rejected or deleted there is nothing to compare
+              // against, so the affordance is simply not rendered.
+              const duplicatePartner = txn.possible_duplicate_of
+                ? pendingTxns.find((t) => t.id === txn.possible_duplicate_of) ?? null
+                : null
+
               const confidenceColor =
                 suggestion.confidence >= 80
                   ? 'bg-[var(--status-positive-subtle)] text-[var(--status-positive-text)] border-[var(--status-positive-border)]'
@@ -1299,6 +1420,49 @@ export default function PendingPage() {
                       </strong>
                     </span>
                   </div>
+
+                  {/* Possible-duplicate hint — user decides, nothing auto-merges */}
+                  {duplicatePartner && (
+                    <div className="flex flex-col gap-3 rounded-xl border border-[var(--status-warning-border)] bg-[var(--status-warning-subtle)] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <CopyCheck className="h-4 w-4 text-[var(--status-warning-text)] shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <Badge variant="warning" className="whitespace-nowrap">Possible duplicate</Badge>
+                          <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
+                            This may be the same payment as{' '}
+                            <strong className="text-zinc-200">
+                              {resolveTransactionIdentity(duplicatePartner).title}
+                            </strong>{' '}
+                            <strong className="text-zinc-200">
+                              {formatCurrency(Number(duplicatePartner.amount), duplicatePartner.currency)}
+                            </strong>{' '}
+                            on {formatDate(duplicatePartner.date)} — a bank alert and a receipt for one purchase.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="justify-center"
+                          onClick={() => handleKeepBothDuplicates(txn)}
+                          disabled={duplicateActionId === txn.id}
+                        >
+                          Keep both
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="justify-center"
+                          onClick={() => handleMergeDuplicates(txn, duplicatePartner)}
+                          loading={duplicateActionId === txn.id}
+                          disabled={duplicateActionId === txn.id}
+                        >
+                          Merge
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Form controls */}
                   <div className="grid gap-3 sm:grid-cols-2">
