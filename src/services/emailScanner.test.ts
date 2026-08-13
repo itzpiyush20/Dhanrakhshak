@@ -134,7 +134,6 @@ describe('scanRealGmailInbox — Axis EMI debit regression', () => {
 
     const result = await scanRealGmailInbox({
       db: mockDb,
-      activeYear: 2026,
       // Force the AI path to fail so this test exercises the regex
       // fallback path — the one that was silently dropping this email.
       askAI: async () => null,
@@ -178,7 +177,7 @@ describe('scanRealGmailInbox — fetch query includes receipt-shaped keywords', 
     }) as any
 
     const { scanRealGmailInbox } = await import('./emailScanner')
-    await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+    await scanRealGmailInbox({ db: mockDb, askAI: async () => null })
 
     const decodedQuery = decodeURIComponent(capturedUrl.match(/[?&]q=([^&]+)/)?.[1] || '')
     expect(decodedQuery).toMatch(/debited\b.*credited/i)
@@ -199,7 +198,7 @@ describe('scanRealGmailInbox — receipt-shaped emails with no debit/credit keyw
     }) as any
 
     const { scanRealGmailInbox } = await import('./emailScanner')
-    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+    const result = await scanRealGmailInbox({ db: mockDb, askAI: async () => null })
 
     expect(result.error).toBeNull()
     expect(insertedTransactions).toHaveLength(1)
@@ -230,7 +229,7 @@ describe('scanRealGmailInbox — receipt-shaped emails with no debit/credit keyw
     }) as any
 
     const { scanRealGmailInbox } = await import('./emailScanner')
-    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+    const result = await scanRealGmailInbox({ db: mockDb, askAI: async () => null })
 
     expect(result.error).toBeNull()
     expect(insertedTransactions).toHaveLength(1)
@@ -252,7 +251,7 @@ describe('scanRealGmailInbox — receipt-shaped emails with no debit/credit keyw
     }) as any
 
     const { scanRealGmailInbox } = await import('./emailScanner')
-    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+    const result = await scanRealGmailInbox({ db: mockDb, askAI: async () => null })
 
     expect(result.error).toBeNull()
     expect(insertedTransactions).toHaveLength(1)
@@ -296,7 +295,7 @@ describe('scanRealGmailInbox — receipt-shaped emails with no debit/credit keyw
     }) as any
 
     const { scanRealGmailInbox } = await import('./emailScanner')
-    await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+    await scanRealGmailInbox({ db: mockDb, askAI: async () => null })
 
     expect(insertedTransactions).toHaveLength(0)
     // The subject itself ("...offer...") trips the hard_reject_subject
@@ -321,7 +320,7 @@ describe('scanRealGmailInbox — low regex confidence inserts pending, not dropp
     }) as any
 
     const { scanRealGmailInbox } = await import('./emailScanner')
-    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+    const result = await scanRealGmailInbox({ db: mockDb, askAI: async () => null })
 
     expect(insertedTransactions).toHaveLength(1)
     const txn = insertedTransactions[0][0]
@@ -356,7 +355,7 @@ describe('scanRealGmailInbox — newsletter false positives', () => {
 
     const askAISpy = vi.fn(async () => null)
     const { scanRealGmailInbox } = await import('./emailScanner')
-    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: askAISpy as any })
+    const result = await scanRealGmailInbox({ db: mockDb, askAI: askAISpy as any })
 
     expect(result.error).toBeNull()
     expect(insertedTransactions).toHaveLength(0)
@@ -378,7 +377,7 @@ describe('scanRealGmailInbox — newsletter false positives', () => {
     }) as any
 
     const { scanRealGmailInbox } = await import('./emailScanner')
-    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+    const result = await scanRealGmailInbox({ db: mockDb, askAI: async () => null })
 
     expect(result.error).toBeNull()
     expect(insertedTransactions).toHaveLength(0)
@@ -404,7 +403,7 @@ describe('scanRealGmailInbox — trusted-sender marketing', () => {
     }) as any
 
     const { scanRealGmailInbox } = await import('./emailScanner')
-    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+    const result = await scanRealGmailInbox({ db: mockDb, askAI: async () => null })
 
     expect(result.error).toBeNull()
     expect(insertedTransactions).toHaveLength(0)
@@ -437,7 +436,7 @@ describe('scanRealGmailInbox — genuine receipts still detected (regression)', 
       }) as any
 
       const { scanRealGmailInbox } = await import('./emailScanner')
-      const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+      const result = await scanRealGmailInbox({ db: mockDb, askAI: async () => null })
 
       expect(result.error).toBeNull()
       expect(insertedTransactions).toHaveLength(1)
@@ -468,7 +467,7 @@ describe('scanRealGmailInbox — transient fetch failure handling', () => {
     }) as any
 
     const { scanRealGmailInbox } = await import('./emailScanner')
-    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+    const result = await scanRealGmailInbox({ db: mockDb, askAI: async () => null })
 
     expect(result.error).toBeNull()
     expect(messageFetchAttempts).toBe(3)
@@ -491,7 +490,7 @@ describe('scanRealGmailInbox — transient fetch failure handling', () => {
     }) as any
 
     const { scanRealGmailInbox } = await import('./emailScanner')
-    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+    const result = await scanRealGmailInbox({ db: mockDb, askAI: async () => null })
 
     expect(result.error).toBeNull()
     expect(insertedTransactions).toHaveLength(0)
@@ -567,7 +566,7 @@ describe('scanRealGmailInbox — batch insert fault isolation', () => {
     }) as any
 
     const { scanRealGmailInbox } = await import('./emailScanner')
-    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+    const result = await scanRealGmailInbox({ db: mockDb, askAI: async () => null })
 
     expect(batchInsertAttempted).toBe(true)
     expect(result.error).toBeNull()
@@ -608,7 +607,7 @@ describe('scanRealGmailInbox — batch insert fault isolation', () => {
     }) as any
 
     const { scanRealGmailInbox } = await import('./emailScanner')
-    const result = await scanRealGmailInbox({ db: mockDb, activeYear: 2026, askAI: async () => null })
+    const result = await scanRealGmailInbox({ db: mockDb, askAI: async () => null })
 
     expect(result.error).not.toBeNull()
   })
@@ -654,7 +653,6 @@ describe('scanRealGmailInbox — batched AI classification', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: mockDb,
-      activeYear: new Date().getFullYear(),
       askAIBatch: async (emails) => {
         batchSizes.push(emails.length)
         return new Map(emails.map((e) => [e.index, null]))
@@ -674,7 +672,6 @@ describe('scanRealGmailInbox — batched AI classification', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: mockDb,
-      activeYear: new Date().getFullYear(),
       askAIBatch: async (emails) =>
         new Map(
           emails.map((e) => [
@@ -722,7 +719,6 @@ describe('scanRealGmailInbox — batched AI classification', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: mockDb,
-      activeYear: new Date().getFullYear(),
       askAIBatch: async (emails) => {
         emails.forEach((e) => seenSubjects.push(e.subject))
         return new Map(emails.map((e) => [e.index, null]))
@@ -739,7 +735,7 @@ describe('scanRealGmailInbox — batched AI classification', () => {
 
     const askAIBatch = vi.fn(async (emails: any[]) => new Map(emails.map((e) => [e.index, null])))
     const { scanRealGmailInbox } = await import('./emailScanner')
-    await scanRealGmailInbox({ db: mockDb, activeYear: new Date().getFullYear(), askAIBatch: askAIBatch as any })
+    await scanRealGmailInbox({ db: mockDb, askAIBatch: askAIBatch as any })
 
     expect(askAIBatch).not.toHaveBeenCalled()
   })
@@ -753,7 +749,6 @@ describe('scanRealGmailInbox — batched AI classification', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: mockDb,
-      activeYear: new Date().getFullYear(),
       askAIBatch: async () => { throw new Error('gemini down') },
       askAI: async () => null,
     })
@@ -773,7 +768,6 @@ describe('scanRealGmailInbox — batched AI classification', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: mockDb,
-      activeYear: new Date().getFullYear(),
       askAIBatch: async () => { throw new Error('batch unavailable') },
       askAI: async () => { singleCalls++; return null },
     })
@@ -791,7 +785,6 @@ describe('scanRealGmailInbox — batched AI classification', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: mockDb,
-      activeYear: new Date().getFullYear(),
       askAI: async () => { singleCalls++; return null },
     })
 
@@ -822,7 +815,6 @@ describe('scanRealGmailInbox — merchant rules are fetched once per scan', () =
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: makeMockDb([], []),
-      activeYear: new Date().getFullYear(),
       askAIBatch: async (emails) => new Map(emails.map((e) => [e.index, null])),
     })
 
@@ -866,7 +858,6 @@ describe('scanRealGmailInbox — strict 7-day scan window', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: makeMockDb([], []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -909,7 +900,6 @@ describe('scanRealGmailInbox — strict 7-day scan window', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: mockDb,
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -927,7 +917,6 @@ describe('scanRealGmailInbox — strict 7-day scan window', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeMockDb(insertedTransactions, []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: askAI as any,
     })
 
@@ -966,7 +955,6 @@ describe('scanRealGmailInbox — strict 7-day scan window', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: mockDb,
-      activeYear: new Date().getUTCFullYear(),
       askAI: askAI as any,
     })
 
@@ -1007,7 +995,6 @@ describe('scanRealGmailInbox — year boundary', () => {
       const { scanRealGmailInbox } = await import('./emailScanner')
       const result = await scanRealGmailInbox({
         db: makeMockDb(insertedTransactions, []),
-        activeYear: thisYear,
         askAI: async () => null,
       })
 
@@ -1021,48 +1008,6 @@ describe('scanRealGmailInbox — year boundary', () => {
     }
   })
 
-  it('rejects prior-year mail WITH a log when the user rolled forward early', async () => {
-    // activeYear is next year while today is still this year — the Settings
-    // "start next financial year" flow. The user asked to stop scanning the
-    // current year, so this must not import it, but it must leave a trace.
-    const thisYear = new Date().getUTCFullYear()
-    const current = makeAxisEmiGmailMessage('msg-current-year')
-    mockGmail([current])
-
-    const insertedTransactions: any[] = []
-    const insertedRejections: any[] = []
-    const { scanRealGmailInbox } = await import('./emailScanner')
-    await scanRealGmailInbox({
-      db: makeMockDb(insertedTransactions, insertedRejections),
-      activeYear: thisYear + 1,
-      askAI: async () => null,
-    })
-
-    expect(insertedTransactions.flat()).toHaveLength(0)
-    const gates = insertedRejections.flat().map((r: any) => r.gate)
-    expect(gates).toContain('before_active_year')
-  })
-
-  it('rejects future-dated mail WITH a log rather than silently', async () => {
-    const thisYear = new Date().getUTCFullYear()
-    const future = makeAxisEmiGmailMessage('msg-future')
-    // Inside the window by clock, but stamped next year (clock skew / spoof).
-    future.internalDate = String(Date.UTC(thisYear + 1, 0, 2, 10, 0, 0))
-    mockGmail([future])
-
-    const insertedTransactions: any[] = []
-    const insertedRejections: any[] = []
-    const { scanRealGmailInbox } = await import('./emailScanner')
-    await scanRealGmailInbox({
-      db: makeMockDb(insertedTransactions, insertedRejections),
-      activeYear: thisYear,
-      askAI: async () => null,
-    })
-
-    expect(insertedTransactions.flat()).toHaveLength(0)
-    const gates = insertedRejections.flat().map((r: any) => r.gate)
-    expect(gates).toContain('after_active_year')
-  })
 })
 
 // ============================================================
@@ -1210,7 +1155,6 @@ describe('scanRealGmailInbox — quota enforcement', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeQuotaDb([hoursAgo(2)], { subscription_status: 'free', subscription_expires_at: null }),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -1225,14 +1169,12 @@ describe('scanRealGmailInbox — quota enforcement', () => {
 
     const second = await scanRealGmailInbox({
       db: makeQuotaDb([hoursAgo(2)], premium),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
     expect(second.error).toBeNull()
 
     const third = await scanRealGmailInbox({
       db: makeQuotaDb([hoursAgo(2), hoursAgo(5)], premium),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
     expect(third.error?.message).toMatch(/Daily scan limit reached \(2 manual scans per day\)/)
@@ -1246,7 +1188,6 @@ describe('scanRealGmailInbox — quota enforcement', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeQuotaDb([hoursAgo(1), hoursAgo(2), hoursAgo(3)], { subscription_status: 'active', subscription_expires_at: null }),
-      activeYear: new Date().getUTCFullYear(),
       scanMode: 'scheduled',
       askAI: async () => null,
     })
@@ -1261,7 +1202,6 @@ describe('scanRealGmailInbox — quota enforcement', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeQuotaDb([], { subscription_status: 'free', subscription_expires_at: null }),
-      activeYear: new Date().getUTCFullYear(),
       scanMode: 'scheduled',
       askAI: async () => null,
     })
@@ -1283,7 +1223,7 @@ describe('scanRealGmailInbox — quota enforcement', () => {
 
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
-      db, activeYear: new Date().getUTCFullYear(), scanMode: 'scheduled', askAI: async () => null,
+      db, scanMode: 'scheduled', askAI: async () => null,
     })
 
     expect(inserted.length).toBeGreaterThan(0)
@@ -1322,7 +1262,6 @@ describe('scanRealGmailInbox — progress reporting', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: makeMockDb([], []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
       onProgress: (p) => phases.push(p.phase),
     })
@@ -1351,7 +1290,6 @@ describe('scanRealGmailInbox — progress reporting', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: makeMockDb([], []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
       onProgress: (p) => events.push(p),
     })
@@ -1368,7 +1306,6 @@ describe('scanRealGmailInbox — progress reporting', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeMockDb(insertedTransactions, []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
       onProgress: () => { throw new Error('UI blew up') },
     })
@@ -1418,7 +1355,6 @@ describe('scanRealGmailInbox — progress reporting', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: makeMockDb([], []),
-      activeYear: new Date().getUTCFullYear(),
       askAIBatch: async (emails) => new Map(emails.map((e) => [e.index, null])),
     })
     clearTimeout(timer)
@@ -1440,7 +1376,6 @@ describe('scanRealGmailInbox — progress reporting', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: makeMockDb([], []),
-      activeYear: new Date().getUTCFullYear(),
       // Resolves synchronously, so Stage B contributes no macrotask yields of
       // its own — any ticks observed must come from Stage A and Stage C.
       askAIBatch: async (emails) => new Map(emails.map((e) => [e.index, null])),
@@ -1458,7 +1393,6 @@ describe('scanRealGmailInbox — progress reporting', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: makeMockDb([], []),
-      activeYear: new Date().getUTCFullYear(),
       askAIBatch: async (emails) => new Map(emails.map((e) => [e.index, null])),
       onProgress: (p) => phases.push(p.phase),
     })
@@ -1497,7 +1431,6 @@ describe('scanRealGmailInbox — incremental inserts keep partial results', () =
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeMockDb(insertCalls, []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -1557,7 +1490,6 @@ describe('scanRealGmailInbox — incremental inserts keep partial results', () =
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: mockDb,
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -1625,7 +1557,6 @@ describe('scanRealGmailInbox — incremental inserts keep partial results', () =
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: mockDb,
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -1657,7 +1588,6 @@ describe('scanRealGmailInbox — fetch query covers everything financial', () =>
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: makeMockDb([], []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
     return decodeURIComponent(captured)
@@ -1709,7 +1639,6 @@ describe('scanRealGmailInbox — newly in-scope financial transactions', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeMockDb(inserted, []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null, // force the regex ladder — no AI safety net
     })
 
@@ -1725,7 +1654,6 @@ describe('scanRealGmailInbox — newly in-scope financial transactions', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeMockDb(inserted, []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -1746,7 +1674,6 @@ describe('scanRealGmailInbox — newly in-scope financial transactions', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeMockDb(inserted, []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -1849,7 +1776,6 @@ describe('scanRealGmailInbox — smart-merges duplicate payments', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeMergeDb([], inserted, []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -1875,7 +1801,6 @@ describe('scanRealGmailInbox — smart-merges duplicate payments', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeMergeDb([], inserted, []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -1916,7 +1841,6 @@ describe('scanRealGmailInbox — smart-merges duplicate payments', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeMergeDb([storedBankAlert], inserted, updates),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -1951,7 +1875,6 @@ describe('scanRealGmailInbox — smart-merges duplicate payments', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: makeMergeDb([approved], inserted, updates),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -1982,7 +1905,6 @@ describe('scanRealGmailInbox — smart-merges duplicate payments', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: makeMergeDb([stored], inserted, updates),
-      activeYear: new Date().getUTCFullYear(),
       askAI: askAI as any,
     })
 
@@ -2046,7 +1968,6 @@ describe('scanRealGmailInbox — foreign currency', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeMockDb(inserted, []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null, // regex path
     })
 
@@ -2065,7 +1986,6 @@ describe('scanRealGmailInbox — foreign currency', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: makeMockDb(inserted, []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -2082,7 +2002,6 @@ describe('scanRealGmailInbox — foreign currency', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: makeMockDb(inserted, []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => ({
         is_transaction: true, transaction_type: 'debit', amount: 12.99, currency: 'EUR',
         merchant: 'Spotify', category: 'Subscriptions', description: 'Spotify',
@@ -2106,7 +2025,6 @@ describe('scanRealGmailInbox — foreign currency', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: makeMockDb(inserted, []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => ({
         is_transaction: true, transaction_type: 'debit', amount: 300,
         merchant: 'Airtel', category: 'Other', description: 'Airtel',
@@ -2129,7 +2047,6 @@ describe('scanRealGmailInbox — foreign currency', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: makeMockDb(inserted, []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -2183,7 +2100,6 @@ describe('scanRealGmailInbox — logs emails with no readable amount', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeMockDb(inserted, rejections),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -2201,7 +2117,6 @@ describe('scanRealGmailInbox — logs emails with no readable amount', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     await scanRealGmailInbox({
       db: makeMockDb(inserted, rejections),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -2227,7 +2142,6 @@ describe('scanRealGmailInbox — failures name their stage', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeMockDb([], []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -2246,7 +2160,6 @@ describe('scanRealGmailInbox — failures name their stage', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeMockDb([], []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -2282,7 +2195,7 @@ describe('scanRealGmailInbox — failures name their stage', () => {
     global.fetch = vi.fn(async () => { throw new TypeError('Failed to fetch') }) as any
 
     const { scanRealGmailInbox } = await import('./emailScanner')
-    await scanRealGmailInbox({ db: mockDb, activeYear: new Date().getUTCFullYear(), askAI: async () => null })
+    await scanRealGmailInbox({ db: mockDb, askAI: async () => null })
 
     const failed = logs.find((l) => l.status === 'failed')
     expect(failed).toBeDefined()
@@ -2345,7 +2258,6 @@ describe('scanRealGmailInbox — bounded cost on an oversized HTML email', () =>
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeMockDb(inserted, []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -2402,7 +2314,6 @@ describe('scanRealGmailInbox — bounded cost on an oversized HTML email', () =>
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: makeMockDb(inserted, []),
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -2483,7 +2394,6 @@ describe('scanRealGmailInbox — skips already-processed mail before fetching it
     const { scanRealGmailInbox } = await import('./emailScanner')
     const result = await scanRealGmailInbox({
       db: mockDb,
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
 
@@ -2557,7 +2467,6 @@ describe('scanRealGmailInbox — AI outage is recorded, not swallowed', () => {
 
     const result = await scanRealGmailInbox({
       db: makeLogCapturingDb(inserted),
-      activeYear: new Date().getFullYear(),
       askAIBatch: async (emails) => new Map(emails.map((e) => [e.index, null])),
       askAI: async () => null,
     })
@@ -2576,7 +2485,6 @@ describe('scanRealGmailInbox — AI outage is recorded, not swallowed', () => {
 
     await scanRealGmailInbox({
       db: makeLogCapturingDb(inserted),
-      activeYear: new Date().getFullYear(),
       askAIBatch: async (emails) =>
         new Map(emails.map((e) => [e.index, {
           is_transaction: true, transaction_type: 'debit', amount: 5000, currency: 'INR',

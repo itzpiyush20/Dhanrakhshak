@@ -91,7 +91,6 @@ describe('scanRealGmailInbox — live bank alert recall', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const res = await scanRealGmailInbox({
       db,
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
     })
     expect(res.error).toBeNull()
@@ -182,10 +181,9 @@ describe('scanRealGmailInbox — one browser scan at a time', () => {
     const { scanRealGmailInbox } = await import('./emailScanner')
     const progressFromJoiner: unknown[] = []
 
-    const first = scanRealGmailInbox({ db, activeYear: new Date().getUTCFullYear(), askAI: async () => null })
+    const first = scanRealGmailInbox({ db, askAI: async () => null })
     const second = scanRealGmailInbox({
       db,
-      activeYear: new Date().getUTCFullYear(),
       askAI: async () => null,
       onProgress: (p) => progressFromJoiner.push(p),
     })
@@ -221,8 +219,8 @@ describe('scanRealGmailInbox — one browser scan at a time', () => {
 
     const { scanRealGmailInbox } = await import('./emailScanner')
     await Promise.all([
-      scanRealGmailInbox({ db, userId: 'u1', userEmail: 'a@example.com', accessToken: 'tok', activeYear: new Date().getUTCFullYear(), askAI: async () => null }),
-      scanRealGmailInbox({ db, userId: 'u2', userEmail: 'b@example.com', accessToken: 'tok', activeYear: new Date().getUTCFullYear(), askAI: async () => null }),
+      scanRealGmailInbox({ db, userId: 'u1', userEmail: 'a@example.com', accessToken: 'tok', askAI: async () => null }),
+      scanRealGmailInbox({ db, userId: 'u2', userEmail: 'b@example.com', accessToken: 'tok', askAI: async () => null }),
     ])
 
     expect(listCalls).toBe(2)

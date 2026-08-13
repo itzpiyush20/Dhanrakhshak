@@ -1295,8 +1295,6 @@ export interface ScanGmailOptions {
   userEmail?: string
   /** Google API access token to use directly, bypassing localStorage/session lookup. */
   accessToken?: string
-  /** Active financial year to scope the scan to. Defaults to the browser's localStorage value (or 2026). */
-  activeYear?: number
   /** Lookback window in milliseconds for searching Gmail. Defaults to 7 days. */
   scanWindowMs?: number
   /**
@@ -1635,27 +1633,6 @@ async function runGmailScan(opts?: ScanGmailOptions) {
       registeredCards.forEach((c: any) => {
         if (c.last4 && c.issuer) cardMap[c.last4] = c.issuer
       })
-    }
-
-    let activeYear = opts?.activeYear ?? 2026
-    if (opts?.activeYear === undefined) {
-      try {
-        const storedYear = localStorage.getItem(`dhanrakshak_active_financial_year_${user.id}`)
-        if (storedYear) {
-          activeYear = parseInt(storedYear, 10)
-        }
-      } catch (e) {
-        console.warn('Failed to load active year from localStorage, using default 2026', e)
-      }
-    }
-
-    const today = new Date()
-    const activeYearEnd = new Date(`${activeYear}-12-31T23:59:59Z`)
-    if (today > activeYearEnd) {
-      return {
-        data: null,
-        error: new Error(`Financial Year ${activeYear} has ended. Please start the new financial year in settings to resume tracking.`)
-      }
     }
 
     // Two OR-ed groups: the original bank-alert-style keywords, plus generic
@@ -2088,8 +2065,8 @@ async function runGmailScan(opts?: ScanGmailOptions) {
       if (mailTime < startLimitTime) continue
       const mailDate = new Date(mailTime).toISOString().split('T')[0]
 
-      // Headers first: they are cheap, and the year-scope gate below needs the
-      // subject and sender to write a useful rejection log. extractEmailBody()
+      // Headers first: they are cheap, and later gates need the subject and
+      // sender to write a useful rejection log. extractEmailBody()
       // (base64 decode + DOM parse) is the expensive part of this stage and is
       // deferred until after every cheap gate has had its say.
       const headers = mail.payload?.headers || []
@@ -2100,36 +2077,6 @@ async function runGmailScan(opts?: ScanGmailOptions) {
       const senderDomainMatch = fromValue.match(/@([\w.-]+)>?/i)
       const senderDomain = senderDomainMatch ? senderDomainMatch[1].toLowerCase() : ''
       const isTrustedSender = isTrustedSenderDomain(senderDomain)
-
-      // ── Year scope ────────────────────────────────────────────────
-      // This used to be two bare `continue`s with no rejection log, and with a
-      // strict 7-day window that made an annual data loss a certainty: a scan
-      // on 3 January covers 27 December onward, so once activeYear rolled over
-      // every late-December transaction was discarded — silently, and
-      // unrecoverably, because the window never reaches back that far again.
-      //
-      // Mail from the immediately preceding year is now KEPT when the window
-      // genuinely straddles 1 January. The transaction row carries its own
-      // date, so it is attributed to the year it actually belongs to.
-      //
-      // The straddle is deliberately narrow — previous year AND today really is
-      // in the active year. That preserves the Settings "start next financial
-      // year" feature: a user who rolls forward early (activeYear 2027 while
-      // today is still 2026) has asked to stop scanning 2026, and this
-      // condition correctly declines to keep importing it.
-      const mailYear = Number(mailDate.slice(0, 4))
-      if (mailYear > activeYear) {
-        bufferRejection('after_active_year', senderDomain, subject, `date=${mailDate}`)
-        continue
-      }
-      if (mailYear < activeYear) {
-        const windowStraddlesNewYear =
-          mailYear === activeYear - 1 && new Date().getUTCFullYear() === activeYear
-        if (!windowStraddlesNewYear) {
-          bufferRejection('before_active_year', senderDomain, subject, `date=${mailDate}`)
-          continue
-        }
-      }
 
       const bodyText = extractEmailBody(mail)
       // Strip security/legal footer boilerplate before ANY gate or the AI
