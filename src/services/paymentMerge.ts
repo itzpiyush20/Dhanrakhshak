@@ -102,27 +102,40 @@ function withinOneDay(a: string, b: string): boolean {
   return Math.abs(ta - tb) <= 24 * 60 * 60 * 1000
 }
 
-/**
- * Whether two records describe the SAME real-world payment.
- *
- * Requires identical direction and amount, dates within a day (bank and
- * merchant frequently post on different days), and either matching reference
- * ids or corresponding merchants.
- */
-export function isSamePayment(a: MergeableTransaction, b: MergeableTransaction): boolean {
+/** Shared prerequisites: same direction, currency, amount, and within a day. */
+function sharesPaymentEnvelope(a: MergeableTransaction, b: MergeableTransaction): boolean {
   if (a.type !== b.type) return false
   // Currency before amount: $50 and Rs.50 to the same merchant on the same day
   // are two real payments. Comparing the numbers alone would merge them and
   // destroy one.
   if ((a.currency ?? DEFAULT_CURRENCY) !== (b.currency ?? DEFAULT_CURRENCY)) return false
   if (!sameAmount(a.amount, b.amount)) return false
-  if (!withinOneDay(a.date, b.date)) return false
+  return withinOneDay(a.date, b.date)
+}
 
-  // When both sides carry a reference id it settles the question outright —
-  // including in the negative. Two different UPI references are two different
-  // payments no matter how alike everything else looks.
-  if (a.reference_id && b.reference_id) return a.reference_id === b.reference_id
+/**
+ * Whether two records PROVABLY describe the same real-world payment.
+ *
+ * Only a matching reference id proves it. Merchant correspondence alone does
+ * not: a bank alert carries a reference id and a merchant receipt usually does
+ * not, so that check never fired for the very pair this module exists for —
+ * and two genuinely distinct same-day orders to one merchant merged, silently
+ * destroying one of them.
+ */
+export function isSamePayment(a: MergeableTransaction, b: MergeableTransaction): boolean {
+  if (!sharesPaymentEnvelope(a, b)) return false
+  return !!a.reference_id && !!b.reference_id && a.reference_id === b.reference_id
+}
 
+/**
+ * Whether two records LOOK like one payment without proving it. These are kept
+ * as two rows with the newer flagged, so the user decides. A missed merge costs
+ * one tap; a wrong merge costs a transaction.
+ */
+export function isSuspectedDuplicate(a: MergeableTransaction, b: MergeableTransaction): boolean {
+  if (!sharesPaymentEnvelope(a, b)) return false
+  // Two different reference ids are two different payments — not even suspect.
+  if (a.reference_id && b.reference_id) return false
   return merchantsCorrespond(a.merchant, b.merchant)
 }
 

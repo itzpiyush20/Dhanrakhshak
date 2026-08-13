@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   isSamePayment,
+  isSuspectedDuplicate,
   merchantsCorrespond,
   isWeakMerchantLabel,
   scorePaymentRichness,
@@ -84,21 +85,29 @@ describe('isSamePayment', () => {
   })
 
   it('treats an absent currency as the home currency', () => {
-    expect(isSamePayment(txn({ currency: undefined }), txn({ currency: 'INR' }))).toBe(true)
+    // Same envelope, so the pair is suspect — but with no reference id on
+    // either side nothing PROVES they are one payment, so it is not a merge.
+    expect(isSuspectedDuplicate(txn({ currency: undefined }), txn({ currency: 'INR' }))).toBe(true)
+    expect(isSamePayment(txn({ currency: undefined }), txn({ currency: 'INR' }))).toBe(false)
   })
 
-  it('pairs a bank alert with the merchant receipt for the same payment', () => {
+  it('suspects a bank alert against the merchant receipt without merging them', () => {
+    // The classic pair — but the receipt carries no reference id, so this could
+    // equally be a second identical order. Both rows are kept and flagged.
     const bankAlert = txn({ merchant: 'SWIGGYBANGALORE', reference_id: '445566778899', payment_mode: 'upi' })
     const receipt = txn({ merchant: 'Swiggy', email_message_id: 'msg-2' })
-    expect(isSamePayment(bankAlert, receipt)).toBe(true)
+    expect(isSuspectedDuplicate(bankAlert, receipt)).toBe(true)
+    expect(isSamePayment(bankAlert, receipt)).toBe(false)
   })
 
-  it('pairs across a one-day posting difference', () => {
-    expect(isSamePayment(txn({ date: '2026-08-10' }), txn({ date: '2026-08-11' }))).toBe(true)
+  it('suspects across a one-day posting difference', () => {
+    expect(isSuspectedDuplicate(txn({ date: '2026-08-10' }), txn({ date: '2026-08-11' }))).toBe(true)
+    expect(isSamePayment(txn({ date: '2026-08-10' }), txn({ date: '2026-08-11' }))).toBe(false)
   })
 
   it('does not pair across two days', () => {
     expect(isSamePayment(txn({ date: '2026-08-10' }), txn({ date: '2026-08-12' }))).toBe(false)
+    expect(isSuspectedDuplicate(txn({ date: '2026-08-10' }), txn({ date: '2026-08-12' }))).toBe(false)
   })
 
   it('does not pair different amounts, even by a rupee', () => {
@@ -106,7 +115,8 @@ describe('isSamePayment', () => {
   })
 
   it('treats amounts as equal to the paisa', () => {
-    expect(isSamePayment(txn({ amount: 450.0 }), txn({ amount: 450.004 }))).toBe(true)
+    expect(isSuspectedDuplicate(txn({ amount: 450.0 }), txn({ amount: 450.004 }))).toBe(true)
+    expect(isSuspectedDuplicate(txn({ amount: 450.0 }), txn({ amount: 450.01 }))).toBe(false)
     expect(isSamePayment(txn({ amount: 450.0 }), txn({ amount: 450.01 }))).toBe(false)
   })
 
@@ -133,6 +143,52 @@ describe('isSamePayment', () => {
     const a = txn({ amount: 50, merchant: 'HDFC Bank', email_message_id: 'a' })
     const b = txn({ amount: 50, merchant: 'HDFC Bank', email_message_id: 'b' })
     expect(isSamePayment(a, b)).toBe(false)
+  })
+})
+
+const base = {
+  amount: 250,
+  currency: 'INR',
+  type: 'expense',
+  date: '2026-08-13',
+  merchant: 'Swiggy',
+} as const
+
+describe('unprovable duplicates are suspected, never merged', () => {
+  it('does NOT treat two same-day same-amount Swiggy orders as the same payment', () => {
+    const lunch = { ...base, reference_id: 'UPI123' }
+    const dinner = { ...base, reference_id: null }
+    expect(isSamePayment(lunch, dinner)).toBe(false)
+  })
+
+  it('flags that pair as a suspected duplicate instead', () => {
+    const lunch = { ...base, reference_id: 'UPI123' }
+    const dinner = { ...base, reference_id: null }
+    expect(isSuspectedDuplicate(lunch, dinner)).toBe(true)
+  })
+
+  it('still merges outright when both reference ids match', () => {
+    const a = { ...base, reference_id: 'UPI123' }
+    const b = { ...base, reference_id: 'UPI123' }
+    expect(isSamePayment(a, b)).toBe(true)
+  })
+
+  it('does not suspect a pair that differs in currency', () => {
+    const a = { ...base, currency: 'INR' }
+    const b = { ...base, currency: 'USD' }
+    expect(isSuspectedDuplicate(a, b)).toBe(false)
+  })
+
+  it('does not suspect a pair with weak merchant labels', () => {
+    const a = { ...base, merchant: 'HDFC Bank' }
+    const b = { ...base, merchant: 'HDFC Bank' }
+    expect(isSuspectedDuplicate(a, b)).toBe(false)
+  })
+
+  it('does not suspect a pair the reference ids prove distinct', () => {
+    const a = { ...base, reference_id: '111111111111' }
+    const b = { ...base, reference_id: '222222222222' }
+    expect(isSuspectedDuplicate(a, b)).toBe(false)
   })
 })
 
