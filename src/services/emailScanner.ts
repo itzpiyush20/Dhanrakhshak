@@ -19,7 +19,7 @@ import {
 } from './aiService.js'
 import { stripBoilerplate } from './emailBoilerplate.js'
 import { evaluateRegexGates, isBulkMarketingEmail, hasPaymentAssertion } from './emailScanGates.js'
-import { isSamePayment, mergePayments, isWeakMerchantLabel, type MergeableTransaction } from './paymentMerge.js'
+import { isSamePayment, isSuspectedDuplicate, mergePayments, isWeakMerchantLabel, type MergeableTransaction } from './paymentMerge.js'
 import { extractAmountMatches, isHomeCurrency, DEFAULT_CURRENCY } from './currency.js'
 
 type EmailScanLog = Database['public']['Tables']['email_scan_logs']['Row']
@@ -1808,7 +1808,7 @@ async function runGmailScan(opts?: ScanGmailOptions) {
       preloadOrDefault<PreloadRows>(
         supabase
           .from('transactions')
-          .select('id, amount, currency, type, date, merchant, description, reference_id, payment_mode, card_issuer, card_brand, transaction_time, confidence_score, approval_status, category_confirmed_at, email_message_id, merged_email_message_ids')
+          .select('id, amount, currency, type, date, merchant, description, reference_id, payment_mode, card_issuer, card_brand, transaction_time, confidence_score, approval_status, category_confirmed_at, email_message_id, merged_email_message_ids, possible_duplicate_of')
           .eq('user_id', user.id)
           .gte('date', dedupFrom),
         { data: [], error: null },
@@ -1956,6 +1956,10 @@ async function runGmailScan(opts?: ScanGmailOptions) {
      * Fold a newly parsed transaction into an existing one when they describe
      * the same payment (R10) — a bank alert and the merchant's own receipt.
      * Returns true when it was absorbed and must not be inserted separately.
+     *
+     * Only a matching reference id absorbs. A pair that merely looks alike is
+     * inserted as its own row carrying `possible_duplicate_of`, so the user
+     * decides in Pending rather than one of the two vanishing silently.
      */
     const absorbIntoExistingPayment = async (candidate: TransactionInsert): Promise<boolean> => {
       // 1. Against this scan's unwritten buffer — merge in place, no DB work.
@@ -1979,7 +1983,28 @@ async function runGmailScan(opts?: ScanGmailOptions) {
       // 2. Against transactions already stored (pre-existing, or flushed
       //    earlier in this scan).
       const stored = mergeCandidates.find((c) => isSamePayment(c, candidate))
-      if (!stored) return false
+      if (!stored) {
+        // Looks like a duplicate but nothing proves it. Keep BOTH rows and let
+        // the user decide — a missed merge costs one tap, a wrong merge
+        // destroys a transaction invisibly.
+        //
+        // A suspect still sitting in the unwritten buffer has no id to point
+        // at yet (TransactionInsert rows let Postgres generate theirs, and
+        // pre-generating one would risk a foreign-key failure in the 23505
+        // row-by-row insert fallback, where the referenced row can legitimately
+        // be skipped). So flush first: that writes the buffer, pushes the
+        // written rows — ids and all — into mergeCandidates, and reduces this
+        // to the already-stored case below. Only reached when a suspect exists,
+        // so the extra round-trip is rare.
+        if (pendingFlush.some((p) => isSuspectedDuplicate(p, candidate))) {
+          await flushPending()
+        }
+        const storedSuspect = mergeCandidates.find((c) => isSuspectedDuplicate(c, candidate))
+        if (storedSuspect) {
+          candidate.possible_duplicate_of = storedSuspect.id
+        }
+        return false
+      }
 
       const patch: Record<string, unknown> = {
         merged_email_message_ids: [

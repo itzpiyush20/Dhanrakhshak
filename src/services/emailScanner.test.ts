@@ -1770,7 +1770,10 @@ describe('scanRealGmailInbox — smart-merges duplicate payments', () => {
     } as any
   }
 
-  it('folds a bank alert and a merchant receipt in the same scan into one transaction', async () => {
+  it('keeps both rows when a same-scan pair cannot be proven identical', async () => {
+    // The bank alert carries a UPI reference and the receipt does not, so
+    // nothing proves these are one payment rather than two identical orders.
+    // Both are kept and the newer one is flagged for the user to decide.
     mockGmail([BANK_ALERT, MERCHANT_RECEIPT])
     const inserted: any[] = []
     const { scanRealGmailInbox } = await import('./emailScanner')
@@ -1780,14 +1783,36 @@ describe('scanRealGmailInbox — smart-merges duplicate payments', () => {
     })
 
     expect(result.error).toBeNull()
-    // Two emails in, ONE transaction out.
+    // Two emails in, TWO transactions out — nothing destroyed silently.
+    expect(inserted).toHaveLength(2)
+    expect(result.data?.mergedDuplicateCount).toBe(0)
+    const flagged = inserted.filter((r) => r.possible_duplicate_of)
+    expect(flagged).toHaveLength(1)
+    expect(flagged[0].email_message_id).toBe('msg-merchant-receipt')
+    expect(flagged[0].possible_duplicate_of).toBeTruthy()
+  })
+
+  it('still folds a same-scan pair the reference id proves identical', async () => {
+    const alert = paymentMessage('msg-alert-ref', 'Debit transaction alert',
+      'Rs.450.00 debited from your A/c XX4471 at SWIGGY on 10-08-26. UPI Ref 445566778899.')
+    const receipt = paymentMessage('msg-receipt-ref', 'Your Swiggy order receipt',
+      'Thanks for ordering from Swiggy. Total paid Rs.450.00. UPI Ref No 445566778899.')
+    mockGmail([alert, receipt])
+
+    const inserted: any[] = []
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMergeDb([], inserted, []),
+      askAI: async () => null,
+    })
+
+    expect(result.error).toBeNull()
+    // Proven the same payment — one transaction out.
     expect(inserted).toHaveLength(1)
     expect(result.data?.mergedDuplicateCount).toBe(1)
-    // And it keeps the richer detail from both sides.
-    expect(inserted[0].amount).toBe(450)
     expect(inserted[0].reference_id).toBe('445566778899')
-    // The absorbed email is recorded so a later scan cannot resurrect it.
-    expect(inserted[0].merged_email_message_ids).toContain('msg-merchant-receipt')
+    expect(inserted[0].merged_email_message_ids).toContain('msg-receipt-ref')
+    expect(inserted[0].possible_duplicate_of).toBeFalsy()
   })
 
   it('does not merge two same-amount payments to different merchants', async () => {
@@ -1809,7 +1834,7 @@ describe('scanRealGmailInbox — smart-merges duplicate payments', () => {
     expect(result.data?.mergedDuplicateCount).toBe(0)
   })
 
-  it('merges a receipt against a transaction stored by an earlier scan', async () => {
+  it('flags a receipt against a look-alike transaction stored by an earlier scan', async () => {
     const today = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     const storedBankAlert = {
       id: 'stored-1',
@@ -1845,12 +1870,13 @@ describe('scanRealGmailInbox — smart-merges duplicate payments', () => {
     })
 
     expect(result.error).toBeNull()
-    // No new row — the receipt was absorbed into the stored transaction.
-    expect(inserted).toHaveLength(0)
-    expect(result.data?.mergedDuplicateCount).toBe(1)
-    // The absorbed id is recorded against the stored row.
-    expect(updates).toHaveLength(1)
-    expect(updates[0].patch.merged_email_message_ids).toContain('msg-merchant-receipt')
+    // Neither side carries a reference id, so nothing proves this receipt
+    // belongs to the stored row rather than being a second identical order.
+    // The row is kept and flagged; the stored row is left untouched.
+    expect(inserted).toHaveLength(1)
+    expect(inserted[0].possible_duplicate_of).toBe('stored-1')
+    expect(result.data?.mergedDuplicateCount).toBe(0)
+    expect(updates).toHaveLength(0)
   })
 
   it('never rewrites a transaction the user has already acted on', async () => {
@@ -1878,10 +1904,11 @@ describe('scanRealGmailInbox — smart-merges duplicate payments', () => {
       askAI: async () => null,
     })
 
-    // Still absorbed (no duplicate), but the only change is bookkeeping.
-    expect(inserted).toHaveLength(0)
-    expect(updates).toHaveLength(1)
-    expect(Object.keys(updates[0].patch)).toEqual(['merged_email_message_ids'])
+    // Unproven look-alike: the receipt becomes its own flagged row and the
+    // approved transaction is not written to at all.
+    expect(inserted).toHaveLength(1)
+    expect(inserted[0].possible_duplicate_of).toBe('stored-approved')
+    expect(updates).toHaveLength(0)
   })
 
   it('treats an already-absorbed email id as seen on the next scan', async () => {
