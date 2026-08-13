@@ -1,5 +1,6 @@
 // src/services/emailScanner.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { extractCardLast4 } from './emailScanner.js'
 import { makeAxisEmiGmailMessage } from './__fixtures__/axisEmiDebit'
 import { makeUberTripGmailMessage } from './__fixtures__/uberTripReceipt'
 import { makeUnknownVendorGmailMessage } from './__fixtures__/unknownVendorReceipt'
@@ -2587,5 +2588,24 @@ describe('scanRealGmailInbox — AI outage is recorded, not swallowed', () => {
 
     const log = scanLogInserts.flat().find((r: any) => r.status === 'success')
     expect(log.error_message ?? '').not.toContain(AI_UNAVAILABLE_NOTE)
+  })
+})
+
+describe('extractCardLast4 — ReDoS regression', () => {
+  it('returns promptly on a long masking run with no trailing card digits', () => {
+    const evil = 'Card ending ' + 'x'.repeat(35) + '!'
+    const started = Date.now()
+    const result = extractCardLast4(evil)
+    const elapsed = Date.now() - started
+    expect(result).toBeNull()
+    expect(elapsed).toBeLessThan(1000)
+  })
+
+  it('still extracts the last 4 from every masking format in use', () => {
+    expect(extractCardLast4('spent on card xxxx1234')).toBe('1234')
+    expect(extractCardLast4('Card XXXX-5678 debited')).toBe('5678')
+    expect(extractCardLast4('card ****4321 charged')).toBe('4321')
+    expect(extractCardLast4('Card ending 9876')).toBe('9876')
+    expect(extractCardLast4('HDFC Card XXXX-XXXX-XXXX-2468')).toBe('2468')
   })
 })

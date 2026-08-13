@@ -533,8 +533,13 @@ function getLastMatchIndex(preText: string, regex: RegExp): number {
   return lastIndex
 }
 
-function extractCardLast4(text: string): string | null {
-  const candidateRegex = /(?:^|\D)(?:[xX*]+-?)*\s*(\d{4})\b/g
+export function extractCardLast4(text: string): string | null {
+  // Masking run is a single bounded character class, NOT a nested quantifier.
+  // The previous `(?:[xX*]+-?)*` was the classic `(a+)*` shape: on a long run
+  // of x/X/* not followed by 4 digits it backtracked exponentially — measured
+  // at 5.2 minutes for a 48-character input. This runs inside Stage C, which
+  // is not yielded mid-candidate, so one such email froze the entire scan.
+  const candidateRegex = /(?:^|\D)[xX*-]{0,40}\s*(\d{4})\b/g
   let match
   const candidates: { digits: string; index: number }[] = []
 
