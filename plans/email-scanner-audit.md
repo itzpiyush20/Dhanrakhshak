@@ -6,6 +6,12 @@
 > Every finding below was read and confirmed against the actual current code —
 > not inferred from the two plan docs, which are stale in places (see D-note below).
 
+> **Re-validated 2026-08-13 against `56ec010`** (three upstream commits landed after the
+> audit was written: `b5bd178` recover-dropped-transactions, `a9de9a8` revive-AI-classifier,
+> `56ec010` gemini-model-fallback). Result: **#11 and #15 are fixed upstream**; **#5, #13 and
+> #19 are narrowed or reframed**; the other 14 stand unchanged. See "Re-validation" at the
+> bottom. Baseline at re-validation: `tsc` exit 0, **374 tests passed** / 25 files.
+
 **Files covered:** `src/services/emailScanner.ts` (2616 lines), `src/services/aiService.ts`,
 `api/gemini-proxy.ts`, `api/auto-sync-gmail.ts`, `src/services/emailScanGates.ts`,
 `src/services/learningEngine.ts`, `src/services/paymentMerge.ts`, `src/services/currency.ts`,
@@ -320,6 +326,55 @@ present in these messages, confirmed.
   `emailScanner.ts`.
 
 ---
+
+## Re-validation against `56ec010` (2026-08-13)
+
+Every finding was re-checked against the tree after rebasing onto the three upstream commits.
+Line numbers below are post-rebase.
+
+**Fixed upstream — no longer actionable:**
+
+- **#11 (429 not treated as fatal → retry storm).** `a9de9a8` rewrote the ladder to
+  distinguish a *content fault* (truncated/malformed array — splitting the batch genuinely
+  helps) from a *transport/service failure* (dead model, 429, 504 — splitting just multiplies
+  it). Transport failures now return immediately. `aiService.ts:655, :686`.
+- **#15 (malformed batch burns 6 calls for 5 emails).** Subsumed by the same change:
+  per-email retry now happens only on content faults, which is exactly the case where the
+  extra calls buy something.
+
+**Narrowed or reframed — still actionable, but smaller/different than first written:**
+
+- **#5 (cron duration).** `maxDuration = 60` is now declared on both `api/auto-sync-gmail.ts:49`
+  and `api/gemini-proxy.ts:25`, and the timeout ladder is deliberately nested (platform 60s >
+  client 35s > proxy abort 30s). **Remaining gap:** still no per-user wall-clock budget or
+  early exit inside the user loop, so a run that outgrows 60s is still hard-killed mid-user
+  with no scan log. The file's own comment at `:44-45` acknowledges this.
+- **#13 (`\btotal\b` in payment assertions).** A code comment now states this is
+  **deliberate and load-bearing**: the unknown-vendor receipt fixture contains `Total` and
+  none of the other assertion terms, so removing it breaks detection for exactly the
+  long-tail vendors the pipeline exists to serve (`emailScanGates.ts:167-171`). The finding
+  stands as a real quota-leak surface, but the fix may **not** be "delete the pattern" —
+  it has to be something that keeps the fixture green, e.g. requiring `total` to sit adjacent
+  to a parsed currency amount rather than appearing anywhere in 2000 chars.
+- **#19 (raw error echo).** A Gemini 404 is now converted to a structured
+  `502 / code: MODEL_NOT_FOUND` (`gemini-proxy.ts:159`). The generic catch at `:191` still
+  echoes `error.message` verbatim.
+
+**Confirmed still present, unchanged:** #1 (`emailScanner.ts:537`), #2 (`:1635-1652`),
+#3 (`gemini-proxy.ts:124, :182`), #4 (`paymentMerge.ts` untouched by all three commits),
+#6 (no `.order()` on the token query), #7 (`aiService.ts:523, :612`), #8
+(`auto-sync-gmail.ts:70-76`), #9, #10 (`aiService.ts:502-504`), #12
+(`learningEngine.ts:198`), #14 (`emailScanner.ts:159`), #16 (`emailScanner.ts:2082`),
+#17 (`gemini-proxy.ts:63`), #18 (`emailScanGates.ts:210`, still no call sites).
+
+**Net: 17 of 19 findings actionable.**
+
+Worth noting what the upstream commits reveal about this codebase's failure mode: the AI
+classifier was dead in production for ~10 weeks and *nothing reported it*, because every
+layer degraded gracefully exactly as designed. Guardrail 3 ("AI failure degrades to regex,
+never a scan failure") worked perfectly and, in working, hid a total outage. That is worth
+carrying into the remaining fixes: graceful degradation needs a matching observability path,
+or it converts outages into silence.
 
 ## Suggested priority order for fixing
 

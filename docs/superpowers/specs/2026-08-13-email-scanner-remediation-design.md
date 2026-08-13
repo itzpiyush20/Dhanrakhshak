@@ -2,7 +2,14 @@
 
 **Date:** 2026-08-13
 **Source:** `plans/email-scanner-audit.md` (19 findings: 4 critical, 5 high, 5 medium, 5 low)
-**Baseline at design time:** `npx tsc -b` exit 0, `npm test` 323 passed / 23 files, all green.
+**Base commit:** `56ec010` (rebased onto origin/main during design).
+**Baseline:** `npx tsc -b` exit 0, `npm test` **374 passed / 25 files**, all green.
+
+> **Re-validated after rebase.** Three upstream commits landed between the audit and this
+> spec. #11 and #15 are fixed upstream and are dropped from Phase 5. #5 is narrowed
+> (`maxDuration` now declared; the per-user time budget is still missing). #13 is reframed —
+> `\btotal\b` is documented as deliberate and load-bearing, so the fix may not delete it.
+> #19 is narrowed. The other 14 findings stand unchanged. **17 of 19 actionable.**
 
 ## Goal
 
@@ -144,10 +151,12 @@ payments to one merchant therefore merge, and one disappears with no error and n
   arguments to the two known pairs inside the function; no dynamic SQL on raw input. The
   proxy calls it via `rpc(...)`; `false` returns the existing 429 shape so
   `gemini-proxy.test.ts`'s response contract still holds.
-- **Cron duration budget.** `api/auto-sync-gmail.ts` gains `maxDuration`, captures
-  `startedAt`, and checks remaining budget before each user, stopping early with
-  `skippedForBudget` in the JSON summary rather than being hard-killed mid-`await` (which
-  today leaves the in-flight user with no scan log at all).
+- **Cron duration budget.** `maxDuration = 60` is already declared upstream
+  (`auto-sync-gmail.ts:49`), and the timeout ladder is already nested deliberately
+  (platform 60s > client 35s > proxy abort 30s) — **do not change those numbers.** The
+  remaining gap is the per-user budget: capture `startedAt` and check remaining time before
+  each user, stopping early with `skippedForBudget` in the JSON summary rather than being
+  hard-killed mid-`await` (which today leaves the in-flight user with no scan log at all).
 - **Cron ordering.** The user query has no `ORDER BY`, so a budget stop always starves the
   same tail. Order by oldest last-successful-scan first so skips rotate.
 - **Eligibility drift.** `isEligible` (`auto-sync-gmail.ts:50-58`) treats a trial with
@@ -159,7 +168,9 @@ payments to one merchant therefore merge, and one disappears with no error and n
 
 ## Phase 5 — AI input and output hardening
 
-**Fixes:** high #7, medium #10, medium #11, low #15.
+**Fixes:** high #7, medium #10. (#11 and #15 were fixed upstream by `a9de9a8` and are
+dropped from this phase — the retry ladder now separates content faults from transport
+failures correctly. Do not re-touch it.)
 
 - **Prompt injection.** `aiService.ts:482-500` and `:564-592` interpolate attacker-controlled
   subject and body into the prompt with no escaping, so a body containing `"""` can break out
@@ -170,11 +181,11 @@ payments to one merchant therefore merge, and one disappears with no error and n
   `is_transaction` is a boolean. Add: `amount` must be a finite number above zero and below a
   sane ceiling; `currency` must be in an ISO-4217 allowlist or fall back to default. This is
   the containment for anything injection does get through, and for ordinary hallucination.
-- **429 is fatal.** `isFatalProxyError` (`:625-647`) matches 404/503/401 but not 429, so once
-  the daily quota is gone every batch failure triggers five more doomed single-email calls per
-  chunk. Add 429 so the chunk degrades to regex immediately.
-- **Batch parse failure.** Avoid re-issuing a full set of single calls for a batch whose
-  quota was already consumed; degrade to regex instead of paying 6 calls for 5 emails.
+**Observability note carried from re-validation:** the AI classifier was dead in production
+for ~10 weeks and nothing reported it, because every layer degraded gracefully as designed.
+`a9de9a8` added a scan-log note when no AI verdict arrives for any email. When touching this
+file, preserve that signal — graceful degradation without an observability path converts an
+outage into silence.
 
 ---
 
@@ -184,9 +195,13 @@ payments to one merchant therefore merge, and one disappears with no error and n
 
 **This is the highest-regression-risk phase and runs last for that reason.**
 
-- `emailScanGates.ts:140-161` — narrow the bare `\btotal\b` and `\bfare\b` payment
-  assertions that let `List-Unsubscribe` marketing mail past the pre-AI gate. The narrower
-  ±120-char windowed use at `emailScanner.ts:2270` is already safe and stays.
+- `emailScanGates.ts:167-191` — the bare `\btotal\b` / `\bfare\b` payment assertions let
+  `List-Unsubscribe` marketing mail past the pre-AI gate. **`\btotal\b` is documented in the
+  code as deliberate and load-bearing** — the unknown-vendor receipt fixture contains `Total`
+  and none of the other assertion terms. So the fix is *not* deletion: require the assertion
+  term to sit adjacent to a parsed currency amount (the ±120-char windowed approach already
+  used safely at `emailScanner.ts:2270`) rather than appearing anywhere in 2000 chars. If no
+  formulation keeps that fixture green, leave it and document the quota leak as accepted.
 - `emailScanner.ts:135-164` — narrow over-broad `HARD_ACCEPT_SUBJECT_PATTERNS`, notably
   `/\bcred\b/i`, which currently overrides the AI's confident rejection on subject text alone.
 - `learningEngine.ts:194-208` — guard the 5-character partial-match floor against generic
