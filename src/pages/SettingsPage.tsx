@@ -33,8 +33,6 @@ import {
   FileJson,
   Key,
   Globe,
-  Calendar,
-  Rocket,
   CheckCircle2,
   XCircle,
   HelpCircle,
@@ -45,7 +43,7 @@ import {
 } from 'lucide-react'
 
 export default function SettingsPage() {
-  const { user, activeYear, startNewFinancialYear, dailyScanTime, updateDailyScanTime, currencySymbol, hasGoogleToken, disconnectGoogle } = useAuth()
+  const { user, dailyScanTime, updateDailyScanTime, currencySymbol, hasGoogleToken, disconnectGoogle } = useAuth()
   const { showToast } = useToast()
   const { categories, fallbackCategory } = useCategories()
 
@@ -140,13 +138,6 @@ export default function SettingsPage() {
   // Confirmation Modals States
   const [showRestoreConfirmModal, setShowRestoreConfirmModal] = useState(false)
   const [pendingRestoreData, setPendingRestoreData] = useState<any[] | null>(null)
-  const [showFYConfirmModal, setShowFYConfirmModal] = useState(false)
-
-  const executeStartNewFinancialYear = () => {
-    startNewFinancialYear()
-    showToast(`Started ${activeYear + 1} Financial Year!`, 'success')
-    setShowFYConfirmModal(false)
-  }
 
   const handlePlainExport = async (format: 'csv' | 'json') => {
     setExportLoading(true)
@@ -1004,41 +995,6 @@ export default function SettingsPage() {
                 </div>
               )}
             </Card>
-
-            {/* Financial Year Management Card */}
-            <Card className="border-[var(--status-warning-border)]/50 bg-[var(--status-warning-subtle)]/10 shadow-md">
-              <h2 className="text-base font-bold text-zinc-200 mb-2 flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-[var(--status-warning-text)] shrink-0" />
-                <span>Financial Year Management</span>
-              </h2>
-              <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
-                Transactions are scanned and updated within the active financial year. Scans for this year will not update after December 31.
-              </p>
-              
-              <div className="space-y-4 text-xs">
-                <div className="flex items-center justify-between border-b border-border-subtle/30 pb-3">
-                  <span className="text-zinc-400 font-medium">Active Calendar Year</span>
-                  <span className="font-bold text-zinc-200 text-sm font-mono">{activeYear}</span>
-                </div>
-                
-                <div className="flex items-center justify-between pt-1">
-                  <div className="flex flex-col">
-                    <span className="text-zinc-400 font-medium">Start New Financial Year</span>
-                    <span className="text-xs text-zinc-500">Enable scanning for the next calendar year ({activeYear + 1})</span>
-                    <span className="text-xs text-[var(--status-warning-text)] font-medium mt-1">
-                      ⚠️ Scanning for {activeYear} stops once you do this — it can't be reversed.
-                    </span>
-                  </div>
-                  <Button
-                    onClick={() => setShowFYConfirmModal(true)}
-                    size="sm"
-                    className="py-1.5 px-3.5 text-[11px] font-bold cursor-pointer gap-1.5"
-                  >
-                    <span>Start {activeYear + 1}</span> <Rocket className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
           </div>
         </div>
       </div>
@@ -1072,30 +1028,6 @@ export default function SettingsPage() {
           <HelpCircle className="h-5 w-5 text-brand-400 shrink-0 mt-0.5" />
           <p className="text-sm text-text-secondary leading-relaxed">
             Decrypted backup successfully containing {pendingRestoreData?.length || 0} transactions. Would you like to merge these with your current data? (Only non-duplicate transactions will be added)
-          </p>
-        </div>
-      </Modal>
-
-      {/* Start Financial Year Confirmation Modal */}
-      <Modal
-        isOpen={showFYConfirmModal}
-        onClose={() => setShowFYConfirmModal(false)}
-        title="Start New Financial Year"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowFYConfirmModal(false)}>
-              Cancel
-            </Button>
-            <Button onClick={executeStartNewFinancialYear}>
-              Start Year
-            </Button>
-          </>
-        }
-      >
-        <div className="flex items-start gap-3">
-          <HelpCircle className="h-5 w-5 text-brand-400 shrink-0 mt-0.5" />
-          <p className="text-sm text-text-secondary leading-relaxed">
-            Are you sure you want to start the {activeYear + 1} financial year? Scanning for {activeYear} transactions will stop, and scans for the new year {activeYear + 1} will begin.
           </p>
         </div>
       </Modal>
