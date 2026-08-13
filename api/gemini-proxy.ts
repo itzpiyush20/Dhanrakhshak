@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import {
-  geminiEndpoint,
+  callGeminiWithFallback,
   isModelNotFoundStatus,
   modelNotFoundMessage,
   resolveGeminiModel,
@@ -135,15 +135,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), GEMINI_ABORT_MS)
-  const model = resolveGeminiModel()
-
   try {
-    const geminiRes = await fetch(geminiEndpoint(GEMINI_API_KEY, model), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents, generationConfig, safetySettings }),
-      signal: controller.signal,
-    })
+    // Walks past any 404 to the next candidate model — see
+    // `callGeminiWithFallback`. `model` is whichever id actually answered.
+    const { response: geminiRes, model } = await callGeminiWithFallback(
+      GEMINI_API_KEY,
+      { contents, generationConfig, safetySettings },
+      { signal: controller.signal }
+    )
 
     if (!geminiRes.ok) {
       // A retired model id is reported separately and LOUDLY. This exact case
@@ -151,9 +150,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // classification for ~10 weeks without a single visible symptom, because
       // Google's 404 was forwarded verbatim and every layer below is designed
       // to shrug off a missing AI verdict.
+      //
+      // Reaching here means EVERY candidate id 404'd, so this is a real
+      // configuration fault and not just one stale default.
       if (isModelNotFoundStatus(geminiRes.status)) {
-        const message = modelNotFoundMessage(model)
-        console.error(`[gemini-proxy] FATAL CONFIG ERROR: ${message}`)
+        const message = modelNotFoundMessage(resolveGeminiModel())
+        console.error(`[gemini-proxy] FATAL CONFIG ERROR: no candidate model resolved. ${message}`)
         return res.status(502).json({ error: message, code: 'MODEL_NOT_FOUND' })
       }
 

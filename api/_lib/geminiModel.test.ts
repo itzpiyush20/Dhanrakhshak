@@ -1,10 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   DEFAULT_GEMINI_MODEL,
   geminiEndpoint,
   isModelNotFoundStatus,
   modelNotFoundMessage,
   resolveGeminiModel,
+  callGeminiWithFallback,
+  geminiModelCandidates,
+  resetGeminiModelCache,
 } from './geminiModel.js'
 
 describe('resolveGeminiModel', () => {
@@ -54,5 +57,118 @@ describe('modelNotFoundMessage', () => {
     const message = modelNotFoundMessage('gemini-2.0-flash')
     expect(message).toContain('gemini-2.0-flash')
     expect(message).toContain('GEMINI_MODEL')
+  })
+})
+
+// ============================================================
+// The candidate walk.
+//
+// Google resolves API-key auth BEFORE model routing, so an unauthenticated
+// probe returns the same 403 for a real model id and a fabricated one. A model
+// id therefore cannot be validated from outside the deployment, which is why
+// the proxy walks candidates rather than betting on one string.
+// ============================================================
+describe('callGeminiWithFallback', () => {
+  const okBody = { candidates: [] }
+
+  function mockFetch(byModel: Record<string, number>) {
+    const tried: string[] = []
+    const fn = vi.fn(async (url: string) => {
+      const model = String(url).split('/models/')[1].split(':')[0]
+      tried.push(model)
+      const status = byModel[model] ?? 404
+      return { ok: status < 400, status, json: async () => okBody } as any
+    })
+    // Cast at the seam: the mock only models the two fields under test
+    // (status/ok), not the whole Response/fetch surface.
+    return { fn: fn as unknown as typeof globalThis.fetch, tried }
+  }
+
+  beforeEach(() => {
+    resetGeminiModelCache()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('uses the configured model and stops when it answers', async () => {
+    const { fn, tried } = mockFetch({ 'gemini-x': 200 })
+    global.fetch = fn
+    const out = await callGeminiWithFallback('KEY', {}, {}, { GEMINI_MODEL: 'gemini-x' } as NodeJS.ProcessEnv)
+    expect(out.model).toBe('gemini-x')
+    expect(tried).toEqual(['gemini-x'])
+  })
+
+  it('walks past a 404 to the next candidate', async () => {
+    const { fn, tried } = mockFetch({ 'gemini-3.6-flash': 200 })
+    global.fetch = fn
+    const out = await callGeminiWithFallback('KEY', {}, {}, {} as NodeJS.ProcessEnv)
+    expect(out.model).toBe('gemini-3.6-flash')
+    expect(tried[0]).toBe(DEFAULT_GEMINI_MODEL) // configured/default tried first
+    expect(out.response.ok).toBe(true)
+  })
+
+  it('does NOT walk on a 429 — that is the model answering, not a dead id', async () => {
+    const { fn, tried } = mockFetch({ [DEFAULT_GEMINI_MODEL]: 429 })
+    global.fetch = fn
+    const out = await callGeminiWithFallback('KEY', {}, {}, {} as NodeJS.ProcessEnv)
+    expect(out.response.status).toBe(429)
+    expect(tried).toEqual([DEFAULT_GEMINI_MODEL])
+  })
+
+  it('does not walk on a 500 either', async () => {
+    const { fn, tried } = mockFetch({ [DEFAULT_GEMINI_MODEL]: 500 })
+    global.fetch = fn
+    const out = await callGeminiWithFallback('KEY', {}, {}, {} as NodeJS.ProcessEnv)
+    expect(out.response.status).toBe(500)
+    expect(tried).toHaveLength(1)
+  })
+
+  it('returns the last 404 when every candidate is dead', async () => {
+    const { fn, tried } = mockFetch({})
+    global.fetch = fn
+    const out = await callGeminiWithFallback('KEY', {}, {}, {} as NodeJS.ProcessEnv)
+    expect(out.response.status).toBe(404)
+    expect(tried).toEqual(geminiModelCandidates({} as NodeJS.ProcessEnv))
+  })
+
+  it('caches the working model so the probe costs nothing on later calls', async () => {
+    const { fn, tried } = mockFetch({ 'gemini-3.6-flash': 200 })
+    global.fetch = fn
+    await callGeminiWithFallback('KEY', {}, {}, {} as NodeJS.ProcessEnv)
+    const afterFirst = tried.length
+    await callGeminiWithFallback('KEY', {}, {}, {} as NodeJS.ProcessEnv)
+    expect(tried.length).toBe(afterFirst + 1)
+    expect(tried[tried.length - 1]).toBe('gemini-3.6-flash')
+  })
+
+  it('re-opens the search if the cached model is itself later retired', async () => {
+    const live: Record<string, number> = { 'gemini-3.6-flash': 200 }
+    const { fn } = mockFetch(live)
+    global.fetch = fn
+    await callGeminiWithFallback('KEY', {}, {}, {} as NodeJS.ProcessEnv)
+
+    // Google retires the cached one mid-flight; another candidate takes over.
+    delete live['gemini-3.6-flash']
+    live['gemini-2.5-flash'] = 200
+
+    const out = await callGeminiWithFallback('KEY', {}, {}, {} as NodeJS.ProcessEnv)
+    expect(out.model).toBe('gemini-2.5-flash')
+    expect(out.response.ok).toBe(true)
+  })
+
+  it('tells the operator to pin the model that actually worked', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { fn } = mockFetch({ 'gemini-3.6-flash': 200 })
+    global.fetch = fn
+    await callGeminiWithFallback('KEY', {}, {}, {} as NodeJS.ProcessEnv)
+    expect(spy.mock.calls.flat().join(' ')).toContain('GEMINI_MODEL="gemini-3.6-flash"')
+  })
+})
+
+describe('geminiModelCandidates', () => {
+  it('puts the configured model first and never repeats it', async () => {
+    const list = geminiModelCandidates({ GEMINI_MODEL: 'gemini-3.6-flash' } as NodeJS.ProcessEnv)
+    expect(list[0]).toBe('gemini-3.6-flash')
+    expect(new Set(list).size).toBe(list.length)
   })
 })

@@ -28,7 +28,7 @@ import { createClient } from '@supabase/supabase-js'
 import { scanRealGmailInbox } from '../src/services/emailScanner.js'
 import { analyzeTransactionEmailWithAI, analyzeTransactionEmailBatchWithAI } from '../src/services/aiService.js'
 import {
-  geminiEndpoint,
+  callGeminiWithFallback,
   isModelNotFoundStatus,
   modelNotFoundMessage,
   resolveGeminiModel,
@@ -109,19 +109,17 @@ function makeCallGeminiDirect() {
       throw new Error(`auto-sync-gmail: Gemini call cap (${MAX_GEMINI_CALLS_PER_RUN}) reached for this run`)
     }
     callCount++
-    const model = resolveGeminiModel()
     // Bounded like the proxy's call. An unbounded fetch here could consume the
     // whole cron window on one hung request and starve every remaining user.
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 30_000)
     let res: Response
     try {
-      res = await fetch(geminiEndpoint(GEMINI_API_KEY, model), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+      // Shares the proxy's candidate-model walk, so the cron cannot be left
+      // running a retired id while the browser path quietly recovered.
+      ;({ response: res } = await callGeminiWithFallback(GEMINI_API_KEY, body, {
         signal: controller.signal,
-      })
+      }))
     } finally {
       clearTimeout(timeoutId)
     }
@@ -130,7 +128,9 @@ function makeCallGeminiDirect() {
       // fault that must be shouted about, not folded into the generic
       // "AI unavailable, use regex" path that hides it indefinitely.
       if (isModelNotFoundStatus(res.status)) {
-        console.error(`[auto-sync-gmail] FATAL CONFIG ERROR: ${modelNotFoundMessage(model)}`)
+        console.error(
+          `[auto-sync-gmail] FATAL CONFIG ERROR: no candidate model resolved. ${modelNotFoundMessage(resolveGeminiModel())}`
+        )
       }
       throw new Error(`Gemini API error: ${res.status}`)
     }
