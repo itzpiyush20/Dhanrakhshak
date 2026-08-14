@@ -101,6 +101,14 @@ const getRangeDates = (range: RangeType) => {
     start.setHours(0, 0, 0, 0)
 
     setToSixDaysAfter(end, start)
+  } else if (range === 'this-month') {
+    // Full calendar month, so this matches the Dashboard and Expenses totals
+    // exactly — both of those scope to `{ mode: 'month' }`, not a rolling window.
+    start.setDate(1)
+    start.setHours(0, 0, 0, 0)
+
+    end.setMonth(now.getMonth() + 1, 0) // day 0 of next month = last day of this one
+    end.setHours(23, 59, 59, 999)
   } else if (range === 'last-15-days') {
     start.setDate(now.getDate() - 14)
     start.setHours(0, 0, 0, 0)
@@ -169,6 +177,48 @@ const getTrendData = (txns: any[], range: RangeType): TrendItem[] => {
     return days
   }
   
+  if (range === 'this-month') {
+    // Calendar weeks of the month (1-7, 8-14, 15-21, 22-end) rather than the
+    // rolling 7-day offsets 'last-month' uses — a calendar month is 28-31 days,
+    // so the last bucket has to absorb the remainder instead of being cut at 30.
+    const { end } = getRangeDates(range)
+    const lastDay = end.getDate()
+    const weekRanges = [
+      { label: 'Week 1', from: 1, to: 7 },
+      { label: 'Week 2', from: 8, to: 14 },
+      { label: 'Week 3', from: 15, to: 21 },
+      { label: 'Week 4', from: 22, to: lastDay },
+    ].map((w) => {
+      const wStart = new Date(start)
+      wStart.setDate(w.from)
+      const wEnd = new Date(start)
+      wEnd.setDate(w.to)
+      return {
+        label: w.label,
+        startStr: toISODateLocal(wStart),
+        endStr: toISODateLocal(wEnd),
+        income: 0,
+        expenses: 0,
+        savings: 0,
+      }
+    })
+
+    txns.forEach((t) => {
+      if (!t.date) return
+      const week = weekRanges.find((w) => t.date >= w.startStr && t.date <= w.endStr)
+      if (week) {
+        const amt = Number(t.amount)
+        if (t.type === 'credit') {
+          week.income += amt
+        } else {
+          week.expenses += amt
+        }
+        week.savings = week.income - week.expenses
+      }
+    })
+    return weekRanges
+  }
+
   if (range === 'last-month') {
     const weeks = [
       { label: 'Week 1', startOffset: 0, endOffset: 6, income: 0, expenses: 0, savings: 0 },

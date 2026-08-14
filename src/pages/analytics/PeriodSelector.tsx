@@ -1,4 +1,4 @@
-export type RangeType = 'this-week' | 'last-week' | 'last-15-days' | 'last-month' | 'last-6-months';
+export type RangeType = 'this-week' | 'last-week' | 'this-month' | 'last-15-days' | 'last-month' | 'last-6-months';
 
 interface PeriodSelectorProps {
   value: RangeType
@@ -16,6 +16,7 @@ export function PeriodSelector({ value, onChange, id }: PeriodSelectorProps) {
     >
       <option value="this-week">This Week</option>
       <option value="last-week">Last Week</option>
+      <option value="this-month">This Month</option>
       <option value="last-15-days">Last 15 Days</option>
       <option value="last-month">Last Month</option>
       <option value="last-6-months">Last 6 Months</option>
