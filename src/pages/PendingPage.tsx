@@ -342,8 +342,20 @@ export default function PendingPage() {
     setLoading(true)
     setError(null)
     try {
+      // The whole queue, not the first 15.
+      //
+      // There is no "load more" control on this page, so a 15-row limit meant a
+      // user with 40 pending alerts could only ever see 15 of them and had to
+      // approve or reject their way down before the rest appeared — which reads
+      // as transactions going missing. It also hid the other half of a
+      // possible-duplicate pair whenever the partner fell past the cut, leaving
+      // a duplicate badge pointing at a row that was not on screen.
+      //
+      // Pending is self-limiting: it holds one scan window's unreviewed alerts,
+      // and the user's own queue peaked around 40. 250 is far above that while
+      // still capping a pathological case.
       const txnsRes = await withTimeout(
-        getTransactions({ status: 'pending', limit: 15 }),
+        getTransactions({ status: 'pending', limit: 250 }),
         45000,
         'Pending data fetch'
       )
@@ -593,41 +605,21 @@ export default function PendingPage() {
   // mirrors commitApproval's split for the same reason.
   const handleReject = async (txn: TransactionRow) => {
     try {
-      // Remember the email BEFORE deleting the row.
+      // Rejecting marks the row, it does NOT delete it.
       //
-      // Rejecting deletes the transaction outright, and the scanner's dedup set
-      // is built from the transactions table — so the delete erased the only
-      // record that this email had ever been seen. The next scan re-detected it
-      // and put it straight back in Pending: reject, rescan, reappear, forever.
-      // Approving does not have this problem because that row survives with
-      // approval_status 'approved' and stays in the dedup set.
+      // Deleting erased the only record that this email had ever been seen —
+      // the scanner builds its dedup set from the transactions table — so the
+      // next scan re-detected it and put it straight back in Pending: reject,
+      // rescan, reappear, with no way out. Approving never had this problem
+      // because that row survives and stays in the dedup set.
       //
-      // Recording it as a rejection is what makes the decision final: the scan's
-      // rejection preload skips these ids on every subsequent scan. Absorbed
-      // ids are recorded too, or the merged-away partner comes back on its own.
-      const messageIds = [
-        txn.email_message_id,
-        ...((txn.merged_email_message_ids ?? []) as string[]),
-      ].filter((m): m is string => !!m)
-
-      if (messageIds.length > 0 && user) {
-        const { error: rememberErr } = await supabase.from('email_scan_rejections').insert(
-          messageIds.map((messageId) => ({
-            user_id: user.id,
-            gate: 'user_rejected',
-            email_message_id: messageId,
-            subject: (txn.description || txn.merchant || '').substring(0, 500) || null,
-          }))
-        )
-        // Deliberately not fatal: failing to write the audit row must not block
-        // the user's rejection. Worst case is the pre-existing behaviour — the
-        // email may be detected again — which is why it is logged loudly.
-        if (rememberErr) {
-          console.error('[PendingPage] Could not record rejection; this email may be detected again:', rememberErr)
-        }
-      }
-
-      const { error } = await deleteTransaction(txn.id)
+      // A first attempt at this wrote the id to email_scan_rejections before
+      // deleting. That worked only if a SECOND write succeeded, and silently
+      // reverted to the bug if it did not. Keeping the row is unconditional:
+      // the dedup set is built from exactly this table with no status filter,
+      // so a rejected row can no longer be missed. Every view filters by
+      // approval_status, so it stays invisible in the UI.
+      const { error } = await updateTransaction(txn.id, { approval_status: 'rejected' })
       if (error) throw error
     } catch (err: any) {
       console.error('Error rejecting transaction:', err)
