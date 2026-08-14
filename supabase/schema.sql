@@ -495,3 +495,101 @@ BEGIN
       UNIQUE (email_message_id, user_id);
   END IF;
 END$$;
+
+-- ==========================================
+-- Migrations 010 and 014-019, folded in for fresh installs
+--
+-- These landed as numbered migration files and were never reflected back
+-- here, so a database built only from schema.sql was missing columns the
+-- scanner reads on every run and failed on the first scan rather than
+-- degrading. Every statement is idempotent, so re-running against an
+-- already-migrated database is a no-op.
+-- ==========================================
+
+-- 010 — diagnostic log of emails the scanner rejected, and why.
+CREATE TABLE IF NOT EXISTS public.email_scan_rejections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  scan_log_id UUID REFERENCES public.email_scan_logs(id) ON DELETE CASCADE,
+  sender_domain TEXT,
+  subject TEXT,
+  gate TEXT NOT NULL,
+  matched_snippet TEXT,
+  rejected_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_scan_rejections_user
+  ON public.email_scan_rejections(user_id, rejected_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_email_scan_rejections_scan_log
+  ON public.email_scan_rejections(scan_log_id);
+
+ALTER TABLE public.email_scan_rejections ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'email_scan_rejections' AND policyname = 'Users can view own scan rejections') THEN
+    CREATE POLICY "Users can view own scan rejections"
+      ON public.email_scan_rejections FOR SELECT
+      USING (auth.uid() = user_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'email_scan_rejections' AND policyname = 'Users can insert own scan rejections') THEN
+    CREATE POLICY "Users can insert own scan rejections"
+      ON public.email_scan_rejections FOR INSERT
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
+END$$;
+
+-- 014 — the manual-scan quota query filters user_id + scan_mode + status over
+-- a trailing 24h window; the existing (user_id, scanned_at) index cannot serve
+-- those predicates. The scan_mode column itself is already declared above.
+CREATE INDEX IF NOT EXISTS idx_email_scan_logs_manual_quota
+  ON public.email_scan_logs (user_id, scan_mode, status, scanned_at DESC);
+
+-- 015 — a merged payment keeps one row but must remember every email it
+-- absorbed, since UNIQUE (email_message_id, user_id) allows only one id.
+ALTER TABLE public.transactions
+  ADD COLUMN IF NOT EXISTS merged_email_message_ids TEXT[];
+
+CREATE INDEX IF NOT EXISTS idx_transactions_merged_email_ids
+  ON public.transactions USING GIN (merged_email_message_ids);
+
+-- 016 — a foreign charge is recorded as what it actually is. Note this is the
+-- TRANSACTION's currency; profiles.currency above is the display preference.
+ALTER TABLE public.transactions
+  ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'INR';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'transactions_currency_check'
+  ) THEN
+    ALTER TABLE public.transactions
+      ADD CONSTRAINT transactions_currency_check
+      CHECK (currency ~ '^[A-Z]{3}$');
+  END IF;
+END$$;
+
+CREATE INDEX IF NOT EXISTS idx_transactions_currency
+  ON public.transactions (user_id, currency, date DESC);
+
+-- 017 — rejected emails are remembered so a later scan never re-fetches them.
+ALTER TABLE public.email_scan_rejections
+  ADD COLUMN IF NOT EXISTS email_message_id TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_email_scan_rejections_user_msg
+  ON public.email_scan_rejections(user_id, email_message_id);
+
+-- 018 — a look-alike transaction that could not be PROVEN to be the same
+-- payment is kept as its own row and flagged, rather than merged away.
+ALTER TABLE public.transactions
+  ADD COLUMN IF NOT EXISTS possible_duplicate_of UUID
+  REFERENCES public.transactions(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_transactions_possible_duplicate_of
+  ON public.transactions(user_id, possible_duplicate_of)
+  WHERE possible_duplicate_of IS NOT NULL;
+
+-- 019 — the atomic AI-quota functions live in supabase/019_atomic_ai_quota.sql.
+-- Run that file as well on a fresh install; it is kept separate because it
+-- defines SECURITY DEFINER functions with their own GRANT/REVOKE.
