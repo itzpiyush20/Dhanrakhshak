@@ -62,7 +62,7 @@ const DashboardPage    = lazy(() => import('@/pages/DashboardPage'))
 const ExpensesPage     = lazy(() => import('@/pages/ExpensesPage'))
 const BudgetsPage      = lazy(() => import('@/pages/BudgetsPage'))
 const PendingPage      = lazy(() => import('@/pages/PendingPage'))
-const AnalyticsPage    = lazy(() => import('@/pages/AnalyticsPage'))
+const InsightsPage     = lazy(() => import('@/pages/InsightsPage'))
 const SettingsPage     = lazy(() => import('@/pages/SettingsPage'))
 const ProfilePage      = lazy(() => import('@/pages/ProfilePage'))
 const SubscriptionsPage = lazy(() => import('@/pages/SubscriptionsPage'))
@@ -129,7 +129,7 @@ function AnimatedRoutes() {
             <Route path="/expenses"        element={<ExpensesPage />} />
             <Route path="/budgets"         element={<BudgetsPage />} />
             <Route path="/pending"         element={<PendingPage />} />
-            <Route path="/insights"        element={<AnalyticsPage />} />
+            <Route path="/insights"        element={<InsightsPage />} />
             <Route path="/settings"        element={<SettingsPage />} />
             <Route path="/profile"         element={<ProfilePage />} />
             <Route path="/subscriptions"   element={<SubscriptionsPage />} />

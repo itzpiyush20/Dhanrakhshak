@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildMerchantLeaderboard } from './AnalyticsPage'
+import { buildMerchantLeaderboard } from './InsightsPage'
 
 describe('buildMerchantLeaderboard', () => {
   it('groups a known-brand narration under its real merchant total', () => {

@@ -1,5 +1,5 @@
 // ============================================
-// AnalyticsPage (Insights) — Visual & Advisory Hub
+// InsightsPage — Visual & Advisory Hub
 // Merged Insights and CA Advisory dashboard
 // ============================================
 
@@ -313,7 +313,7 @@ export function buildMerchantLeaderboard(
     .slice(0, 8)
 }
 
-export default function AnalyticsPage() {
+export default function InsightsPage() {
   const { user } = useAuth()
   const { categories, categoryMap } = useCategories()
 
