@@ -102,14 +102,6 @@ export default function PricingPage() {
         },
         body: JSON.stringify({
           planType: selectedPlan,
-          intrak_website_id: import.meta.env.VITE_INTRAK_WEBSITE_ID || '',
-          intrak_visitor_id: localStorage.getItem('_df_vid') || '',
-          intrak_session_id: sessionStorage.getItem('_df_sid') || '',
-          intrak_utm_source: new URLSearchParams(window.location.search).get('utm_source') || '',
-          intrak_utm_medium: new URLSearchParams(window.location.search).get('utm_medium') || '',
-          intrak_utm_campaign: new URLSearchParams(window.location.search).get('utm_campaign') || '',
-          intrak_referrer: document.referrer || '',
-          intrak_path: window.location.pathname,
         })
       })
       const orderData = await response.json()

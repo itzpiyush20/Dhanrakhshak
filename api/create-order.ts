@@ -68,17 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   const userId = user.id
 
-  const {
-    planType,
-    intrak_website_id,
-    intrak_visitor_id,
-    intrak_session_id,
-    intrak_utm_source,
-    intrak_utm_medium,
-    intrak_utm_campaign,
-    intrak_referrer,
-    intrak_path,
-  } = req.body ?? {}
+  const { planType } = req.body ?? {}
 
   if (typeof planType !== 'string') {
     return res.status(400).json({ error: 'planType is required' })
@@ -97,17 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const notes: Record<string, string> = {
       userId,
       planType,
-      intrak_event_name: 'purchase',
     }
-
-    if (intrak_website_id) notes.intrak_website_id = String(intrak_website_id).slice(0, 256)
-    if (intrak_visitor_id) notes.intrak_visitor_id = String(intrak_visitor_id).slice(0, 256)
-    if (intrak_session_id) notes.intrak_session_id = String(intrak_session_id).slice(0, 256)
-    if (intrak_utm_source) notes.intrak_utm_source = String(intrak_utm_source).slice(0, 256)
-    if (intrak_utm_medium) notes.intrak_utm_medium = String(intrak_utm_medium).slice(0, 256)
-    if (intrak_utm_campaign) notes.intrak_utm_campaign = String(intrak_utm_campaign).slice(0, 256)
-    if (intrak_referrer) notes.intrak_referrer = String(intrak_referrer).slice(0, 256)
-    if (intrak_path) notes.intrak_path = String(intrak_path).slice(0, 256)
 
     const order = await razorpay.orders.create({
       amount,
