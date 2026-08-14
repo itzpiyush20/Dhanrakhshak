@@ -651,6 +651,31 @@ export default function InsightsPage() {
   const debitTxns = monthlyTxns.filter((t) => t.type === 'debit')
   const totalDebit = debitTxns.reduce((sum, t) => sum + Number(t.amount), 0)
 
+  // Category split for the advisory block (health score card, AI wealth
+  // advisory), scoped to the "Advisory period" picker like every other number
+  // in that block. It deliberately does NOT reuse `summary.category_breakdown`,
+  // which follows the header "Range" selector instead — reading it here fed the
+  // AI a month's totals alongside a single week's category split, so the
+  // percentages could not reconcile with the totals sitting next to them.
+  const advisoryCategoryBreakdown = (() => {
+    const byCategory = new Map<string, { amount: number; count: number }>()
+    debitTxns.forEach((t) => {
+      const existing = byCategory.get(t.category) || { amount: 0, count: 0 }
+      byCategory.set(t.category, {
+        amount: existing.amount + Number(t.amount),
+        count: existing.count + 1,
+      })
+    })
+    return Array.from(byCategory.entries())
+      .map(([category, { amount, count }]) => ({
+        category,
+        amount,
+        count,
+        percentage: totalDebit > 0 ? (amount / totalDebit) * 100 : 0,
+      }))
+      .sort((a, b) => b.amount - a.amount)
+  })()
+
   const needsSpent = debitTxns
     .filter((t) => needsCategoryNames.includes(t.category))
     .reduce((sum, t) => sum + Number(t.amount), 0)
@@ -714,15 +739,18 @@ export default function InsightsPage() {
       wantsPct,
       savingsPct: finalSavingsPct,
       healthScore,
-      topCategory: summary?.category_breakdown?.[0]?.category || 'Other',
-      topCategoryAmount: summary?.category_breakdown?.[0]?.amount || 0,
-      topCategoryPct: summary?.category_breakdown?.[0]?.percentage || 0,
+      topCategory: advisoryCategoryBreakdown[0]?.category || 'Other',
+      topCategoryAmount: advisoryCategoryBreakdown[0]?.amount || 0,
+      topCategoryPct: advisoryCategoryBreakdown[0]?.percentage || 0,
       momTrend: trend,
-      subscriptionBurn: transactions
-        .filter((t) => hasTag(t.category, 'subscription') && t.type === 'debit')
+      // The prompt renders this as "/month", so it has to be the advisory
+      // period's subscription spend. Summing the whole 6-month `transactions`
+      // window reported roughly six months of subscriptions as one month's burn.
+      subscriptionBurn: debitTxns
+        .filter((t) => hasTag(t.category, 'subscription'))
         .reduce((sum: number, t: any) => sum + Number(t.amount), 0),
       emergencyMonths,
-      categoryBreakdown: summary?.category_breakdown || [],
+      categoryBreakdown: advisoryCategoryBreakdown,
     }
 
     setAiLoading(true)
