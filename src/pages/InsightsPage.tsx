@@ -10,7 +10,7 @@ import { Card, DateFilterPicker } from '@/components/ui'
 import { supabase } from '@/services/supabase'
 import { useAuth } from '@/context/AuthContext'
 import { useCategories } from '@/context/CategoriesContext'
-import { getCurrentMonth, withTimeout, resolveDateFilter, formatDateFilterLabel, resolveTransactionIdentity, type DateFilter } from '@/utils'
+import { getCurrentMonth, withTimeout, resolveDateFilter, formatDateFilterLabel, resolveTransactionIdentity, creditCardBillCategoryNames, type DateFilter } from '@/utils'
 import { toISODateLocal } from '@/utils/dateFilter'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { detectAnomalies, generateForecast, generateAIInsights } from '@/services/aiService'
@@ -395,6 +395,7 @@ export default function InsightsPage() {
     () => categories.filter((c) => c.analytics_tags?.includes('savings')).map((c) => c.name),
     [categories]
   )
+  const ccBillCategories = useMemo(() => creditCardBillCategoryNames(categories), [categories])
   const hasTag = (categoryName: string, tag: 'income' | 'subscription' | 'credit_card_bill') =>
     categoryMap[categoryName]?.analytics_tags?.includes(tag) ?? false
   const [range, setRange] = useState<RangeType>('this-week')
@@ -807,7 +808,7 @@ export default function InsightsPage() {
             hasTransactions={transactions.length > 0}
           />
 
-          <CreditCardPaymentTrendWithDrillDown data={ccBillPaymentTrend} loading={loading} />
+          <CreditCardPaymentTrendWithDrillDown data={ccBillPaymentTrend} loading={loading} ccBillCategories={ccBillCategories} />
 
           <div className="grid gap-6 lg:grid-cols-12">
             <ExpenseBreakdownWithDrillDown summary={summary} loading={loading} range={range} />
@@ -972,13 +973,17 @@ function TrendChartWithDrillDown({ range, trendData, loading, hasTransactions }:
   )
 }
 
-function CreditCardPaymentTrendWithDrillDown({ data, loading }: { data: CreditCardPaymentTrendItem[]; loading: boolean }) {
+function CreditCardPaymentTrendWithDrillDown({ data, loading, ccBillCategories }: { data: CreditCardPaymentTrendItem[]; loading: boolean; ccBillCategories: string[] }) {
   const { openDrillDown } = useDrillDown()
   return (
     <CreditCardPaymentTrend
       data={data}
       loading={loading}
-      onMonthClick={(monthKey, label) => openDrillDown({ category: 'Credit Card Bill Payment', month: monthKey }, `Credit Card Bill Payment — ${label}`)}
+      // Drills down on the same tagged categories the bars were built from.
+      // This used to filter on the literal name 'Credit Card Bill Payment',
+      // so a bar could show an amount and open to an empty list whenever the
+      // tagged category was named anything else.
+      onMonthClick={(monthKey, label) => openDrillDown({ categories: ccBillCategories, month: monthKey }, `Credit Card Bill Payments — ${label}`)}
     />
   )
 }

@@ -36,6 +36,7 @@
     "src/utils/crypto.ts",
     "src/utils/dateFilter.ts",
     "src/utils/transactionIdentity.ts",
+    "src/utils/creditCardBill.ts",
     "src/types/database.ts"
   ]
 }

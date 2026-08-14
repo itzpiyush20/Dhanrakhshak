@@ -3,13 +3,13 @@
 // Set monthly limits and monitor spending limits
 // ============================================
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
 import { Card, Button, Input, Select, Badge, EmptyState, ConfirmDialog, DateFilterPicker } from '@/components/ui'
 import { getBudgets, upsertBudget, deleteBudget } from '@/services/budgets'
 import { getSummary } from '@/services/transactions'
-import { formatCurrency, getCurrentMonth, withTimeout, resolveDateFilter, getMonthsInRange, formatDateFilterLabel, type DateFilter } from '@/utils'
+import { formatCurrency, getCurrentMonth, withTimeout, resolveDateFilter, getMonthsInRange, formatDateFilterLabel, creditCardBillCategoryNames, type DateFilter } from '@/utils'
 import { useCategories } from '@/context/CategoriesContext'
 import type { Database } from '@/types/database'
 import { useToast, useAuth } from '@/context'
@@ -18,7 +18,12 @@ type BudgetRow = Database['public']['Tables']['budgets']['Row']
 
 export default function BudgetsPage() {
   const { currencySymbol } = useAuth()
-  const { categories, getStyle } = useCategories()
+  const { categories, getStyle, loading: categoriesLoading } = useCategories()
+  // See DashboardPage for why this is undefined rather than [] while loading.
+  const ccBillCategories = useMemo(
+    () => (categoriesLoading ? undefined : creditCardBillCategoryNames(categories)),
+    [categories, categoriesLoading]
+  )
   const budgetEligible = categories.filter((c) => c.type === 'expense' && c.budget_eligible)
   const [dateFilter, setDateFilter] = useState<DateFilter>({ mode: 'month', month: getCurrentMonth() })
   const targetMonth = dateFilter.mode === 'month' ? dateFilter.month : resolveDateFilter(dateFilter).dateTo.slice(0, 7)
@@ -52,7 +57,7 @@ export default function BudgetsPage() {
       const [budgetsResults, summaryRes] = await withTimeout(
         Promise.all([
           Promise.all(months.map((m) => getBudgets(m))),
-          getSummary({ dateFrom, dateTo }),
+          getSummary({ dateFrom, dateTo }, { creditCardBillCategories: ccBillCategories }),
         ]),
         45000,
         'Budget data fetch'
@@ -94,7 +99,7 @@ export default function BudgetsPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [ccBillCategories])
 
   useEffect(() => {
     document.title = 'Budgets | Dhanrakshak'
