@@ -114,8 +114,13 @@ const getRangeDates = (range: RangeType) => {
     start.setHours(0, 0, 0, 0)
     end.setHours(23, 59, 59, 999)
   } else if (range === 'last-month') {
-    start.setDate(now.getDate() - 29)
+    // The previous calendar month, not a rolling 30 days. setDate(1) first so
+    // stepping the month back from a 31st never overflows into the wrong month.
+    start.setDate(1)
+    start.setMonth(now.getMonth() - 1)
     start.setHours(0, 0, 0, 0)
+
+    end.setMonth(now.getMonth(), 0) // day 0 of this month = last day of the previous one
     end.setHours(23, 59, 59, 999)
   } else if (range === 'last-6-months') {
     start.setDate(1)
@@ -177,10 +182,11 @@ const getTrendData = (txns: any[], range: RangeType): TrendItem[] => {
     return days
   }
   
-  if (range === 'this-month') {
-    // Calendar weeks of the month (1-7, 8-14, 15-21, 22-end) rather than the
-    // rolling 7-day offsets 'last-month' uses — a calendar month is 28-31 days,
-    // so the last bucket has to absorb the remainder instead of being cut at 30.
+  if (range === 'this-month' || range === 'last-month') {
+    // Calendar weeks of the month: 1-7, 8-14, 15-21, 22-end. A calendar month
+    // is 28-31 days, so the last bucket absorbs the remainder rather than being
+    // cut at a fixed 30 — which is what the old rolling last-month buckets did,
+    // silently dropping the 31st of every long month.
     const { end } = getRangeDates(range)
     const lastDay = end.getDate()
     const weekRanges = [
@@ -219,46 +225,6 @@ const getTrendData = (txns: any[], range: RangeType): TrendItem[] => {
     return weekRanges
   }
 
-  if (range === 'last-month') {
-    const weeks = [
-      { label: 'Week 1', startOffset: 0, endOffset: 6, income: 0, expenses: 0, savings: 0 },
-      { label: 'Week 2', startOffset: 7, endOffset: 13, income: 0, expenses: 0, savings: 0 },
-      { label: 'Week 3', startOffset: 14, endOffset: 20, income: 0, expenses: 0, savings: 0 },
-      { label: 'Week 4', startOffset: 21, endOffset: 29, income: 0, expenses: 0, savings: 0 },
-    ]
-    
-    const weekRanges = weeks.map((w) => {
-      const wStart = new Date(start)
-      wStart.setDate(start.getDate() + w.startOffset)
-      const wEnd = new Date(start)
-      wEnd.setDate(start.getDate() + w.endOffset)
-      return {
-        label: w.label,
-        startStr: toISODateLocal(wStart),
-        endStr: toISODateLocal(wEnd),
-        income: 0,
-        expenses: 0,
-        savings: 0,
-      }
-    })
-    
-    txns.forEach((t) => {
-      const tDate = t.date
-      if (!tDate) return
-      const week = weekRanges.find((w) => tDate >= w.startStr && tDate <= w.endStr)
-      if (week) {
-        const amt = Number(t.amount)
-        if (t.type === 'credit') {
-          week.income += amt
-        } else {
-          week.expenses += amt
-        }
-        week.savings = week.income - week.expenses
-      }
-    })
-    return weekRanges
-  }
-  
   if (range === 'last-6-months') {
     const monthsList: TrendItem[] = []
     const temp = new Date(start)

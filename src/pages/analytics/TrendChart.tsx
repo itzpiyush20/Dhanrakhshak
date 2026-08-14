@@ -37,8 +37,11 @@ const getTrendDescription = (trendData: TrendItem[], range: RangeType) => {
   if (range === 'last-15-days') {
     return 'Daily income and expense trend for the last 15 days'
   }
+  if (range === 'this-month') {
+    return 'Weekly income and expense trend for the current month'
+  }
   if (range === 'last-month') {
-    return 'Weekly income and expense trend for the last 30 days'
+    return 'Weekly income and expense trend for the previous calendar month'
   }
   if (range === 'last-6-months') {
     const count = trendData.length
