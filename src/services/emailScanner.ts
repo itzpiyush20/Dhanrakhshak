@@ -1822,14 +1822,24 @@ async function runGmailScan(opts?: ScanGmailOptions) {
 
     const dedupFrom = new Date(startLimitTime - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-    // The `email_scan_rejections` preload that used to sit here was dropped.
-    // Its result stopped being read when re-evaluating previously rejected mail
-    // against updated rules was made possible (commit 77e14e2) — but the query
-    // itself stayed, so every scan still paid an unbounded, unindexed read of
-    // the user's entire rejection history (which the daily cleanup cron keeps
-    // 30 days of, thousands of rows) and then discarded it, inside the
-    // "Preparing…" stage that has no timeout of its own beyond 12s.
-    const [existingTxnsRes, userCategoriesRes, merchantRules] = await Promise.all([
+    // Rejected mail is remembered again, and this time the result is actually
+    // read. The original preload was dropped in b5bd178 because 77e14e2 had
+    // stopped reading it — leaving every scan to re-download and re-parse every
+    // email it had already decided against. Measured on a real inbox: 166
+    // messages in the window, 46 skipped, so 120 re-fetched every single scan,
+    // almost all of them marketing mail already rejected once.
+    //
+    // Bounded three ways, which is what made the old unbounded version costly:
+    // scoped to this scan's window, selecting one column, and served by
+    // idx_email_scan_rejections_user_msg from migration 017.
+    //
+    // Trade-off, deliberate: an email rejected once is not reconsidered while it
+    // remains in the window, so a merchant rule added today does not retroactively
+    // rescue mail rejected yesterday. That is the price of not re-parsing the
+    // whole week on every scan, and the rolling window means anything genuinely
+    // new is still seen.
+    const rejectedFrom = new Date(startLimitTime).toISOString()
+    const [existingTxnsRes, rejectedRes, userCategoriesRes, merchantRules] = await Promise.all([
       preloadOrDefault<PreloadRows>(
         supabase
           .from('transactions')
@@ -1838,6 +1848,19 @@ async function runGmailScan(opts?: ScanGmailOptions) {
           .gte('date', dedupFrom),
         { data: [], error: null },
         'Loading existing transactions'
+      ),
+      preloadOrDefault<PreloadRows>(
+        // Nulls are filtered in JS below rather than with .not(), keeping this
+        // to the same select/eq/gte shape as the transactions preload.
+        // Rows written before migration 017 carry no email_message_id and
+        // simply do not participate in dedup, which self-heals as they age out.
+        supabase
+          .from('email_scan_rejections')
+          .select('email_message_id')
+          .eq('user_id', user.id)
+          .gte('rejected_at', rejectedFrom),
+        { data: [], error: null },
+        'Loading previously rejected mail'
       ),
       preloadOrDefault<PreloadRows>(
         supabase.from('categories').select('name, is_permanent').eq('user_id', user.id),
@@ -1884,11 +1907,29 @@ async function runGmailScan(opts?: ScanGmailOptions) {
     //
     // Stage A keeps its own identical check: this set is a snapshot, and a
     // concurrent scan can insert a row between here and there.
-    const newMessages = uniqueMessages.filter((m) => !existingMessageIds.has(m.id))
+    // Rejected mail counts as "already considered" (R4) just as much as mail
+    // that became a transaction. Kept as its own set so the log can say which
+    // kind of skip it was, and so a failed rejection preload degrades to
+    // re-scanning rather than to dropping transactions.
+    const rejectedMessageIds = new Set<string>()
+    for (const r of (rejectedRes.data ?? []) as Array<{ email_message_id?: string | null }>) {
+      if (r.email_message_id) rejectedMessageIds.add(r.email_message_id)
+    }
+    if (rejectedRes.error) {
+      console.error('[emailScanner] Failed to load rejected mail for dedup:', rejectedRes.error)
+    }
+
+    const newMessages = uniqueMessages.filter(
+      (m) => !existingMessageIds.has(m.id) && !rejectedMessageIds.has(m.id)
+    )
     const alreadyKnownCount = uniqueMessages.length - newMessages.length
     if (alreadyKnownCount > 0) {
+      const rejectedSkips = uniqueMessages.filter(
+        (m) => !existingMessageIds.has(m.id) && rejectedMessageIds.has(m.id)
+      ).length
       console.info(
-        `[emailScanner] skipping ${alreadyKnownCount} of ${uniqueMessages.length} messages already processed by an earlier scan`
+        `[emailScanner] skipping ${alreadyKnownCount} of ${uniqueMessages.length} messages already processed ` +
+        `(${alreadyKnownCount - rejectedSkips} became transactions, ${rejectedSkips} were rejected earlier)`
       )
     }
 
