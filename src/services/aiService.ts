@@ -51,21 +51,29 @@ async function callGeminiProxy(body: Record<string, unknown>): Promise<any> {
 
 /**
  * Generation settings shared by both scan prompts.
- *
- * `thinkingBudget: 0` is not an optimisation — it is a correctness guard.
- * Gemini 2.5 and every 3.x model reason by default, and those thinking tokens
- * are billed against `maxOutputTokens`. A classification call capped at 500 or
- * 2000 tokens can therefore spend its entire budget thinking and return an
- * EMPTY string, which this module reads as "no JSON found" → `null` → the
- * regex ladder. That is the identical silent-degradation shape that hid the
- * gemini-2.0-flash retirement, so it is pinned here rather than left to the
- * model's default.
  */
+// NO thinkingConfig here, deliberately.
+//
+// `thinkingConfig: { thinkingBudget: 0 }` was added to stop the model spending
+// its whole maxOutputTokens budget reasoning and returning an empty string.
+// Reasonable intent, fatal in practice: gemini-3.5-flash-lite rejects a budget
+// of 0 outright with 400 INVALID_ARGUMENT. Verified directly against the API —
+// budgets of -1 and 128 are accepted, only 0 is refused.
+//
+// That took AI classification down completely, because `callGeminiWithFallback`
+// only walks to the next candidate model on a 404. A 400 is treated as that
+// model's real answer, so an invalid argument fails every call with no failover
+// and no recovery — the scan just silently drops to the regex ladder.
+//
+// Omitting the field is safer than guessing a budget: it is model-specific,
+// a wrong value is unrecoverable, and the original worry does not materialise —
+// measured finishReason is STOP with well-formed JSON at both 500 and 2000
+// tokens. If an empty response ever does show up, raise maxOutputTokens rather
+// than reintroducing this field.
 const SCAN_GENERATION_BASE = {
   temperature: 0.1,
   topP: 0.9,
   responseMimeType: 'application/json',
-  thinkingConfig: { thinkingBudget: 0 },
 } as const
 
 export interface FinancialContext {

@@ -316,28 +316,33 @@ describe('analyzeTransactionEmailBatchWithAI', () => {
     expect(captured.generationConfig.maxOutputTokens).toBe(2000)
   })
 
-  // Every Gemini model from 2.5 onward reasons by default and bills those
-  // thinking tokens against maxOutputTokens. A classification call capped at
-  // 500/2000 tokens can spend the lot thinking and return an EMPTY string,
-  // which this module reads as "no verdict" and the scanner silently answers
-  // with the regex ladder — the same invisible degradation that hid the
-  // gemini-2.0-flash retirement for ten weeks. Pinned on both scan prompts.
-  it('disables model thinking on the batch prompt so output tokens are not eaten', async () => {
+  // These two previously asserted `thinkingConfig: { thinkingBudget: 0 }` was
+  // sent, to stop the model spending its output budget reasoning. The live API
+  // rejects that value: gemini-3.5-flash-lite answers 400 INVALID_ARGUMENT to a
+  // budget of 0 (verified directly; -1 and 128 are accepted, only 0 is not).
+  //
+  // That took AI classification down completely in production, because the
+  // model-fallback walk only advances on 404 — a 400 is that model's real
+  // answer, so every call failed with no failover. The assertion below is
+  // inverted to keep the field out, and it must stay inverted: these tests
+  // mock the transport, so they can pin the payload shape but can never tell
+  // us the payload is one the API will accept.
+  it('sends no thinkingConfig on the batch prompt — a budget of 0 is rejected with 400', async () => {
     let captured: any = null
     await analyzeTransactionEmailBatchWithAI(makeEmails(2), async (body: any) => {
       captured = body
       return geminiArrayResponse([])
     })
-    expect(captured.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 })
+    expect(captured.generationConfig.thinkingConfig).toBeUndefined()
   })
 
-  it('disables model thinking on the single-email prompt too', async () => {
+  it('sends no thinkingConfig on the single-email prompt either', async () => {
     let captured: any = null
     await analyzeTransactionEmailWithAI('s', 'b', '2026-08-13', async (body: any) => {
       captured = body
       return { candidates: [{ content: { parts: [{ text: '{"is_transaction":false}' }] } }] }
     })
-    expect(captured.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 })
+    expect(captured.generationConfig.thinkingConfig).toBeUndefined()
   })
 })
 
