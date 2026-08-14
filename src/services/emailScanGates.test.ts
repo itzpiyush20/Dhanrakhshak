@@ -365,3 +365,26 @@ describe('credit card bill payment & spend alert gates', () => {
     expect(result.rejected).toBe(false)
   })
 })
+
+describe('generic payment assertions need an amount nearby', () => {
+  it('rejects a marketing slogan that merely contains "total"', () => {
+    expect(hasPaymentAssertion('Total savings this festive season! Shop the sale now.')).toBe(false)
+  })
+
+  it('rejects a travel promo that merely mentions fares', () => {
+    expect(hasPaymentAssertion('Lowest fares of the year. Book your next holiday today.')).toBe(false)
+  })
+
+  it('still accepts a long-tail vendor receipt line', () => {
+    expect(hasPaymentAssertion('Order summary\nItem: Coffee beans\nTotal: Rs. 649.00')).toBe(true)
+    expect(hasPaymentAssertion('Sub Total ₹ 1,299')).toBe(true)
+  })
+
+  it('still accepts a fare with its amount', () => {
+    expect(hasPaymentAssertion('Trip complete. Fare Rs 247.50')).toBe(true)
+  })
+
+  it('is unaffected for specific vocabulary with no amount at all', () => {
+    expect(hasPaymentAssertion('Your account has been debited')).toBe(true)
+  })
+})
