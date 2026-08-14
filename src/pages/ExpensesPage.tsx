@@ -3,13 +3,13 @@
 // Add, edit, delete transactions
 // ============================================
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { AppLayout } from '@/layouts'
 import { Button, Modal, DateFilterPicker } from '@/components/ui'
 import ExpenseForm from '@/components/expenses/ExpenseForm'
 import ExpenseList from '@/components/expenses/ExpenseList'
 import { getTransactions } from '@/services/transactions'
-import { formatCurrency, getCurrentMonth, withTimeout, resolveDateFilter, type DateFilter } from '@/utils'
+import { formatCurrency, getCurrentMonth, withTimeout, resolveDateFilter, creditCardBillCategoryNames, makeIsCreditCardBill, type DateFilter } from '@/utils'
 import type { Database } from '@/types/database'
 import { Card } from '@/components/ui'
 import { useToast } from '@/context'
@@ -20,7 +20,13 @@ type TransactionRow = Database['public']['Tables']['transactions']['Row']
 
 export default function ExpensesPage() {
   const location = useLocation()
-  const { getStyle } = useCategories()
+  const { getStyle, categories, loading: categoriesLoading } = useCategories()
+  // See DashboardPage: undefined-while-loading, so a not-yet-populated category
+  // list falls back to the legacy name rather than excluding nothing.
+  const isCreditCardBill = useMemo(
+    () => makeIsCreditCardBill(categoriesLoading ? undefined : creditCardBillCategoryNames(categories)),
+    [categories, categoriesLoading]
+  )
   const [transactions, setTransactions] = useState<TransactionRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(() => !!(location.state as any)?.openForm)
@@ -93,7 +99,7 @@ export default function ExpensesPage() {
     .filter((t) => t.type === 'credit')
     .reduce((sum, t) => sum + Number(t.amount), 0)
   const totalExpenses = transactions
-    .filter((t) => t.type === 'debit' && t.category !== 'Credit Card Bill Payment')
+    .filter((t) => t.type === 'debit' && !isCreditCardBill(t.category))
     .reduce((sum, t) => sum + Number(t.amount), 0)
 
   // Client-side search + filter

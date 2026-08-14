@@ -5,6 +5,7 @@ import { HOME_CURRENCY } from '../utils/index.js'
 // ============================================
 
 import { supabase } from './supabase'
+import { makeIsCreditCardBill } from '@/utils/creditCardBill'
 import type { Database } from '@/types/database'
 import { toISODateLocal } from '@/utils/dateFilter'
 
@@ -112,8 +113,22 @@ export async function deleteTransaction(id: string) {
   return { error }
 }
 
-/** Get summary (income, expenses, savings, category breakdown) for an explicit date range */
-export async function getSummary(range: { dateFrom: string; dateTo: string }) {
+/**
+ * Get summary (income, expenses, savings, category breakdown) for an explicit
+ * date range.
+ *
+ * `creditCardBillCategories` is the caller's list of categories tagged
+ * `credit_card_bill` (see `creditCardBillCategoryNames`). Callers that render
+ * alongside CategoriesContext should always pass it; omitting it falls back to
+ * the legacy hardcoded name, which is wrong the moment a user renames or adds
+ * a card-bill category.
+ */
+export async function getSummary(
+  range: { dateFrom: string; dateTo: string },
+  options?: { creditCardBillCategories?: string[] }
+) {
+  const isCreditCardBill = makeIsCreditCardBill(options?.creditCardBillCategories)
+
   const { data, error } = await supabase
     .from('transactions')
     .select('amount, currency, type, category')
@@ -135,7 +150,7 @@ export async function getSummary(range: { dateFrom: string; dateTo: string }) {
     const code = t.currency as string
     const bucket = other_currency_totals[code] ?? { income: 0, expenses: 0 }
     if (t.type === 'credit') bucket.income += Number(t.amount)
-    else if (t.category !== 'Credit Card Bill Payment') bucket.expenses += Number(t.amount)
+    else if (!isCreditCardBill(t.category)) bucket.expenses += Number(t.amount)
     other_currency_totals[code] = bucket
   }
 
@@ -146,7 +161,7 @@ export async function getSummary(range: { dateFrom: string; dateTo: string }) {
   // Credit card bill payments are excluded from all expense totals — the
   // purchases they cover were already counted as expenses when they happened,
   // so counting the bill payment too would double-book that spend.
-  const expenseTxns = homeRows.filter((t) => t.type === 'debit' && t.category !== 'Credit Card Bill Payment')
+  const expenseTxns = homeRows.filter((t) => t.type === 'debit' && !isCreditCardBill(t.category))
 
   const total_expenses = expenseTxns.reduce((sum, t) => sum + Number(t.amount), 0)
 
@@ -183,15 +198,22 @@ export async function getSummary(range: { dateFrom: string; dateTo: string }) {
 }
 
 /** Get monthly summary (income, expenses, savings) — thin wrapper around getSummary */
-export async function getMonthlySummary(month: string) {
+export async function getMonthlySummary(
+  month: string,
+  options?: { creditCardBillCategories?: string[] }
+) {
   const startDate = `${month}-01`
   const [year, mon] = month.split('-').map(Number)
   const endDate = toISODateLocal(new Date(year, mon, 0))
-  return getSummary({ dateFrom: startDate, dateTo: endDate })
+  return getSummary({ dateFrom: startDate, dateTo: endDate }, options)
 }
 
 /** Get historical monthly comparison for the last N months */
-export async function getHistoricalAnalytics(monthsCount = 6) {
+export async function getHistoricalAnalytics(
+  monthsCount = 6,
+  options?: { creditCardBillCategories?: string[] }
+) {
+  const isCreditCardBill = makeIsCreditCardBill(options?.creditCardBillCategories)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { data: null, error: new Error('User not authenticated') }
 
@@ -237,7 +259,7 @@ export async function getHistoricalAnalytics(monthsCount = 6) {
     // Credit card bill payments are excluded — the purchases they cover were
     // already counted as expenses when they happened.
     const expenses = monthTxns
-      .filter((t) => t.type === 'debit' && t.category !== 'Credit Card Bill Payment')
+      .filter((t) => t.type === 'debit' && !isCreditCardBill(t.category))
       .reduce((sum, t) => sum + Number(t.amount), 0)
 
     return {

@@ -9,7 +9,7 @@ import { Pencil, Inbox } from 'lucide-react'
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row']
 
-/** Narrow shape DrillDownModal needs for the list view — matches what AnalyticsPage's chart-data query already selects, so no new fetch is needed just to populate the list. */
+/** Narrow shape DrillDownModal needs for the list view — matches what InsightsPage's chart-data query already selects, so no new fetch is needed just to populate the list. */
 interface DrillDownListItem {
   id: string
   amount: number
@@ -26,7 +26,7 @@ export function removeSavedRow<T extends { id: string }>(visible: T[], savedId: 
 }
 
 interface DrillDownModalProps {
-  /** The full pool of already-loaded transactions to filter against — e.g. AnalyticsPage's 6-month `transactions` state. */
+  /** The full pool of already-loaded transactions to filter against — e.g. InsightsPage's trailing-window `transactions` state. */
   transactions: DrillDownListItem[]
 }
 

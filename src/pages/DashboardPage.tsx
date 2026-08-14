@@ -3,7 +3,7 @@
 // Displays stats, spending breakdown, recent txns
 // ============================================
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
 import { Card, Button, EmptyState, Modal, DateFilterPicker, TransactionIdentity } from '@/components/ui'
@@ -44,7 +44,7 @@ import {
   seedSandboxData,
 } from '@/services'
 import { migrateLocalStorageRulesToDB } from '@/services/learningEngine'
-import { formatCurrency, formatCurrencyCompact, getCurrentMonth, formatDate, withTimeout, resolveDateFilter, formatDateFilterLabel, getMonthsInRange, resolveTransactionIdentity, type DateFilter } from '@/utils'
+import { formatCurrency, formatCurrencyCompact, getCurrentMonth, formatDate, withTimeout, resolveDateFilter, formatDateFilterLabel, getMonthsInRange, resolveTransactionIdentity, creditCardBillCategoryNames, makeIsCreditCardBill, type DateFilter } from '@/utils'
 import { toISODateLocal } from '@/utils/dateFilter'
 import { useCategories } from '@/context/CategoriesContext'
 import type { Database } from '@/types/database'
@@ -74,7 +74,16 @@ interface SyncSummary {
 
 export default function DashboardPage() {
   const { user, profile, hasGoogleToken, notifyGoogleTokenCleared, dailyScanTime } = useAuth()
-  const { getStyle } = useCategories()
+  const { getStyle, categories, loading: categoriesLoading } = useCategories()
+  // `undefined` while the category list is still loading — an empty array would
+  // mean "the user has tagged nothing", which would stop excluding credit card
+  // bills and silently inflate expense totals for the first render. undefined
+  // makes the helper fall back to the legacy name instead.
+  const ccBillCategories = useMemo(
+    () => (categoriesLoading ? undefined : creditCardBillCategoryNames(categories)),
+    [categories, categoriesLoading]
+  )
+  const isCreditCardBill = useMemo(() => makeIsCreditCardBill(ccBillCategories), [ccBillCategories])
   const { showToast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
@@ -222,7 +231,7 @@ export default function DashboardPage() {
       const { dateFrom, dateTo } = resolveDateFilter(filter)
       const [summaryRes, transactionsRes, budgetsRes] = await withTimeout(
         Promise.all([
-          getSummary({ dateFrom, dateTo }),
+          getSummary({ dateFrom, dateTo }, { creditCardBillCategories: ccBillCategories }),
           getTransactions({ limit: 5 }), // Show global recent transactions
           filter.mode === 'month'
             ? getBudgets(filter.month)
@@ -248,7 +257,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [ccBillCategories])
 
   /**
    * The user this mount has already run the scheduled-task check for.
@@ -430,7 +439,10 @@ export default function DashboardPage() {
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
       })()
 
-      Promise.all([getMonthlySummary(lastSeen), getMonthlySummary(priorMonth)])
+      Promise.all([
+        getMonthlySummary(lastSeen, { creditCardBillCategories: ccBillCategories }),
+        getMonthlySummary(priorMonth, { creditCardBillCategories: ccBillCategories }),
+      ])
         .then(([recapRes, priorRes]) => {
           if (!recapRes.data || recapRes.data.total_expenses === 0) return
           const top = recapRes.data.category_breakdown[0]
@@ -511,7 +523,7 @@ export default function DashboardPage() {
       const autoApproved = res.data?.autoApprovedCount || 0
       const categoryTotals = new Map<string, number>()
       txns
-        .filter((t: any) => t.type === 'debit' && t.category !== 'Credit Card Bill Payment')
+        .filter((t: any) => t.type === 'debit' && !isCreditCardBill(t.category))
         .forEach((t: any) => {
           categoryTotals.set(t.category, (categoryTotals.get(t.category) || 0) + Number(t.amount))
         })

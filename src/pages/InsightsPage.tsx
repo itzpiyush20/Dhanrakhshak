@@ -1,5 +1,5 @@
 // ============================================
-// AnalyticsPage (Insights) — Visual & Advisory Hub
+// InsightsPage — Visual & Advisory Hub
 // Merged Insights and CA Advisory dashboard
 // ============================================
 
@@ -10,7 +10,7 @@ import { Card, DateFilterPicker } from '@/components/ui'
 import { supabase } from '@/services/supabase'
 import { useAuth } from '@/context/AuthContext'
 import { useCategories } from '@/context/CategoriesContext'
-import { getCurrentMonth, withTimeout, resolveDateFilter, formatDateFilterLabel, resolveTransactionIdentity, type DateFilter } from '@/utils'
+import { getCurrentMonth, withTimeout, resolveDateFilter, formatDateFilterLabel, resolveTransactionIdentity, creditCardBillCategoryNames, type DateFilter } from '@/utils'
 import { toISODateLocal } from '@/utils/dateFilter'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { detectAnomalies, generateForecast, generateAIInsights } from '@/services/aiService'
@@ -66,6 +66,22 @@ interface SummaryData {
   }>
 }
 
+/**
+ * Sets `end` to the last moment of the day six days after `start`.
+ *
+ * This has to seed `end` from `start` first. The previous version did
+ * `end.setDate(start.getDate() + 6)` while `end` still held today's date, so
+ * only the day-of-month carried over and it was applied to the *current*
+ * month. Any week straddling a month boundary then blew up: on Wed 2 Sep 2026
+ * the Monday is 31 Aug, and `setDate(37)` on September produced 7 Oct — a
+ * five-week "This Week".
+ */
+const setToSixDaysAfter = (end: Date, start: Date) => {
+  end.setTime(start.getTime())
+  end.setDate(end.getDate() + 6)
+  end.setHours(23, 59, 59, 999)
+}
+
 const getRangeDates = (range: RangeType) => {
   const now = new Date()
   const start = new Date(now)
@@ -76,16 +92,22 @@ const getRangeDates = (range: RangeType) => {
     const diff = day === 0 ? -6 : 1 - day // Monday start
     start.setDate(now.getDate() + diff)
     start.setHours(0, 0, 0, 0)
-    
-    end.setDate(start.getDate() + 6)
-    end.setHours(23, 59, 59, 999)
+
+    setToSixDaysAfter(end, start)
   } else if (range === 'last-week') {
     const day = now.getDay()
     const diff = (day === 0 ? -6 : 1 - day) - 7 // Previous Monday start
     start.setDate(now.getDate() + diff)
     start.setHours(0, 0, 0, 0)
-    
-    end.setDate(start.getDate() + 6)
+
+    setToSixDaysAfter(end, start)
+  } else if (range === 'this-month') {
+    // Full calendar month, so this matches the Dashboard and Expenses totals
+    // exactly — both of those scope to `{ mode: 'month' }`, not a rolling window.
+    start.setDate(1)
+    start.setHours(0, 0, 0, 0)
+
+    end.setMonth(now.getMonth() + 1, 0) // day 0 of next month = last day of this one
     end.setHours(23, 59, 59, 999)
   } else if (range === 'last-15-days') {
     start.setDate(now.getDate() - 14)
@@ -155,6 +177,48 @@ const getTrendData = (txns: any[], range: RangeType): TrendItem[] => {
     return days
   }
   
+  if (range === 'this-month') {
+    // Calendar weeks of the month (1-7, 8-14, 15-21, 22-end) rather than the
+    // rolling 7-day offsets 'last-month' uses — a calendar month is 28-31 days,
+    // so the last bucket has to absorb the remainder instead of being cut at 30.
+    const { end } = getRangeDates(range)
+    const lastDay = end.getDate()
+    const weekRanges = [
+      { label: 'Week 1', from: 1, to: 7 },
+      { label: 'Week 2', from: 8, to: 14 },
+      { label: 'Week 3', from: 15, to: 21 },
+      { label: 'Week 4', from: 22, to: lastDay },
+    ].map((w) => {
+      const wStart = new Date(start)
+      wStart.setDate(w.from)
+      const wEnd = new Date(start)
+      wEnd.setDate(w.to)
+      return {
+        label: w.label,
+        startStr: toISODateLocal(wStart),
+        endStr: toISODateLocal(wEnd),
+        income: 0,
+        expenses: 0,
+        savings: 0,
+      }
+    })
+
+    txns.forEach((t) => {
+      if (!t.date) return
+      const week = weekRanges.find((w) => t.date >= w.startStr && t.date <= w.endStr)
+      if (week) {
+        const amt = Number(t.amount)
+        if (t.type === 'credit') {
+          week.income += amt
+        } else {
+          week.expenses += amt
+        }
+        week.savings = week.income - week.expenses
+      }
+    })
+    return weekRanges
+  }
+
   if (range === 'last-month') {
     const weeks = [
       { label: 'Week 1', startOffset: 0, endOffset: 6, income: 0, expenses: 0, savings: 0 },
@@ -313,7 +377,7 @@ export function buildMerchantLeaderboard(
     .slice(0, 8)
 }
 
-export default function AnalyticsPage() {
+export default function InsightsPage() {
   const { user } = useAuth()
   const { categories, categoryMap } = useCategories()
 
@@ -331,6 +395,7 @@ export default function AnalyticsPage() {
     () => categories.filter((c) => c.analytics_tags?.includes('savings')).map((c) => c.name),
     [categories]
   )
+  const ccBillCategories = useMemo(() => creditCardBillCategoryNames(categories), [categories])
   const hasTag = (categoryName: string, tag: 'income' | 'subscription' | 'credit_card_bill') =>
     categoryMap[categoryName]?.analytics_tags?.includes(tag) ?? false
   const [range, setRange] = useState<RangeType>('this-week')
@@ -587,6 +652,31 @@ export default function AnalyticsPage() {
   const debitTxns = monthlyTxns.filter((t) => t.type === 'debit')
   const totalDebit = debitTxns.reduce((sum, t) => sum + Number(t.amount), 0)
 
+  // Category split for the advisory block (health score card, AI wealth
+  // advisory), scoped to the "Advisory period" picker like every other number
+  // in that block. It deliberately does NOT reuse `summary.category_breakdown`,
+  // which follows the header "Range" selector instead — reading it here fed the
+  // AI a month's totals alongside a single week's category split, so the
+  // percentages could not reconcile with the totals sitting next to them.
+  const advisoryCategoryBreakdown = (() => {
+    const byCategory = new Map<string, { amount: number; count: number }>()
+    debitTxns.forEach((t) => {
+      const existing = byCategory.get(t.category) || { amount: 0, count: 0 }
+      byCategory.set(t.category, {
+        amount: existing.amount + Number(t.amount),
+        count: existing.count + 1,
+      })
+    })
+    return Array.from(byCategory.entries())
+      .map(([category, { amount, count }]) => ({
+        category,
+        amount,
+        count,
+        percentage: totalDebit > 0 ? (amount / totalDebit) * 100 : 0,
+      }))
+      .sort((a, b) => b.amount - a.amount)
+  })()
+
   const needsSpent = debitTxns
     .filter((t) => needsCategoryNames.includes(t.category))
     .reduce((sum, t) => sum + Number(t.amount), 0)
@@ -650,15 +740,18 @@ export default function AnalyticsPage() {
       wantsPct,
       savingsPct: finalSavingsPct,
       healthScore,
-      topCategory: summary?.category_breakdown?.[0]?.category || 'Other',
-      topCategoryAmount: summary?.category_breakdown?.[0]?.amount || 0,
-      topCategoryPct: summary?.category_breakdown?.[0]?.percentage || 0,
+      topCategory: advisoryCategoryBreakdown[0]?.category || 'Other',
+      topCategoryAmount: advisoryCategoryBreakdown[0]?.amount || 0,
+      topCategoryPct: advisoryCategoryBreakdown[0]?.percentage || 0,
       momTrend: trend,
-      subscriptionBurn: transactions
-        .filter((t) => hasTag(t.category, 'subscription') && t.type === 'debit')
+      // The prompt renders this as "/month", so it has to be the advisory
+      // period's subscription spend. Summing the whole 6-month `transactions`
+      // window reported roughly six months of subscriptions as one month's burn.
+      subscriptionBurn: debitTxns
+        .filter((t) => hasTag(t.category, 'subscription'))
         .reduce((sum: number, t: any) => sum + Number(t.amount), 0),
       emergencyMonths,
-      categoryBreakdown: summary?.category_breakdown || [],
+      categoryBreakdown: advisoryCategoryBreakdown,
     }
 
     setAiLoading(true)
@@ -715,7 +808,7 @@ export default function AnalyticsPage() {
             hasTransactions={transactions.length > 0}
           />
 
-          <CreditCardPaymentTrendWithDrillDown data={ccBillPaymentTrend} loading={loading} />
+          <CreditCardPaymentTrendWithDrillDown data={ccBillPaymentTrend} loading={loading} ccBillCategories={ccBillCategories} />
 
           <div className="grid gap-6 lg:grid-cols-12">
             <ExpenseBreakdownWithDrillDown summary={summary} loading={loading} range={range} />
@@ -880,13 +973,17 @@ function TrendChartWithDrillDown({ range, trendData, loading, hasTransactions }:
   )
 }
 
-function CreditCardPaymentTrendWithDrillDown({ data, loading }: { data: CreditCardPaymentTrendItem[]; loading: boolean }) {
+function CreditCardPaymentTrendWithDrillDown({ data, loading, ccBillCategories }: { data: CreditCardPaymentTrendItem[]; loading: boolean; ccBillCategories: string[] }) {
   const { openDrillDown } = useDrillDown()
   return (
     <CreditCardPaymentTrend
       data={data}
       loading={loading}
-      onMonthClick={(monthKey, label) => openDrillDown({ category: 'Credit Card Bill Payment', month: monthKey }, `Credit Card Bill Payment — ${label}`)}
+      // Drills down on the same tagged categories the bars were built from.
+      // This used to filter on the literal name 'Credit Card Bill Payment',
+      // so a bar could show an amount and open to an empty list whenever the
+      // tagged category was named anything else.
+      onMonthClick={(monthKey, label) => openDrillDown({ categories: ccBillCategories, month: monthKey }, `Credit Card Bill Payments — ${label}`)}
     />
   )
 }
