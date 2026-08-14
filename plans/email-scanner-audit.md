@@ -376,6 +376,43 @@ never a scan failure") worked perfectly and, in working, hid a total outage. Tha
 carrying into the remaining fixes: graceful degradation needs a matching observability path,
 or it converts outages into silence.
 
+## Resolution status — all 17 actionable findings fixed on `claude/scanner-remediation`
+
+| # | Finding | Commit |
+|---|---|---|
+| 1 | ReDoS in `extractCardLast4` | `70ef2be` |
+| 2 | Cron hardcoded `activeYear` (FY feature removed entirely) | `1998104`, `5f6e0b9` |
+| 3 | Non-atomic AI quota counter | `3663814` |
+| 4 | Merge could destroy a distinct transaction | `568e356`, `c85ef83`, `68b3b74`, `7921d88` |
+| 5 | Cron had no per-user time budget | `ca3f5a5` |
+| 6 | Cron had no ordering, starved a fixed tail | `ca3f5a5` |
+| 7 | Prompt injection via unescaped email text | `8d58e4d` |
+| 8 | Drifted trial eligibility in the cron | `ca3f5a5` |
+| 9 | `schema.sql` missing migrations | `1d7b416` |
+| 10 | AI amount/currency unvalidated | `8d58e4d` |
+| 12 | Generic-word merchant rule poisoning | `bcaaaf6` |
+| 13 | `total`/`fare` let marketing past the gate | `743efa2` |
+| 14 | Bare `\bcred\b` overrode the AI's rejection | `2c97f20` |
+| 16 | `mailTime` failed open on missing `internalDate` | `0944acc` |
+| 17 | CORS accepted any `*.vercel.app` | `0944acc` |
+| 18 | Dead, schema-drifted `logRejection` | `0944acc` |
+| 19 | Raw error echoed to the client | `0944acc` |
+
+(#11 and #15 were fixed upstream before work began — see Re-validation above.)
+
+Baseline moved from 374 to **409 tests**, all green, with `tsc` and `build` clean.
+
+**Two findings turned out gentler than the audit assumed**, and both were tested rather
+than argued: the bare `\bcred\b` pattern (#14) was not load-bearing — removing it left every
+existing fixture green — and `\btotal\b` (#13) was preserved rather than dropped by
+requiring a currency amount within 120 characters, which keeps the unknown-vendor receipt
+fixture passing while rejecting "Total savings this festive season!".
+
+**Deploy note:** migrations `018` and `019` must be applied **before** this code ships. Until
+`increment_ai_call_count` exists, every proxy call returns 500 — which degrades to the regex
+ladder rather than failing scans, but that is precisely the silent-degradation shape that hid
+the ten-week AI outage. Apply the migrations first.
+
 ## Suggested priority order for fixing
 
 1. **#1 (ReDoS)** — trivial regex fix, prevents a full scan hang from a single email.

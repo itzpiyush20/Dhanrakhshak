@@ -88,7 +88,10 @@ describe('extractCardLast4 — ReDoS regression', () => {
   it('still extracts the last 4 from every masking format in use', () => {
     expect(extractCardLast4('spent on card xxxx1234')).toBe('1234')
     expect(extractCardLast4('Card XXXX-5678 debited')).toBe('5678')
-    expect(extractCardLast4('a/c ****4321 charged')).toBe('4321')
+    // NB: must say "card", not "a/c" — the function deliberately treats an
+    // account keyword in the pre-text window as evidence this is an account
+    // number, not a card, and correctly rejects it.
+    expect(extractCardLast4('card ****4321 charged')).toBe('4321')
     expect(extractCardLast4('Card ending 9876')).toBe('9876')
     expect(extractCardLast4('HDFC Card XXXX-XXXX-XXXX-2468')).toBe('2468')
   })
