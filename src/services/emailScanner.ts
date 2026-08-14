@@ -2068,10 +2068,6 @@ async function runGmailScan(opts?: ScanGmailOptions) {
 
       if (mailMessageId && existingMessageIds.has(mailMessageId)) continue
 
-      const mailTime = mail.internalDate ? Number(mail.internalDate) : Date.now()
-      if (mailTime < startLimitTime) continue
-      const mailDate = new Date(mailTime).toISOString().split('T')[0]
-
       // Headers first: they are cheap, and later gates need the subject and
       // sender to write a useful rejection log. extractEmailBody()
       // (base64 decode + DOM parse) is the expensive part of this stage and is
@@ -2084,6 +2080,20 @@ async function runGmailScan(opts?: ScanGmailOptions) {
       const senderDomainMatch = fromValue.match(/@([\w.-]+)>?/i)
       const senderDomain = senderDomainMatch ? senderDomainMatch[1].toLowerCase() : ''
       const isTrustedSender = isTrustedSenderDomain(senderDomain)
+
+      // Date window. A missing internalDate used to fall back to Date.now(),
+      // which always passes the check below regardless of how old the mail
+      // actually is — a malformed API response could slip an out-of-window
+      // email through. Reject and log it instead of failing open. This sits
+      // after the header reads only so the rejection can name the sender and
+      // subject; header parsing is cheap string work and gates nothing.
+      if (!mail.internalDate) {
+        bufferRejection('no_internal_date', senderDomain, subject, '')
+        continue
+      }
+      const mailTime = Number(mail.internalDate)
+      if (mailTime < startLimitTime) continue
+      const mailDate = new Date(mailTime).toISOString().split('T')[0]
 
       const bodyText = extractEmailBody(mail)
       // Strip security/legal footer boilerplate before ANY gate or the AI

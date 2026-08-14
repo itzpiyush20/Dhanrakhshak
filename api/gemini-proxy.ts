@@ -55,15 +55,23 @@ function isRateLimited(ip: string): boolean {
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://dhanrakshak-five.vercel.app'
 
+/** ALLOWED_ORIGIN may carry several comma-separated hosts (preview deploys, a custom domain). */
+const ALLOWED_ORIGINS = ALLOWED_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
+
 // Server-side only — never exposed to the client, unlike a VITE_-prefixed var.
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers.origin || ''
-  if (origin && (origin.endsWith('.vercel.app') || origin.startsWith('http://localhost:') || origin === ALLOWED_ORIGIN)) {
+  // Pinned to known origins. This used to accept ANY `*.vercel.app` host —
+  // anyone can deploy one for free — while also sending
+  // Access-Control-Allow-Credentials, a wider allowlist than this app needs.
+  // Extra deployments (previews, a custom domain) belong in ALLOWED_ORIGIN as
+  // a comma-separated list rather than in a wildcard suffix match.
+  if (origin && (ALLOWED_ORIGINS.includes(origin) || origin.startsWith('http://localhost:'))) {
     res.setHeader('Access-Control-Allow-Origin', origin)
   } else if (!origin) {
-    res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
+    res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS[0] || ALLOWED_ORIGIN)
   }
   res.setHeader('Access-Control-Allow-Credentials', 'true')
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS')
@@ -196,7 +204,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('Gemini proxy error:', error)
     await refundQuota()
     const isTimeout = error?.name === 'AbortError'
-    return res.status(isTimeout ? 504 : 500).json({ error: isTimeout ? 'Gemini API request timed out' : (error.message || 'AI request failed') })
+    // The raw message is logged above, not returned: forwarding it verbatim
+    // leaked server-side DNS/TLS/network detail to the client for no benefit.
+    return res.status(isTimeout ? 504 : 500).json({ error: isTimeout ? 'Gemini API request timed out' : 'AI request failed' })
   } finally {
     clearTimeout(timeoutId)
   }

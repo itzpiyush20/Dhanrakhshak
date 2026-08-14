@@ -925,6 +925,29 @@ describe('scanRealGmailInbox — strict 7-day scan window', () => {
     expect(askAI).not.toHaveBeenCalled()
   })
 
+  it('rejects an email with no internalDate instead of treating it as arriving now', async () => {
+    // The fallback used to be Date.now(), which always passes the window check
+    // regardless of how old the mail actually is — a malformed API response
+    // could slip an out-of-window email straight through the date gate.
+    const undated = makeAxisEmiGmailMessage('msg-undated-1')
+    delete (undated as any).internalDate
+    mockGmailCapturingQuery([undated])
+
+    const insertedTransactions: any[] = []
+    const insertedRejections: any[] = []
+    const askAI = vi.fn(async () => null)
+    const { scanRealGmailInbox } = await import('./emailScanner')
+    const result = await scanRealGmailInbox({
+      db: makeMockDb(insertedTransactions, insertedRejections),
+      askAI: askAI as any,
+    })
+
+    expect(result.error).toBeNull()
+    expect(insertedTransactions.flat()).toHaveLength(0)
+    expect(askAI).not.toHaveBeenCalled()
+    expect(insertedRejections.flat().map((r: any) => r.gate)).toContain('no_internal_date')
+  })
+
   it('does not reprocess an email already attached to a transaction', async () => {
     // R4. The window deliberately overlaps previous scans; dedup is what makes
     // that free.
