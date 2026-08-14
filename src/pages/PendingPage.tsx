@@ -591,9 +591,43 @@ export default function PendingPage() {
   // Writes the actual rejection to the database. Split from the tap handler
   // below so the write can be delayed a few seconds for the undo window —
   // mirrors commitApproval's split for the same reason.
-  const handleReject = async (id: string) => {
+  const handleReject = async (txn: TransactionRow) => {
     try {
-      const { error } = await deleteTransaction(id)
+      // Remember the email BEFORE deleting the row.
+      //
+      // Rejecting deletes the transaction outright, and the scanner's dedup set
+      // is built from the transactions table — so the delete erased the only
+      // record that this email had ever been seen. The next scan re-detected it
+      // and put it straight back in Pending: reject, rescan, reappear, forever.
+      // Approving does not have this problem because that row survives with
+      // approval_status 'approved' and stays in the dedup set.
+      //
+      // Recording it as a rejection is what makes the decision final: the scan's
+      // rejection preload skips these ids on every subsequent scan. Absorbed
+      // ids are recorded too, or the merged-away partner comes back on its own.
+      const messageIds = [
+        txn.email_message_id,
+        ...((txn.merged_email_message_ids ?? []) as string[]),
+      ].filter((m): m is string => !!m)
+
+      if (messageIds.length > 0 && user) {
+        const { error: rememberErr } = await supabase.from('email_scan_rejections').insert(
+          messageIds.map((messageId) => ({
+            user_id: user.id,
+            gate: 'user_rejected',
+            email_message_id: messageId,
+            subject: (txn.description || txn.merchant || '').substring(0, 500) || null,
+          }))
+        )
+        // Deliberately not fatal: failing to write the audit row must not block
+        // the user's rejection. Worst case is the pre-existing behaviour — the
+        // email may be detected again — which is why it is logged loudly.
+        if (rememberErr) {
+          console.error('[PendingPage] Could not record rejection; this email may be detected again:', rememberErr)
+        }
+      }
+
+      const { error } = await deleteTransaction(txn.id)
       if (error) throw error
     } catch (err: any) {
       console.error('Error rejecting transaction:', err)
@@ -614,7 +648,7 @@ export default function PendingPage() {
 
     const timer = setTimeout(() => {
       pendingCommitTimers.delete(txn.id)
-      handleReject(txn.id)
+      handleReject(txn)
     }, 5000)
     pendingCommitTimers.set(txn.id, timer)
 
