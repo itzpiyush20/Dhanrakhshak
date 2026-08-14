@@ -41,6 +41,17 @@ const CURRENCY_TOKENS: Array<{ pattern: string; code: string }> = [
   { pattern: '\\$', code: 'USD' },
 ]
 
+/**
+ * Every ISO code this app can actually detect and render, derived from the
+ * table above so the two cannot drift.
+ *
+ * Used to validate what the AI returns: the model is asked for a currency code
+ * and, being a language model, can invent one. An unrecognised code stored on a
+ * transaction would render with no symbol and silently escape the INR-only
+ * aggregates, so a verdict carrying one is rejected rather than trusted.
+ */
+export const SUPPORTED_CURRENCY_CODES: ReadonlySet<string> = new Set(CURRENCY_TOKENS.map((t) => t.code))
+
 const CURRENCY_ALTERNATION = CURRENCY_TOKENS.map((t) => t.pattern).join('|')
 const NUMBER_PATTERN = '[0-9][0-9,]*(?:\\.[0-9]{1,2})?'
 
