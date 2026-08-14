@@ -9,6 +9,8 @@
 // inside a negated security-footer sentence like "has not been initiated
 // by you" — which is the opposite of a pending-payment notice.
 
+import { extractAmountMatches } from './currency.js'
+
 export interface GateCheckResult {
   rejected: boolean
   gate: string | null
@@ -165,12 +167,10 @@ export function isBulkMarketingEmail(
 }
 
 /**
- * Vocabulary asserting that money actually moved. `total` is deliberately
- * included and is load-bearing: the unknown-vendor receipt fixture contains
- * `Total` and none of the other terms, so removing it breaks detection for
- * exactly the long-tail vendors this pipeline exists to support.
+ * Vocabulary specific enough that its presence alone asserts money moved.
+ * These may match anywhere in the text.
  */
-const PAYMENT_ASSERTION_PATTERNS: RegExp[] = [
+const SPECIFIC_PAYMENT_PATTERNS: RegExp[] = [
   /\bdebited\b/i,
   /\bcredited\b/i,
   /\bpaid\b/i,
@@ -180,53 +180,52 @@ const PAYMENT_ASSERTION_PATTERNS: RegExp[] = [
   /\btransferred\b/i,
   /\bdeducted\b/i,
   /\bbilled\b/i,
-  /\bsub\s*total\b/i,
-  /\btotal\b/i,
   /\bamount\s+paid\b/i,
   /\bpayment\s*(?:is|was|has\s+been)?\s*(?:of|successful|received|confirmed|done|completed|processed|towards)\b/i,
   /\bcard\s*payment\s*(?:is|was|has\s+been)?\s*(?:successful|received|done|completed|processed|confirmed|towards)?\b/i,
   /\bcredit\s*card\s*(?:bill\s*)?payment\b/i,
   /\bbill\s*payment\s*(?:is|was|has\s+been)?\s*(?:successful|received|done|completed|processed|confirmed)?\b/i,
   /\bpayment\s*(?:is|was|has\s+been)?\s*(?:received|successful|confirmed|completed|processed)\s*(?:towards|for)?\s*(?:your\s*)?(?:credit\s*)?card\b/i,
-  /\bfare\b/i,
   /\btxn\b/i,
   /\btransaction\s+id\b/i,
 ]
 
+/**
+ * Receipt vocabulary that is also ordinary English. `total` is load-bearing —
+ * the unknown-vendor receipt fixture contains `Total` and none of the specific
+ * terms above, so it cannot simply be dropped without losing exactly the
+ * long-tail vendors this pipeline exists to support.
+ *
+ * But matched anywhere in 2000 characters it also fires on "Total savings this
+ * festive season!", letting bulk marketing past the gate whose whole job is to
+ * reject it before it costs an AI call. So these are accepted only when a
+ * currency-tagged amount sits nearby — which is what a real receipt line looks
+ * like, and what a slogan does not.
+ */
+const GENERIC_PAYMENT_PATTERNS: RegExp[] = [
+  /\bsub\s*total\b/i,
+  /\btotal\b/i,
+  /\bfare\b/i,
+]
+
+/** How close a currency amount must sit to a generic term to corroborate it. */
+const ASSERTION_PROXIMITY_CHARS = 120
+
 /** True when the text asserts that money actually moved. */
 export function hasPaymentAssertion(text: string | null | undefined): boolean {
   if (!text) return false
-  return PAYMENT_ASSERTION_PATTERNS.some((p) => p.test(text))
-}
+  if (SPECIFIC_PAYMENT_PATTERNS.some((p) => p.test(text))) return true
 
-import type { SupabaseClient } from '@supabase/supabase-js'
+  const amounts = extractAmountMatches(text)
+  if (amounts.length === 0) return false
 
-/**
- * Fire-and-forget: records why an email was rejected so a future recall
- * gap is diagnosable without a manual code trace. Must never throw or
- * slow down the scan it's called from — failures are logged to console
- * only.
- */
-export async function logRejection(
-  db: SupabaseClient,
-  userId: string,
-  scanLogId: string,
-  gate: string,
-  senderDomain: string,
-  subject: string,
-  matchedSnippet: string
-): Promise<void> {
-  try {
-    const { error } = await db.from('email_scan_rejections').insert({
-      user_id: userId,
-      scan_log_id: scanLogId,
-      sender_domain: senderDomain || null,
-      subject: subject ? subject.substring(0, 500) : null,
-      gate,
-      matched_snippet: matchedSnippet ? matchedSnippet.substring(0, 200) : null,
-    })
-    if (error) console.warn(`[emailScanner] Failed to log rejection (gate=${gate}):`, error.message)
-  } catch (e) {
-    console.warn(`[emailScanner] Failed to log rejection (gate=${gate}):`, e)
-  }
+  return GENERIC_PAYMENT_PATTERNS.some((pattern) => {
+    const scan = new RegExp(pattern.source, pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`)
+    let match: RegExpExecArray | null
+    while ((match = scan.exec(text)) !== null) {
+      const at = match.index
+      if (amounts.some((a) => Math.abs(a.index - at) <= ASSERTION_PROXIMITY_CHARS)) return true
+    }
+    return false
+  })
 }

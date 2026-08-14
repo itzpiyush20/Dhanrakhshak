@@ -21,8 +21,6 @@ import {
   TrendingUp,
   TrendingDown,
   Shield,
-  Download,
-  Check,
   CreditCard,
   Wallet,
   Sparkles,
@@ -39,7 +37,6 @@ import { getBudgets } from '@/services/budgets'
 import { detectAnomalies } from '@/services/aiService'
 import {
   supabase,
-  resetAccountData,
   getNextRefreshTime,
   getLastScheduledRefreshTime,
   scanRealGmailInbox,
@@ -156,10 +153,7 @@ export default function DashboardPage() {
     }
   }
 
-  // Scheduling, Inactivity popup, and Year-End transition states
-  const [showYearEndModal, setShowYearEndModal] = useState(false)
-  const [priorYearTransactions, setPriorYearTransactions] = useState<TransactionRow[]>([])
-  const [priorYear, setPriorYear] = useState<number>(new Date().getFullYear() - 1)
+  // Scheduling and Inactivity popup states
   const [lastScanTime, setLastScanTime] = useState<Date | null>(null)
   const [showInactivityBanner, setShowInactivityBanner] = useState(false)
   const [syncingBackground, setSyncingBackground] = useState(false)
@@ -273,27 +267,7 @@ export default function DashboardPage() {
     if (scheduledTasksRanForUser.current === user.id) return
     scheduledTasksRanForUser.current = user.id
     try {
-      const currentYear = new Date().getFullYear()
-      // 1. Check if there are transactions from prior years
-      const { data: priorTxns, error: priorErr } = await supabase
-        .from('transactions')
-        .select('*')
-        .lt('date', `${currentYear}-01-01`)
-      
-      if (!priorErr && priorTxns && priorTxns.length > 0) {
-        const years = priorTxns
-          .map(t => t.date ? new Date(t.date).getFullYear() : null)
-          .filter((y): y is number => y !== null && !isNaN(y))
-        
-        if (years.length > 0) {
-          const minYear = Math.min(...years)
-          setPriorYear(minYear)
-          setPriorYearTransactions(priorTxns)
-          setShowYearEndModal(true)
-        }
-      }
-
-      // 2. Check last scan log to determine inactivity and auto-refresh
+      // Check last scan log to determine inactivity and auto-refresh
       const { data: scanLogs } = await supabase
         .from('email_scan_logs')
         .select('*')
@@ -502,51 +476,6 @@ export default function DashboardPage() {
       .finally(() => setSeedingDemo(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
-
-  const exportData = (format: 'csv' | 'json') => {
-    if (priorYearTransactions.length === 0) return
-
-    let content = ''
-    let mimeType = ''
-    let filename = ''
-
-    if (format === 'csv') {
-      const headers = 'ID,Date,Type,Amount,Category,Merchant,Description,Source,Status\n'
-      const rows = priorYearTransactions.map(t => 
-        `"${t.id}","${t.date}","${t.type}",${t.amount},"${t.category}","${(t.merchant || '').replace(/"/g, '""')}","${(t.description || '').replace(/"/g, '""')}","${t.source}","${t.approval_status}"`
-      ).join('\n')
-      content = headers + rows
-      mimeType = 'text/csv;charset=utf-8;'
-      filename = `Dhanrakshak_Financial_Year_${priorYear}_Export.csv`
-    } else {
-      content = JSON.stringify(priorYearTransactions, null, 2)
-      mimeType = 'application/json;charset=utf-8;'
-      filename = `Dhanrakshak_Financial_Year_${priorYear}_Export.json`
-    }
-
-    const blob = new Blob([content], { type: mimeType })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.setAttribute('href', url)
-    link.setAttribute('download', filename)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
-  const handleResetForNewYear = async () => {
-    try {
-      setLoading(true)
-      const errorMsg = await resetAccountData()
-      if (errorMsg) throw errorMsg
-      setShowYearEndModal(false)
-      window.location.reload()
-    } catch (err: any) {
-      showToast(`Failed to reset data: ${err.message || err}`, 'error')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleManualBannerSync = async () => {
     setSyncingBackground(true)
@@ -1354,63 +1283,6 @@ export default function DashboardPage() {
             </Modal>
           )
         })()}
-
-        {/* Year-End Financial Transition & Reset Modal */}
-        <Modal
-          isOpen={showYearEndModal}
-          onClose={() => setShowYearEndModal(false)}
-          title="Financial Year Completed"
-          footer={
-            <div className="w-full space-y-3">
-              <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider">1. Export Prior Year Records</p>
-              <div className="flex gap-2.5">
-                <Button
-                  onClick={() => exportData('csv')}
-                  className="flex-1 text-xs justify-center gap-1 bg-surface-2 border border-border-subtle hover:border-brand-500/40 text-zinc-200"
-                >
-                  <Download className="h-4 w-4" /> Download CSV Report
-                </Button>
-                <Button
-                  onClick={() => exportData('json')}
-                  className="flex-1 text-xs justify-center gap-1 bg-surface-2 border border-border-subtle hover:border-brand-500/40 text-zinc-200"
-                >
-                  <Download className="h-4 w-4" /> Download JSON Backup
-                </Button>
-              </div>
-              <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider pt-2">2. Clear & Start Fresh for New Year</p>
-              <Button
-                variant="danger"
-                block
-                onClick={handleResetForNewYear}
-                disabled={loading}
-                loading={loading}
-                className="w-full text-xs py-3 font-bold justify-center"
-              >
-                <Check className="h-4 w-4" /> Export Completed - Reset Account & Start New Year
-              </Button>
-            </div>
-          }
-        >
-          <div className="space-y-4 text-sm text-zinc-300">
-            <p className="leading-relaxed text-zinc-400">
-              Your <strong className="text-text-primary">{priorYear} Financial Year</strong> is complete. 
-              Dhanrakshak operates on a calendar-year budget cycle (Jan 1 to Dec 31). To start fresh for the current year, please export your prior records.
-            </p>
-            
-            <div className="rounded-xl border border-[var(--status-warning-border)] bg-[var(--status-warning-subtle)] p-4 text-xs text-[var(--status-warning-text)] leading-normal flex gap-2">
-              <AlertTriangle className="h-5 w-5 text-status-warning shrink-0 mt-0.5" />
-              <p>
-                <strong>Important:</strong> Downloading your backup file is mandatory before resetting. 
-                Once you confirm, Dhanrakshak will restore everything to blank (wipe prior transactions, budgets, and logs) so the scanner can work as new.
-              </p>
-            </div>
-
-            <div className="bg-surface-2/40 border border-border-subtle rounded-xl p-3 text-xs flex justify-between items-center text-zinc-400">
-              <span>Prior Records Found</span>
-              <span className="font-semibold text-zinc-200">{priorYearTransactions.length} transaction(s)</span>
-            </div>
-          </div>
-        </Modal>
 
         {/* Widget Customization Modal */}
         <Modal

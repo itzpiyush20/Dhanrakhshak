@@ -7,6 +7,7 @@
 
 import { formatCurrency, fetchWithTimeout } from '../utils/index.js'
 import { supabase } from './supabase.js'
+import { SUPPORTED_CURRENCY_CODES } from './currency.js'
 
 const GEMINI_PROXY_URL = '/api/gemini-proxy'
 
@@ -498,9 +499,48 @@ const NEGATIVE_EXAMPLE = `{
   "confidence_score": 0
 }`
 
-/** True when the parsed value has the minimum shape of a usable AI verdict. */
+/**
+ * Neutralise the body fence inside attacker-controlled text.
+ *
+ * Email subject and body are attacker-controlled — anyone can send the user
+ * mail. Both are interpolated into the prompt inside a `"""` fence, so a body
+ * that contains `"""` can close the fence early and have whatever follows read
+ * as instructions rather than as data to classify.
+ *
+ * Only the fence sequence is touched. The text still has to survive the STRICT
+ * RULES, which are unchanged.
+ */
+export function fenceUntrustedText(text: string): string {
+  return text.replace(/"{3,}/g, '"·"·"')
+}
+
+/**
+ * Above this, the model is hallucinating rather than reading. Generous on
+ * purpose — property and vehicle payments are legitimately large — but a
+ * fabricated or injected figure is typically orders of magnitude past it.
+ */
+const MAX_PLAUSIBLE_AMOUNT = 100_000_000
+
+/**
+ * True when the parsed value has the minimum shape of a usable AI verdict.
+ *
+ * `is_transaction` alone used to be the whole check, so an `amount` of any type
+ * and a `currency` of any string reached the database. A rejected verdict
+ * becomes `null`, which already means "no AI answer — use the regex ladder", so
+ * this tightening degrades rather than drops.
+ */
 function isUsableResult(value: unknown): value is AITransactionResult {
-  return !!value && typeof value === 'object' && typeof (value as AITransactionResult).is_transaction === 'boolean'
+  if (!value || typeof value !== 'object') return false
+  const v = value as AITransactionResult
+  if (typeof v.is_transaction !== 'boolean') return false
+  // A non-transaction verdict carries no fields worth checking.
+  if (!v.is_transaction) return true
+  if (v.amount !== undefined && v.amount !== null) {
+    if (typeof v.amount !== 'number' || !Number.isFinite(v.amount)) return false
+    if (v.amount <= 0 || v.amount > MAX_PLAUSIBLE_AMOUNT) return false
+  }
+  if (v.currency != null && !SUPPORTED_CURRENCY_CODES.has(v.currency)) return false
+  return true
 }
 
 /**
@@ -520,11 +560,11 @@ export async function analyzeTransactionEmailWithAI(
     const prompt = `
 Analyze the following bank/payment email to determine if it describes a COMPLETED financial transaction.
 
-Subject: "${subject}"
+Subject: "${fenceUntrustedText(subject)}"
 Date: "${emailDate}"
 Body:
 """
-${body.substring(0, AI_BODY_CHAR_LIMIT)}
+${fenceUntrustedText(body.substring(0, AI_BODY_CHAR_LIMIT))}
 """
 
 ${STRICT_RULES_BLOCK}
@@ -609,11 +649,11 @@ export async function analyzeTransactionEmailBatchWithAI(
   // to reproduce arbitrary numbers.
   const emailBlocks = emails
     .map((e, i) => `EMAIL ${i}:
-Subject: "${e.subject}"
+Subject: "${fenceUntrustedText(e.subject)}"
 Date: "${e.emailDate}"
 Body:
 """
-${e.body.substring(0, AI_BODY_CHAR_LIMIT)}
+${fenceUntrustedText(e.body.substring(0, AI_BODY_CHAR_LIMIT))}
 """`)
     .join('\n\n')
 

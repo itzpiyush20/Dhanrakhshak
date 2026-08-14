@@ -7,7 +7,7 @@ vi.mock('./supabase', () => ({
   },
 }))
 
-import { getMerchantRulesFromDB, applyMerchantRulesFromDB } from './learningEngine'
+import { getMerchantRulesFromDB, applyMerchantRulesFromDB, applyMerchantRulesFromRows } from './learningEngine'
 
 describe('applyMerchantRulesFromDB', () => {
   it('never returns approval_status "approved", even for a high-confidence, auto_approve, many-times-confirmed exact match', async () => {
@@ -84,5 +84,55 @@ describe('getMerchantRulesFromDB', () => {
   it('falls back to the default module client when none is passed', async () => {
     await getMerchantRulesFromDB('u1')
     expect(defaultMockOrder).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('generic-word merchant rules do not fuzzy-match unrelated mail', () => {
+  const rule = (merchant_key: string) => ({
+    merchant_key,
+    preferred_category: 'Shopping',
+    confidence: 100,
+    times_confirmed: 5,
+    auto_approve: true,
+  }) as any
+
+  // Asserted on matchReason, not category: when no rule matches the function
+  // falls through to the localStorage matcher, which supplies a category of
+  // its own. Only matchReason isolates whether the DB partial rule fired.
+  it('does not fuzzy-match a rule keyed "store" against an App Store subscription email', () => {
+    const result = applyMerchantRulesFromRows(
+      [rule('store')], 'Netflix', 'Your App Store subscription has renewed', 'Other'
+    )
+    expect(result.matchReason).not.toContain('DB partial rule')
+  })
+
+  it('does not fuzzy-match a rule keyed "payment" against an unrelated payment alert', () => {
+    const result = applyMerchantRulesFromRows(
+      [rule('payment')], 'Zomato', 'Payment of Rs 450 debited', 'Other'
+    )
+    expect(result.matchReason).not.toContain('DB partial rule')
+  })
+
+  it('still fuzzy-matches a distinctive merchant key found in the snippet', () => {
+    const result = applyMerchantRulesFromRows(
+      [rule('bigbasket')], 'Unknown Vendor', 'Your bigbasket order has shipped', 'Other'
+    )
+    expect(result.matchReason).toContain('DB partial rule')
+    expect(result.category).toBe('Shopping')
+    // The never-auto-approve invariant holds regardless of the rule's flag.
+    expect(result.approval_status).toBe('pending')
+  })
+
+  it('leaves the exact-match arm alone', () => {
+    // The guard disqualifies a generic key from the FUZZY arm only. Exercised
+    // via a distinctive key here because merchantNormalizer routes a bare
+    // generic name like "store" to a template default, so such a name never
+    // reaches the exact-key comparison in practice anyway.
+    const result = applyMerchantRulesFromRows(
+      [rule('swiggy')], 'SWIGGYBANGALORE', 'order delivered', 'Other'
+    )
+    expect(result.matchReason).toContain('DB rule')
+    expect(result.category).toBe('Shopping')
+    expect(result.approval_status).toBe('pending')
   })
 })

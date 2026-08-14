@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isGenuinePendingInitiation, evaluateRegexGates, logRejection, isBulkMarketingEmail, hasPaymentAssertion } from './emailScanGates'
+import { isGenuinePendingInitiation, evaluateRegexGates, isBulkMarketingEmail, hasPaymentAssertion } from './emailScanGates'
 import { AXIS_EMI_BODY } from './__fixtures__/axisEmiDebit'
 import { UBER_TRIP_BODY } from './__fixtures__/uberTripReceipt'
 import { ZOMATO_ORDER_BODY } from './__fixtures__/zomatoOrderReceipt'
@@ -123,44 +123,6 @@ describe('evaluateRegexGates', () => {
   it('hasPaymentAssertion returns true for "payment was successful" and "credit card bill payment"', () => {
     expect(hasPaymentAssertion('your credit card bill payment was successful')).toBe(true)
     expect(hasPaymentAssertion('Payment of Rs 15000 was successful towards your SBI Card')).toBe(true)
-  })
-})
-
-describe('logRejection', () => {
-  it('inserts a rejection row with the given fields', async () => {
-    const insertedRows: any[] = []
-    const mockDb: any = {
-      from: (table: string) => ({
-        insert: (row: any) => {
-          insertedRows.push({ table, row })
-          return Promise.resolve({ error: null })
-        },
-      }),
-    }
-
-    await logRejection(mockDb, 'user-1', 'scan-log-1', 'otp_or_security_code', 'axis.bank.in', 'Some subject', 'matched text')
-
-    expect(insertedRows).toHaveLength(1)
-    expect(insertedRows[0].table).toBe('email_scan_rejections')
-    expect(insertedRows[0].row).toEqual({
-      user_id: 'user-1',
-      scan_log_id: 'scan-log-1',
-      sender_domain: 'axis.bank.in',
-      subject: 'Some subject',
-      gate: 'otp_or_security_code',
-      matched_snippet: 'matched text',
-    })
-  })
-
-  it('never throws when the insert fails', async () => {
-    const mockDb: any = {
-      from: () => ({
-        insert: () => Promise.resolve({ error: new Error('db down') }),
-      }),
-    }
-    await expect(
-      logRejection(mockDb, 'user-1', 'scan-log-1', 'otp_or_security_code', 'axis.bank.in', 'subj', 'snippet')
-    ).resolves.toBeUndefined()
   })
 })
 
@@ -401,5 +363,28 @@ describe('credit card bill payment & spend alert gates', () => {
     const content = 'YOUR CREDIT CARD BILL PAYMENT IS SUCCESSFUL. Payment of Rs 15,000 towards SBI Card was received on 12 Aug 2026. UTR: 421098765432.'
     const result = evaluateRegexGates('YOUR CREDIT CARD BILL PAYMENT IS SUCCESSFUL', content, true)
     expect(result.rejected).toBe(false)
+  })
+})
+
+describe('generic payment assertions need an amount nearby', () => {
+  it('rejects a marketing slogan that merely contains "total"', () => {
+    expect(hasPaymentAssertion('Total savings this festive season! Shop the sale now.')).toBe(false)
+  })
+
+  it('rejects a travel promo that merely mentions fares', () => {
+    expect(hasPaymentAssertion('Lowest fares of the year. Book your next holiday today.')).toBe(false)
+  })
+
+  it('still accepts a long-tail vendor receipt line', () => {
+    expect(hasPaymentAssertion('Order summary\nItem: Coffee beans\nTotal: Rs. 649.00')).toBe(true)
+    expect(hasPaymentAssertion('Sub Total ₹ 1,299')).toBe(true)
+  })
+
+  it('still accepts a fare with its amount', () => {
+    expect(hasPaymentAssertion('Trip complete. Fare Rs 247.50')).toBe(true)
+  })
+
+  it('is unaffected for specific vocabulary with no amount at all', () => {
+    expect(hasPaymentAssertion('Your account has been debited')).toBe(true)
   })
 })

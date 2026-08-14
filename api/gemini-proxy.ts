@@ -55,15 +55,23 @@ function isRateLimited(ip: string): boolean {
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://dhanrakshak-five.vercel.app'
 
+/** ALLOWED_ORIGIN may carry several comma-separated hosts (preview deploys, a custom domain). */
+const ALLOWED_ORIGINS = ALLOWED_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
+
 // Server-side only — never exposed to the client, unlike a VITE_-prefixed var.
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers.origin || ''
-  if (origin && (origin.endsWith('.vercel.app') || origin.startsWith('http://localhost:') || origin === ALLOWED_ORIGIN)) {
+  // Pinned to known origins. This used to accept ANY `*.vercel.app` host —
+  // anyone can deploy one for free — while also sending
+  // Access-Control-Allow-Credentials, a wider allowlist than this app needs.
+  // Extra deployments (previews, a custom domain) belong in ALLOWED_ORIGIN as
+  // a comma-separated list rather than in a wildcard suffix match.
+  if (origin && (ALLOWED_ORIGINS.includes(origin) || origin.startsWith('http://localhost:'))) {
     res.setHeader('Access-Control-Allow-Origin', origin)
   } else if (!origin) {
-    res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
+    res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS[0] || ALLOWED_ORIGIN)
   }
   res.setHeader('Access-Control-Allow-Credentials', 'true')
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS')
@@ -105,32 +113,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const purpose: 'scan' | 'insights' = req.body?.purpose === 'scan' ? 'scan' : 'insights'
   const DAILY_AI_CALL_LIMIT = 50
   const DAILY_AI_SCAN_CALL_LIMIT = 500
-  const countColumn = purpose === 'scan' ? 'ai_scan_calls_count' : 'ai_calls_count'
-  const resetColumn = purpose === 'scan' ? 'ai_scan_calls_reset_at' : 'ai_calls_reset_at'
   const dailyLimit = purpose === 'scan' ? DAILY_AI_SCAN_CALL_LIMIT : DAILY_AI_CALL_LIMIT
-
-  const { data: profile, error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .select(`${countColumn}, ${resetColumn}`)
-    .eq('id', user.id)
-    .single()
-
-  if (profileError || !profile) {
-    return res.status(500).json({ error: 'Failed to verify usage quota' })
-  }
-
-  const resetAt = new Date((profile as any)[resetColumn]).getTime()
-  const needsReset = Date.now() - resetAt > 24 * 60 * 60 * 1000
-  const currentCount = needsReset ? 0 : (profile as any)[countColumn]
-
-  if (currentCount >= dailyLimit) {
-    const limitMessage = purpose === 'scan' ? 'Daily AI scan limit reached. Try again tomorrow.' : 'Daily AI insights limit reached. Try again tomorrow.'
-    return res.status(429).json({ error: limitMessage })
-  }
 
   const { contents, generationConfig, safetySettings } = req.body ?? {}
   if (!Array.isArray(contents)) {
     return res.status(400).json({ error: 'contents array is required' })
+  }
+
+  // Reserve one unit BEFORE the call. This used to be a SELECT, a comparison in
+  // JS, and an UPDATE after success — which lost increments under the scanner's
+  // own four-way batch concurrency (all four read the same count, all four
+  // passed, the counter moved by one) so the cap was not enforced at all.
+  // `increment_ai_call_count` does the reset/increment/check in one statement.
+  const { data: withinLimit, error: quotaError } = await supabaseAdmin.rpc('increment_ai_call_count', {
+    p_user_id: user.id,
+    p_purpose: purpose,
+    p_limit: dailyLimit,
+  })
+
+  if (quotaError) {
+    return res.status(500).json({ error: 'Failed to verify usage quota' })
+  }
+
+  if (withinLimit === false) {
+    const limitMessage = purpose === 'scan' ? 'Daily AI scan limit reached. Try again tomorrow.' : 'Daily AI insights limit reached. Try again tomorrow.'
+    return res.status(429).json({ error: limitMessage })
+  }
+
+  // Reserving up front would otherwise make a transient upstream failure cost
+  // the user a call, which the pre-atomic code never did. Every non-success
+  // path below hands the unit back. Best-effort: a refund failure must never
+  // mask or replace the error we are actually reporting.
+  const refundQuota = async () => {
+    try {
+      await supabaseAdmin.rpc('refund_ai_call_count', {
+        p_user_id: user.id,
+        p_purpose: purpose,
+      })
+    } catch (refundError) {
+      console.error('[gemini-proxy] Failed to refund AI quota unit:', refundError)
+    }
   }
 
   const controller = new AbortController()
@@ -156,6 +178,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (isModelNotFoundStatus(geminiRes.status)) {
         const message = modelNotFoundMessage(resolveGeminiModel())
         console.error(`[gemini-proxy] FATAL CONFIG ERROR: no candidate model resolved. ${message}`)
+        await refundQuota()
         return res.status(502).json({ error: message, code: 'MODEL_NOT_FOUND' })
       }
 
@@ -170,25 +193,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Google is indistinguishable, in the Vercel request log, from this
       // route not existing at all.
       const status = geminiRes.status === 429 ? 429 : 502
+      await refundQuota()
       return res.status(status).json({ error: `Gemini API error: ${geminiRes.status}`, model })
     }
 
     const data = await geminiRes.json()
 
-    // Deduct quota only after successful call
-    await supabaseAdmin
-      .from('profiles')
-      .update({
-        [countColumn]: currentCount + 1,
-        ...(needsReset ? { [resetColumn]: new Date().toISOString() } : {}),
-      })
-      .eq('id', user.id)
-
     return res.status(200).json(data)
   } catch (error: any) {
     console.error('Gemini proxy error:', error)
+    await refundQuota()
     const isTimeout = error?.name === 'AbortError'
-    return res.status(isTimeout ? 504 : 500).json({ error: isTimeout ? 'Gemini API request timed out' : (error.message || 'AI request failed') })
+    // The raw message is logged above, not returned: forwarding it verbatim
+    // leaked server-side DNS/TLS/network detail to the client for no benefit.
+    return res.status(isTimeout ? 504 : 500).json({ error: isTimeout ? 'Gemini API request timed out' : 'AI request failed' })
   } finally {
     clearTimeout(timeoutId)
   }

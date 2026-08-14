@@ -45,8 +45,6 @@ interface AuthContextValue extends AuthState {
   openAuthModal: (redirectPath?: string, tab?: 'login' | 'signup') => void
   closeAuthModal: () => void
   currencySymbol: string
-  activeYear: number
-  startNewFinancialYear: (year?: number) => void
   dailyScanTime: string
   updateDailyScanTime: (time: string) => Promise<boolean>
 }
@@ -108,19 +106,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const currencySymbol = '₹'
 
-  const [activeYear, setActiveYearState] = useState<number>(2026)
-
-  useEffect(() => {
-    if (state.user) {
-      try {
-        const stored = localStorage.getItem(`dhanrakshak_active_financial_year_${state.user.id}`)
-        setActiveYearState(stored ? parseInt(stored, 10) : 2026)
-      } catch {
-        setActiveYearState(2026)
-      }
-    }
-  }, [state.user])
-
   const [dailyScanTime, setDailyScanTimeState] = useState<string>('06:00')
 
   useEffect(() => {
@@ -133,27 +118,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [state.user])
-
-  const startNewFinancialYear = useCallback((targetYear?: number) => {
-    if (!state.user) return
-    const nextYear = targetYear || (activeYear + 1)
-    try {
-      localStorage.setItem(`dhanrakshak_active_financial_year_${state.user.id}`, String(nextYear))
-      setActiveYearState(nextYear)
-
-      supabase
-        .from('profiles')
-        .update({ active_financial_year: nextYear })
-        .eq('id', state.user.id)
-        .then(({ error }) => {
-          if (error) {
-            console.warn('Failed to sync active year to Supabase profiles (non-critical):', error.message)
-          }
-        })
-    } catch (e) {
-      console.error('Failed to save active year:', e)
-    }
-  }, [state.user, activeYear])
 
   const updateDailyScanTime = useCallback(async (time: string) => {
     if (!state.user) return false
@@ -261,11 +225,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cachedScanTime) {
         setDailyScanTimeState(cachedScanTime)
       }
-
-      const cachedYear = localStorage.getItem(`dhanrakshak_active_financial_year_${state.user.id}`)
-      if (cachedYear) {
-        setActiveYearState(parseInt(cachedYear, 10))
-      }
     } catch (e) {
       console.warn('Failed to load cached profile:', e)
     }
@@ -319,27 +278,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           subscription_plan_type: subPlan
         })
 
-        // Sync settings (active_financial_year)
+        // Sync settings (daily_scan_time)
         // Check database value first. If present, sync to local. If absent/null, sync local to DB.
-
-        // Active Year Sync
-        let currentYear = 2026
-        const localYearPref = localStorage.getItem(`dhanrakshak_active_financial_year_${state.user.id}`)
-        if (data.active_financial_year) {
-          currentYear = data.active_financial_year
-          setActiveYearState(currentYear)
-          localStorage.setItem(`dhanrakshak_active_financial_year_${state.user.id}`, String(currentYear))
-        } else if (localYearPref) {
-          currentYear = parseInt(localYearPref, 10)
-          // Sync local preference to Supabase since it's null in DB
-          supabase
-            .from('profiles')
-            .update({ active_financial_year: currentYear })
-            .eq('id', state.user.id)
-            .then(({ error: syncError }) => {
-              if (syncError) console.warn('Non-critical: Failed to sync local active year preference to DB:', syncError.message)
-            })
-        }
 
         // Daily Scan Time Sync
         let currentScanTime = '06:00'
@@ -943,8 +883,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         openAuthModal,
         closeAuthModal,
         currencySymbol,
-        activeYear,
-        startNewFinancialYear,
         dailyScanTime,
         updateDailyScanTime
       }}

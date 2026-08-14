@@ -19,8 +19,9 @@ import {
 } from './aiService.js'
 import { stripBoilerplate } from './emailBoilerplate.js'
 import { evaluateRegexGates, isBulkMarketingEmail, hasPaymentAssertion } from './emailScanGates.js'
-import { isSamePayment, mergePayments, isWeakMerchantLabel, type MergeableTransaction } from './paymentMerge.js'
+import { isSamePayment, isSuspectedDuplicate, mergePayments, isWeakMerchantLabel, type MergeableTransaction } from './paymentMerge.js'
 import { extractAmountMatches, isHomeCurrency, DEFAULT_CURRENCY } from './currency.js'
+import { isPremiumProfile } from './subscription.js'
 
 type EmailScanLog = Database['public']['Tables']['email_scan_logs']['Row']
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert']
@@ -132,7 +133,17 @@ const HARD_REJECT_SUBJECT_PATTERNS = [
   /\b(auto-?debit\s*scheduled|standing\s*instruction|pre-?authorized)\b/i,
 ]
 
-const HARD_ACCEPT_SUBJECT_PATTERNS = [
+/**
+ * Subjects that override the AI's confident "not a transaction" verdict and
+ * fall through to the regex ladder instead.
+ *
+ * Because that discards the strongest signal in the pipeline, every pattern
+ * here must assert money moved. A bare `/\bcred\b/i` used to sit in this list
+ * and matched any standalone "cred" in a subject — "Your CRED coins expire
+ * soon" included. The narrower `/\bcred\b.*(?:bill|payment)\b/i` above covers
+ * the real credit-card-bill case; removing the bare one left every test green.
+ */
+export const HARD_ACCEPT_SUBJECT_PATTERNS = [
   /\b(debited|debit\s*alert|amount\s*debited)\b/i,
   /\b(credited|credit\s*alert|amount\s*credited)\b/i,
   /\b(transaction\s*alert|payment\s*alert|txn\s*alert)\b/i,
@@ -156,7 +167,6 @@ const HARD_ACCEPT_SUBJECT_PATTERNS = [
   /\bspent\s+(?:on|at)\b/i,
   /\bpayment\s*(?:received|successful|confirmed|completed|done|processed)\b/i,
   /\b(?:credit\s*)?card\s*payment\b/i,
-  /\bcred\b/i,
   /\b(?:transaction|txn|debit|credit|payment|spend)\s*(?:alert|notification|update|confirmation)\b/i,
   /\b(?:credit\s*card|card)\s*(?:bill\s*)?(?:payment|paid|received|successful|confirmation)\b/i,
   /\b(?:credit\s*)?card\s*bill\s*(?:is\s*)?paid\b/i,
@@ -533,8 +543,13 @@ function getLastMatchIndex(preText: string, regex: RegExp): number {
   return lastIndex
 }
 
-function extractCardLast4(text: string): string | null {
-  const candidateRegex = /(?:^|\D)(?:[xX*]+-?)*\s*(\d{4})\b/g
+export function extractCardLast4(text: string): string | null {
+  // Masking run is a single bounded character class, NOT a nested quantifier.
+  // The previous `(?:[xX*]+-?)*` was the classic `(a+)*` shape: on a long run
+  // of x/X/* not followed by 4 digits it backtracked exponentially — measured
+  // at 5.2 minutes for a 48-character input. This runs inside Stage C, which
+  // is not yielded mid-candidate, so one such email froze the entire scan.
+  const candidateRegex = /(?:^|\D)[xX*-]{0,40}\s*(\d{4})\b/g
   let match
   const candidates: { digits: string; index: number }[] = []
 
@@ -928,30 +943,11 @@ const PREMIUM_MANUAL_SCANS_PER_DAY = 2
 const MANUAL_QUOTA_WINDOW_MS = 24 * 60 * 60 * 1000
 
 /**
- * Pure: is this profile row currently entitled to premium behaviour?
- *
- * Shared by the scan path and the quota accessor so the definition of
- * "premium" cannot drift between what the engine enforces and what the UI
- * displays. Correcting a lapsed subscription's stored status is deliberately
- * NOT done here — that write stays on the scan path, keeping this safe to call
- * from a read.
+ * Re-exported so the many existing importers of this module keep working.
+ * The definition moved to `subscription.ts` because the serverless cron needs
+ * it too and cannot import this file — see that module's header.
  */
-export function isPremiumProfile(
-  profile: { subscription_status?: string | null; subscription_expires_at?: string | null } | null | undefined,
-  now: number = Date.now()
-): boolean {
-  if (!profile) return false
-  const expiresAt = profile.subscription_expires_at
-  if (profile.subscription_status === 'active') {
-    // An active subscription with no end date is open-ended.
-    return !expiresAt || new Date(expiresAt).getTime() > now
-  }
-  if (profile.subscription_status === 'trial') {
-    // A trial, unlike an active subscription, must carry an unexpired end date.
-    return !!expiresAt && new Date(expiresAt).getTime() > now
-  }
-  return false
-}
+export { isPremiumProfile }
 
 /** Owner is unlimited; premium and trial share a limit; everyone else is free-tier. */
 export function resolveManualScanLimit(isOwner: boolean, isPremium: boolean): number {
@@ -1290,8 +1286,6 @@ export interface ScanGmailOptions {
   userEmail?: string
   /** Google API access token to use directly, bypassing localStorage/session lookup. */
   accessToken?: string
-  /** Active financial year to scope the scan to. Defaults to the browser's localStorage value (or 2026). */
-  activeYear?: number
   /** Lookback window in milliseconds for searching Gmail. Defaults to 7 days. */
   scanWindowMs?: number
   /**
@@ -1632,27 +1626,6 @@ async function runGmailScan(opts?: ScanGmailOptions) {
       })
     }
 
-    let activeYear = opts?.activeYear ?? 2026
-    if (opts?.activeYear === undefined) {
-      try {
-        const storedYear = localStorage.getItem(`dhanrakshak_active_financial_year_${user.id}`)
-        if (storedYear) {
-          activeYear = parseInt(storedYear, 10)
-        }
-      } catch (e) {
-        console.warn('Failed to load active year from localStorage, using default 2026', e)
-      }
-    }
-
-    const today = new Date()
-    const activeYearEnd = new Date(`${activeYear}-12-31T23:59:59Z`)
-    if (today > activeYearEnd) {
-      return {
-        data: null,
-        error: new Error(`Financial Year ${activeYear} has ended. Please start the new financial year in settings to resume tracking.`)
-      }
-    }
-
     // Two OR-ed groups: the original bank-alert-style keywords, plus generic
     // receipt-shaped language that direct-vendor emails use instead (a trip
     // receipt or food-delivery order confirmation rarely says "debited" or
@@ -1826,7 +1799,7 @@ async function runGmailScan(opts?: ScanGmailOptions) {
       preloadOrDefault<PreloadRows>(
         supabase
           .from('transactions')
-          .select('id, amount, currency, type, date, merchant, description, reference_id, payment_mode, card_issuer, card_brand, transaction_time, confidence_score, approval_status, category_confirmed_at, email_message_id, merged_email_message_ids')
+          .select('id, amount, currency, type, date, merchant, description, reference_id, payment_mode, card_issuer, card_brand, transaction_time, confidence_score, approval_status, category_confirmed_at, email_message_id, merged_email_message_ids, possible_duplicate_of')
           .eq('user_id', user.id)
           .gte('date', dedupFrom),
         { data: [], error: null },
@@ -1974,6 +1947,10 @@ async function runGmailScan(opts?: ScanGmailOptions) {
      * Fold a newly parsed transaction into an existing one when they describe
      * the same payment (R10) — a bank alert and the merchant's own receipt.
      * Returns true when it was absorbed and must not be inserted separately.
+     *
+     * Only a matching reference id absorbs. A pair that merely looks alike is
+     * inserted as its own row carrying `possible_duplicate_of`, so the user
+     * decides in Pending rather than one of the two vanishing silently.
      */
     const absorbIntoExistingPayment = async (candidate: TransactionInsert): Promise<boolean> => {
       // 1. Against this scan's unwritten buffer — merge in place, no DB work.
@@ -1997,7 +1974,28 @@ async function runGmailScan(opts?: ScanGmailOptions) {
       // 2. Against transactions already stored (pre-existing, or flushed
       //    earlier in this scan).
       const stored = mergeCandidates.find((c) => isSamePayment(c, candidate))
-      if (!stored) return false
+      if (!stored) {
+        // Looks like a duplicate but nothing proves it. Keep BOTH rows and let
+        // the user decide — a missed merge costs one tap, a wrong merge
+        // destroys a transaction invisibly.
+        //
+        // A suspect still sitting in the unwritten buffer has no id to point
+        // at yet (TransactionInsert rows let Postgres generate theirs, and
+        // pre-generating one would risk a foreign-key failure in the 23505
+        // row-by-row insert fallback, where the referenced row can legitimately
+        // be skipped). So flush first: that writes the buffer, pushes the
+        // written rows — ids and all — into mergeCandidates, and reduces this
+        // to the already-stored case below. Only reached when a suspect exists,
+        // so the extra round-trip is rare.
+        if (pendingFlush.some((p) => isSuspectedDuplicate(p, candidate))) {
+          await flushPending()
+        }
+        const storedSuspect = mergeCandidates.find((c) => isSuspectedDuplicate(c, candidate))
+        if (storedSuspect) {
+          candidate.possible_duplicate_of = storedSuspect.id
+        }
+        return false
+      }
 
       const patch: Record<string, unknown> = {
         merged_email_message_ids: [
@@ -2079,12 +2077,8 @@ async function runGmailScan(opts?: ScanGmailOptions) {
 
       if (mailMessageId && existingMessageIds.has(mailMessageId)) continue
 
-      const mailTime = mail.internalDate ? Number(mail.internalDate) : Date.now()
-      if (mailTime < startLimitTime) continue
-      const mailDate = new Date(mailTime).toISOString().split('T')[0]
-
-      // Headers first: they are cheap, and the year-scope gate below needs the
-      // subject and sender to write a useful rejection log. extractEmailBody()
+      // Headers first: they are cheap, and later gates need the subject and
+      // sender to write a useful rejection log. extractEmailBody()
       // (base64 decode + DOM parse) is the expensive part of this stage and is
       // deferred until after every cheap gate has had its say.
       const headers = mail.payload?.headers || []
@@ -2096,35 +2090,19 @@ async function runGmailScan(opts?: ScanGmailOptions) {
       const senderDomain = senderDomainMatch ? senderDomainMatch[1].toLowerCase() : ''
       const isTrustedSender = isTrustedSenderDomain(senderDomain)
 
-      // ── Year scope ────────────────────────────────────────────────
-      // This used to be two bare `continue`s with no rejection log, and with a
-      // strict 7-day window that made an annual data loss a certainty: a scan
-      // on 3 January covers 27 December onward, so once activeYear rolled over
-      // every late-December transaction was discarded — silently, and
-      // unrecoverably, because the window never reaches back that far again.
-      //
-      // Mail from the immediately preceding year is now KEPT when the window
-      // genuinely straddles 1 January. The transaction row carries its own
-      // date, so it is attributed to the year it actually belongs to.
-      //
-      // The straddle is deliberately narrow — previous year AND today really is
-      // in the active year. That preserves the Settings "start next financial
-      // year" feature: a user who rolls forward early (activeYear 2027 while
-      // today is still 2026) has asked to stop scanning 2026, and this
-      // condition correctly declines to keep importing it.
-      const mailYear = Number(mailDate.slice(0, 4))
-      if (mailYear > activeYear) {
-        bufferRejection('after_active_year', senderDomain, subject, `date=${mailDate}`)
+      // Date window. A missing internalDate used to fall back to Date.now(),
+      // which always passes the check below regardless of how old the mail
+      // actually is — a malformed API response could slip an out-of-window
+      // email through. Reject and log it instead of failing open. This sits
+      // after the header reads only so the rejection can name the sender and
+      // subject; header parsing is cheap string work and gates nothing.
+      if (!mail.internalDate) {
+        bufferRejection('no_internal_date', senderDomain, subject, '')
         continue
       }
-      if (mailYear < activeYear) {
-        const windowStraddlesNewYear =
-          mailYear === activeYear - 1 && new Date().getUTCFullYear() === activeYear
-        if (!windowStraddlesNewYear) {
-          bufferRejection('before_active_year', senderDomain, subject, `date=${mailDate}`)
-          continue
-        }
-      }
+      const mailTime = Number(mail.internalDate)
+      if (mailTime < startLimitTime) continue
+      const mailDate = new Date(mailTime).toISOString().split('T')[0]
 
       const bodyText = extractEmailBody(mail)
       // Strip security/legal footer boilerplate before ANY gate or the AI

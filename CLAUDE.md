@@ -35,7 +35,10 @@ cron). UI entry points: `src/pages/PendingPage.tsx`, `src/pages/DashboardPage.ts
    Junk must be rejected *before* it costs an AI call and the user's daily quota.
 3. **AI failure degrades to the regex ladder, never to a dropped email.** A 429, quota
    rejection, or timeout must never surface to the user as a scan failure.
-4. **`logRejection` is fire-and-forget** — never awaited inside the per-email loop.
+4. **Rejection logging is fire-and-forget** — `bufferRejection` pushes to an
+   in-memory buffer during the per-email loop and `flushRejections` writes once
+   after the scan. Never await a rejection write inside the loop. (The older
+   `logRejection` in `emailScanGates.ts`, which inserted per rejection, is gone.)
 5. **The `23505` row-by-row insert fallback is what makes concurrent and retried scans
    safe.** Reuse it; don't rewrite it. It pairs with
    `UNIQUE (email_message_id, user_id)` in `supabase/schema.sql`.
@@ -46,7 +49,7 @@ cron). UI entry points: `src/pages/PendingPage.tsx`, `src/pages/DashboardPage.ts
 
 - Commits: `fix:` / `feat:` / `docs:` prefixes.
 - Multi-phase work gets a plan document in `plans/` first, executed phase by phase.
-- Supabase migrations are numbered sequentially in `supabase/` (next is `014_`).
+- Supabase migrations are numbered sequentially in `supabase/` (next is `020_`).
 - Lint has a large pre-existing baseline of `@typescript-eslint/no-explicit-any` and
   `setState`-in-effect errors. Don't treat those as regressions; just don't add new ones
   in files you touch.
