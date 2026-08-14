@@ -109,52 +109,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Could not verify order ownership.' })
   }
 
-async function notifyIntrak(order: any) {
-  const notes = order.notes || {};
-  if (!notes.intrak_website_id) return;
-
-  const intrakUrl = process.env.VITE_INTRAK_APP_URL || 'https://intrakv1.vercel.app';
-  const amount = order.amount ? order.amount / 100 : 0; // in Rupees
-  
-  try {
-    const payload = {
-      website_id: notes.intrak_website_id,
-      visitor_id: notes.intrak_visitor_id || 'unknown',
-      session_id: notes.intrak_session_id || 'unknown',
-      event_type: 'purchase',
-      event_name: notes.intrak_event_name || 'purchase',
-      path: notes.intrak_path || null,
-      referrer: notes.intrak_referrer || null,
-      utm_source: notes.intrak_utm_source || null,
-      utm_medium: notes.intrak_utm_medium || null,
-      utm_campaign: notes.intrak_utm_campaign || null,
-      revenue: amount,
-      currency: order.currency || 'INR',
-      // Keyed by order id so Intrak's /api/collect can dedupe this against the
-      // other paths that may also report the same purchase (webhook.ts, and
-      // Razorpay's own account-wide webhook calling Intrak directly).
-      external_id: `razorpay_${order.id}`,
-    };
-
-    console.log('Notifying Intrak of purchase event:', payload);
-    const res = await fetch(`${intrakUrl}/api/collect`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-    
-    if (!res.ok) {
-      console.error(`Failed to notify Intrak: HTTP ${res.status} - ${await res.text()}`);
-    } else {
-      console.log('Successfully notified Intrak of purchase event.');
-    }
-  } catch (err) {
-    console.error('Error notifying Intrak:', err);
-  }
-}
-
   const durationDays = planDurationDays(planType)
   const subscription_expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
 
@@ -179,9 +133,6 @@ async function notifyIntrak(order: any) {
       console.error('Subscription update matched no profile row for userId:', userId, 'order:', razorpay_order_id)
       throw new Error('No matching profile found to update.')
     }
-
-    // Notify Intrak background attribution tracker
-    await notifyIntrak(order);
 
     return res.status(200).json({
       success: true,

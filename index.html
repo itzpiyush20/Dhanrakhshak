@@ -43,6 +43,10 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- Standard equivalent of the Apple-prefixed tag above. Both are kept:
+         older iOS Safari only reads the apple- one, newer browsers warn that
+         it is deprecated and want this. -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Dhanrakshak" />
 
@@ -105,8 +109,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300..900;1,300..900&family=Plus+Jakarta+Sans:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet" />
     
-    <!-- Intrack Analytics -->
-    <script async src="https://intrakv1.vercel.app/track.js" data-website-id="62be126f-4cbc-492e-b12f-5e9beb2c71ee"></script>
   </head>
   <body>
     <div id="root"></div>
