@@ -167,6 +167,18 @@ export async function migrateLocalStorageRulesToDB(userId: string): Promise<{ mi
  * the DB-fetching wrapper does. Behaviour is otherwise identical, including the
  * localStorage fallback when nothing matches.
  */
+/**
+ * Merchant keys that clear the 5-character floor but are ordinary English, so
+ * matching them as a substring of raw email text pairs a learned rule with
+ * completely unrelated merchants. Disqualifies a key from the partial-match
+ * arm only; an exact key match is still honoured.
+ */
+const GENERIC_MERCHANT_WORDS = new Set([
+  'store', 'stores', 'market', 'mobile', 'online', 'payment', 'payments',
+  'service', 'services', 'center', 'centre', 'india', 'digital', 'retail',
+  'shopping', 'recharge', 'account', 'transfer', 'transaction',
+])
+
 export function applyMerchantRulesFromRows(
   rules: MerchantRuleRow[],
   merchant: string,
@@ -191,11 +203,21 @@ export function applyMerchantRulesFromRows(
     }
   }
 
+  // Exact matches above are unaffected — a rule keyed "store" still applies to
+  // a merchant that normalises to exactly "store". This list only disqualifies
+  // a key from the fuzzy substring arm below.
+
   // Partial match — only for keys with 5+ chars to prevent "jio", "air", "pay" etc.
   // from false-matching against unrelated emails
   const lowerSnippet = snippet.toLowerCase().substring(0, 300)
   for (const rule of rules) {
     if (rule.merchant_key.length < 5) continue
+    // The length floor alone is not enough: plenty of ordinary English words
+    // clear five characters. A rule learned from a merchant literally named
+    // "Store" matched any snippet containing "App Store subscription" or
+    // "grocery store" — the snippet arm below searches raw email text, so the
+    // blast radius is every future email, not just similarly-named merchants.
+    if (GENERIC_MERCHANT_WORDS.has(rule.merchant_key)) continue
     if (merchantKey.includes(rule.merchant_key) || lowerSnippet.includes(rule.merchant_key)) {
       // Same as exact match above — never auto-approve, always pending review.
       return {
