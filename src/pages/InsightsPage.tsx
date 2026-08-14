@@ -66,6 +66,22 @@ interface SummaryData {
   }>
 }
 
+/**
+ * Sets `end` to the last moment of the day six days after `start`.
+ *
+ * This has to seed `end` from `start` first. The previous version did
+ * `end.setDate(start.getDate() + 6)` while `end` still held today's date, so
+ * only the day-of-month carried over and it was applied to the *current*
+ * month. Any week straddling a month boundary then blew up: on Wed 2 Sep 2026
+ * the Monday is 31 Aug, and `setDate(37)` on September produced 7 Oct — a
+ * five-week "This Week".
+ */
+const setToSixDaysAfter = (end: Date, start: Date) => {
+  end.setTime(start.getTime())
+  end.setDate(end.getDate() + 6)
+  end.setHours(23, 59, 59, 999)
+}
+
 const getRangeDates = (range: RangeType) => {
   const now = new Date()
   const start = new Date(now)
@@ -76,17 +92,15 @@ const getRangeDates = (range: RangeType) => {
     const diff = day === 0 ? -6 : 1 - day // Monday start
     start.setDate(now.getDate() + diff)
     start.setHours(0, 0, 0, 0)
-    
-    end.setDate(start.getDate() + 6)
-    end.setHours(23, 59, 59, 999)
+
+    setToSixDaysAfter(end, start)
   } else if (range === 'last-week') {
     const day = now.getDay()
     const diff = (day === 0 ? -6 : 1 - day) - 7 // Previous Monday start
     start.setDate(now.getDate() + diff)
     start.setHours(0, 0, 0, 0)
-    
-    end.setDate(start.getDate() + 6)
-    end.setHours(23, 59, 59, 999)
+
+    setToSixDaysAfter(end, start)
   } else if (range === 'last-15-days') {
     start.setDate(now.getDate() - 14)
     start.setHours(0, 0, 0, 0)
