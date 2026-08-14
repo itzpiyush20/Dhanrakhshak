@@ -100,3 +100,41 @@ describe('stripBoilerplate — bounded cost on oversized bodies', () => {
     expect(AXIS_EMI_BODY.length).toBeLessThan(12000)
   })
 })
+
+describe('stripBoilerplate cost is bounded by input shape', () => {
+  // Production timings: 2136ms on a 4KB body, 1581ms on 11KB, while the base64
+  // decode and HTML strip of the SAME emails took 0-2ms. These patterns are
+  // built from [^.]* / [\s\S]{0,300}? / \S+, whose backtracking cost grows with
+  // the length of the text they are run against, not the length of what they
+  // match. Segmenting the input caps that by construction.
+  const budgetMs = 250
+
+  it('finishes quickly on a full-size body that almost matches everywhere', async () => {
+    // Every ingredient that makes these patterns backtrack: long unbroken
+    // non-whitespace runs, long whitespace runs, no sentence-ending periods,
+    // and many partial hits on the footer vocabulary.
+    let body = ''
+    while (body.length < 12000) {
+      body +=
+        'SBI    representatives   or   representatives   will   never   ask   you   ' +
+        'https://communications.sbi.co.in/track/click?u=' + 'A1b2C3d4'.repeat(30) + ' ' +
+        'do not share your card number details never share your urn ' +
+        'know more >> terms & conditions apply toll free '
+    }
+
+    const started = Date.now()
+    const out = stripBoilerplate(body)
+    const elapsed = Date.now() - started
+
+    expect(typeof out).toBe('string')
+    expect(elapsed).toBeLessThan(budgetMs)
+  })
+
+  it('still strips a footer sentence that sits at the very end', () => {
+    const body = 'INR 200.00 was debited from your A/c XX5154 at SWIGGY.\n' +
+      'Please do not share your OTP with anyone.'
+    const out = stripBoilerplate(body)
+    expect(out).toContain('INR 200.00 was debited')
+    expect(out.toLowerCase()).not.toContain('do not share your otp')
+  })
+})

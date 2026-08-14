@@ -70,6 +70,53 @@ const BOILERPLATE_SENTENCE_PATTERNS: RegExp[] = [
 // produced Chrome's "Page Unresponsive" dialog mid-scan.
 const BOILERPLATE_SCAN_TAIL_CHARS = 12000
 
+/**
+ * Longest string any single pattern above is ever run against.
+ *
+ * These patterns are built from `[^.]*`, `[\s\S]{0,300}?` and `\S+` — shapes
+ * whose backtracking cost grows with the length of the input, not with the
+ * length of the thing they match. Run against a whole 12,000-char body, a
+ * newsletter that ALMOST matches in many places made this the single most
+ * expensive operation in the scan: measured in production at 2136ms for a 4KB
+ * body, 1581ms for 11KB, while the base64 decode and HTML strip in the same
+ * emails took 0-2ms. That is what froze the tab, not the parsing everyone
+ * (including several rounds of my own benchmarking) suspected.
+ *
+ * Every pattern here targets a single footer SENTENCE — the file comment above
+ * says so explicitly. None of them ever needed the whole document. Bounding the
+ * input each regex sees caps the worst case by construction, so a future
+ * pathological body cannot reintroduce this, whatever shape it takes.
+ *
+ * 600 is comfortably longer than any boilerplate sentence in the fixtures while
+ * being short enough that even quadratic backtracking is trivial.
+ */
+const MAX_PATTERN_INPUT_CHARS = 600
+
+/**
+ * Split into segments no longer than `MAX_PATTERN_INPUT_CHARS`, preferring line
+ * boundaries. Concatenating the result reproduces the input exactly, so a
+ * segment that matches nothing passes through untouched.
+ */
+function segmentForMatching(text: string): string[] {
+  const segments: string[] = []
+  let cursor = 0
+
+  while (cursor < text.length) {
+    const hardEnd = Math.min(cursor + MAX_PATTERN_INPUT_CHARS, text.length)
+    if (hardEnd === text.length) {
+      segments.push(text.slice(cursor))
+      break
+    }
+    // Prefer to break just after a newline so a footer sentence stays whole.
+    const lastBreak = text.lastIndexOf('\n', hardEnd)
+    const end = lastBreak > cursor ? lastBreak + 1 : hardEnd
+    segments.push(text.slice(cursor, end))
+    cursor = end
+  }
+
+  return segments
+}
+
 export function stripBoilerplate(text: string): string {
   if (!text) return text
   const scanned = text.length > BOILERPLATE_SCAN_TAIL_CHARS
@@ -79,9 +126,13 @@ export function stripBoilerplate(text: string): string {
     ? text.slice(0, text.length - BOILERPLATE_SCAN_TAIL_CHARS)
     : ''
 
-  let strippedTail = scanned
-  for (const pattern of BOILERPLATE_SENTENCE_PATTERNS) {
-    strippedTail = strippedTail.replace(pattern, ' ')
+  let strippedTail = ''
+  for (const segment of segmentForMatching(scanned)) {
+    let stripped = segment
+    for (const pattern of BOILERPLATE_SENTENCE_PATTERNS) {
+      stripped = stripped.replace(pattern, ' ')
+    }
+    strippedTail += stripped
   }
   return head + strippedTail
 }
