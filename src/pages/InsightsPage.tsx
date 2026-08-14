@@ -447,7 +447,17 @@ export default function InsightsPage() {
             .eq('user_id', user.id)
             .eq('approval_status', 'approved')
             .gte('date', (() => { const d = new Date(); d.setMonth(d.getMonth() - 6); return toISODateLocal(d) })())
-            .order('date', { ascending: true })
+            // Newest-first so that if this ever crosses PostgREST's max-rows cap
+            // (1000 by default, and this query sets no limit of its own), the
+            // rows silently dropped are old history rather than the current
+            // month. Ascending meant a busy user would lose today's data from
+            // every chart on this page with no error anywhere.
+            //
+            // Safe to flip: every consumer builds its own date buckets and looks
+            // transactions up, so none depend on the array being chronological.
+            // The one visible effect is that drill-down lists now read
+            // newest-first, matching getTransactions() elsewhere in the app.
+            .order('date', { ascending: false })
         ) as Promise<any>,
         45000,
         'Insights data fetch'
