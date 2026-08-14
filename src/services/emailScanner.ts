@@ -812,23 +812,57 @@ function stripHtmlTagsFast(html: string): string {
   return result.replace(/\s+/g, ' ')
 }
 
-function extractEmailBody(mail: any): string {
+/** Parts in a Gmail payload tree. Reported alongside a slow-email warning
+ *  because per-part decode cost is what makes a multipart newsletter expensive. */
+function countMailParts(part: any): number {
+  if (!part) return 0
+  let n = 1
+  if (part.parts && Array.isArray(part.parts)) {
+    for (const child of part.parts) n += countMailParts(child)
+  }
+  return n
+}
+
+export function extractEmailBody(mail: any): string {
   if (!mail || !mail.payload) return mail?.snippet || ''
   let plainText = ''
   let htmlText = ''
 
+  // MAX_HTML_PARSE_CHARS bounds each PART. It did not bound the total, and a
+  // multipart newsletter has many text parts, so the real ceiling was
+  // parts × 60000 — unbounded in practice. htmlText was at least sliced before
+  // parsing (below), but plainText never was: it flowed at full size into
+  // extractAmountMatches and into the returned body. That is how a body
+  // documented to cap at 60KB arrived at 96KB, and it grows with part count.
+  //
+  // Decoding is the per-part cost (atob plus a byte-copy loop), so stopping the
+  // traversal once the budget is spent bounds the work at roughly one part
+  // rather than N. Nothing downstream reads more than ~16KB anyway — see the
+  // MAX_HTML_PARSE_CHARS comment for the consumer breakdown.
+  const remaining = () => MAX_HTML_PARSE_CHARS - Math.max(plainText.length, htmlText.length)
+
   function traverseParts(part: any) {
     if (!part) return
+    if (remaining() <= 0) return
     const mimeType = part.mimeType || ''
     const bodyData = part.body?.data || ''
-    if (mimeType === 'text/plain' && bodyData) plainText += decodeBase64Url(bodyData, MAX_HTML_PARSE_CHARS) + '\n'
-    if (mimeType === 'text/html' && bodyData) htmlText += decodeBase64Url(bodyData, MAX_HTML_PARSE_CHARS) + '\n'
-    if (part.parts && Array.isArray(part.parts)) part.parts.forEach(traverseParts)
+    if (mimeType === 'text/plain' && bodyData) plainText += decodeBase64Url(bodyData, remaining()) + '\n'
+    if (mimeType === 'text/html' && bodyData) htmlText += decodeBase64Url(bodyData, remaining()) + '\n'
+    if (part.parts && Array.isArray(part.parts)) {
+      for (const child of part.parts) {
+        if (remaining() <= 0) break
+        traverseParts(child)
+      }
+    }
   }
 
   traverseParts(mail.payload)
 
-  const parsedHtml = htmlText.trim() ? stripHtmlTagsFast(htmlText.length > MAX_HTML_PARSE_CHARS ? htmlText.slice(0, MAX_HTML_PARSE_CHARS) : htmlText) : ''
+  // Both are now capped on the way out, not just htmlText.
+  if (plainText.length > MAX_HTML_PARSE_CHARS) plainText = plainText.slice(0, MAX_HTML_PARSE_CHARS)
+  if (htmlText.length > MAX_HTML_PARSE_CHARS) htmlText = htmlText.slice(0, MAX_HTML_PARSE_CHARS)
+
+  const parsedHtml = htmlText.trim() ? stripHtmlTagsFast(htmlText) : ''
 
   const plainHasAmount = plainText.trim() ? extractAmountMatches(plainText).length > 0 : false
   const htmlHasAmount = parsedHtml ? extractAmountMatches(parsedHtml).length > 0 : false
@@ -2104,12 +2138,16 @@ async function runGmailScan(opts?: ScanGmailOptions) {
       if (mailTime < startLimitTime) continue
       const mailDate = new Date(mailTime).toISOString().split('T')[0]
 
+      const extractStartedAt = Date.now()
       const bodyText = extractEmailBody(mail)
+      const extractMs = Date.now() - extractStartedAt
       // Strip security/legal footer boilerplate before ANY gate or the AI
       // prompt sees this text — footers were colliding with rejection
       // keywords (e.g. "has not been initiated by you") and silently
       // dropping genuine transaction emails.
+      const stripStartedAt = Date.now()
       const strippedBodyText = stripBoilerplate(bodyText)
+      const stripMs = Date.now() - stripStartedAt
       // These two lines are the entire expensive part of Stage A (base64
       // decode + DOM parse, then the boilerplate regexes); every gate around
       // them is cheap string work. Timing here therefore attributes a slow
@@ -2118,8 +2156,15 @@ async function runGmailScan(opts?: ScanGmailOptions) {
       // screenshot of a frozen spinner.
       const bodyCostMs = Date.now() - emailStartedAt
       if (bodyCostMs >= SLOW_EMAIL_WARN_MS) {
+        // Naming the phase, not just the total. The previous version reported
+        // "37410ms to read body" and nothing else, which left decode, HTML
+        // strip and boilerplate strip all equally suspect — each had to be
+        // benchmarked separately to be cleared. A stall should say which phase
+        // it was so the next one is diagnosable rather than re-derived.
+        const partCount = countMailParts(mail.payload)
         console.warn(
-          `[emailScanner] slow email: ${bodyCostMs}ms to read body — ` +
+          `[emailScanner] slow email: ${bodyCostMs}ms total ` +
+          `(decode+extract ${extractMs}ms, boilerplate ${stripMs}ms, ${partCount} parts) — ` +
           `${Math.round(bodyText.length / 1024)}KB from ${senderDomain || 'unknown sender'} — "${subject.substring(0, 80)}"`
         )
       }

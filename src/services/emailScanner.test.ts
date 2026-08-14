@@ -1,6 +1,6 @@
 // src/services/emailScanner.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { extractCardLast4, HARD_ACCEPT_SUBJECT_PATTERNS } from './emailScanner.js'
+import { extractCardLast4, extractEmailBody, HARD_ACCEPT_SUBJECT_PATTERNS } from './emailScanner.js'
 import { makeAxisEmiGmailMessage } from './__fixtures__/axisEmiDebit'
 import { makeUberTripGmailMessage } from './__fixtures__/uberTripReceipt'
 import { makeUnknownVendorGmailMessage } from './__fixtures__/unknownVendorReceipt'
@@ -2579,5 +2579,48 @@ describe('hard-accept subjects must assert that money moved', () => {
   it('still overrides the AI on a genuine CRED bill payment', () => {
     expect(isHardAccepted('Payment successful on CRED for your HDFC card bill')).toBe(true)
     expect(isHardAccepted('CRED: your credit card bill payment is complete')).toBe(true)
+  })
+})
+
+describe('extractEmailBody bounds total decoded size across parts', () => {
+  const b64 = (s: string) => Buffer.from(s, 'utf-8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_')
+
+  it('caps the body no matter how many text parts the email has', () => {
+    // 40 parts x 20KB each. The per-part bound is 60000, so before the total
+    // budget existed this decoded ~800KB and returned all of it.
+    const chunk = 'Axis Nifty Energy Index Fund NFO is now live. '.repeat(450)
+    const parts = Array.from({ length: 40 }, () => ({
+      mimeType: 'text/plain',
+      body: { data: b64(chunk) },
+    }))
+    const mail = { payload: { mimeType: 'multipart/mixed', parts }, snippet: 's' }
+
+    const body = extractEmailBody(mail)
+
+    expect(body.length).toBeLessThanOrEqual(60000)
+  })
+
+  it('still reads a normal single-part bank alert in full', () => {
+    const alert = 'INR 200.00 was debited from your A/c no. XX5154 at SWIGGY on 14-08-2026.'
+    const mail = { payload: { mimeType: 'text/plain', body: { data: b64(alert) } }, snippet: '' }
+
+    expect(extractEmailBody(mail)).toContain('INR 200.00 was debited')
+  })
+
+  it('still prefers the part that actually carries an amount', () => {
+    const noAmount = 'Newsletter header with no money in it at all.'
+    const withAmount = 'Rs. 2247.97 was spent on your HDFC card.'
+    const mail = {
+      payload: {
+        mimeType: 'multipart/alternative',
+        parts: [
+          { mimeType: 'text/plain', body: { data: b64(noAmount) } },
+          { mimeType: 'text/html', body: { data: b64(`<html><body><p>${withAmount}</p></body></html>`) } },
+        ],
+      },
+      snippet: '',
+    }
+
+    expect(extractEmailBody(mail)).toContain('2247.97')
   })
 })
