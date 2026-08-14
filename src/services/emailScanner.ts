@@ -133,7 +133,17 @@ const HARD_REJECT_SUBJECT_PATTERNS = [
   /\b(auto-?debit\s*scheduled|standing\s*instruction|pre-?authorized)\b/i,
 ]
 
-const HARD_ACCEPT_SUBJECT_PATTERNS = [
+/**
+ * Subjects that override the AI's confident "not a transaction" verdict and
+ * fall through to the regex ladder instead.
+ *
+ * Because that discards the strongest signal in the pipeline, every pattern
+ * here must assert money moved. A bare `/\bcred\b/i` used to sit in this list
+ * and matched any standalone "cred" in a subject — "Your CRED coins expire
+ * soon" included. The narrower `/\bcred\b.*(?:bill|payment)\b/i` above covers
+ * the real credit-card-bill case; removing the bare one left every test green.
+ */
+export const HARD_ACCEPT_SUBJECT_PATTERNS = [
   /\b(debited|debit\s*alert|amount\s*debited)\b/i,
   /\b(credited|credit\s*alert|amount\s*credited)\b/i,
   /\b(transaction\s*alert|payment\s*alert|txn\s*alert)\b/i,
@@ -157,7 +167,6 @@ const HARD_ACCEPT_SUBJECT_PATTERNS = [
   /\bspent\s+(?:on|at)\b/i,
   /\bpayment\s*(?:received|successful|confirmed|completed|done|processed)\b/i,
   /\b(?:credit\s*)?card\s*payment\b/i,
-  /\bcred\b/i,
   /\b(?:transaction|txn|debit|credit|payment|spend)\s*(?:alert|notification|update|confirmation)\b/i,
   /\b(?:credit\s*card|card)\s*(?:bill\s*)?(?:payment|paid|received|successful|confirmation)\b/i,
   /\b(?:credit\s*)?card\s*bill\s*(?:is\s*)?paid\b/i,

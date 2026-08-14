@@ -1,6 +1,6 @@
 // src/services/emailScanner.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { extractCardLast4 } from './emailScanner.js'
+import { extractCardLast4, HARD_ACCEPT_SUBJECT_PATTERNS } from './emailScanner.js'
 import { makeAxisEmiGmailMessage } from './__fixtures__/axisEmiDebit'
 import { makeUberTripGmailMessage } from './__fixtures__/uberTripReceipt'
 import { makeUnknownVendorGmailMessage } from './__fixtures__/unknownVendorReceipt'
@@ -2565,5 +2565,19 @@ describe('extractCardLast4 — ReDoS regression', () => {
     expect(extractCardLast4('card ****4321 charged')).toBe('4321')
     expect(extractCardLast4('Card ending 9876')).toBe('9876')
     expect(extractCardLast4('HDFC Card XXXX-XXXX-XXXX-2468')).toBe('2468')
+  })
+})
+
+describe('hard-accept subjects must assert that money moved', () => {
+  const isHardAccepted = (subject: string) => HARD_ACCEPT_SUBJECT_PATTERNS.some((p) => p.test(subject))
+
+  it('does not override the AI on a bare CRED mention', () => {
+    expect(isHardAccepted('Your CRED coins are expiring soon')).toBe(false)
+    expect(isHardAccepted('CRED Cashback offers just for you')).toBe(false)
+  })
+
+  it('still overrides the AI on a genuine CRED bill payment', () => {
+    expect(isHardAccepted('Payment successful on CRED for your HDFC card bill')).toBe(true)
+    expect(isHardAccepted('CRED: your credit card bill payment is complete')).toBe(true)
   })
 })
