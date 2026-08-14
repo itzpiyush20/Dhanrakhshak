@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-const { mockTokensSelect, mockProfilesSelect, mockScanRealGmailInbox, mockTokenDelete, mockLogInsert, mockRefreshFetch } = vi.hoisted(() => ({
+const { mockTokensSelect, mockProfilesSelect, mockScanRealGmailInbox, mockTokenDelete, mockLogInsert, mockLogsOrder, mockRefreshFetch } = vi.hoisted(() => ({
   mockTokensSelect: vi.fn(),
   mockProfilesSelect: vi.fn(),
   mockScanRealGmailInbox: vi.fn(),
   mockTokenDelete: vi.fn(),
   mockLogInsert: vi.fn(),
+  mockLogsOrder: vi.fn(),
   mockRefreshFetch: vi.fn(),
 }))
 
@@ -20,7 +21,11 @@ vi.mock('@supabase/supabase-js', () => ({
         return { select: () => ({ in: mockProfilesSelect }) }
       }
       if (table === 'email_scan_logs') {
-        return { insert: mockLogInsert }
+        return {
+          insert: mockLogInsert,
+          // The fair-ordering preload: .select().in().eq().order()
+          select: () => ({ in: () => ({ eq: () => ({ order: mockLogsOrder }) }) }),
+        }
       }
       throw new Error(`unexpected table ${table}`)
     },
@@ -41,7 +46,7 @@ vi.mock('../src/services/aiService.js', () => ({
 
 vi.stubGlobal('fetch', mockRefreshFetch)
 
-import handler from './auto-sync-gmail.js'
+import handler, { isEligible } from './auto-sync-gmail.js'
 
 function makeRes() {
   let statusVal = 200
@@ -63,6 +68,9 @@ describe('api/auto-sync-gmail', () => {
     process.env.GOOGLE_CLIENT_SECRET = 'gcsecret'
     mockLogInsert.mockResolvedValue({ error: null })
     mockTokenDelete.mockResolvedValue({ error: null })
+    // Fair-ordering preload. Default to "nobody has ever scanned" so existing
+    // tests keep their original single-user behaviour.
+    mockLogsOrder.mockResolvedValue({ data: [], error: null })
   })
 
   it('rejects requests without the correct cron secret', async () => {
@@ -161,5 +169,105 @@ describe('api/auto-sync-gmail', () => {
       expect.objectContaining({ user_id: 'errored-user', status: 'failed', error_message: 'token expired mid-scan' })
     )
     expect(getJson()).toMatchObject({ usersProcessed: 1, succeeded: 0, failed: 1 })
+  })
+
+  it('scans the user with the oldest successful scan first, never-scanned users before anyone', async () => {
+    mockTokensSelect.mockResolvedValue({
+      data: [
+        // Deliberately ordered newest-first here, so passing the assertion
+        // requires the handler to actually re-sort rather than take them as-is.
+        { user_id: 'scanned-today', refresh_token: 'rt-1' },
+        { user_id: 'scanned-last-week', refresh_token: 'rt-2' },
+        { user_id: 'never-scanned', refresh_token: 'rt-3' },
+      ],
+      error: null,
+    })
+    mockProfilesSelect.mockResolvedValue({
+      data: [
+        { id: 'scanned-today', email: 'a@x.com', subscription_status: 'active', subscription_expires_at: null },
+        { id: 'scanned-last-week', email: 'b@x.com', subscription_status: 'active', subscription_expires_at: null },
+        { id: 'never-scanned', email: 'c@x.com', subscription_status: 'active', subscription_expires_at: null },
+      ],
+      error: null,
+    })
+    // The preload returns newest-first, as the real query's .order() does.
+    mockLogsOrder.mockResolvedValue({
+      data: [
+        { user_id: 'scanned-today', scanned_at: '2026-08-14T06:00:00Z' },
+        { user_id: 'scanned-last-week', scanned_at: '2026-08-07T06:00:00Z' },
+      ],
+      error: null,
+    })
+    mockRefreshFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: 'access-tok', expires_in: 3600 }),
+    })
+    mockScanRealGmailInbox.mockResolvedValue({
+      data: { transactions: [], log: {}, autoApprovedCount: 0 },
+      error: null,
+    })
+
+    const req = { method: 'POST', headers: { authorization: 'Bearer test-secret' } } as unknown as VercelRequest
+    const { res } = makeRes()
+
+    await handler(req, res)
+
+    const scannedOrder = mockScanRealGmailInbox.mock.calls.map((c) => c[0].userId)
+    expect(scannedOrder).toEqual(['never-scanned', 'scanned-last-week', 'scanned-today'])
+  })
+
+  it('stops starting new users once the time budget is spent and reports them as deferred', async () => {
+    mockTokensSelect.mockResolvedValue({
+      data: [
+        { user_id: 'user-a', refresh_token: 'rt-1' },
+        { user_id: 'user-b', refresh_token: 'rt-2' },
+      ],
+      error: null,
+    })
+    mockProfilesSelect.mockResolvedValue({
+      data: [
+        { id: 'user-a', email: 'a@x.com', subscription_status: 'active', subscription_expires_at: null },
+        { id: 'user-b', email: 'b@x.com', subscription_status: 'active', subscription_expires_at: null },
+      ],
+      error: null,
+    })
+    mockRefreshFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: 'access-tok', expires_in: 3600 }),
+    })
+    mockScanRealGmailInbox.mockResolvedValue({
+      data: { transactions: [], log: {}, autoApprovedCount: 0 },
+      error: null,
+    })
+
+    // First Date.now() is the handler's startedAt; every later call reports a
+    // time past the 45s budget (maxDuration 60s minus the 15s reserve), so no
+    // user is ever started.
+    const nowSpy = vi.spyOn(Date, 'now')
+    nowSpy.mockReturnValueOnce(0)
+    nowSpy.mockReturnValue(50_000)
+
+    const req = { method: 'POST', headers: { authorization: 'Bearer test-secret' } } as unknown as VercelRequest
+    const { res, getStatus, getJson } = makeRes()
+
+    await handler(req, res)
+
+    nowSpy.mockRestore()
+
+    expect(mockScanRealGmailInbox).not.toHaveBeenCalled()
+    expect(getStatus()).toBe(200)
+    expect(getJson()).toMatchObject({ usersProcessed: 0, skippedForBudget: 2 })
+  })
+
+  it('does not run a scheduled scan for a trial with no expiry date', () => {
+    // R6: the free tier gets no automatic scan. A trial row carrying no expiry
+    // date is not an entitled trial, and the cron used to treat it as one.
+    expect(isEligible({ id: 'u1', email: 't@x.com', subscription_status: 'trial', subscription_expires_at: null })).toBe(false)
+  })
+
+  it('still runs a scheduled scan for an unexpired trial and an open-ended active subscription', () => {
+    const future = new Date(Date.now() + 86_400_000).toISOString()
+    expect(isEligible({ id: 'u2', email: 't@x.com', subscription_status: 'trial', subscription_expires_at: future })).toBe(true)
+    expect(isEligible({ id: 'u3', email: 'a@x.com', subscription_status: 'active', subscription_expires_at: null })).toBe(true)
   })
 })

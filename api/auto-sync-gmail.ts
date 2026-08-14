@@ -26,6 +26,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { scanRealGmailInbox } from '../src/services/emailScanner.js'
+import { isPremiumProfile } from '../src/services/subscription.js'
 import { analyzeTransactionEmailWithAI, analyzeTransactionEmailBatchWithAI } from '../src/services/aiService.js'
 import {
   callGeminiWithFallback,
@@ -42,11 +43,22 @@ import {
  *
  * 60s is the Hobby-plan ceiling without Fluid Compute. If the eligible user
  * base outgrows one 60s window, the fix is Fluid Compute (maxDuration up to
- * 300) plus the per-user time budget described in
- * plans/email-scanner-performance-plan.md §3.1 — not a larger number here,
- * which would fail the build on Hobby.
+ * 300) — not a larger number here, which would fail the build on Hobby.
+ * Until then BUDGET_MS below stops the loop cleanly instead of letting the
+ * platform hard-kill it mid-await.
  */
 export const maxDuration = 60
+
+/**
+ * Wall-clock the loop may consume before it stops starting new users.
+ *
+ * The 15s reserve is for the user already in flight when the budget runs out:
+ * a hard platform kill lands mid-`await`, so that user gets no email_scan_logs
+ * row at all — not even a `failed` one — and every user behind them is skipped
+ * with no record either. Stopping early instead leaves each user either fully
+ * scanned-and-logged or untouched.
+ */
+const BUDGET_MS = maxDuration * 1000 - 15_000
 
 const supabaseAdmin = createClient(
   process.env.VITE_SUPABASE_URL || '',
@@ -67,14 +79,20 @@ interface Profile {
   subscription_expires_at: string | null
 }
 
-function isEligible(profile: Profile): boolean {
+/**
+ * Whether this user gets the daily automatic scan.
+ *
+ * Delegates to the canonical `isPremiumProfile` rather than re-deriving it.
+ * The local copy this replaced computed `notExpired` as
+ * `!subscription_expires_at || <date> > now`, so a trial carrying NO expiry
+ * date short-circuited to eligible — while the canonical check deliberately
+ * requires a trial to have an unexpired end date. That segment was receiving a
+ * daily automatic scan the free tier is not entitled to, contradicting R6.
+ */
+export function isEligible(profile: Profile): boolean {
   const email = profile.email?.toLowerCase().trim() || ''
   if (OWNER_EMAILS.length > 0 && OWNER_EMAILS.includes(email)) return true
-
-  const notExpired = !profile.subscription_expires_at || new Date(profile.subscription_expires_at).getTime() > Date.now()
-  if (profile.subscription_status === 'active' && notExpired) return true
-  if (profile.subscription_status === 'trial' && notExpired) return true
-  return false
+  return isPremiumProfile(profile)
 }
 
 async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: string } | { revoked: true } | { error: string }> {
@@ -139,6 +157,7 @@ function makeCallGeminiDirect() {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const startedAt = Date.now()
   const cronSecret = process.env.CRON_SECRET
   if (!cronSecret || req.headers.authorization !== `Bearer ${cronSecret}`) {
     return res.status(401).json({ error: 'Unauthorized' })
@@ -153,7 +172,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: tokensErr.message })
   }
   if (!tokenRows || tokenRows.length === 0) {
-    return res.status(200).json({ usersProcessed: 0, succeeded: 0, failed: 0, transactionsFound: 0 })
+    return res.status(200).json({ usersProcessed: 0, succeeded: 0, failed: 0, transactionsFound: 0, skippedForBudget: 0 })
   }
 
   const userIds = tokenRows.map((t) => t.user_id)
@@ -169,18 +188,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const profileById = new Map<string, Profile>((profiles || []).map((p) => [p.id, p as Profile]))
 
+  // Fair ordering: oldest successful scan first, never-scanned users first of
+  // all. Without it the token query's physical row order decides who runs, so
+  // the users the budget stop cuts off are the same ones every single day and
+  // their scheduled scan silently never happens.
+  //
+  // Deliberately ONE query for every user, not one per user — a per-user query
+  // would spend the very budget this ordering exists to protect.
+  const { data: scanLogRows, error: scanLogsErr } = await supabaseAdmin
+    .from('email_scan_logs')
+    .select('user_id, scanned_at')
+    .in('user_id', userIds)
+    .eq('status', 'success')
+    .order('scanned_at', { ascending: false })
+
+  if (scanLogsErr) {
+    // Not fatal: a missing ordering hint costs fairness, not correctness, and
+    // is no reason to skip everyone's scheduled scan for the day.
+    console.error('auto-sync-gmail: failed to preload scan logs, falling back to token order', scanLogsErr)
+  }
+
+  // Rows arrive newest-first, so the first one seen per user is their latest.
+  const lastSuccessByUser = new Map<string, number>()
+  for (const log of scanLogRows || []) {
+    if (lastSuccessByUser.has(log.user_id)) continue
+    const at = log.scanned_at ? new Date(log.scanned_at).getTime() : NaN
+    lastSuccessByUser.set(log.user_id, Number.isNaN(at) ? -Infinity : at)
+  }
+
+  // Compared, not subtracted: two never-scanned users would both be -Infinity
+  // and `-Infinity - -Infinity` is NaN, which makes the sort order arbitrary.
+  const orderedTokenRows = [...tokenRows].sort((a, b) => {
+    const aAt = lastSuccessByUser.get(a.user_id) ?? -Infinity
+    const bAt = lastSuccessByUser.get(b.user_id) ?? -Infinity
+    if (aAt === bAt) return 0
+    return aAt < bAt ? -1 : 1
+  })
+
   const callGeminiDirect = makeCallGeminiDirect()
 
   let succeeded = 0
   let failed = 0
   let transactionsFound = 0
   let usersProcessed = 0
+  let skippedForBudget = 0
 
   const INTER_USER_DELAY_MS = Number(process.env.AUTO_SYNC_INTER_USER_DELAY_MS) || 500
 
-  for (const row of tokenRows) {
+  for (const row of orderedTokenRows) {
     const profile = profileById.get(row.user_id)
     if (!profile || !isEligible(profile)) continue
+
+    if (Date.now() - startedAt > BUDGET_MS) {
+      skippedForBudget += 1
+      continue
+    }
 
     if (usersProcessed > 0) {
       await new Promise((resolve) => setTimeout(resolve, INTER_USER_DELAY_MS))
@@ -250,5 +312,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  return res.status(200).json({ usersProcessed, succeeded, failed, transactionsFound })
+  if (skippedForBudget > 0) {
+    console.warn(
+      `auto-sync-gmail: ran out of time budget after ${usersProcessed} user(s); ${skippedForBudget} deferred to the next run`
+    )
+  }
+
+  return res.status(200).json({ usersProcessed, succeeded, failed, transactionsFound, skippedForBudget })
 }

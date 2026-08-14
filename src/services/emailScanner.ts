@@ -21,6 +21,7 @@ import { stripBoilerplate } from './emailBoilerplate.js'
 import { evaluateRegexGates, isBulkMarketingEmail, hasPaymentAssertion } from './emailScanGates.js'
 import { isSamePayment, isSuspectedDuplicate, mergePayments, isWeakMerchantLabel, type MergeableTransaction } from './paymentMerge.js'
 import { extractAmountMatches, isHomeCurrency, DEFAULT_CURRENCY } from './currency.js'
+import { isPremiumProfile } from './subscription.js'
 
 type EmailScanLog = Database['public']['Tables']['email_scan_logs']['Row']
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert']
@@ -933,30 +934,11 @@ const PREMIUM_MANUAL_SCANS_PER_DAY = 2
 const MANUAL_QUOTA_WINDOW_MS = 24 * 60 * 60 * 1000
 
 /**
- * Pure: is this profile row currently entitled to premium behaviour?
- *
- * Shared by the scan path and the quota accessor so the definition of
- * "premium" cannot drift between what the engine enforces and what the UI
- * displays. Correcting a lapsed subscription's stored status is deliberately
- * NOT done here — that write stays on the scan path, keeping this safe to call
- * from a read.
+ * Re-exported so the many existing importers of this module keep working.
+ * The definition moved to `subscription.ts` because the serverless cron needs
+ * it too and cannot import this file — see that module's header.
  */
-export function isPremiumProfile(
-  profile: { subscription_status?: string | null; subscription_expires_at?: string | null } | null | undefined,
-  now: number = Date.now()
-): boolean {
-  if (!profile) return false
-  const expiresAt = profile.subscription_expires_at
-  if (profile.subscription_status === 'active') {
-    // An active subscription with no end date is open-ended.
-    return !expiresAt || new Date(expiresAt).getTime() > now
-  }
-  if (profile.subscription_status === 'trial') {
-    // A trial, unlike an active subscription, must carry an unexpired end date.
-    return !!expiresAt && new Date(expiresAt).getTime() > now
-  }
-  return false
-}
+export { isPremiumProfile }
 
 /** Owner is unlimited; premium and trial share a limit; everyone else is free-tier. */
 export function resolveManualScanLimit(isOwner: boolean, isPremium: boolean): number {

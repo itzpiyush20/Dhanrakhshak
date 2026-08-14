@@ -31,6 +31,7 @@
     "src/services/merchantNormalizer.ts",
     "src/services/paymentMerge.ts",
     "src/services/currency.ts",
+    "src/services/subscription.ts",
     "src/utils/index.ts",
     "src/utils/crypto.ts",
     "src/utils/dateFilter.ts",
