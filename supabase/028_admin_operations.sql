@@ -35,7 +35,12 @@ CREATE POLICY "Admins can update feedback"
   WITH CHECK (public.is_admin());
 
 -- Replaced to return the new columns. Body otherwise unchanged from 022.
-CREATE OR REPLACE FUNCTION public.admin_feedback_list(lim INT, off INT)
+--
+-- DROP first: CREATE OR REPLACE cannot change a function's return type, and this
+-- one gains handled_at. Postgres refuses with 42P13 otherwise.
+DROP FUNCTION IF EXISTS public.admin_feedback_list(INT, INT);
+
+CREATE FUNCTION public.admin_feedback_list(lim INT, off INT)
 RETURNS TABLE (
   id UUID,
   email TEXT,
