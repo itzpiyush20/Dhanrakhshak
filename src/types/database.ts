@@ -436,7 +436,27 @@ export interface Database {
           category: string
           message: string
           created_at: string
+          handled_at: string | null
           total_count: number
+        }[]
+      }
+      admin_user_scan_history: {
+        Args: { target: string; lim: number }
+        Returns: {
+          scanned_at: string
+          scan_mode: string | null
+          status: string
+          emails_processed: number
+          transactions_found: number
+          error_message: string | null
+        }[]
+      }
+      admin_gate_senders: {
+        Args: { target_gate: string; days: number; lim: number }
+        Returns: {
+          sender_domain: string
+          rejections: number
+          last_seen: string
         }[]
       }
     }

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Card } from '@/components/ui'
 import { useAdminQuery } from './useAdminQuery'
 import { scanSuccessRate } from './adminMetrics'
@@ -26,7 +27,108 @@ interface GateRow {
   rejections: number
 }
 
+interface GateSenderRow {
+  sender_domain: string
+  rejections: number
+  last_seen: string
+}
+
+// Fragments that mark a sending domain as "probably real money mail". A gate
+// rejecting these is throwing away receipts the user wanted; a gate rejecting
+// newsletters and shopping blasts is doing its job. This is a display hint
+// only — it colours the row so the distinction is visible at a glance, it does
+// not change what the scanner does.
+const FINANCIAL_DOMAIN_HINTS = [
+  'bank', 'hdfc', 'icici', 'sbi', 'axis', 'kotak', 'idfc', 'indusind', 'yesbank',
+  'rbl', 'canara', 'pnb', 'bob', 'federal', 'aubank', 'bandhan',
+  'paytm', 'phonepe', 'gpay', 'googlepay', 'amazonpay', 'upi', 'cred',
+  'razorpay', 'payu', 'billdesk', 'cashfree', 'visa', 'mastercard', 'amex',
+  'americanexpress', 'onecard', 'slice', 'jupiter', 'fi.money', 'niyo',
+]
+
+function looksFinancial(domain: string): boolean {
+  const lower = domain.toLowerCase()
+  return FINANCIAL_DOMAIN_HINTS.some((hint) => lower.includes(hint))
+}
+
+// Rendered only while a gate is selected. Keeping it in its own component means
+// useAdminQuery is mounted with a real gate every time it runs — no conditional
+// hook, and no need for the hook to support "don't fetch yet".
+function GateSenders({ gate }: { gate: string }) {
+  const senders = useAdminQuery<GateSenderRow[]>('admin_gate_senders', {
+    target_gate: gate,
+    days: 30,
+    lim: 20,
+  })
+
+  if (senders.loading) {
+    return <p className="px-3 py-2 text-xs text-zinc-500">Loading senders…</p>
+  }
+
+  if (senders.error) {
+    return (
+      <div className="px-3 py-2">
+        <p className="text-xs text-red-400">Could not load senders: {senders.error}</p>
+        <button onClick={senders.reload} className="mt-1 text-xs text-brand-400 underline">
+          Retry
+        </button>
+      </div>
+    )
+  }
+
+  const rows = senders.data ?? []
+  if (rows.length === 0) {
+    return <p className="px-3 py-2 text-xs text-zinc-500">No senders recorded for this gate.</p>
+  }
+
+  const flagged = rows.filter((r) => looksFinancial(r.sender_domain)).length
+
+  return (
+    <div className="px-3 py-2">
+      <p className="mb-2 text-xs text-zinc-500">
+        {flagged === 0
+          ? 'Top senders this gate rejected. None look like a bank or payment provider.'
+          : `Top senders this gate rejected. ${flagged} look${flagged === 1 ? 's' : ''} like a bank or payment provider — check these.`}
+      </p>
+      <table className="w-full text-left text-xs">
+        <thead className="text-zinc-500">
+          <tr>
+            <th className="py-1 font-normal">Sender domain</th>
+            <th className="py-1 text-right font-normal">Rejected</th>
+            <th className="py-1 text-right font-normal">Last seen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const financial = looksFinancial(r.sender_domain)
+            return (
+              <tr key={r.sender_domain} className="border-t border-border-subtle/40">
+                <td className={`py-1 ${financial ? 'font-medium text-amber-400' : 'text-zinc-300'}`}>
+                  {r.sender_domain}
+                  {financial && (
+                    <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-400">
+                      bank / payments
+                    </span>
+                  )}
+                </td>
+                <td className="py-1 text-right text-zinc-400">{r.rejections}</td>
+                <td className="py-1 text-right text-zinc-500">
+                  {new Date(r.last_seen).toLocaleDateString('en-IN')}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      <p className="mt-2 text-[11px] text-zinc-600">
+        Domains only — subject lines are never shown here.
+      </p>
+    </div>
+  )
+}
+
 export default function ScannerTab() {
+  const [openGate, setOpenGate] = useState<string | null>(null)
   const stats = useAdminQuery<ScannerRow[]>('admin_scanner_stats', { days: 30 })
   const failures = useAdminQuery<FailureRow[]>('admin_scan_failures', { lim: 20 })
   const gates = useAdminQuery<GateRow[]>('admin_rejection_gates', { days: 30 })
@@ -96,14 +198,39 @@ export default function ScannerTab() {
         ) : (gates.data?.length ?? 0) === 0 ? (
           <p className="text-sm text-zinc-500">No rejections recorded.</p>
         ) : (
-          <ul className="space-y-1 text-sm">
-            {gates.data!.map((g) => (
-              <li key={g.gate} className="flex justify-between text-zinc-300">
-                <span>{g.gate}</span>
-                <span className="text-zinc-500">{g.rejections}</span>
-              </li>
-            ))}
-          </ul>
+          <>
+            <p className="mb-2 text-xs text-zinc-500">
+              Select a gate to see which domains it is rejecting.
+            </p>
+            <ul className="space-y-1 text-sm">
+              {gates.data!.map((g) => {
+                const open = openGate === g.gate
+                return (
+                  <li key={g.gate}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenGate(open ? null : g.gate)}
+                      aria-expanded={open}
+                      className={`flex w-full items-center justify-between rounded px-3 py-1.5 text-left transition-colors hover:bg-zinc-800/60 ${
+                        open ? 'bg-zinc-800/60 text-zinc-100' : 'text-zinc-300'
+                      }`}
+                    >
+                      <span>
+                        <span className="mr-2 inline-block w-3 text-zinc-500">{open ? '▾' : '▸'}</span>
+                        {g.gate}
+                      </span>
+                      <span className="text-zinc-500">{g.rejections}</span>
+                    </button>
+                    {open && (
+                      <div className="mt-1 rounded border border-border-subtle/60 bg-zinc-900/40">
+                        <GateSenders gate={g.gate} />
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          </>
         )}
       </Card>
 
