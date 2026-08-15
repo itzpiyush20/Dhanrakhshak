@@ -153,8 +153,8 @@ counts; average emails processed and transactions found per scan; recent failure
 error text and account; rejection counts by gate — which distinguishes "the scanner is
 correctly binning junk" from "the scanner is discarding real receipts".
 
-**AI.** Gemini calls today and over 7 days; accounts nearest their daily cap; how often
-quota rejection fires. Call counts only — the app does not know the owner's Gemini
+**AI.** Gemini calls today and over 7 days, per account and in total, highest consumers
+first; how often quota rejection fires. No cap percentage — see below. Call counts only — the app does not know the owner's Gemini
 pricing, and an invented rupee figure would be worse than none.
 
 ### AI quota limits — where the numbers live
@@ -167,10 +167,16 @@ restated in SQL, where the two copies would drift the first time a cap changes.
 Therefore: `admin_ai_usage()` returns raw counts, and the AI tab computes proximity in
 TypeScript. Both the proxy and the tab import the limits from one shared module.
 
-This requires moving two constants out of `api/gemini-proxy.ts` into a shared file —
-no behavioural change, but it is AI-proxy code neighbouring the scanner, so it needs
-explicit owner sign-off before implementation. If withheld, the fallback is for the tab
-to show raw counts with no cap percentage, which needs no change to the proxy.
+**DECIDED 2026-08-15: the proxy is not touched.** Extracting the constants would have
+meant editing `api/gemini-proxy.ts`, which CLAUDE.md lists as scanner infrastructure.
+The owner's instruction is that the scanner must not be impacted, so phase 1 takes the
+fallback: the AI tab shows raw call counts with no cap percentage, and no file on the
+scanner path is modified.
+
+Nor are the limits copied into SQL or into admin code. A second copy would silently
+disagree with the proxy the first time a cap changed, and a wrong percentage is worse
+than no percentage. If cap proximity is wanted later, the extraction is the way to get
+it, and it needs its own approval.
 
 **Feedback.** Message, rating, category, email, date; average rating; category
 breakdown. Read-only — marking items handled is a write and belongs to Phase 3.
@@ -215,7 +221,14 @@ is never surfaced as a raw error.
 
 No writes of any kind: no granting plans, no editing users, no marking feedback
 handled, no triggering scans. No admin-granting UI. No email or alerting. No cost
-estimates in currency. No changes to the email scanner. No new dependencies.
+estimates in currency. No new dependencies.
+
+**No file on the scanner path is touched.** Not `emailScanner.ts`, `aiService.ts`,
+`emailScanGates.ts`, `learningEngine.ts`, `api/gemini-proxy.ts`, or
+`api/auto-sync-gmail.ts`. The panel only reads tables the scanner writes
+(`email_scan_logs`, `email_scan_rejections`) through separate `SELECT`-only functions,
+which cannot alter scanner behaviour. Any future phase that needs a scanner-path change
+requires its own explicit approval.
 
 ## Later phases
 
