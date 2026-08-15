@@ -56,7 +56,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { data, error } = await supabaseAdmin
         .from('promo_codes')
         .select('code, plan_type, duration_days, active, max_uses, used_count, note, created_at, expires_at')
-        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+        // The timestamp is quoted because PostgREST splits an or() filter on
+        // dots, and an ISO timestamp is full of them (2026-08-15T21:40:00.000Z).
+        .or(`expires_at.is.null,expires_at.gt."${new Date().toISOString()}"`)
         .order('created_at', { ascending: false })
 
       if (error) throw error
