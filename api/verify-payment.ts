@@ -79,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     typeof razorpay_order_id !== 'string' || !razorpay_order_id ||
     typeof razorpay_payment_id !== 'string' || !razorpay_payment_id ||
     typeof razorpay_signature !== 'string' || !razorpay_signature ||
-    !['monthly', 'annual', 'lifetime'].includes(planType)
+    !['monthly', 'annual'].includes(planType)
   ) {
     return res.status(400).json({ error: 'Missing or invalid payment parameters' })
   }

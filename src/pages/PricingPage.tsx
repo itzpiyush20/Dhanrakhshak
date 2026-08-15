@@ -194,8 +194,8 @@ export default function PricingPage() {
     setProcessing(true)
     setTimeout(async () => {
       try {
-        const success = await updateSubscriptionStatus('active', 'lifetime', enteredCode)
-        if (success) { showToast('👑 Unlimited VIP lifetime access unlocked!', 'success'); navigate('/dashboard') }
+        const success = await updateSubscriptionStatus('active', 'monthly', enteredCode)
+        if (success) { showToast('👑 One month of free access unlocked!', 'success'); navigate('/dashboard') }
         else showToast('Failed to apply coupon. Please try again.', 'error')
       } catch (err: any) { showToast('Coupon error: ' + err.message, 'error') }
       finally { setProcessing(false) }
@@ -612,7 +612,7 @@ export default function PricingPage() {
                     <div className="space-y-6 animate-fade-in">
                       <div className="rounded-2xl p-4 bg-emerald-500/5 border border-emerald-500/25">
                         <p className="text-xs text-zinc-400 leading-relaxed font-medium">
-                          🎟️ <strong className="text-sb-ink">Have a promo code?</strong> Enter your exclusive code below to unlock lifetime access to all tracking, backup, and dashboard automation tools instantly.
+                          🎟️ <strong className="text-sb-ink">Have a promo code?</strong> Enter your exclusive code below to unlock a free month of all tracking, backup, and dashboard automation tools instantly.
                         </p>
                       </div>
                       <div className="space-y-4">

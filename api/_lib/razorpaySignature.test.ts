@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import crypto from 'crypto'
-import { verifyHmacSignature, planDurationDays } from './razorpaySignature.js'
+import { verifyHmacSignature, planDurationDays, type PlanType } from './razorpaySignature.js'
 
 describe('verifyHmacSignature', () => {
   const secret = 'test_secret'
@@ -39,7 +39,9 @@ describe('planDurationDays', () => {
     expect(planDurationDays('annual')).toBe(365)
   })
 
-  it('returns 100 years for lifetime', () => {
-    expect(planDurationDays('lifetime')).toBe(36500)
+  // Only monthly and annual exist. A lifetime tier used to grant 36500 days,
+  // which surfaced to users as an expiry a century out; the tier is gone.
+  it('falls back to 30 days for an unrecognised plan type', () => {
+    expect(planDurationDays('lifetime' as unknown as PlanType)).toBe(30)
   })
 })

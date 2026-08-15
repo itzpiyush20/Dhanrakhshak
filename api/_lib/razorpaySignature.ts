@@ -9,11 +9,11 @@ export function verifyHmacSignature(payload: string, secret: string, signature: 
   return crypto.timingSafeEqual(expectedBuf, signatureBuf)
 }
 
-export type PlanType = 'monthly' | 'annual' | 'lifetime'
+/** The only paid plans that exist: monthly and yearly. There is no lifetime tier. */
+export type PlanType = 'monthly' | 'annual'
 
 /** Subscription length in days for each plan type. */
 export function planDurationDays(planType: PlanType): number {
   if (planType === 'annual') return 365
-  if (planType === 'lifetime') return 36500
   return 30
 }

@@ -38,7 +38,7 @@ interface AuthContextValue extends AuthState {
   resetPassword: (email: string) => Promise<{ error: string | null }>
   isSubscriptionActive: boolean
   daysLeft: number
-  updateSubscriptionStatus: (status: 'active' | 'trial', planType?: 'monthly' | 'annual' | 'lifetime', promoCode?: string) => Promise<boolean>
+  updateSubscriptionStatus: (status: 'active' | 'trial', planType?: 'monthly' | 'annual', promoCode?: string) => Promise<boolean>
   authModalOpen: boolean
   authModalRedirect: string | null
   authModalTab: 'login' | 'signup'
@@ -803,11 +803,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
   })()
 
-  const updateSubscriptionStatus = async (status: 'active' | 'trial', planType?: 'monthly' | 'annual' | 'lifetime', promoCode?: string) => {
+  const updateSubscriptionStatus = async (status: 'active' | 'trial', planType?: 'monthly' | 'annual', promoCode?: string) => {
     if (!state.user) return false
     try {
       const expiresAt = status === 'active'
-        ? new Date(Date.now() + (planType === 'lifetime' ? 36500 : (planType === 'annual' ? 365 : 30)) * 24 * 60 * 60 * 1000).toISOString()
+        ? new Date(Date.now() + (planType === 'annual' ? 365 : 30) * 24 * 60 * 60 * 1000).toISOString()
         : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
 
       const subPlanType = planType || (status === 'active' ? 'monthly' : 'trial')

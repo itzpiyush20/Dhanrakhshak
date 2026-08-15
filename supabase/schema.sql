@@ -21,7 +21,10 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   promo_code TEXT DEFAULT NULL,
   daily_scan_time TEXT DEFAULT '06:00',
   subscription_status TEXT DEFAULT 'free' CHECK (subscription_status IN ('free', 'trial', 'active', 'expired', 'cancelled')),
-  subscription_plan_type TEXT CHECK (subscription_plan_type IN ('monthly', 'annual', 'lifetime')),
+  -- Three paid-facing tiers: free, monthly and annual/yearly. 'trial' is also a
+  -- valid value here — it is what a free account carries during its 7-day trial,
+  -- and PricingPage uses it to tell an expired trial from an expired paid plan.
+  subscription_plan_type TEXT CHECK (subscription_plan_type IN ('trial', 'monthly', 'annual')),
   subscription_expires_at TIMESTAMPTZ,
   razorpay_subscription_id TEXT,
   razorpay_order_id TEXT,
@@ -37,6 +40,10 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS ai_calls_count INTEGER NOT 
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS ai_calls_reset_at TIMESTAMPTZ NOT NULL DEFAULT now();
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS ai_scan_calls_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS ai_scan_calls_reset_at TIMESTAMPTZ NOT NULL DEFAULT now();
+-- protect_server_only_profile_columns reads both of these, so a database that
+-- predates them fails every UPDATE on profiles with error 42703 until they exist.
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS razorpay_subscription_id TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS razorpay_order_id TEXT;
 
 -- Returns true if the given user (default: caller) is flagged as an admin.
 -- SECURITY DEFINER so it can read profiles.is_admin without recursing into
