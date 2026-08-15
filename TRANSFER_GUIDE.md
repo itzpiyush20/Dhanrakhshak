@@ -148,3 +148,21 @@ After all keys are rotated and env vars are updated, verify:
 ## 10. Support
 
 All contact details are centralised in `src/constants/index.ts` → `APP_CONFIG`. Update `SUPPORT_EMAIL`, `SUPPORT_NAME`, and `SUPPORT_ADDRESS` once and they propagate to Privacy Policy, Refund Policy, and Support pages automatically.
+
+---
+
+## Granting admin access
+
+The admin section at `/admin` is visible only to accounts whose `profiles.is_admin`
+column is `true`. There is deliberately no button for this — an app that can hand out
+admin rights from its own interface is one compromised session away from losing
+everything.
+
+To make an account admin, run this once in the Supabase SQL editor:
+
+```sql
+update public.profiles set is_admin = true where email = 'you@example.com';
+```
+
+To revoke, set it back to `false`. The change takes effect the next time that user's
+profile loads.

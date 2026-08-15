@@ -49,7 +49,7 @@ cron). UI entry points: `src/pages/PendingPage.tsx`, `src/pages/DashboardPage.ts
 
 - Commits: `fix:` / `feat:` / `docs:` prefixes.
 - Multi-phase work gets a plan document in `plans/` first, executed phase by phase.
-- Supabase migrations are numbered sequentially in `supabase/` (next is `020_`).
+- Supabase migrations are numbered sequentially in `supabase/` (next is `023_`).
 - Lint has a large pre-existing baseline of `@typescript-eslint/no-explicit-any` and
   `setState`-in-effect errors. Don't treat those as regressions; just don't add new ones
   in files you touch.

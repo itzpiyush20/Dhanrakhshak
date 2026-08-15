@@ -35,7 +35,9 @@ import {
   Wallet,
   HandCoins,
   ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react'
+import { canAccessAdmin } from '@/services/adminAccess'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -695,6 +697,15 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                         >
                           <Settings className="h-3.5 w-3.5 text-zinc-500 shrink-0" /> Settings Section
                         </Link>
+                        {canAccessAdmin(profile) && (
+                          <Link
+                            to="/admin"
+                            onClick={() => setProfileDropdownOpen(false)}
+                            className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-400 hover:bg-surface-2 hover:text-zinc-100")}
+                          >
+                            <ShieldCheck className="h-3.5 w-3.5 text-zinc-500 shrink-0" /> Admin Section
+                          </Link>
+                        )}
                         <Link
                           to="/pricing"
                           onClick={() => setProfileDropdownOpen(false)}
@@ -792,6 +803,18 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                 >
                   <Settings className="h-4 w-4 mr-2 text-zinc-500 shrink-0" /> Settings Section
                 </Link>
+                {canAccessAdmin(profile) && (
+                  <Link
+                    to="/admin"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={cn(
+                      'flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                      location.pathname === '/admin' ? 'font-bold' : ''
+                    )}
+                  >
+                    <ShieldCheck className="h-4 w-4 mr-2 text-zinc-500 shrink-0" /> Admin Section
+                  </Link>
+                )}
                 <Link
                   to="/pricing"
                   onClick={() => setMobileMenuOpen(false)}
