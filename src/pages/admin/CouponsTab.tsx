@@ -64,7 +64,6 @@ export default function CouponsTab() {
   const [code, setCode] = useState('')
   const [days, setDays] = useState('30')
   const [maxUses, setMaxUses] = useState('')
-  const [codeValidDays, setCodeValidDays] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -98,16 +97,15 @@ export default function CouponsTab() {
         code,
         durationDays: Number(days),
         maxUses: maxUses.trim() === '' ? null : Number(maxUses),
-        codeValidDays: codeValidDays.trim() === '' ? null : Number(codeValidDays),
+        // One number, two jobs: the code stays redeemable for this many days,
+        // and each person who redeems it gets this many days of access from
+        // their own redemption date.
+        codeValidDays: Number(days),
         planType: 'monthly',
         note,
       })
-      setSuccess(
-        codeValidDays.trim() === ''
-          ? `Coupon ${created.code} created — grants ${days} days, never expires.`
-          : `Coupon ${created.code} created — grants ${days} days, usable for the next ${codeValidDays} days.`
-      )
-      setCode(''); setDays('30'); setMaxUses(''); setCodeValidDays(''); setNote('')
+      setSuccess(`Coupon ${created.code} created — usable for the next ${days} days, and gives each person ${days} days of access.`)
+      setCode(''); setDays('30'); setMaxUses(''); setNote('')
       load()
     } catch (e) {
       setFormError((e as Error).message)
@@ -142,8 +140,9 @@ export default function CouponsTab() {
       <Card className="p-4">
         <h2 className="mb-1 text-sm font-semibold text-zinc-200">Create a coupon</h2>
         <p className="mb-4 text-xs text-zinc-500">
-          Anyone who has the code can redeem it once. They get full premium access for the
-          number of days you set here, then it lapses on its own.
+          Anyone who has the code can redeem it once, for as long as the code is still
+          valid. Each person gets full premium access counted from the day they redeem,
+          so someone redeeming on the last day still gets the full run.
         </p>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -164,18 +163,14 @@ export default function CouponsTab() {
           <div>
             <label className="mb-1 block text-xs text-zinc-400">Valid for (days)</label>
             <Input value={days} onChange={(e) => setDays(e.target.value)} placeholder="30" />
+            <p className="mt-1 text-[11px] text-zinc-500">
+              Code works for this many days from today, and each person who redeems it
+              gets this many days of access from their own redemption date.
+            </p>
           </div>
           <div>
             <label className="mb-1 block text-xs text-zinc-400">Usage limit (blank = unlimited)</label>
             <Input value={maxUses} onChange={(e) => setMaxUses(e.target.value)} placeholder="100" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs text-zinc-400">Code expires in (days, blank = never)</label>
-            <Input
-              value={codeValidDays}
-              onChange={(e) => setCodeValidDays(e.target.value)}
-              placeholder="14"
-            />
           </div>
           <div>
             <label className="mb-1 block text-xs text-zinc-400">Note (optional, for you)</label>
