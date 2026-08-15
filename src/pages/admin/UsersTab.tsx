@@ -2,7 +2,7 @@
 // UsersTab — browse accounts, grant or end paid access, inspect scan history.
 //
 // The read side goes through admin_user_list (RPC, admin-gated in SQL). The
-// write side goes through /api/admin-user-ops, which re-checks profiles.is_admin
+// write side goes through /api/admin, which re-checks profiles.is_admin
 // server-side using the caller's token — hiding these buttons in the browser is
 // convenience, the endpoint is the gate. That endpoint also refuses when an
 // admin targets their own account, and that refusal is shown verbatim rather
@@ -62,7 +62,7 @@ async function callAdminUserOps(body: Record<string, unknown>): Promise<AdminUse
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('Your session expired. Please sign in again.')
 
-  const response = await fetch('/api/admin-user-ops', {
+  const response = await fetch('/api/admin', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

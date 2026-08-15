@@ -1,17 +1,29 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { normalisePromoCode, validateNewPromoCode, canDeletePromoCode } from './_lib/promo.js'
+import {
+  normalisePromoCode,
+  validateNewPromoCode,
+  canDeletePromoCode,
+  grantExpiryFrom,
+} from './_lib/promo.js'
 
 // ============================================
-// Admin coupon management: list, create, deactivate.
+// Every admin write, behind one function.
 //
-// The admin panel is otherwise read-only. This is the one place it writes, so
-// the admin check is done HERE, against the database, using the account id
-// taken from the caller's token. The browser saying "I am an admin" means
-// nothing — profiles.is_admin is the only thing consulted.
+// Coupon management and subscription operations were originally two files.
+// Vercel's Hobby plan allows 12 serverless functions and the project had
+// reached 13, so every deployment failed. Merging them is not cosmetic — it is
+// what makes the project deployable.
 //
-// Codes are never deleted, only deactivated: a deleted code would take its
-// redemption history with it.
+// GET                      list coupons
+// POST { action: ... }     create | set_active | delete   (coupons)
+//                          grant  | expire                (subscriptions)
+//
+// The admin gate is applied ONCE, here, before any action runs: the caller's
+// id comes from their token and profiles.is_admin is re-read from the database.
+// The browser claiming to be an admin means nothing.
+//
+// This cannot set is_admin. Granting admin stays a manual SQL step by design.
 // ============================================
 
 const supabaseAdmin = createClient(
@@ -20,6 +32,10 @@ const supabaseAdmin = createClient(
 )
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://dhanrakshak-five.vercel.app'
+
+// Capped so a typo cannot recreate the hundred-year "lifetime" subscription
+// this whole line of work started with.
+const MAX_GRANT_DAYS = 365
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers.origin || ''
@@ -37,22 +53,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(authHeader.slice(7))
   if (userError || !user) return res.status(401).json({ error: 'Unauthorized' })
 
-  // The gate. Everything below this line assumes a verified admin.
-  const { data: profile, error: profileError } = await supabaseAdmin
+  // The gate. Everything past this line assumes a verified admin.
+  const { data: caller, error: callerError } = await supabaseAdmin
     .from('profiles')
     .select('is_admin')
     .eq('id', user.id)
     .maybeSingle()
 
-  if (profileError || !profile?.is_admin) {
+  if (callerError || !caller?.is_admin) {
     return res.status(403).json({ error: 'Admin access required.' })
   }
 
   try {
+    // ── Coupons: list ─────────────────────────────────────────────────────
     if (req.method === 'GET') {
-      // Expired codes drop out of the list on their own — that is the owner's
-      // "a code should vanish automatically after its validity expires". The
-      // rows stay in the database so history survives.
+      // Expired codes drop out of the list on their own. The rows stay in the
+      // database so the history of what was offered survives.
       const { data, error } = await supabaseAdmin
         .from('promo_codes')
         .select('code, plan_type, duration_days, active, max_uses, used_count, note, created_at, expires_at')
@@ -69,6 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { action } = req.body ?? {}
 
+    // ── Coupons: create ───────────────────────────────────────────────────
     if (action === 'create') {
       const { code: rawCode, durationDays, maxUses, planType, note } = req.body ?? {}
 
@@ -84,16 +101,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Plan must be monthly or annual.' })
       }
 
-      // Optional: how many days the CODE stays redeemable, as opposed to
-      // durationDays, which is how long the access it grants lasts.
+      // How long the CODE stays redeemable, as opposed to durationDays, which
+      // is how long the access it grants lasts.
       const validForDays = req.body?.codeValidDays
-      let expiresAt: string | null = null
+      let codeExpiresAt: string | null = null
       if (validForDays !== undefined && validForDays !== null && validForDays !== '') {
         const validDays = Number(validForDays)
         if (!Number.isInteger(validDays) || validDays < 1 || validDays > 3650) {
           return res.status(400).json({ error: 'Code validity must be a whole number of days between 1 and 3650, or left empty to never expire.' })
         }
-        expiresAt = new Date(Date.now() + validDays * 24 * 60 * 60 * 1000).toISOString()
+        codeExpiresAt = grantExpiryFrom(validDays)
       }
 
       const { error } = await supabaseAdmin.from('promo_codes').insert({
@@ -101,7 +118,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         plan_type: planType || 'monthly',
         duration_days: days,
         max_uses: uses,
-        expires_at: expiresAt,
+        expires_at: codeExpiresAt,
         note: typeof note === 'string' && note.trim() ? note.trim() : null,
       })
 
@@ -113,6 +130,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ success: true, code: normalisePromoCode(rawCode) })
     }
 
+    // ── Coupons: enable / disable ─────────────────────────────────────────
     if (action === 'set_active') {
       const { code: rawCode, active } = req.body ?? {}
       if (typeof rawCode !== 'string' || typeof active !== 'boolean') {
@@ -131,14 +149,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ success: true })
     }
 
+    // ── Coupons: delete ───────────────────────────────────────────────────
     if (action === 'delete') {
       const { code: rawCode } = req.body ?? {}
       if (typeof rawCode !== 'string') return res.status(400).json({ error: 'Code is required.' })
 
-      // Delete is only for codes nobody has used — typos and abandoned test
-      // codes. Once someone has redeemed it, deleting would throw away the
-      // record of who was given free access, so those are disabled instead.
-      // Checked here rather than only in the UI, because the UI is not a gate.
+      // Only codes nobody has used — typos and abandoned tests. Once redeemed,
+      // deleting would throw away the record of who was given free access, so
+      // those are disabled instead. Checked here because the UI is not a gate.
       const { data: existing } = await supabaseAdmin
         .from('promo_codes')
         .select('used_count')
@@ -165,9 +183,80 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ success: true })
     }
 
+    // ── Subscriptions: grant / end ────────────────────────────────────────
+    if (action === 'grant' || action === 'expire') {
+      const { userId, days, planType } = req.body ?? {}
+
+      if (typeof userId !== 'string' || !userId) {
+        return res.status(400).json({ error: 'A target account is required.' })
+      }
+
+      // An admin granting themselves access makes the audit trail meaningless.
+      if (userId === user.id) {
+        return res.status(400).json({ error: 'You cannot change your own subscription here.' })
+      }
+
+      if (action === 'grant') {
+        const grantDays = Number(days)
+        if (!Number.isInteger(grantDays) || grantDays < 1 || grantDays > MAX_GRANT_DAYS) {
+          return res.status(400).json({ error: `Days must be a whole number between 1 and ${MAX_GRANT_DAYS}.` })
+        }
+        if (planType !== 'monthly' && planType !== 'annual') {
+          return res.status(400).json({ error: 'Plan must be monthly or annual.' })
+        }
+
+        const expiresAt = grantExpiryFrom(grantDays)
+
+        const { data, error } = await supabaseAdmin
+          .from('profiles')
+          .update({
+            subscription_status: 'active',
+            subscription_expires_at: expiresAt,
+            subscription_plan_type: planType,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId)
+          .select('id, email')
+
+        if (error) throw error
+        if (!data || data.length === 0) return res.status(404).json({ error: 'No such account.' })
+
+        // Auditable: who got free access, when, and for how long.
+        await supabaseAdmin
+          .from('payments')
+          .insert({
+            user_id: userId,
+            plan_type: planType,
+            amount_inr: 0,
+            source: 'admin',
+            status: 'captured',
+          })
+          .then(({ error: paymentError }: { error: { message?: string } | null }) => {
+            if (paymentError) console.warn('Failed to record admin grant in payments:', paymentError.message)
+          })
+
+        return res.status(200).json({ success: true, email: data[0].email, expiresAt })
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from('profiles')
+        .update({
+          subscription_status: 'expired',
+          subscription_expires_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId)
+        .select('id, email')
+
+      if (error) throw error
+      if (!data || data.length === 0) return res.status(404).json({ error: 'No such account.' })
+
+      return res.status(200).json({ success: true, email: data[0].email })
+    }
+
     return res.status(400).json({ error: 'Unknown action.' })
   } catch (error) {
-    console.error('Admin promo operation failed:', error)
+    console.error('Admin operation failed:', error)
     return res.status(500).json({ error: 'Operation failed. Please try again.' })
   }
 }

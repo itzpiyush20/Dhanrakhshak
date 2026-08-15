@@ -2,7 +2,7 @@
 // CouponsTab — create and manage coupon codes.
 //
 // The only part of the admin panel that writes. Every call goes through
-// /api/admin-promo, which re-checks profiles.is_admin server-side using the
+// /api/admin, which re-checks profiles.is_admin server-side using the
 // caller's token. Nothing here is trusted: hiding this tab in the browser is
 // convenience, the endpoint is the gate.
 // ============================================
@@ -35,7 +35,7 @@ async function callAdminPromo(body: Record<string, unknown> | null): Promise<Adm
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('Your session expired. Please sign in again.')
 
-  const response = await fetch('/api/admin-promo', {
+  const response = await fetch('/api/admin', {
     method: body ? 'POST' : 'GET',
     headers: {
       'Content-Type': 'application/json',
