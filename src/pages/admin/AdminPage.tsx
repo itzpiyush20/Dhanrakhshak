@@ -6,6 +6,7 @@
 // ============================================
 
 import { useEffect, useState } from 'react'
+import { AppLayout } from '@/layouts'
 import OverviewTab from './OverviewTab'
 import UsersTab from './UsersTab'
 import ScannerTab from './ScannerTab'
@@ -28,6 +29,7 @@ export default function AdminPage() {
   useEffect(() => { document.title = 'Admin | Dhanrakshak' }, [])
 
   return (
+    <AppLayout>
     <main className="mx-auto w-full max-w-7xl px-4 py-8">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-zinc-100">Admin</h1>
@@ -58,5 +60,6 @@ export default function AdminPage() {
       {tab === 'ai' && <AiUsageTab />}
       {tab === 'feedback' && <FeedbackTab />}
     </main>
+    </AppLayout>
   )
 }

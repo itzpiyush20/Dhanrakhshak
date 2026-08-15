@@ -70,6 +70,26 @@ function getOrCreateDeviceId(): string {
   }
 }
 
+/**
+ * Last known admin status for this account.
+ *
+ * Every fallback path in loadProfile rebuilds the profile from localStorage
+ * when the database read is slow or fails — and something as ordinary as
+ * minimising the window can trigger one. Those rebuilds used to omit is_admin
+ * entirely, so it came back undefined, AdminRoute read that as "not an admin"
+ * and redirected the user out of /admin mid-session.
+ *
+ * This is a display convenience only. Faking the cached value gains nothing:
+ * every admin SQL function re-checks is_admin server-side and refuses.
+ */
+function readCachedIsAdmin(userId: string): boolean {
+  try {
+    return localStorage.getItem(`dhanrakshak_is_admin_${userId}`) === 'true'
+  } catch {
+    return false
+  }
+}
+
 function getDeviceName(): string {
   const ua = navigator.userAgent
   let browser = 'Unknown Browser'
@@ -195,6 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       subscription_plan_type: 'trial',
       daily_scan_time: '06:00',
+      is_admin: readCachedIsAdmin(state.user!.id),
     })
 
     // 1. Immediately load cached settings and subscription from localStorage to prevent flashes
@@ -218,7 +239,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           subscription_status: subStatus,
           subscription_expires_at: cachedExpires || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           subscription_plan_type: cachedPlan || 'trial',
-          daily_scan_time: cachedScanTime
+          daily_scan_time: cachedScanTime,
+          is_admin: readCachedIsAdmin(state.user.id)
         })
       }
 
@@ -270,6 +292,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(`dhanrakshak_sub_status_${state.user.id}`, subStatus)
         if (subExpires) localStorage.setItem(`dhanrakshak_sub_expires_${state.user.id}`, subExpires)
         localStorage.setItem(`dhanrakshak_sub_plan_${state.user.id}`, subPlan)
+        // Cached so the fallback paths below can restore it. Without this a
+        // transient profile read rebuilds the profile without is_admin, which
+        // reads as "not an admin" and ejects the user from /admin.
+        localStorage.setItem(`dhanrakshak_is_admin_${state.user.id}`, String(data.is_admin === true))
 
         setProfile({
           ...data,
@@ -323,7 +349,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           subscription_status: subStatus,
           subscription_expires_at: localExpires || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           subscription_plan_type: subPlan,
-          daily_scan_time: localStorage.getItem(`dhanrakshak_daily_scan_time_${state.user.id}`) || '06:00'
+          daily_scan_time: localStorage.getItem(`dhanrakshak_daily_scan_time_${state.user.id}`) || '06:00',
+          is_admin: readCachedIsAdmin(state.user.id)
         })
       }
     } catch (e) {
@@ -354,7 +381,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         subscription_status: subStatus,
         subscription_expires_at: localExpires || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         subscription_plan_type: subPlan,
-        daily_scan_time: localStorage.getItem(`dhanrakshak_daily_scan_time_${state.user.id}`) || '06:00'
+        daily_scan_time: localStorage.getItem(`dhanrakshak_daily_scan_time_${state.user.id}`) || '06:00',
+        is_admin: readCachedIsAdmin(state.user.id)
       })
     }
   }

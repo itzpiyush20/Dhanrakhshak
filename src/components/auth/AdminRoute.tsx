@@ -12,7 +12,10 @@ import { canAccessAdmin } from '@/services/adminAccess'
 export default function AdminRoute() {
   const { profile, loading } = useAuth()
 
-  if (loading) {
+  // A null profile means the fetch has not resolved yet, not that the user is
+  // unauthorised. Redirecting on it would eject an admin whenever the profile
+  // is momentarily in flight — which is what minimising the window causes.
+  if (loading || !profile) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface-0">
         <div className="h-10 w-10 animate-spin rounded-full border-2 border-brand-400 border-t-transparent" />
