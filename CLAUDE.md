@@ -49,7 +49,13 @@ cron). UI entry points: `src/pages/PendingPage.tsx`, `src/pages/DashboardPage.ts
 
 - Commits: `fix:` / `feat:` / `docs:` prefixes.
 - Multi-phase work gets a plan document in `plans/` first, executed phase by phase.
-- Supabase migrations are numbered sequentially in `supabase/` (next is `023_`).
+- Supabase migrations are numbered sequentially in `supabase/` (next is `024_`).
+- `schema.sql` is only run when a database is created. Anything added to it later
+  reaches production **only** if a numbered migration also delivers it — twice now
+  (`razorpay_subscription_id`, `is_admin`) a column existed in `schema.sql` and not in
+  production, breaking every `UPDATE` on `profiles` via the guard trigger. When you add
+  a column to `schema.sql`, add an `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` to the
+  safety-net block *and* ship a migration.
 - Lint has a large pre-existing baseline of `@typescript-eslint/no-explicit-any` and
   `setState`-in-effect errors. Don't treat those as regressions; just don't add new ones
   in files you touch.
