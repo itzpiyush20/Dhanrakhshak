@@ -22,6 +22,9 @@ export interface Database {
           subscription_status: string | null
           subscription_expires_at: string | null
           subscription_plan_type: string | null
+          is_admin: boolean
+          ai_calls_count: number
+          ai_scan_calls_count: number
           daily_scan_time: string | null
           created_at: string
           updated_at: string
@@ -41,6 +44,9 @@ export interface Database {
           subscription_status?: string | null
           subscription_expires_at?: string | null
           subscription_plan_type?: string | null
+          is_admin?: boolean
+          ai_calls_count?: number
+          ai_scan_calls_count?: number
           daily_scan_time?: string | null
         }
         Update: {
@@ -56,6 +62,9 @@ export interface Database {
           subscription_status?: string | null
           subscription_expires_at?: string | null
           subscription_plan_type?: string | null
+          is_admin?: boolean
+          ai_calls_count?: number
+          ai_scan_calls_count?: number
           daily_scan_time?: string | null
         }
       }
@@ -352,6 +361,83 @@ export interface Database {
           sort_order?: number
           analytics_tags?: string[]
         }
+      }
+    }
+    Functions: {
+      admin_overview_stats: {
+        Args: Record<string, never>
+        Returns: {
+          total_accounts: number
+          signups_7d: number
+          signups_30d: number
+          paying_monthly: number
+          paying_annual: number
+          expiring_7d: number
+          signins_7d: number
+          signins_30d: number
+          transactions_7d: number
+          transactions_30d: number
+          transactions_pending: number
+        }[]
+      }
+      admin_growth_series: {
+        Args: { days: number }
+        Returns: { day: string; signups: number; signins: number }[]
+      }
+      admin_user_list: {
+        Args: { search: string; lim: number; off: number }
+        Returns: {
+          id: string
+          email: string
+          subscription_status: string | null
+          subscription_plan_type: string | null
+          subscription_expires_at: string | null
+          created_at: string
+          last_signin_at: string | null
+          scans_30d: number
+          total_count: number
+        }[]
+      }
+      admin_scanner_stats: {
+        Args: { days: number }
+        Returns: {
+          day: string
+          manual_scans: number
+          scheduled_scans: number
+          succeeded: number
+          partial: number
+          failed: number
+          emails_processed: number
+          transactions_found: number
+        }[]
+      }
+      admin_scan_failures: {
+        Args: { lim: number }
+        Returns: { scanned_at: string; email: string; error_message: string | null; scan_mode: string | null }[]
+      }
+      admin_rejection_gates: {
+        Args: { days: number }
+        Returns: { gate: string; rejections: number }[]
+      }
+      admin_ai_usage: {
+        Args: Record<string, never>
+        Returns: { email: string; ai_calls_count: number; ai_scan_calls_count: number }[]
+      }
+      admin_feedback_summary: {
+        Args: Record<string, never>
+        Returns: { total: number; average_rating: number; bug: number; feature_request: number; ui_ux: number; other: number }[]
+      }
+      admin_feedback_list: {
+        Args: { lim: number; off: number }
+        Returns: {
+          id: string
+          email: string
+          rating: number
+          category: string
+          message: string
+          created_at: string
+          total_count: number
+        }[]
       }
     }
   }
