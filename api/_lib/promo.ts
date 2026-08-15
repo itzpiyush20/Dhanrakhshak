@@ -13,11 +13,17 @@ export interface PromoCodeRow {
   active: boolean
   max_uses: number | null
   used_count: number
+  /**
+   * When the CODE stops working — not to be confused with duration_days, which
+   * is how long the access it grants lasts. Null means the code never expires.
+   */
+  expires_at?: string | null
 }
 
 export type RedeemRefusal =
   | 'not_found'
   | 'inactive'
+  | 'expired'
   | 'exhausted'
   | 'already_redeemed'
 
@@ -37,14 +43,29 @@ export function normalisePromoCode(input: string): string {
  */
 export function checkRedeemable(
   row: PromoCodeRow | null | undefined,
-  alreadyRedeemed: boolean
+  alreadyRedeemed: boolean,
+  now: number = Date.now()
 ): RedeemRefusal | null {
   if (!row) return 'not_found'
   if (!row.active) return 'inactive'
+  // An expired code is refused even though the admin list hides it, because
+  // someone may still be holding the code from a poster or an old message.
+  if (row.expires_at && new Date(row.expires_at).getTime() <= now) return 'expired'
   if (alreadyRedeemed) return 'already_redeemed'
   // max_uses null means unlimited.
   if (row.max_uses !== null && row.used_count >= row.max_uses) return 'exhausted'
   return null
+}
+
+/**
+ * May this code be deleted outright?
+ *
+ * Only when nobody has redeemed it — a typo or an unused test code. Once
+ * someone has used it, deleting would discard the record of who was given free
+ * access, so those are disabled instead.
+ */
+export function canDeletePromoCode(row: Pick<PromoCodeRow, 'used_count'>): boolean {
+  return row.used_count === 0
 }
 
 /** The moment a grant of this length ends, as an ISO timestamp. */

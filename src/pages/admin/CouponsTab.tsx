@@ -20,6 +20,8 @@ interface PromoCode {
   used_count: number
   note: string | null
   created_at: string
+  /** When the CODE stops working. Null = never. Not the length of access it grants. */
+  expires_at: string | null
 }
 
 interface AdminPromoResponse {
@@ -62,6 +64,7 @@ export default function CouponsTab() {
   const [code, setCode] = useState('')
   const [days, setDays] = useState('30')
   const [maxUses, setMaxUses] = useState('')
+  const [codeValidDays, setCodeValidDays] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -95,16 +98,33 @@ export default function CouponsTab() {
         code,
         durationDays: Number(days),
         maxUses: maxUses.trim() === '' ? null : Number(maxUses),
+        codeValidDays: codeValidDays.trim() === '' ? null : Number(codeValidDays),
         planType: 'monthly',
         note,
       })
-      setSuccess(`Coupon ${created.code} created — grants ${days} days.`)
-      setCode(''); setDays('30'); setMaxUses(''); setNote('')
+      setSuccess(
+        codeValidDays.trim() === ''
+          ? `Coupon ${created.code} created — grants ${days} days, never expires.`
+          : `Coupon ${created.code} created — grants ${days} days, usable for the next ${codeValidDays} days.`
+      )
+      setCode(''); setDays('30'); setMaxUses(''); setCodeValidDays(''); setNote('')
       load()
     } catch (e) {
       setFormError((e as Error).message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const remove = async (target: PromoCode) => {
+    if (!window.confirm(`Delete ${target.code}? Nobody has redeemed it, so nothing is lost.`)) return
+
+    try {
+      await callAdminPromo({ action: 'delete', code: target.code })
+      setSuccess(`Coupon ${target.code} deleted.`)
+      load()
+    } catch (e) {
+      setFormError(`Could not delete ${target.code}: ${(e as Error).message}`)
     }
   }
 
@@ -150,6 +170,14 @@ export default function CouponsTab() {
             <Input value={maxUses} onChange={(e) => setMaxUses(e.target.value)} placeholder="100" />
           </div>
           <div>
+            <label className="mb-1 block text-xs text-zinc-400">Code expires in (days, blank = never)</label>
+            <Input
+              value={codeValidDays}
+              onChange={(e) => setCodeValidDays(e.target.value)}
+              placeholder="14"
+            />
+          </div>
+          <div>
             <label className="mb-1 block text-xs text-zinc-400">Note (optional, for you)</label>
             <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Instagram launch" />
           </div>
@@ -189,6 +217,7 @@ export default function CouponsTab() {
                   <th className="px-4 py-3">Code</th>
                   <th className="px-4 py-3">Grants</th>
                   <th className="px-4 py-3">Used</th>
+                  <th className="px-4 py-3">Code expires</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Note</th>
                   <th className="px-4 py-3"></th>
@@ -202,6 +231,9 @@ export default function CouponsTab() {
                     <td className="px-4 py-3 text-zinc-400">
                       {c.used_count}{c.max_uses !== null ? ` / ${c.max_uses}` : ''}
                     </td>
+                    <td className="px-4 py-3 text-zinc-400">
+                      {c.expires_at ? new Date(c.expires_at).toLocaleDateString('en-IN') : 'Never'}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={c.active ? 'text-emerald-400' : 'text-zinc-500'}>
                         {c.active ? 'Active' : 'Disabled'}
@@ -212,6 +244,13 @@ export default function CouponsTab() {
                       <button onClick={() => toggle(c)} className="text-xs text-brand-400 underline">
                         {c.active ? 'Disable' : 'Enable'}
                       </button>
+                      {/* Only unused codes can be deleted; once redeemed, the
+                          record of who got free access must outlive the code. */}
+                      {c.used_count === 0 && (
+                        <button onClick={() => remove(c)} className="ml-3 text-xs text-red-400 underline">
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -222,8 +261,10 @@ export default function CouponsTab() {
       </Card>
 
       <p className="text-xs text-zinc-500">
-        Coupons are disabled, never deleted — deleting one would take its redemption
-        history with it. A user who has already redeemed a code cannot redeem it again.
+        Disable pauses a code but keeps it listed. Delete removes it entirely and stops
+        anyone redeeming it — people who already redeemed it keep the access they were
+        given, and the record of who redeemed it is kept underneath. A user can redeem
+        any given code only once.
       </p>
     </div>
   )

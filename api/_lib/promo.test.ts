@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   normalisePromoCode,
   checkRedeemable,
+  canDeletePromoCode,
   grantExpiryFrom,
   validateNewPromoCode,
   type PromoCodeRow,
@@ -56,6 +57,35 @@ describe('checkRedeemable', () => {
   // for a redemption they never made.
   it('reports inactive before already-redeemed', () => {
     expect(checkRedeemable(code({ active: false }), true)).toBe('inactive')
+  })
+
+  const NOW = Date.parse('2026-08-15T12:00:00.000Z')
+
+  it('allows a code whose own expiry is still ahead', () => {
+    expect(checkRedeemable(code({ expires_at: '2026-09-01T00:00:00.000Z' }), false, NOW)).toBeNull()
+  })
+
+  it('refuses a code past its own expiry, even though the list hides it', () => {
+    expect(checkRedeemable(code({ expires_at: '2026-08-01T00:00:00.000Z' }), false, NOW)).toBe('expired')
+  })
+
+  it('treats the expiry moment itself as expired', () => {
+    expect(checkRedeemable(code({ expires_at: '2026-08-15T12:00:00.000Z' }), false, NOW)).toBe('expired')
+  })
+
+  it('treats a null expiry as never expiring', () => {
+    expect(checkRedeemable(code({ expires_at: null }), false, NOW)).toBeNull()
+  })
+})
+
+describe('canDeletePromoCode', () => {
+  it('allows deleting a code nobody has redeemed', () => {
+    expect(canDeletePromoCode({ used_count: 0 })).toBe(true)
+  })
+
+  // Deleting would discard the record of who was granted free access.
+  it('refuses to delete a code that has been used', () => {
+    expect(canDeletePromoCode({ used_count: 1 })).toBe(false)
   })
 })
 

@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import { AppLayout } from '@/layouts'
+import { ScrollHint } from '@/components/ui'
 import OverviewTab from './OverviewTab'
 import UsersTab from './UsersTab'
 import ScannerTab from './ScannerTab'
@@ -40,7 +41,7 @@ export default function AdminPage() {
         </p>
       </header>
 
-      <div className="mb-6 flex gap-1 overflow-x-auto border-b border-border-subtle">
+      <ScrollHint wrapperClassName="mb-6 border-b border-border-subtle" className="flex gap-1">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -54,7 +55,7 @@ export default function AdminPage() {
             {t.label}
           </button>
         ))}
-      </div>
+      </ScrollHint>
 
       {tab === 'overview' && <OverviewTab />}
       {tab === 'users' && <UsersTab />}

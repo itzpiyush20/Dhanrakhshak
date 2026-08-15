@@ -38,6 +38,7 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { canAccessAdmin } from '@/services/adminAccess'
+import ScrollHint from '@/components/ui/ScrollHint'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -468,7 +469,11 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
 
           {/* Desktop Navigation Links */}
           {user && isAppRoute ? (
-            <nav className="hidden lg:flex items-center gap-3 text-xs font-semibold min-w-0 overflow-x-auto scrollbar-none" aria-label="Desktop navigation">
+            <ScrollHint
+              wrapperClassName="hidden lg:block"
+              className="flex items-center gap-3 text-xs font-semibold"
+              ariaLabel="Desktop navigation"
+            >
                 {navItems
                   .filter(item => item.path !== ROUTES.PRICING)
                   .map((item) => {
@@ -492,7 +497,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                       </Link>
                     )
                   })}
-              </nav>
+              </ScrollHint>
             ) : (
               <nav className="hidden md:flex items-center gap-8" aria-label="Desktop navigation">
                 {[

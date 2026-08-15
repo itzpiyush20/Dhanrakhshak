@@ -42,6 +42,7 @@ const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://dhanrakshak-five.v
 const REFUSAL_MESSAGE: Record<string, string> = {
   not_found: 'Invalid or expired coupon code.',
   inactive: 'This coupon is no longer active.',
+  expired: 'This coupon has expired.',
   exhausted: 'This coupon has reached its usage limit.',
   already_redeemed: 'You have already used this coupon.',
 }
@@ -78,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { data: promo } = await supabaseAdmin
       .from('promo_codes')
-      .select('code, plan_type, duration_days, active, max_uses, used_count')
+      .select('code, plan_type, duration_days, active, max_uses, used_count, expires_at')
       .eq('code', code)
       .maybeSingle()
 
