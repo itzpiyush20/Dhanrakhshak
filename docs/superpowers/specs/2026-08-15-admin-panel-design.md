@@ -104,13 +104,13 @@ All `SECURITY DEFINER`, all guarded as above.
 
 | Function | Returns |
 |---|---|
-| `admin_overview_stats()` | One row: total accounts, new signups (7d/30d), active paying count, monthly vs annual split, approximate MRR, expiring within 7 days, sign-ins (7d/30d). |
+| `admin_overview_stats()` | One row: total accounts, new signups (7d/30d), active paying count, monthly vs annual split, approximate MRR, expiring within 7 days, sign-ins (7d/30d), transactions created (7d/30d), transactions awaiting approval. |
 | `admin_growth_series(days int)` | Per-day signups and sign-ins for charting. |
 | `admin_user_list(search text, lim int, off int)` | Paginated: email, status, plan, expiry, signup date, last sign-in, scans in last 30 days. Plus total count for pagination. |
 | `admin_scanner_stats(days int)` | Per-day scan counts split manual/scheduled, success/partial/failed totals, average emails processed, average transactions found. |
 | `admin_scan_failures(lim int)` | Recent failed scans with error message and the account's email. |
 | `admin_rejection_gates(days int)` | Rejection counts grouped by gate. |
-| `admin_ai_usage()` | Calls today and over 7 days; accounts nearest their cap. |
+| `admin_ai_usage()` | Raw call counts today and over 7 days, per account and in total. Does **not** compute cap proximity — see *AI quota limits* below. |
 | `admin_feedback_summary()` | Average rating, counts by category, total. |
 | `admin_feedback_list(lim int, off int)` | Paginated feedback with message, rating, category, email, date. |
 
@@ -134,7 +134,12 @@ Found during design review; both block compilation otherwise.
 
 **Overview.** Total accounts; new this week and this month; paying users split monthly
 and annual; approximate monthly revenue; plans expiring within 7 days; sign-ins over
-7 and 30 days; a bar chart of signups per day.
+7 and 30 days; transactions created over 7 and 30 days; transactions currently awaiting
+approval in Pending; a bar chart of signups per day.
+
+Transactions awaiting approval is a product-health signal as much as a usage one: a
+number that climbs steadily means the scanner is finding things users are not acting
+on.
 
 Revenue is derived from the plans people hold *today* (monthly count × ₹31, annual
 count × ₹365 ÷ 12) and must be labelled approximate in the UI. See *Known gap* below.
@@ -151,6 +156,21 @@ correctly binning junk" from "the scanner is discarding real receipts".
 **AI.** Gemini calls today and over 7 days; accounts nearest their daily cap; how often
 quota rejection fires. Call counts only — the app does not know the owner's Gemini
 pricing, and an invented rupee figure would be worse than none.
+
+### AI quota limits — where the numbers live
+
+The daily caps are constants inside the serverless proxy: `DAILY_AI_CALL_LIMIT = 50`
+and `DAILY_AI_SCAN_CALL_LIMIT = 500` (`api/gemini-proxy.ts`). The database records only
+the running counts, so SQL cannot express "80% of cap" without the limits being
+restated in SQL, where the two copies would drift the first time a cap changes.
+
+Therefore: `admin_ai_usage()` returns raw counts, and the AI tab computes proximity in
+TypeScript. Both the proxy and the tab import the limits from one shared module.
+
+This requires moving two constants out of `api/gemini-proxy.ts` into a shared file —
+no behavioural change, but it is AI-proxy code neighbouring the scanner, so it needs
+explicit owner sign-off before implementation. If withheld, the fallback is for the tab
+to show raw counts with no cap percentage, which needs no change to the proxy.
 
 **Feedback.** Message, rating, category, email, date; average rating; category
 breakdown. Read-only — marking items handled is a write and belongs to Phase 3.
