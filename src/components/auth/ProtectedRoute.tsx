@@ -25,7 +25,9 @@ export default function ProtectedRoute() {
   }
 
   // Exemptions list for expired accounts: /settings, /profile, /support, and /pricing itself
-  const isExempted = ['/settings', '/profile', '/support', '/pricing'].includes(location.pathname)
+  // /admin is exempt so an owner or buyer can always reach operational tooling,
+  // even if their own subscription has lapsed. AdminRoute still gates it.
+  const isExempted = ['/settings', '/profile', '/support', '/pricing', '/admin'].includes(location.pathname)
 
   if (!isSubscriptionActive && !isExempted) {
     return <Navigate to="/pricing" replace />

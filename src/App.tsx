@@ -8,6 +8,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
 import { AuthProvider, ToastProvider, CategoriesProvider } from '@/context'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
+import AdminRoute from '@/components/auth/AdminRoute'
 import AutoUpdateChecker from '@/components/AutoUpdateChecker'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import CookieConsent from '@/components/CookieConsent'
@@ -75,6 +76,8 @@ const ResetPasswordPage = lazy(() => import('@/pages/ResetPasswordPage'))
 
 const PaymentSuccessPage = lazy(() => import('@/pages/PaymentSuccessPage'))
 
+const AdminPage = lazy(() => import('@/pages/admin/AdminPage'))
+
 // ─── Loading fallback ────────────────────────────────────
 function PageLoader() {
   return (
@@ -134,6 +137,9 @@ function AnimatedRoutes() {
             <Route path="/profile"         element={<ProfilePage />} />
             <Route path="/subscriptions"   element={<SubscriptionsPage />} />
             <Route path="/payment-success" element={<PaymentSuccessPage />} />
+            <Route element={<AdminRoute />}>
+              <Route path="/admin" element={<AdminPage />} />
+            </Route>
           </Route>
 
           {/* Fallback */}
