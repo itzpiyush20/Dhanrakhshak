@@ -36,7 +36,7 @@ const YEARLY_FEATURES = [
 
 export default function PricingPage() {
   const navigate = useNavigate()
-  const { user, profile, updateSubscriptionStatus, daysLeft, openAuthModal } = useAuth()
+  const { user, profile, updateSubscriptionStatus, daysLeft, openAuthModal, refreshProfile } = useAuth()
   const { showToast } = useToast()
 
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('annual')
@@ -174,7 +174,12 @@ export default function PricingPage() {
   }
 
   // ── Promo code ────────────────────────────────────────────────
-  const handlePromoSimulator = () => {
+  // Redemption happens entirely on the server. The codes used to be listed in
+  // VITE_PROMO_CODES, which ships inside the public JavaScript bundle, so any
+  // visitor could read them; and the grant only reached localStorage, so it
+  // disappeared on the user's next device. Both halves now live in
+  // api/redeem-promo.ts.
+  const handlePromoSimulator = async () => {
     if (!user) {
       showToast('Please log in to redeem a promo code.', 'warning')
       openAuthModal('/pricing')
@@ -182,24 +187,46 @@ export default function PricingPage() {
     }
 
     const enteredCode = promoCode.trim()
-    const validCodes = (import.meta.env.VITE_PROMO_CODES || '')
-      .split(',')
-      .map((c: string) => c.trim().toUpperCase())
-      .filter(Boolean)
-
-    if (!validCodes.includes(enteredCode.toUpperCase())) {
-      showToast('❌ Invalid or expired coupon code.', 'error')
+    if (!enteredCode) {
+      showToast('Please enter a coupon code.', 'warning')
       return
     }
+
     setProcessing(true)
-    setTimeout(async () => {
-      try {
-        const success = await updateSubscriptionStatus('active', 'monthly', enteredCode)
-        if (success) { showToast('👑 One month of free access unlocked!', 'success'); navigate('/dashboard') }
-        else showToast('Failed to apply coupon. Please try again.', 'error')
-      } catch (err: any) { showToast('Coupon error: ' + err.message, 'error') }
-      finally { setProcessing(false) }
-    }, 1500)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        showToast('Your session expired. Please sign in again.', 'error')
+        setProcessing(false)
+        return
+      }
+
+      const response = await fetch('/api/redeem-promo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ code: enteredCode }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        showToast(result.error || 'Could not redeem this coupon.', 'error')
+        return
+      }
+
+      // The grant is already in the database; pull it into the app's state.
+      await refreshProfile()
+      const days = result.durationDays
+      showToast(`👑 ${days} day${days === 1 ? '' : 's'} of full access unlocked!`, 'success')
+      navigate('/dashboard')
+    } catch (err: any) {
+      showToast('Coupon error: ' + err.message, 'error')
+    } finally {
+      setProcessing(false)
+    }
   }
 
   // ── Render ────────────────────────────────────────────────────

@@ -600,3 +600,20 @@ CREATE INDEX IF NOT EXISTS idx_transactions_possible_duplicate_of
 -- 019 — the atomic AI-quota functions live in supabase/019_atomic_ai_quota.sql.
 -- Run that file as well on a fresh install; it is kept separate because it
 -- defines SECURITY DEFINER functions with their own GRANT/REVOKE.
+
+-- ==========================================
+-- 12. PAYMENTS, PROMO CODES, ADMIN METRICS
+--
+-- These arrived as migrations 022-027. They are listed here so a FRESH install
+-- gets them too — see the CLAUDE.md convention: anything added to this file
+-- after a database exists only reaches production via a numbered migration.
+-- Run these files as well on a fresh install; they are kept separate because
+-- they define SECURITY DEFINER functions and RLS policies of their own:
+--
+--   022_admin_metrics.sql      admin-guarded aggregate functions
+--   023_is_admin_backfill.sql  profiles.is_admin + public.is_admin()
+--   024_feedback_table.sql     public.feedback
+--   025_payments.sql           public.payments
+--   026_promo_codes.sql        public.promo_codes, public.promo_redemptions
+--   027_allow_self_expire.sql  lets a lapsed plan mark itself expired
+-- ==========================================

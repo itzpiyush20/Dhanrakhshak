@@ -12,6 +12,7 @@ import UsersTab from './UsersTab'
 import ScannerTab from './ScannerTab'
 import AiUsageTab from './AiUsageTab'
 import FeedbackTab from './FeedbackTab'
+import CouponsTab from './CouponsTab'
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
@@ -19,6 +20,7 @@ const TABS = [
   { id: 'scanner', label: 'Scanner' },
   { id: 'ai', label: 'AI' },
   { id: 'feedback', label: 'Feedback' },
+  { id: 'coupons', label: 'Coupons' },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -34,7 +36,7 @@ export default function AdminPage() {
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-zinc-100">Admin</h1>
         <p className="mt-1 text-sm text-zinc-400">
-          Read-only. Nothing on this page can change user data.
+          Every tab except Coupons is read-only and cannot change user data.
         </p>
       </header>
 
@@ -59,6 +61,7 @@ export default function AdminPage() {
       {tab === 'scanner' && <ScannerTab />}
       {tab === 'ai' && <AiUsageTab />}
       {tab === 'feedback' && <FeedbackTab />}
+      {tab === 'coupons' && <CouponsTab />}
     </main>
     </AppLayout>
   )

@@ -97,6 +97,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         throw new Error('No matching profile found to update.')
       }
 
+      // Record the receipt. The unique index on razorpay_order_id means the
+      // race with verify-payment.ts — both fire for the same order — leaves
+      // exactly one row, whichever arrives first.
+      await supabaseAdmin
+        .from('payments')
+        .insert({
+          user_id: userId,
+          razorpay_order_id: orderId,
+          razorpay_payment_id: null,
+          plan_type: planType,
+          // Razorpay reports paise; payments.amount_inr holds rupees.
+          amount_inr: typeof orderEntity?.amount === 'number' ? orderEntity.amount / 100 : 0,
+          source: 'razorpay',
+          status: 'captured',
+        })
+        .then(({ error: paymentError }: { error: { code?: string; message?: string } | null }) => {
+          if (paymentError && paymentError.code !== '23505') {
+            console.warn('Webhook failed to record payment for order', orderId, paymentError.message)
+          }
+        })
+
       console.log(`Successfully updated subscription for user ${userId} via webhook`)
     }
 
