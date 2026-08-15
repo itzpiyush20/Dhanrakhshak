@@ -67,7 +67,8 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
     '/settings',
     '/profile',
     '/subscriptions',
-    '/payment-success'
+    '/payment-success',
+    '/admin'
   ].includes(location.pathname)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   type NotificationItem = { key: string; message: string; type: 'danger' | 'warning' | 'info'; href: string }

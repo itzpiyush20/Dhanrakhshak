@@ -131,7 +131,13 @@ export default function CouponsTab() {
             <label className="mb-1 block text-xs text-zinc-400">Code</label>
             <Input
               value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                setCode(e.target.value.toUpperCase())
+                // Clear the previous result once a new code is being typed,
+                // otherwise the panel reads as if THIS code was just created.
+                setSuccess(null)
+                setFormError(null)
+              }}
               placeholder="DIWALI2026"
             />
           </div>
