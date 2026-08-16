@@ -193,10 +193,10 @@ export default function LandingPage() {
                       Start free — no card needed →
                     </button>
                     <button
-                      onClick={() => openAuthModal('/dashboard?demo=1', 'signup')}
+                      onClick={() => openAuthModal('/dashboard', 'signup')}
                       className="sb-btn-secondary border-0 cursor-pointer"
                     >
-                      Try it with sample data
+                      See your first week free
                     </button>
                   </>
                 )}

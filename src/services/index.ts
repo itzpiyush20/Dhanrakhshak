@@ -45,11 +45,7 @@ export {
   deleteAccount,
 } from './profiles'
 export {
-  seedSandboxData,
-} from './seeder'
-export {
   submitFeedback,
-  getTesterFeedbackLogs,
 } from './feedback'
 export {
   getMerchantRulesFromDB,

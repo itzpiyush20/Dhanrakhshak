@@ -12,7 +12,6 @@ import {
   getProfile,
   updateProfile,
   resetAccountData,
-  seedSandboxData,
   deleteAccount
 } from '@/services'
 
@@ -31,10 +30,6 @@ export default function ProfilePage() {
   // Password reset States
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [passwordSuccess, setPasswordSuccess] = useState(false)
-
-  // Sandbox Seeding States
-  const [seedLoading, setSeedLoading] = useState(false)
-  const [seedSuccess, setSeedSuccess] = useState(false)
 
   // Reset Account Data States
   const [resetLoading, setResetLoading] = useState(false)
@@ -98,23 +93,6 @@ export default function ProfilePage() {
       setError(err.message || 'Failed to trigger password reset.')
     } finally {
       setPasswordLoading(false)
-    }
-  }
-
-  const handleSeedData = async () => {
-    setSeedLoading(true)
-    setSeedSuccess(false)
-    setError(null)
-    try {
-      const { error } = await seedSandboxData()
-      if (error) throw error
-      setSeedSuccess(true)
-      setTimeout(() => setSeedSuccess(false), 4000)
-    } catch (err: any) {
-      console.error('Error seeding demo data:', err)
-      setError(err.message || 'Failed to populate account with demo data.')
-    } finally {
-      setSeedLoading(false)
     }
   }
 
@@ -279,33 +257,8 @@ export default function ProfilePage() {
             </Card>
           </div>
 
-          {/* Right panel: Demo & Data Reset zones */}
+          {/* Right panel: Data Reset zone */}
           <div className="md:col-span-5 space-y-6">
-            {/* Demo Playground Seed Card */}
-            <Card className="border-brand-500/20 bg-brand-500/[0.01]">
-              <h2 className="text-base font-bold text-zinc-200 mb-2">Interactive Demo Mode</h2>
-              <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
-                Instantly fill your account with sample transactions, MoM charts, category budgets, and pending alerts. Perfect for exploring Dhanrakshak before linking your email.
-              </p>
-
-              <div className="space-y-4">
-                {seedSuccess && (
-                  <div className="rounded-xl bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] p-3 text-xs text-[var(--status-positive-text)] leading-relaxed animate-fade-in">
-                    🌱 Success! Sample transactions, category budgets, and tracking logs successfully activated.
-                  </div>
-                )}
-                <Button
-                  variant="primary"
-                  block
-                  onClick={handleSeedData}
-                  loading={seedLoading}
-                  disabled={seedLoading}
-                >
-                  🌱 Populate Demo Data
-                </Button>
-              </div>
-            </Card>
-
             {!showDangerZone ? (
               <button
                 type="button"

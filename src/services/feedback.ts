@@ -1,6 +1,19 @@
 // ============================================
-// Feedback Service — Tester Suggestions Registry
-// Stores feedback to local storage and transmits to Supabase
+// Feedback Service — in-app feedback, delivered to the admin inbox
+//
+// Two things were wrong here and only one was fixed.
+//
+// 015dc14 created public.feedback on databases that predated it, so the insert
+// now has somewhere to land. But this function still reported `success: true`
+// unconditionally — a failed insert was downgraded to a console warning and the
+// user was thanked anyway. Whatever broke next would have been invisible for
+// exactly the same reason the missing table was.
+//
+// It also kept a parallel copy of every submission in the visitor's own
+// localStorage and rendered it back to them as a "tester feedback log". That
+// was scaffolding from the testing phase: it is not the owner's inbox, it
+// leaks nothing useful to the user, and it survives on shared machines. The
+// admin Feedback tab is the one destination now.
 // ============================================
 
 import { supabase } from './supabase'
@@ -11,75 +24,60 @@ export interface FeedbackInsert {
   message: string
 }
 
-export interface TesterFeedbackLog extends FeedbackInsert {
-  id: string
-  email: string
-  created_at: string
-}
-
-/** Submit a new tester feedback log entry */
-export async function submitFeedback(feedback: FeedbackInsert): Promise<{ error: Error | null; success: boolean }> {
-  let userEmail = 'Anonymous Tester'
+/**
+ * Submit feedback. Returns the real outcome — a caller that sees
+ * `success: false` must not tell the user their message was received.
+ */
+export async function submitFeedback(
+  feedback: FeedbackInsert
+): Promise<{ error: Error | null; success: boolean }> {
+  let userEmail = 'Anonymous'
   let userId: string | null = null
 
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      userEmail = user.email || 'Anonymous Tester'
+      userEmail = user.email || 'Anonymous'
       userId = user.id
     }
   } catch (e) {
+    // Signed out or an auth hiccup. Feedback is still accepted; it just
+    // arrives without an account attached.
     console.warn('Unable to resolve user auth details for feedback:', e)
   }
 
-  const newLog: TesterFeedbackLog = {
-    id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9),
+  const { error } = await supabase.from('feedback').insert({
+    user_id: userId,
     email: userEmail,
     rating: feedback.rating,
     category: feedback.category,
     message: feedback.message,
-    created_at: new Date().toISOString(),
-  }
+  })
 
-  // 1. Save to Local Registry (localStorage) for instant developer review
-  try {
-    const existing = getTesterFeedbackLogs()
-    existing.unshift(newLog) // Add to top
-    localStorage.setItem('dhanrakshak_tester_feedback', JSON.stringify(existing))
-  } catch (e) {
-    console.error('Error saving feedback to local registry:', e)
-  }
-
-  // 2. Attempt to transmit to Supabase database
-  try {
-    const { error: dbErr } = await supabase
-      .from('feedback')
-      .insert({
-        user_id: userId,
-        email: userEmail,
-        rating: feedback.rating,
-        category: feedback.category,
-        message: feedback.message,
-      })
-
-    if (dbErr) {
-      console.warn('Supabase feedback database insert failed (saving locally only):', dbErr)
-      // We still return success: true because the local registry saved it!
-      // This ensures testers get a smooth experience even if database is offline.
+  if (error) {
+    console.error('submitFeedback failed:', error.message)
+    // The table is missing. Named explicitly because this exact failure
+    // silently swallowed every submission before migration 024 existed, and the
+    // generic message sends the owner hunting through application code instead
+    // of running the migration.
+    //
+    // PGRST205 is PostgREST's "not in the schema cache", which is what the
+    // browser actually receives; 42P01 is Postgres' own undefined_table. Both
+    // mean the same thing here and only the first one reaches the client.
+    const code = (error as { code?: string }).code
+    if (code === 'PGRST205' || code === '42P01') {
+      return {
+        error: new Error(
+          'Feedback is not available right now. (The feedback table is missing — run supabase/024_feedback_table.sql.)'
+        ),
+        success: false,
+      }
     }
-  } catch (e: any) {
-    console.warn('Supabase feedback transmission triggered error:', e)
+    return {
+      error: new Error('Could not send your feedback. Please try again in a moment.'),
+      success: false,
+    }
   }
 
   return { error: null, success: true }
-}
-
-/** Retrieve all locally cached tester feedback logs */
-export function getTesterFeedbackLogs(): TesterFeedbackLog[] {
-  try {
-    const data = localStorage.getItem('dhanrakshak_tester_feedback')
-    return data ? JSON.parse(data) : []
-  } catch (e) {
-    return []
-  }
 }

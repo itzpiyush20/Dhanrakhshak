@@ -11,7 +11,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth, useToast } from '@/context'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
-import { submitFeedback, getTesterFeedbackLogs, supabase } from '@/services'
+import { submitFeedback, supabase } from '@/services'
 import { getActiveReceivables } from '@/services/transactions'
 import { getInsurancePolicies } from '@/services/insurance'
 import {
@@ -26,8 +26,6 @@ import {
   Clock,
   MessageSquare,
   ChevronDown,
-  ChevronUp,
-  Star,
   Home,
   CreditCard,
   Plus,
@@ -278,42 +276,44 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [feedbackLoading, setFeedbackLoading] = useState(false)
   const [feedbackSuccess, setFeedbackSuccess] = useState(false)
-  const [feedbackLogs, setFeedbackLogs] = useState<any[]>([])
-  const [showLogs, setShowLogs] = useState(false)
-
-  useEffect(() => {
-    if (feedbackOpen) {
-      setFeedbackLogs(getTesterFeedbackLogs())
-    }
-  }, [feedbackOpen])
+  // A send that failed. The modal used to have nowhere to show this, because
+  // submitFeedback always claimed success — so a failed write closed the modal
+  // with a 🎉 and the message was gone.
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
 
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (feedbackMessage.trim().length < 5) return
 
     setFeedbackLoading(true)
+    setFeedbackError(null)
     try {
-      const { success } = await submitFeedback({
+      const { success, error } = await submitFeedback({
         rating: feedbackRating,
         category: feedbackCategory,
         message: feedbackMessage,
       })
 
-      if (success) {
-        setFeedbackSuccess(true)
-        setFeedbackMessage('')
-        setFeedbackRating(5)
-        setFeedbackCategory('ui_ux')
-        setFeedbackLogs(getTesterFeedbackLogs())
-        
-        // Auto close overlay after 2.2 seconds
-        setTimeout(() => {
-          setFeedbackSuccess(false)
-          setFeedbackOpen(false)
-        }, 2200)
+      if (!success) {
+        // The typed message stays in the box — losing it here is the one thing
+        // that would make a failed send worse than it already is.
+        setFeedbackError(error?.message || 'Could not send your feedback. Please try again.')
+        return
       }
+
+      setFeedbackSuccess(true)
+      setFeedbackMessage('')
+      setFeedbackRating(5)
+      setFeedbackCategory('ui_ux')
+
+      // Auto close overlay after 2.2 seconds
+      setTimeout(() => {
+        setFeedbackSuccess(false)
+        setFeedbackOpen(false)
+      }, 2200)
     } catch (err) {
       console.error('Error submitting feedback:', err)
+      setFeedbackError('Could not send your feedback. Please try again.')
     } finally {
       setFeedbackLoading(false)
     }
@@ -1059,60 +1059,19 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                     </div>
                   </div>
 
+                  {feedbackError && (
+                    <div
+                      role="alert"
+                      className="rounded-xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-3 text-xs text-[var(--status-danger-text)] leading-relaxed"
+                    >
+                      {feedbackError}
+                    </div>
+                  )}
+
                   <Button type="submit" block loading={feedbackLoading} disabled={feedbackMessage.trim().length < 5}>
                     Submit Feedback
                   </Button>
                 </form>
-
-                {/* Expandable Submitted Feedback History Log */}
-                {feedbackLogs.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-border-subtle/50">
-                    <button
-                      type="button"
-                      onClick={() => setShowLogs(!showLogs)}
-                      className="w-full flex items-center justify-between text-xs font-bold text-zinc-400 hover:text-zinc-200 uppercase tracking-wider transition-colors cursor-pointer"
-                    >
-                      <span>Your submitted feedback ({feedbackLogs.length})</span>
-                      {showLogs ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                    </button>
-
-                    {showLogs && (
-                      <div className="mt-3 space-y-2 max-h-[140px] overflow-y-auto pr-1">
-                        {feedbackLogs.map((log) => (
-                          <div
-                            key={log.id}
-                            className="p-2.5 rounded-xl bg-surface-2/40 border border-border-subtle/30 text-xs leading-relaxed space-y-1.5"
-                          >
-                            <div className="flex justify-between items-center text-xs font-bold text-zinc-400">
-                              <span className={cn(
-                                "inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-bold uppercase",
-                                log.category === 'bug'
-                                  ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                                  : log.category === 'feature_request'
-                                  ? 'bg-brand-500/10 text-brand-400 border-brand-500/20'
-                                  : 'bg-zinc-800 text-zinc-300 border-zinc-700/50'
-                              )}>
-                                {log.category === 'bug'
-                                  ? '🐛 Bug'
-                                  : log.category === 'feature_request'
-                                  ? '💡 Feature'
-                                  : log.category === 'ui_ux'
-                                  ? '🎨 UI/UX'
-                                  : '❓ Other'}
-                              </span>
-                              <span>{new Date(log.created_at).toLocaleDateString()}</span>
-                            </div>
-                            <p className="text-zinc-200 break-words text-xs">{log.message}</p>
-                            <div className="flex items-center gap-1 text-amber-400 font-bold text-xs">
-                              <Star className="h-3 w-3 fill-current" />
-                              <span>Rating: {log.rating}/5</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
               </>
             )}
       </Modal>

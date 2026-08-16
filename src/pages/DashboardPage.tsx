@@ -4,7 +4,7 @@
 // ============================================
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
 import { Card, Button, EmptyState, Modal, DateFilterPicker, TransactionIdentity } from '@/components/ui'
 import ActiveSubscriptionsWidget from '@/components/dashboard/ActiveSubscriptionsWidget'
@@ -41,7 +41,6 @@ import {
   getLastScheduledRefreshTime,
   scanRealGmailInbox,
   formatScanProgress,
-  seedSandboxData,
 } from '@/services'
 import { migrateLocalStorageRulesToDB } from '@/services/learningEngine'
 import { formatCurrency, formatCurrencyCompact, getCurrentMonth, formatDate, withTimeout, resolveDateFilter, formatDateFilterLabel, getMonthsInRange, resolveTransactionIdentity, creditCardBillCategoryNames, makeIsCreditCardBill, CREDIT_CARD_BILL_LEGACY_NAME, HOME_CURRENCY, type DateFilter } from '@/utils'
@@ -85,8 +84,6 @@ export default function DashboardPage() {
   )
   const isCreditCardBill = useMemo(() => makeIsCreditCardBill(ccBillCategories), [ccBillCategories])
   const { showToast } = useToast()
-  const navigate = useNavigate()
-  const location = useLocation()
 
   // Helper to extract first name of the user, ignoring standard titles
   const getFirstName = (fullName?: string) => {
@@ -132,8 +129,6 @@ export default function DashboardPage() {
   // Post-sync summary card (replaces plain "sync complete" toast)
   const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null)
 
-  // Demo data seeding (from the landing page "Try demo" CTA)
-  const [seedingDemo, setSeedingDemo] = useState(false)
 
   // Month-end recap — shown once on the first visit of a new month
   const [monthEndRecap, setMonthEndRecap] = useState<{
@@ -536,29 +531,6 @@ export default function DashboardPage() {
     localStorage.setItem(`dhanrakshak_checklist_dismissed_${user.id}`, 'true')
   }
 
-  // "Try demo with sample data" — arrives here via ?demo=1 from the landing
-  // page CTA, right after the user finishes signing up. Auto-populates the
-  // account instead of sending them hunting for the seed button in Settings.
-  useEffect(() => {
-    if (!user) return
-    const params = new URLSearchParams(location.search)
-    if (params.get('demo') !== '1') return
-
-    navigate(location.pathname, { replace: true })
-    setSeedingDemo(true)
-    seedSandboxData()
-      .then(({ error }) => {
-        if (error) throw error
-        showToast('Demo data loaded — explore freely. Clear it anytime from Settings.', 'success')
-        fetchDashboardData(dateFilter)
-      })
-      .catch((err: any) => {
-        showToast(err.message || 'Could not load demo data.', 'error')
-      })
-      .finally(() => setSeedingDemo(false))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user])
-
   const handleManualBannerSync = async () => {
     setSyncingBackground(true)
     setScanProgress(null)
@@ -693,12 +665,6 @@ export default function DashboardPage() {
         {error && (
           <div className="rounded-2xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-4 text-sm text-[var(--status-danger-text)]">
             {error}
-          </div>
-        )}
-
-        {seedingDemo && (
-          <div role="status" className="rounded-2xl bg-brand-500/10 border border-brand-500/20 p-4 text-sm text-brand-400 flex items-center gap-2.5 animate-fade-in shadow-md">
-            <Sparkles className="h-4 w-4 shrink-0 animate-pulse" /> Loading sample data…
           </div>
         )}
 
