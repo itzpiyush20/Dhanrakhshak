@@ -29,7 +29,7 @@ export default function RefundPage() {
           Dhanrakshak offers a 7-Day Free Trial to new users upon registration, allowing access to all premium features, including automated Gmail scanning and budget insights.
           
           - You will not be charged during the trial period.
-          - Once the trial expires, you must manually upgrade and select a paid subscription (Basic at ₹31/month or Pro at ₹365/year) to keep auto-synchronization active.
+          - Once the trial expires, you must manually upgrade and select a paid subscription (Monthly at ₹31/month or Yearly at ₹365/year) to keep auto-synchronization active.
           - Paid subscriptions are billed in advance on a recurring monthly or annual basis, depending on the plan you select.
         `)}
 

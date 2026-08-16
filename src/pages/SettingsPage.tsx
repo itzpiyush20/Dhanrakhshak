@@ -1019,9 +1019,23 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="flex items-center justify-between border-b border-border-subtle/30 pb-3 pt-1">
-                  <div className="flex flex-col">
-                    <span className="text-zinc-400 font-medium">Daily Scan Schedule</span>
-                    <span className="text-xs text-zinc-500">Time to automatically scan for transactions daily</span>
+                  {/*
+                    Named for what it actually controls. It used to read "Daily
+                    Scan Schedule — Time to automatically scan for transactions
+                    daily", which promised something it has never done: the
+                    server-side scan runs on ONE fixed schedule for every user
+                    (30 21 * * * in vercel.json, i.e. ~3 AM IST) and never reads
+                    this value. What this time really does is decide whether the
+                    app runs a catch-up sync WHEN YOU OPEN IT — see the
+                    getLastScheduledRefreshTime check in DashboardPage and
+                    PendingPage.
+                  */}
+                  <div className="flex flex-col pr-3">
+                    <span className="text-zinc-400 font-medium">Catch-up sync time</span>
+                    <span className="text-xs text-zinc-500">
+                      When you open the app, it checks for new transactions if it hasn't since this time.
+                      Automatic overnight scanning runs at a fixed time regardless. Saved on this device.
+                    </span>
                   </div>
                   <input
                     type="time"
@@ -1029,12 +1043,12 @@ export default function SettingsPage() {
                     onChange={async (e) => {
                       const success = await updateDailyScanTime(e.target.value)
                       if (success) {
-                        showToast(`Daily scan time scheduled for ${e.target.value}`, 'success')
+                        showToast(`Catch-up sync set to ${e.target.value} on this device.`, 'success')
                       } else {
-                        showToast('Failed to update daily scan time.', 'error')
+                        showToast('Could not save the catch-up sync time.', 'error')
                       }
                     }}
-                    aria-label="Daily Scan Schedule Time"
+                    aria-label="Catch-up sync time"
                     className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-11 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold font-mono"
                   />
                 </div>

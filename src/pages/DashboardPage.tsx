@@ -37,7 +37,6 @@ import { getBudgets } from '@/services/budgets'
 import { detectAnomalies } from '@/services/aiService'
 import {
   supabase,
-  getNextRefreshTime,
   getLastScheduledRefreshTime,
   scanRealGmailInbox,
   formatScanProgress,
@@ -636,7 +635,7 @@ export default function DashboardPage() {
               </p>
               <span className="text-zinc-700 hidden sm:inline">•</span>
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-surface-2 border border-border-subtle/50 text-xs font-semibold text-brand-300 font-mono">
-                Next Refresh: {getNextRefreshTime(dailyScanTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
+                Catches up when you open the app after {dailyScanTime}
               </span>
               {streakInfo.streak > 1 && (
                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-surface-2 border border-border-subtle/50 text-xs font-semibold text-zinc-400">

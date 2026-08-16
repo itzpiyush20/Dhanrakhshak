@@ -14,7 +14,6 @@ import {
   scanRealGmailInbox,
   saveMerchantRule,
   supabase,
-  getNextRefreshTime,
   getLastScheduledRefreshTime,
   applyMerchantRules,
   getManualScanQuota,
@@ -983,7 +982,7 @@ export default function PendingPage() {
               </span>
             ) : (
               <span className="text-xs font-semibold text-brand-300 font-mono bg-surface-2 border border-border-subtle/50 px-2 py-0.5 rounded-md flex items-center gap-1">
-                <Calendar className="h-3 w-3 text-brand-300 shrink-0" /> Next Refresh: {getNextRefreshTime(dailyScanTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} at {dailyScanTime}
+                <Calendar className="h-3 w-3 text-brand-300 shrink-0" /> Catches up when you open the app after {dailyScanTime}
               </span>
             )}
           </div>

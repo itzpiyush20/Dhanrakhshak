@@ -138,20 +138,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [state.user])
 
+  /**
+   * Per-device, and deliberately so.
+   *
+   * This used to also write profiles.daily_scan_time, which failed on EVERY
+   * save with `42703: column does not exist` — the column is declared in
+   * schema.sql but no migration ever delivered it to production, the same drift
+   * that hit razorpay_subscription_id and is_admin. The failure was swallowed
+   * into a console warning, so the write appeared to work and never did.
+   *
+   * The column was not added, because the preference is client-side by nature:
+   * it decides whether DashboardPage and PendingPage run a catch-up sync when
+   * the app is OPENED. The server-side cron scans on one fixed schedule for
+   * everyone and has never read this value. Storing it server-side would imply
+   * a per-user schedule the backend does not implement.
+   */
   const updateDailyScanTime = useCallback(async (time: string) => {
     if (!state.user) return false
     try {
       setDailyScanTimeState(time)
       localStorage.setItem(`dhanrakshak_daily_scan_time_${state.user.id}`, time)
-
-      const { error } = await supabase
-        .from('profiles')
-        .update({ daily_scan_time: time })
-        .eq('id', state.user.id)
-
-      if (error) {
-        console.warn('Failed to sync daily scan time to Supabase profiles (non-critical):', error.message)
-      }
       return true
     } catch (e) {
       console.error('Failed to save daily scan time:', e)
@@ -303,27 +309,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           subscription_plan_type: subPlan
         })
 
-        // Sync settings (daily_scan_time)
-        // Check database value first. If present, sync to local. If absent/null, sync local to DB.
-
-        // Daily Scan Time Sync
-        let currentScanTime = '06:00'
+        // Catch-up sync time is a per-device preference — see updateDailyScanTime
+        // for why it is not persisted server-side. This used to try writing the
+        // local value back to profiles.daily_scan_time on every profile load,
+        // against a column that does not exist in production, so it fired a
+        // failed request and a console warning on every single page load.
         const localScanTimePref = localStorage.getItem(`dhanrakshak_daily_scan_time_${state.user.id}`)
-        if (data.daily_scan_time) {
-          currentScanTime = data.daily_scan_time
-          setDailyScanTimeState(currentScanTime)
-          localStorage.setItem(`dhanrakshak_daily_scan_time_${state.user.id}`, currentScanTime)
-        } else if (localScanTimePref) {
-          currentScanTime = localScanTimePref
-          setDailyScanTimeState(currentScanTime)
-          // Sync local preference to Supabase since it's null in DB
-          supabase
-            .from('profiles')
-            .update({ daily_scan_time: localScanTimePref })
-            .eq('id', state.user.id)
-            .then(({ error: syncError }) => {
-              if (syncError) console.warn('Non-critical: Failed to sync local scan time preference to DB:', syncError.message)
-            })
+        if (localScanTimePref) {
+          setDailyScanTimeState(localScanTimePref)
         }
       } else {
         let subStatus = localStatus || 'trial'
