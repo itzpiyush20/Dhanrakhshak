@@ -37,6 +37,12 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || ''
 const FROM_EMAIL = process.env.DIGEST_FROM_EMAIL || 'Dhanrakshak <digest@dhanrakshak.app>'
 const RESEND_BATCH_ENDPOINT = 'https://api.resend.com/emails/batch'
 
+/** Where "Turn them off in Settings" points. Same default as every other endpoint here. */
+const APP_URL = process.env.ALLOWED_ORIGIN?.split(',')[0]?.trim() || 'https://dhanrakshak-five.vercel.app'
+
+/** Unsubscribe replies land here. Must be an address someone actually reads. */
+const UNSUBSCRIBE_EMAIL = process.env.SUPPORT_EMAIL || 'support@dhanrakshak.in'
+
 function formatINR(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -69,14 +75,35 @@ interface WeeklyTxn {
   category: string
 }
 
+/**
+ * Escape text before it is interpolated into the email's HTML.
+ *
+ * `full_name` is whatever the user typed into their profile. It was being
+ * dropped into the markup raw, so a name containing markup became markup in
+ * the delivered email — and mail clients that render it would treat it as
+ * part of our message. Self-inflicted for the person who typed it, but it also
+ * breaks the email outright for an innocent name containing an ampersand.
+ */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 function buildDigestHtml(opts: {
   name: string
   totalExpenses: number
   totalIncome: number
   topCategory: { label: string; amount: number } | null
   txnCount: number
+  appUrl: string
+  unsubscribeMailto: string
 }): string {
-  const { name, totalExpenses, totalIncome, topCategory, txnCount } = opts
+  const { totalExpenses, totalIncome, topCategory, txnCount, appUrl, unsubscribeMailto } = opts
+  const name = escapeHtml(opts.name)
   const net = totalIncome - totalExpenses
   return `
     <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;color:#18181b;">
@@ -96,7 +123,9 @@ function buildDigestHtml(opts: {
       </div>
       <p style="font-size:13px;color:#71717a;">${txnCount} transaction${txnCount === 1 ? '' : 's'} tracked automatically — zero manual entry.</p>
       <p style="font-size:12px;color:#a1a1aa;margin-top:24px;">
-        You're getting this because weekly summaries are on for your account. Manage this from Settings inside Dhanrakshak.
+        You're getting this because weekly summaries are switched on for your account.
+        <a href="${appUrl}/settings" style="color:#71717a;">Turn them off in Settings</a>
+        or <a href="${unsubscribeMailto}" style="color:#71717a;">unsubscribe</a>.
       </p>
     </div>
   `
@@ -168,16 +197,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (!profile.email) return null
 
+        // One-click unsubscribe, per RFC 8058 / the Gmail and Yahoo bulk-sender
+        // requirements. A recurring email with no machine-readable opt-out is a
+        // fast route to being filtered as spam, and an opt-out is required of
+        // commercial mail in most jurisdictions this ships to.
+        //
+        // The mailto form rather than the https form on purpose: https one-click
+        // needs a public endpoint to POST to, and this project sits on Vercel's
+        // 12-function Hobby cap with no room for another route. mailto is fully
+        // supported by the same spec and needs no endpoint — it just means an
+        // unsubscribe arrives as email to be actioned, so it must be watched.
+        const unsubscribeMailto =
+          `mailto:${UNSUBSCRIBE_EMAIL}?subject=${encodeURIComponent('Unsubscribe from weekly summary')}` +
+          `&body=${encodeURIComponent(`Please stop sending the weekly summary to ${profile.email}.`)}`
+
         return {
           from: FROM_EMAIL,
           to: profile.email,
           subject: `Your week in review — ${formatINR(totalExpenses)} spent`,
+          headers: {
+            'List-Unsubscribe': `<${unsubscribeMailto}>, <${APP_URL}/settings>`,
+            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          },
           html: buildDigestHtml({
             name: profile.full_name || '',
             totalExpenses,
             totalIncome,
             topCategory,
             txnCount: userTxns.length,
+            appUrl: APP_URL,
+            unsubscribeMailto,
           }),
         }
       })

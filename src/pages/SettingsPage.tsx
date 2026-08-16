@@ -43,11 +43,38 @@ import {
 } from 'lucide-react'
 
 export default function SettingsPage() {
-  const { user, dailyScanTime, updateDailyScanTime, currencySymbol, hasGoogleToken, disconnectGoogle } = useAuth()
+  const { user, profile, refreshProfile, dailyScanTime, updateDailyScanTime, currencySymbol, hasGoogleToken, disconnectGoogle } = useAuth()
   const { showToast } = useToast()
   const { categories, fallbackCategory } = useCategories()
 
   const [disconnectLoading, setDisconnectLoading] = useState(false)
+
+  // The weekly summary email has been sending since the cron was added, and
+  // until now there was no way to stop it: the email told people to "manage
+  // this from Settings" and no such control existed. profiles.weekly_report_enabled
+  // already existed and defaults to true — it simply had no UI, and it is not
+  // one of the columns protect_server_only_profile_columns guards, so the user
+  // can write it themselves.
+  const [weeklyDigestSaving, setWeeklyDigestSaving] = useState(false)
+  const weeklyDigestEnabled = profile?.weekly_report_enabled !== false
+
+  const handleToggleWeeklyDigest = async () => {
+    if (!user) return
+    const next = !weeklyDigestEnabled
+    setWeeklyDigestSaving(true)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ weekly_report_enabled: next })
+      .eq('id', user.id)
+    setWeeklyDigestSaving(false)
+
+    if (error) {
+      showToast('Could not save that preference. Please try again.', 'error')
+      return
+    }
+    await refreshProfile()
+    showToast(next ? 'Weekly summary email turned on.' : 'Weekly summary email turned off.', 'success')
+  }
 
   const handleDisconnectGmail = async () => {
     setDisconnectLoading(true)
@@ -930,6 +957,31 @@ export default function SettingsPage() {
                     aria-label="Daily Scan Schedule Time"
                     className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-11 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold font-mono"
                   />
+                </div>
+
+                <div className="flex items-center justify-between border-b border-border-subtle/30 pb-3 pt-1">
+                  <div className="flex flex-col pr-3">
+                    <span className="text-zinc-400 font-medium">Weekly Summary Email</span>
+                    <span className="text-xs text-zinc-500">A recap of your spending, sent every Monday morning</span>
+                  </div>
+                  <button
+                    onClick={handleToggleWeeklyDigest}
+                    disabled={weeklyDigestSaving}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-brand-400 disabled:opacity-50",
+                      weeklyDigestEnabled ? "bg-brand-500" : "bg-zinc-700"
+                    )}
+                    role="switch"
+                    aria-checked={weeklyDigestEnabled}
+                    aria-label="Weekly summary email"
+                  >
+                    <span
+                      className={cn(
+                        "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                        weeklyDigestEnabled ? "translate-x-5" : "translate-x-0"
+                      )}
+                    />
+                  </button>
                 </div>
 
                 <div className="flex items-center justify-between pt-1">
