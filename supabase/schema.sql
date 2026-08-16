@@ -20,12 +20,21 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   active_financial_year INTEGER DEFAULT 2026,
   promo_code TEXT DEFAULT NULL,
   daily_scan_time TEXT DEFAULT '06:00',
-  subscription_status TEXT DEFAULT 'free' CHECK (subscription_status IN ('free', 'trial', 'active', 'expired', 'cancelled')),
+  -- Every new account starts on the 7-day trial the marketing promises, and it
+  -- starts here: handle_new_user() inserts only id, email, full_name and
+  -- avatar_url, so these three DEFAULTS are the entire signup entitlement.
+  --
+  -- They used to say DEFAULT 'free' with no expiry and no plan type, which made
+  -- a database built from this file behave differently from production — where
+  -- someone had set 'trial' / 'trial' / now() + 14 days by hand, in the
+  -- dashboard, recorded nowhere. Production gave 14 days, the pricing page
+  -- promised 7, and a fresh install gave none at all. See migration 034.
+  subscription_status TEXT DEFAULT 'trial' CHECK (subscription_status IN ('free', 'trial', 'active', 'expired', 'cancelled')),
   -- Three paid-facing tiers: free, monthly and annual/yearly. 'trial' is also a
   -- valid value here — it is what a free account carries during its 7-day trial,
   -- and PricingPage uses it to tell an expired trial from an expired paid plan.
-  subscription_plan_type TEXT CHECK (subscription_plan_type IN ('trial', 'monthly', 'annual')),
-  subscription_expires_at TIMESTAMPTZ,
+  subscription_plan_type TEXT DEFAULT 'trial' CHECK (subscription_plan_type IN ('trial', 'monthly', 'annual')),
+  subscription_expires_at TIMESTAMPTZ DEFAULT (now() + interval '7 days'),
   razorpay_subscription_id TEXT,
   razorpay_order_id TEXT,
   is_admin BOOLEAN NOT NULL DEFAULT false,
@@ -639,4 +648,9 @@ CREATE INDEX IF NOT EXISTS idx_transactions_possible_duplicate_of
 --   031_support_tickets.sql    public.support_tickets + its admin read RPCs
 --   032_close_anonymous_writes.sql  removes anon INSERT on signin_logs and
 --                              feedback; rate-limits support_tickets
+--   033_pin_security_definer_search_path.sql  pins search_path on the two
+--                              SECURITY DEFINER functions production ran without
+--   034_trial_defaults.sql     trial becomes 7 days, not 14, and the signup
+--                              defaults are recorded instead of living only in
+--                              the Supabase dashboard
 -- ==========================================
