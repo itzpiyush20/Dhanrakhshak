@@ -49,10 +49,14 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS razorpay_order_id TEXT;
 -- SECURITY DEFINER so it can read profiles.is_admin without recursing into
 -- the RLS policies that call it. Admin status is granted by manually setting
 -- profiles.is_admin = true for specific accounts — see TRANSFER_GUIDE.md.
+-- search_path is pinned on every SECURITY DEFINER function in this file. Such a
+-- function runs with the DEFINER's privileges, so an unpinned search_path lets
+-- a caller's own setting decide which objects the body resolves to. Migration
+-- 023 already ships this pinned form; this copy had drifted without it.
 CREATE OR REPLACE FUNCTION public.is_admin(uid UUID DEFAULT auth.uid())
 RETURNS BOOLEAN AS $$
   SELECT COALESCE((SELECT is_admin FROM public.profiles WHERE id = uid), false);
-$$ LANGUAGE sql SECURITY DEFINER STABLE;
+$$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public;
 
 -- Permanently erases the calling user's account. profiles.id cascades from
 -- auth.users and every other user table cascades from profiles, so this one
@@ -86,7 +90,7 @@ BEGIN
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Drop trigger if exists, then create
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
@@ -285,7 +289,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
 
 DROP TRIGGER IF EXISTS protect_server_only_profile_columns ON public.profiles;
 CREATE TRIGGER protect_server_only_profile_columns
@@ -365,14 +369,19 @@ CREATE POLICY "Users can delete own profile"
 
 -- ==========================================
 -- 8. SECURE USER DELETION RPC
--- Users can safely trigger their own account deletion
+--
+-- Defined ONCE, near the top of this file with the profiles table it depends
+-- on. A second copy used to sit here, and because this file runs top to bottom
+-- CREATE OR REPLACE meant that copy WON on every fresh install — while being
+-- the weaker of the two: plpgsql without `SET search_path`, and with none of
+-- the REVOKE/GRANT hardening. A SECURITY DEFINER function with an unpinned
+-- search_path is exactly what that hardening exists to prevent.
+--
+-- Existing databases were unaffected (they were built before the duplicate
+-- appeared, and migration 012 installs the hardened form). Only a brand-new
+-- deployment inherited the weak one — the same schema.sql drift that migrations
+-- 021, 023 and 024 each had to repair after the fact.
 -- ==========================================
-CREATE OR REPLACE FUNCTION public.delete_user()
-RETURNS void AS $$
-BEGIN
-  DELETE FROM auth.users WHERE id = auth.uid();
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ==========================================
 -- 9. MERCHANT RULES TABLE
