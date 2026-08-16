@@ -93,23 +93,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // A valid signature only proves the order/payment pair is genuine — it does not
-  // prove the caller is who paid. Cross-check the order's own notes (set server-side
-  // at creation time in create-order.ts) against the authenticated caller's id so a
-  // payment's order_id/payment_id/signature can't be replayed by a different account.
+  // prove the caller is who paid, and it says nothing at all about WHICH PLAN was
+  // paid for. Both facts live in the order's own notes, set server-side at creation
+  // time in create-order.ts, so both are cross-checked here.
+  //
+  // The plan check is not defensive tidiness. Without it `planType` was taken
+  // straight from the request body and fed to planDurationDays() below, while the
+  // amount had already been fixed at order-creation time — so buying the ₹31
+  // monthly plan and then re-posting the same genuine order_id/payment_id/signature
+  // with planType:'annual' bought 365 days for ₹31. The signature stays valid
+  // because it covers only `order_id|payment_id`; nothing in it binds the plan.
+  //
+  // The money-has-moved check is deliberately TOLERANT, and that is not laziness.
+  //
+  // `order.status === 'paid'` is only reached once the payment is CAPTURED. On a
+  // Razorpay account set to manual capture — an account-level dashboard setting
+  // this code cannot see, and which nothing here pins — a genuine successful
+  // payment leaves the payment `authorized` and the order still `attempted`.
+  // Refusing on that would reject real paying customers and hand them an error
+  // after their money left, which is far worse than the narrow case a strict
+  // check would catch.
+  //
+  // So: `paid` passes immediately; anything else falls back to the payment
+  // entity, where `captured` and `authorized` both mean the customer really paid.
+  // Only a genuinely failed/pending payment is refused.
   let order: any;
   try {
     order = await razorpay.orders.fetch(razorpay_order_id)
-    const orderUserId = (order.notes as Record<string, string> | undefined)?.userId
-    if (orderUserId !== userId) {
+    const notes = order.notes as Record<string, string> | undefined
+    if (notes?.userId !== userId) {
       console.error('Order/user mismatch for order:', razorpay_order_id)
       return res.status(403).json({ error: 'This payment does not belong to the authenticated account.' })
+    }
+    if (notes?.planType !== planType) {
+      console.error(
+        `Order/plan mismatch for order ${razorpay_order_id}: paid for "${notes?.planType}", claimed "${planType}"`
+      )
+      return res.status(400).json({ error: 'This payment was made for a different plan.' })
+    }
+
+    if (order.status !== 'paid') {
+      const payment = await razorpay.payments.fetch(razorpay_payment_id)
+      if (payment?.status !== 'captured' && payment?.status !== 'authorized') {
+        console.error(
+          `Order ${razorpay_order_id} not paid (order: ${order.status}, payment: ${payment?.status})`
+        )
+        return res.status(400).json({ error: 'This payment has not completed.' })
+      }
+      console.warn(
+        `Order ${razorpay_order_id} is "${order.status}" but payment ${razorpay_payment_id} is "${payment.status}" — accepting.`
+      )
     }
   } catch (error: any) {
     console.error('Error fetching Razorpay order for verification:', error)
     return res.status(400).json({ error: 'Could not verify order ownership.' })
   }
 
-  const durationDays = planDurationDays(planType)
+  // Derived from the order's own notes, never from the request body — the body is
+  // exactly what the check above exists to distrust.
+  const durationDays = planDurationDays(order.notes.planType)
   const subscription_expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
 
   try {
