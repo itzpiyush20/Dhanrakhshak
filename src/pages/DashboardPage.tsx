@@ -44,7 +44,7 @@ import {
   seedSandboxData,
 } from '@/services'
 import { migrateLocalStorageRulesToDB } from '@/services/learningEngine'
-import { formatCurrency, formatCurrencyCompact, getCurrentMonth, formatDate, withTimeout, resolveDateFilter, formatDateFilterLabel, getMonthsInRange, resolveTransactionIdentity, creditCardBillCategoryNames, makeIsCreditCardBill, type DateFilter } from '@/utils'
+import { formatCurrency, formatCurrencyCompact, getCurrentMonth, formatDate, withTimeout, resolveDateFilter, formatDateFilterLabel, getMonthsInRange, resolveTransactionIdentity, creditCardBillCategoryNames, makeIsCreditCardBill, CREDIT_CARD_BILL_LEGACY_NAME, type DateFilter } from '@/utils'
 import { toISODateLocal } from '@/utils/dateFilter'
 import { useCategories } from '@/context/CategoriesContext'
 import type { Database } from '@/types/database'
@@ -176,7 +176,7 @@ export default function DashboardPage() {
   // Widget customization states
   const [showConfigModal, setShowConfigModal] = useState(false)
   const [widgets, setWidgets] = useState<Record<string, boolean>>(() => {
-    const defaults = { stats: true, breakdown: true, recent: true, subscriptions: true, insights: true }
+    const defaults = { stats: true, breakdown: true, recent: true, subscriptions: true, insights: true, ccbills: true }
     const saved = localStorage.getItem('dhanrakshak_dashboard_widgets')
     if (saved) {
       try {
@@ -194,6 +194,29 @@ export default function DashboardPage() {
     setWidgets(updated)
     localStorage.setItem('dhanrakshak_dashboard_widgets', JSON.stringify(updated))
   }
+
+  // Credit card bill payments — tracked on their own tile because they are
+  // deliberately excluded from Total Expenses (the purchases behind them were
+  // already counted when they happened), which otherwise leaves them invisible
+  // on the Dashboard.
+  const [showCcBillModal, setShowCcBillModal] = useState(false)
+  // The tagged category names to query, with the same conservative fallback
+  // makeIsCreditCardBill uses while the category list is still loading.
+  const ccBillQueryNames = useMemo(
+    () => ccBillCategories ?? [CREDIT_CARD_BILL_LEGACY_NAME],
+    [ccBillCategories]
+  )
+  // Result is stamped with the query it answers, so "loading" is derived from a
+  // stale stamp rather than a flag flipped inside the effect. That keeps a
+  // filter change from showing the previous period's payments for a frame.
+  const ccBillQueryKey = useMemo(() => {
+    const { dateFrom, dateTo } = resolveDateFilter(dateFilter)
+    return JSON.stringify([dateFrom, dateTo, ccBillQueryNames])
+  }, [dateFilter, ccBillQueryNames])
+  const [ccBills, setCcBills] = useState<{ key: string; rows: TransactionRow[] } | null>(null)
+  const ccBillLoading = ccBills?.key !== ccBillQueryKey
+  const ccBillTxns = ccBillLoading ? [] : ccBills!.rows
+  const ccBillTotal = ccBillTxns.reduce((sum, t) => sum + Number(t.amount), 0)
 
   // Category Details modal state
   const [showCategoryModal, setShowCategoryModal] = useState(false)
@@ -421,6 +444,43 @@ export default function DashboardPage() {
       cancelled = true
     }
   }, [user, widgets.insights])
+
+  // Credit card bill payments for the selected period. Fetched separately from
+  // fetchDashboardData because getSummary deliberately strips these rows out —
+  // asking it for them would mean undoing the exclusion that makes the expense
+  // total correct. Queried per tagged category name rather than by fetching
+  // everything and filtering client-side, so a busy period can't push the bills
+  // past the row limit.
+  useEffect(() => {
+    if (!user || !widgets.ccbills) return
+    let cancelled = false
+
+    const { dateFrom, dateTo } = resolveDateFilter(dateFilter)
+    const key = ccBillQueryKey
+
+    Promise.all(
+      ccBillQueryNames.map((category) =>
+        getTransactions({ dateFrom, dateTo, category, type: 'debit', limit: 100 })
+      )
+    )
+      .then((results) => {
+        if (cancelled) return
+        const rows = results.flatMap((r) => r.data || [])
+        rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+        setCcBills({ key, rows })
+      })
+      .catch((e) => {
+        if (cancelled) return
+        console.error('Error loading credit card bill payments:', e)
+        // Stamped as answered so the tile settles on an empty result instead of
+        // spinning forever.
+        setCcBills({ key, rows: [] })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user, widgets.ccbills, dateFilter, ccBillQueryNames, ccBillQueryKey])
 
   // Month-end recap — the peak-end rule says a session that closes on a
   // summary is remembered better, and it's a good reason to open the app
@@ -907,6 +967,42 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Credit card bills tile — opens the full list in a modal */}
+        {widgets.ccbills && (
+          <button
+            type="button"
+            onClick={() => setShowCcBillModal(true)}
+            className="w-full text-left flex items-center gap-4 rounded-2xl border border-border-subtle bg-surface-1 shadow-md px-5 py-4 transition-colors hover:bg-surface-2/40 group cursor-pointer"
+          >
+            <div className="shrink-0 h-10 w-10 rounded-full bg-brand-500/10 flex items-center justify-center">
+              <CreditCard className="h-5 w-5 text-brand-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                Credit Card Bills Paid
+              </p>
+              {ccBillLoading ? (
+                <div className="skeleton h-4 w-2/3 mt-1.5 rounded" />
+              ) : (
+                <>
+                  <p className="text-xl font-bold tracking-tight text-text-primary mt-0.5">
+                    {formatCurrency(ccBillTotal)}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-0.5 truncate">
+                    {ccBillTxns.length === 0
+                      ? `No bill payments in ${formatDateFilterLabel(dateFilter)}`
+                      : `${ccBillTxns.length} payment${ccBillTxns.length === 1 ? '' : 's'} in ${formatDateFilterLabel(dateFilter)} · not counted in Total Expenses`}
+                  </p>
+                </>
+              )}
+            </div>
+            <div className="shrink-0 flex items-center gap-1 text-xs font-semibold text-brand-400 group-hover:text-brand-300">
+              <span className="hidden sm:inline">View payments</span>
+              <ArrowRight className="h-4 w-4" />
+            </div>
+          </button>
+        )}
+
         {/* Insights teaser — surfaces the top Insights finding here so most
             users never need to leave the Dashboard to catch it. Always
             renders something once resolved (an anomaly, or a "nothing
@@ -1219,6 +1315,58 @@ export default function DashboardPage() {
           </div>
         </Modal>
 
+        {/* 💳 Credit Card Bill Payments Modal */}
+        <Modal
+          isOpen={showCcBillModal}
+          onClose={() => setShowCcBillModal(false)}
+          title="Credit Card Bill Payments"
+          footer={
+            <Button variant="secondary" onClick={() => setShowCcBillModal(false)}>
+              Close
+            </Button>
+          }
+        >
+          <div className="space-y-4">
+            <p className="text-xs text-zinc-400">
+              {formatDateFilterLabel(dateFilter)} · {formatCurrency(ccBillTotal)} across{' '}
+              {ccBillTxns.length} payment{ccBillTxns.length === 1 ? '' : 's'}
+            </p>
+            <p className="text-xs text-zinc-500">
+              These are tracked separately from Total Expenses — the purchases behind
+              each bill were already counted when they happened.
+            </p>
+            {ccBillLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-surface-2 animate-pulse">
+                    <div className="h-4 w-1/3 bg-zinc-700 rounded" />
+                    <div className="h-4 w-12 bg-zinc-700 rounded" />
+                  </div>
+                ))}
+              </div>
+            ) : ccBillTxns.length === 0 ? (
+              <p className="text-xs text-zinc-500 text-center py-8">
+                No credit card bill payments in this period. Categorize a transaction as
+                a credit card bill to see it here.
+              </p>
+            ) : (
+              <div className="divide-y divide-border-subtle/40">
+                {ccBillTxns.map((txn) => (
+                  <div key={txn.id} className="flex items-center justify-between py-3">
+                    <div className="flex flex-col min-w-0 pr-3">
+                      <TransactionIdentity {...resolveTransactionIdentity(txn)} size="sm" />
+                      <span className="text-xs text-zinc-500 mt-1">{formatDate(txn.date)}</span>
+                    </div>
+                    <span className="text-xs font-bold shrink-0 text-text-primary">
+                      {formatCurrency(Number(txn.amount), txn.currency)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Modal>
+
         {/* 📊 Category Spending Breakdown Details Modal */}
         {showCategoryModal && selectedCategoryCode && (() => {
           const cat = getStyle(selectedCategoryCode)
@@ -1374,6 +1522,23 @@ export default function DashboardPage() {
                 type="checkbox"
                 checked={widgets.subscriptions}
                 onChange={() => toggleWidget('subscriptions')}
+                className="h-4 w-4 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
+              />
+            </div>
+
+            {/* Credit Card Bills Widget */}
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-surface-2/40 border border-border-subtle/30">
+              <div className="flex items-center gap-3">
+                <CreditCard className="h-5 w-5 text-brand-400 shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-text-primary">Credit Card Bills Paid</p>
+                  <p className="text-xs text-zinc-500">Bill payments for the selected period</p>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={widgets.ccbills}
+                onChange={() => toggleWidget('ccbills')}
                 className="h-4 w-4 rounded border-zinc-700 bg-surface-1 text-brand-500 focus:ring-brand-400 cursor-pointer"
               />
             </div>
