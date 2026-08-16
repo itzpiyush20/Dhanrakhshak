@@ -1,8 +1,10 @@
 // ============================================
-// AdminPage — tab shell for the read-only admin section.
+// AdminPage — tab shell for the admin section.
 //
-// Nothing in this section writes. See
-// docs/superpowers/specs/2026-08-15-admin-panel-design.md.
+// Mostly read-only. The exceptions are Coupons (create/enable/delete, through
+// /api/admin), Users (grant/end access, same endpoint), and the handled flag on
+// Feedback and Support, which is an admin-only RLS policy rather than an
+// endpoint. See docs/superpowers/specs/2026-08-15-admin-panel-design.md.
 // ============================================
 
 import { useEffect, useState } from 'react'
@@ -13,6 +15,7 @@ import UsersTab from './UsersTab'
 import ScannerTab from './ScannerTab'
 import AiUsageTab from './AiUsageTab'
 import FeedbackTab from './FeedbackTab'
+import SupportTab from './SupportTab'
 import CouponsTab from './CouponsTab'
 
 const TABS = [
@@ -21,6 +24,7 @@ const TABS = [
   { id: 'scanner', label: 'Scanner' },
   { id: 'ai', label: 'AI' },
   { id: 'feedback', label: 'Feedback' },
+  { id: 'support', label: 'Support' },
   { id: 'coupons', label: 'Coupons' },
 ] as const
 
@@ -37,7 +41,8 @@ export default function AdminPage() {
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-zinc-100">Admin</h1>
         <p className="mt-1 text-sm text-zinc-400">
-          Every tab except Coupons is read-only and cannot change user data.
+          Overview, Scanner and AI are read-only. Users and Coupons can change access;
+          Feedback and Support can only be marked handled.
         </p>
       </header>
 
@@ -62,6 +67,7 @@ export default function AdminPage() {
       {tab === 'scanner' && <ScannerTab />}
       {tab === 'ai' && <AiUsageTab />}
       {tab === 'feedback' && <FeedbackTab />}
+      {tab === 'support' && <SupportTab />}
       {tab === 'coupons' && <CouponsTab />}
     </main>
     </AppLayout>

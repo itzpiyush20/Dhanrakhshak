@@ -6,23 +6,14 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
-import { ConfirmDialog } from '@/components/ui'
 import { APP_CONFIG } from '@/constants'
-
-// Custom interface for tickets stored in localStorage
-interface Ticket {
-  id: string
-  name: string
-  email: string
-  subject: string
-  message: string
-  createdAt: string
-  status: string
-}
+import { submitSupportTicket } from '@/services/support'
+import { useAuth } from '@/context/AuthContext'
 
 export default function SupportPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get('tab') || 'privacy'
+  const { user } = useAuth()
 
   // FAQs Accordion State
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null)
@@ -35,24 +26,20 @@ export default function SupportPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
-  const [confirmClearTickets, setConfirmClearTickets] = useState(false)
-
-  // Ticket Log State initialized directly from localStorage
-  const [tickets, setTickets] = useState<Ticket[]>(() => {
-    const savedTickets = localStorage.getItem('dhanrakshak_support_tickets')
-    if (savedTickets) {
-      try {
-        return JSON.parse(savedTickets)
-      } catch (e) {
-        console.error('Error loading tickets:', e)
-      }
-    }
-    return []
-  })
+  // A send that failed. Kept separate from `errors`, which is per-field
+  // validation — this one is about delivery, and the user needs to know their
+  // message did NOT arrive rather than be reassured.
+  const [sendError, setSendError] = useState<string | null>(null)
 
   useEffect(() => {
     document.title = 'Support & Privacy | Dhanrakshak'
   }, [])
+
+  // Prefill the email of a signed-in user. They can still change it — someone
+  // reporting a problem with a second account needs to be able to say so.
+  useEffect(() => {
+    if (user?.email) setEmail((current) => current || user.email!)
+  }, [user])
 
   const handleTabChange = (tabId: string) => {
     setSearchParams({ tab: tabId })
@@ -65,9 +52,10 @@ export default function SupportPage() {
   }
 
   // Handle support ticket form submission
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSuccess(false)
+    setSendError(null)
 
     // Form validation
     const newErrors: Record<string, string> = {}
@@ -98,39 +86,21 @@ export default function SupportPage() {
     setErrors({})
     setSubmitting(true)
 
-    // Simulate database submission delay
-    setTimeout(() => {
-      const newTicket: Ticket = {
-        id: `TCK-${Math.floor(100000 + Math.random() * 900000)}`,
-        name: name.trim(),
-        email: email.trim(),
-        subject: subject.trim(),
-        message: message.trim(),
-        createdAt: new Date().toISOString(),
-        status: 'Open',
-      }
+    const { error } = await submitSupportTicket({ name, email, subject, message })
 
-      const updatedTickets = [newTicket, ...tickets]
-      localStorage.setItem('dhanrakshak_support_tickets', JSON.stringify(updatedTickets))
-      setTickets(updatedTickets)
+    setSubmitting(false)
 
-      console.log('Support Ticket Logged successfully to sandbox:', newTicket)
+    // Only clear the form once the ticket is genuinely stored. Wiping it on a
+    // failed send would destroy what the user just wrote, which is the worst
+    // possible moment to lose it.
+    if (error) {
+      setSendError(error.message)
+      return
+    }
 
-      setSubmitting(false)
-      setSuccess(true)
-
-      // Reset fields
-      setName('')
-      setEmail('')
-      setSubject('')
-      setMessage('')
-    }, 1200)
-  }
-
-  // Clear simulated tickets in localStorage
-  const clearTickets = () => {
-    localStorage.removeItem('dhanrakshak_support_tickets')
-    setTickets([])
+    setSuccess(true)
+    setSubject('')
+    setMessage('')
   }
 
   // FAQ List Definition
@@ -356,25 +326,30 @@ export default function SupportPage() {
                       <div>
                         <h2 className="text-lg font-bold text-sb-ink">Submit Support Ticket</h2>
                         <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mt-1">
-                          Local Ticket Log Simulator
+                          We reply to the email you give us
                         </p>
                       </div>
                     </div>
-                    {tickets.length > 0 && (
-                      <button
-                        onClick={() => setConfirmClearTickets(true)}
-                        className="text-xs text-[var(--status-danger-text)] hover:opacity-80 bg-transparent border-none cursor-pointer font-semibold px-2 py-2 -m-2"
-                      >
-                        Clear History
-                      </button>
-                    )}
                   </div>
 
                   {success && (
-                    <div className="rounded-2xl p-4 bg-emerald-500/10 border border-emerald-500/20">
-                      <p className="text-xs font-bold text-emerald-400">👑 Ticket Logged Successfully!</p>
+                    <div role="status" className="rounded-2xl p-4 bg-emerald-500/10 border border-emerald-500/20">
+                      <p className="text-xs font-bold text-emerald-400">✅ Ticket received</p>
                       <p className="text-xs mt-1 text-zinc-400">
-                        This simulated ticket has been recorded directly to your device storage.
+                        Your message has reached our support inbox. We'll reply to {email || 'the email you entered'}.
+                      </p>
+                    </div>
+                  )}
+
+                  {sendError && (
+                    <div role="alert" className="rounded-2xl p-4 bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)]">
+                      <p className="text-xs font-bold text-[var(--status-danger-text)]">Your ticket was not sent</p>
+                      <p className="text-xs mt-1 text-zinc-400">
+                        {sendError} Your message is still in the box below — nothing was lost. You can also email{' '}
+                        <a href={`mailto:${APP_CONFIG.SUPPORT_EMAIL}`} className="text-brand-400 underline">
+                          {APP_CONFIG.SUPPORT_EMAIL}
+                        </a>{' '}
+                        directly.
                       </p>
                     </div>
                   )}
@@ -434,32 +409,9 @@ export default function SupportPage() {
                       disabled={submitting}
                       className="w-full justify-center py-3.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 text-sb-ink font-bold text-xs tracking-wide transition-all active:scale-98 shadow-md cursor-pointer border-0"
                     >
-                      {submitting ? 'Logging ticket…' : 'Submit Ticket'}
+                      {submitting ? 'Sending ticket…' : 'Submit Ticket'}
                     </button>
                   </form>
-
-                  {/* Local Ticket Log */}
-                  {tickets.length > 0 && (
-                    <div className="pt-6 border-t border-border-subtle space-y-4">
-                      <h3 className="text-base font-bold text-sb-ink">Your Ticket Log (Device Local)</h3>
-                      <div className="space-y-3">
-                        {tickets.map((t) => (
-                          <div key={t.id} className="rounded-2xl p-4 bg-surface-2/40 border border-border-subtle/50 text-xs space-y-2">
-                            <div className="flex justify-between items-center">
-                              <span className="font-bold text-sb-ink">{t.id} · {t.subject}</span>
-                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wide">
-                                {t.status}
-                              </span>
-                            </div>
-                            <p className="text-zinc-400 leading-relaxed">{t.message}</p>
-                            <p className="text-xs text-zinc-500 font-semibold">
-                              Logged on: {new Date(t.createdAt).toLocaleString()}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -467,17 +419,6 @@ export default function SupportPage() {
         </div>
       </div>
 
-      <ConfirmDialog
-        isOpen={confirmClearTickets}
-        onClose={() => setConfirmClearTickets(false)}
-        onConfirm={() => {
-          clearTickets()
-          setConfirmClearTickets(false)
-        }}
-        title="Clear ticket history"
-        message="Your local ticket history will be cleared. This doesn't affect any tickets already sent to support."
-        confirmLabel="Clear"
-      />
     </AppLayout>
   )
 }

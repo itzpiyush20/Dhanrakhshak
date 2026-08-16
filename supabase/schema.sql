@@ -616,4 +616,8 @@ CREATE INDEX IF NOT EXISTS idx_transactions_possible_duplicate_of
 --   025_payments.sql           public.payments
 --   026_promo_codes.sql        public.promo_codes, public.promo_redemptions
 --   027_allow_self_expire.sql  lets a lapsed plan mark itself expired
+--   028_admin_operations.sql   admin subscription ops, feedback workflow
+--   029_promo_delete.sql       drops the redemption FK so codes can be deleted
+--   030_promo_code_expiry.sql  promo_codes.expires_at
+--   031_support_tickets.sql    public.support_tickets + its admin read RPCs
 -- ==========================================
