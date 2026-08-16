@@ -682,7 +682,8 @@ export default function PricingPage() {
             {/* Refund note */}
             <p className="text-xs text-center mt-6 text-zinc-500 font-medium">
               Have questions?{' '}
-              <Link to="/support" className="text-emerald-400 no-underline hover:underline font-bold">Contact support</Link> · All plans include a 7-day hassle-free refund policy.
+              <Link to="/support" className="text-emerald-400 no-underline hover:underline font-bold">Contact support</Link> ·{' '}
+              <Link to="/refund-policy" className="text-emerald-400 no-underline hover:underline font-bold">Refund policy</Link> — refunds are available in limited cases, so please read it before paying.
             </p>
           </div>
         )}

@@ -203,7 +203,7 @@ export default function AuthModal() {
                 className="mt-0.5 h-3.5 w-3.5 rounded border-zinc-700 bg-surface-2 accent-emerald-500 cursor-pointer"
               />
               <label htmlFor="agree_terms" className="text-[11px] text-zinc-400 leading-normal select-none cursor-pointer">
-                I agree to the <Link to="/terms" onClick={closeAuthModal} className="text-brand-400 hover:text-brand-300 font-medium transition-colors">Terms of Service</Link>, <Link to="/privacy" onClick={closeAuthModal} className="text-brand-400 hover:text-brand-300 font-medium transition-colors">Privacy Policy</Link>, and <Link to="/refund-policy" onClick={closeAuthModal} className="text-brand-400 hover:text-brand-300 font-medium transition-colors">Refund Policy</Link>, and consent to the client-side parsing of my transactional bank alerts.
+                I agree to the <Link to="/terms" onClick={closeAuthModal} className="text-brand-400 hover:text-brand-300 font-medium transition-colors">Terms of Service</Link>, <Link to="/privacy" onClick={closeAuthModal} className="text-brand-400 hover:text-brand-300 font-medium transition-colors">Privacy Policy</Link>, and <Link to="/refund-policy" onClick={closeAuthModal} className="text-brand-400 hover:text-brand-300 font-medium transition-colors">Refund Policy</Link>, and consent to my bank alert emails being read to extract transactions, including by Google's Gemini as described in the Privacy Policy.
               </label>
             </div>
           )}
