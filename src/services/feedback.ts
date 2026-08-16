@@ -31,19 +31,32 @@ export interface FeedbackInsert {
 export async function submitFeedback(
   feedback: FeedbackInsert
 ): Promise<{ error: Error | null; success: boolean }> {
-  let userEmail = 'Anonymous'
+  let userEmail = ''
   let userId: string | null = null
 
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      userEmail = user.email || 'Anonymous'
+      userEmail = user.email || ''
       userId = user.id
     }
   } catch (e) {
-    // Signed out or an auth hiccup. Feedback is still accepted; it just
-    // arrives without an account attached.
     console.warn('Unable to resolve user auth details for feedback:', e)
+  }
+
+  // Feedback now requires a signed-in account: migration 032 replaced the
+  // anon-writable policy with `auth.uid() = user_id`, because the old one let
+  // anyone holding the public key fill this table. Checked here so a signed-out
+  // caller gets a sentence they can act on rather than a raw RLS rejection.
+  //
+  // Nothing is lost by requiring it — the feedback modal is only rendered
+  // inside the signed-in profile menu. A signed-out visitor with something to
+  // say uses the support form, which stays open to everyone.
+  if (!userId) {
+    return {
+      error: new Error('Please sign in to send feedback, or use the Support page.'),
+      success: false,
+    }
   }
 
   const { error } = await supabase.from('feedback').insert({
@@ -70,6 +83,15 @@ export async function submitFeedback(
         error: new Error(
           'Feedback is not available right now. (The feedback table is missing — run supabase/024_feedback_table.sql.)'
         ),
+        success: false,
+      }
+    }
+    // 42501 = insufficient_privilege, i.e. the RLS policy refused the row.
+    // After migration 032 the usual cause is a session that expired between
+    // opening the modal and pressing send.
+    if (code === '42501') {
+      return {
+        error: new Error('Your session expired. Please sign in again and resend.'),
         success: false,
       }
     }

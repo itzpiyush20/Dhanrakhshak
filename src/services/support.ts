@@ -78,6 +78,12 @@ export async function submitSupportTicket(
         ),
       }
     }
+    // 53400 = configuration_limit_exceeded, raised by the throttle trigger
+    // added in migration 032. Its message is written for the person reading it,
+    // so pass it through instead of replacing it with something vaguer.
+    if (code === '53400') {
+      return { error: new Error(error.message) }
+    }
     return { error: new Error('Could not send your ticket. Please try again, or email us directly.') }
   }
 

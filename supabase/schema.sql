@@ -419,10 +419,14 @@ CREATE TABLE IF NOT EXISTS public.feedback (
 -- Enable RLS on feedback
 ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
 
--- Allow anyone to submit feedback
-CREATE POLICY "Anyone can insert feedback"
+-- A signed-in user may submit feedback as themselves. This was
+-- WITH CHECK (true), which granted INSERT to anyone holding the public anon
+-- key — see migration 032. The in-app feedback modal is rendered only inside
+-- the signed-in profile menu, so nothing anonymous ever used it.
+CREATE POLICY "Users can submit own feedback"
   ON public.feedback FOR INSERT
-  WITH CHECK (true);
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
 
 -- Allow users to view their own submitted feedback, and creators to view all feedback
 DROP POLICY IF EXISTS "Users can view own feedback" ON public.feedback;
@@ -445,10 +449,14 @@ CREATE TABLE IF NOT EXISTS public.signin_logs (
 -- Enable RLS on signin_logs
 ALTER TABLE public.signin_logs ENABLE ROW LEVEL SECURITY;
 
--- Allow anyone to insert signin logs (so clients can log signins on auth state change)
-CREATE POLICY "Anyone can insert signin logs"
+-- A signed-in user may log their OWN sign-in, and nothing else. This was
+-- WITH CHECK (true) — see migration 032 — which let anyone with the public
+-- anon key write unlimited rows carrying any email address, directly into the
+-- table admin_overview_stats counts for "sign-ins this week".
+CREATE POLICY "Users can log own signin"
   ON public.signin_logs FOR INSERT
-  WITH CHECK (true);
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
 
 -- Allow creators to view all signin logs
 CREATE POLICY "Creators can view all signin logs"
@@ -620,4 +628,6 @@ CREATE INDEX IF NOT EXISTS idx_transactions_possible_duplicate_of
 --   029_promo_delete.sql       drops the redemption FK so codes can be deleted
 --   030_promo_code_expiry.sql  promo_codes.expires_at
 --   031_support_tickets.sql    public.support_tickets + its admin read RPCs
+--   032_close_anonymous_writes.sql  removes anon INSERT on signin_logs and
+--                              feedback; rate-limits support_tickets
 -- ==========================================

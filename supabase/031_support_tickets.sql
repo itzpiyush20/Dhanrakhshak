@@ -14,9 +14,9 @@
 --
 -- Signed-out visitors must be able to file a ticket — someone locked out of
 -- their account is exactly who needs support — so INSERT is open to anon, the
--- same shape public.feedback already uses. The length CHECKs below are what
--- bounds that: they are the abuse ceiling, not decoration. A per-IP limit
--- belongs in front of this and is tracked separately.
+-- same shape public.feedback already uses. The length CHECKs below bound the
+-- size of any one row; migration 032 adds the rate limit that bounds how many
+-- of them a stranger can create.
 
 BEGIN;
 
