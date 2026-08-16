@@ -862,6 +862,19 @@ export function extractEmailBody(mail: any): string {
   if (plainText.length > MAX_HTML_PARSE_CHARS) plainText = plainText.slice(0, MAX_HTML_PARSE_CHARS)
   if (htmlText.length > MAX_HTML_PARSE_CHARS) htmlText = htmlText.slice(0, MAX_HTML_PARSE_CHARS)
 
+  // Collapse whitespace runs, exactly as stripHtmlTagsFast already does to the
+  // HTML branch. Marketing-grade plain-text parts pad their layout with hundreds
+  // of spaces to fake columns: the real CRED bill-payment mail put ₹10,000.00 at
+  // character 2204 of its plain part and at 144 once collapsed. Everything
+  // downstream reads emailContentForParsing, the first 2000 characters — so the
+  // padding alone was enough to hide the amount and reject a genuine ₹10,000
+  // payment as no_amount_in_body.
+  //
+  // It also makes the length comparison below mean what it says. Uncollapsed,
+  // the padding made the plain part "longer" than the dense stripped HTML, so
+  // the padded copy won the comparison on the strength of its own padding.
+  plainText = plainText.replace(/\s+/g, ' ')
+
   const parsedHtml = htmlText.trim() ? stripHtmlTagsFast(htmlText) : ''
 
   const plainHasAmount = plainText.trim() ? extractAmountMatches(plainText).length > 0 : false

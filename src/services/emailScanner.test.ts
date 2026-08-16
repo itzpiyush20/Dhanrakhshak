@@ -1,6 +1,7 @@
 // src/services/emailScanner.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { extractCardLast4, extractEmailBody, HARD_ACCEPT_SUBJECT_PATTERNS } from './emailScanner.js'
+import { extractAmountMatches } from './currency.js'
 import { makeAxisEmiGmailMessage } from './__fixtures__/axisEmiDebit'
 import { makeUberTripGmailMessage } from './__fixtures__/uberTripReceipt'
 import { makeUnknownVendorGmailMessage } from './__fixtures__/unknownVendorReceipt'
@@ -2622,5 +2623,62 @@ describe('extractEmailBody bounds total decoded size across parts', () => {
     }
 
     expect(extractEmailBody(mail)).toContain('2247.97')
+  })
+})
+
+describe('extractEmailBody — space-padded plain-text parts', () => {
+  const b64url = (s: string) =>
+    Buffer.from(s, 'utf-8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_')
+
+  const pad = (n: number) => ' '.repeat(n)
+
+  // Mirrors the real CRED bill-payment mail of 2026-08-16 (Gmail id
+  // 1a008f9f49b569df). Its multipart/alternative text/plain part uses long runs
+  // of spaces as visual padding, which put ₹10,000.00 at character 2204 — past
+  // the 2000-character slice every gate reads — while the HTML alternative says
+  // the same thing densely. The scan rejected a real ₹10,000 payment as
+  // no_amount_in_body.
+  const paddedPlain =
+    pad(150) + 'Piyush,' + pad(120) + 'here is your payment' + pad(24) + 'confirmation' +
+    pad(340) + 'Your credit card payment was successful' + pad(53) + 'in 16 seconds' +
+    pad(530) + 'HDFC Bank' + pad(160) + '•••• 7185' + pad(400) +
+    'payment details' + pad(280) + 'amount paid' + pad(62) + '₹10,000.00' + pad(380) +
+    'payment date' + pad(67) + 'Aug 16, 2026'
+
+  const html =
+    '<html><body><p>Your credit card payment was successful</p>' +
+    '<table><tr><td>amount paid</td><td>₹10,000.00</td></tr></table></body></html>'
+
+  const makeMail = () => ({
+    id: 'padded-plain',
+    internalDate: String(Date.now()),
+    snippet: '',
+    payload: {
+      mimeType: 'multipart/alternative',
+      headers: [{ name: 'Subject', value: 'your credit card bill payment was successful' }],
+      parts: [
+        { mimeType: 'text/plain', body: { data: b64url(paddedPlain) } },
+        { mimeType: 'text/html', body: { data: b64url(html) } },
+      ],
+    },
+  })
+
+  it('puts the amount inside the 2000-character parsing window', () => {
+    const body = extractEmailBody(makeMail())
+    expect(body.indexOf('₹10,000.00')).toBeGreaterThanOrEqual(0)
+    expect(body.indexOf('₹10,000.00')).toBeLessThan(2000)
+  })
+
+  it('extracts ₹10,000 from the same slice the gates read', () => {
+    const content =
+      `your credit card bill payment was successful ${extractEmailBody(makeMail())}`.substring(0, 2000)
+    const matches = extractAmountMatches(content)
+    expect(matches).toHaveLength(1)
+    expect(matches[0].value).toBe(10000)
+    expect(matches[0].currency).toBe('INR')
+  })
+
+  it('keeps words separated rather than running them together', () => {
+    expect(extractEmailBody(makeMail())).toContain('amount paid ₹10,000.00')
   })
 })
