@@ -308,8 +308,18 @@ const getMoMTrend = (allTxns: any[]) => {
   const curMonthData = monthlyStats[monthlyStats.length - 1]
   
   if (!prevMonthData || !curMonthData || prevMonthData.expenses === 0) return null
+
+  const now = new Date()
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  let curExpenses = curMonthData.expenses
+  if (curMonthData.monthKey === currentMonthKey) {
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+    const daysElapsed = Math.max(1, now.getDate())
+    curExpenses = (curMonthData.expenses / daysElapsed) * daysInMonth
+  }
   
-  const diff = curMonthData.expenses - prevMonthData.expenses
+  const diff = curExpenses - prevMonthData.expenses
   const pct = (diff / prevMonthData.expenses) * 100
   return {
     diff,
@@ -562,9 +572,14 @@ export default function InsightsPage() {
     return () => { cancelled = true }
   }, [dateFilter])
 
-  // 2. CA Advisory Computations
-  const { dateFrom: advisoryFrom, dateTo: advisoryTo } = resolveDateFilter(dateFilter)
-  const monthlyTxns = expenseTransactions.filter((t) => t.date && t.date >= advisoryFrom && t.date <= advisoryTo)
+  // 2. CA Advisory Computations — bound to top header Range selector
+  const { start: advisoryStart, end: advisoryEnd } = useMemo(() => getRangeDates(range), [range])
+  const advisoryFrom = useMemo(() => toISODateLocal(advisoryStart), [advisoryStart])
+  const advisoryTo = useMemo(() => toISODateLocal(advisoryEnd), [advisoryEnd])
+  const monthlyTxns = useMemo(
+    () => expenseTransactions.filter((t) => t.date && t.date >= advisoryFrom && t.date <= advisoryTo),
+    [expenseTransactions, advisoryFrom, advisoryTo]
+  )
 
   // Budget burn-down — cumulative actual spend per budgeted category against
   // an even daily pace, projected forward at the current run-rate.
@@ -601,8 +616,10 @@ export default function InsightsPage() {
         const projectedOverBy = projectedTotal - b.amount
 
         let projectedOverDate: string | null = null
+        let isPastOvershoot = false
         if (dailyPace > 0 && projectedOverBy > 0) {
           const dayOfOvershoot = Math.min(daysInMonth, Math.ceil(b.amount / dailyPace))
+          isPastOvershoot = dayOfOvershoot <= daysElapsed || spentSoFar > b.amount
           const d = new Date(y, m - 1, dayOfOvershoot)
           projectedOverDate = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
         }
@@ -617,6 +634,7 @@ export default function InsightsPage() {
           projectedTotal,
           projectedOverBy,
           projectedOverDate,
+          isPastOvershoot,
         }
       })
       .sort((a, b) => b.spentSoFar / b.budgetAmount - a.spentSoFar / a.budgetAmount)
@@ -685,7 +703,9 @@ export default function InsightsPage() {
     .filter((t) => savingsCategoryNames.includes(t.category))
     .reduce((sum, t) => sum + Number(t.amount), 0)
 
-  const emergencyMonths = Number((totalInvestments / avgMonthlyNeeds).toFixed(1))
+  // `transactions` spans 6 historical months. Normalize total investments to a monthly average.
+  const avgMonthlyInvestments = totalInvestments / 6
+  const emergencyMonths = Number((avgMonthlyInvestments / avgMonthlyNeeds).toFixed(1))
   const isEmergencyFundReady = emergencyMonths >= 6
 
   // Set default simulation inputs once data is loaded

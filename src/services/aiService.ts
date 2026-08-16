@@ -5,7 +5,7 @@
 // is absent or request fails
 // ============================================
 
-import { formatCurrency, fetchWithTimeout } from '../utils/index.js'
+import { formatCurrency, fetchWithTimeout, toISODateLocal } from '../utils/index.js'
 import { supabase } from './supabase.js'
 import { SUPPORTED_CURRENCY_CODES } from './currency.js'
 
@@ -273,7 +273,7 @@ export function detectAnomalies(
   }> = []
 
   const now = new Date()
-  const currentMonth = now.toISOString().substring(0, 7)
+  const currentMonth = toISODateLocal(now).substring(0, 7)
   const monthlySpend: Record<string, Record<string, number>> = {}
 
   transactions
@@ -334,7 +334,7 @@ export function generateForecast(
   const months = Object.entries(monthlyData).filter(([, d]) => d.income > 0 || d.expenses > 0)
   if (months.length < 2) return []
 
-  const weights = [1, 1.5, 2, 2.5, 3, 3.5].slice(-months.length)
+  const weights = [1, 1.5, 2, 2.5, 3, 3.5].slice(0, months.length)
   const totalWeight = weights.reduce((a, b) => a + b, 0)
   const avgIncome = months.reduce((sum, [, d], i) => sum + d.income * weights[i], 0) / totalWeight
   const avgExpenses =

@@ -13,6 +13,7 @@ export interface BudgetBurndownItem {
   projectedTotal: number
   projectedOverBy: number
   projectedOverDate: string | null
+  isPastOvershoot?: boolean
 }
 
 interface BudgetBurndownProps {
@@ -159,7 +160,7 @@ export function BudgetBurndown({ data, loading, onCategoryClick }: BudgetBurndow
 
                   {isOver && item.projectedOverDate && (
                     <p className="text-[11px] text-[var(--status-warning-text)] font-medium mt-1.5">
-                      At this pace, crosses the limit around {item.projectedOverDate} — projected{' '}
+                      {item.isPastOvershoot ? 'Crossed' : 'At this pace, crosses'} the limit around {item.projectedOverDate} — projected{' '}
                       {formatCurrency(item.projectedOverBy)} over by month end.
                     </p>
                   )}

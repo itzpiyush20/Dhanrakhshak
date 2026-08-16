@@ -27,12 +27,12 @@ export default function BudgetsPage() {
   const budgetEligible = categories.filter((c) => c.type === 'expense' && c.budget_eligible)
   const [dateFilter, setDateFilter] = useState<DateFilter>({ mode: 'month', month: getCurrentMonth() })
   const targetMonth = dateFilter.mode === 'month' ? dateFilter.month : resolveDateFilter(dateFilter).dateTo.slice(0, 7)
-  const [budgets, setBudgets] = useState<(BudgetRow & { monthCount: number })[]>([])
+  const [budgets, setBudgets] = useState<(BudgetRow & { monthCount: number; ids: string[] })[]>([])
   const [spentMap, setSpentMap] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ ids: string[]; categoryLabel: string; monthCount: number } | null>(null)
   const { showToast } = useToast()
 
   // Form states
@@ -69,17 +69,16 @@ export default function BudgetsPage() {
       if (summaryRes.error) throw summaryRes.error
 
       // Merge same-category budgets across months (Custom mode can touch several).
-      // A merged row's id/month are only meaningful when it maps to a single
-      // month's row — the UI uses `monthCount` to decide whether delete applies.
-      const merged = new Map<string, BudgetRow & { monthCount: number }>()
+      const merged = new Map<string, BudgetRow & { monthCount: number; ids: string[] }>()
       budgetsResults.forEach((r) => {
         (r.data || []).forEach((b) => {
           const existing = merged.get(b.category)
           if (existing) {
             existing.amount += Number(b.amount)
             existing.monthCount += 1
+            existing.ids.push(b.id)
           } else {
-            merged.set(b.category, { ...b, amount: Number(b.amount), monthCount: 1 })
+            merged.set(b.category, { ...b, amount: Number(b.amount), monthCount: 1, ids: [b.id] })
           }
         })
       })
@@ -127,13 +126,15 @@ export default function BudgetsPage() {
     }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (targetIds: string[]) => {
     setActionLoading(true)
     setError(null)
     try {
-      const { error } = await deleteBudget(id)
-      if (error) throw error
-
+      for (const id of targetIds) {
+        const { error } = await deleteBudget(id)
+        if (error) throw error
+      }
+      showToast('Limit removed successfully')
       await fetchBudgetData(dateFilter)
     } catch (err: any) {
       console.error('Error deleting budget:', err)
@@ -364,24 +365,22 @@ export default function BudgetsPage() {
                                   : `${formatCurrency(Math.abs(remaining))} overspent!`}
                               </p>
                             </div>
-                            {budget.monthCount === 1 && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-zinc-500 hover:text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] h-11 w-11 p-0"
-                                onClick={() => setConfirmDeleteId(budget.id)}
-                                disabled={actionLoading}
-                                title="Delete budget"
-                              >
-                                🗑️
-                              </Button>
-                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-zinc-500 hover:text-[var(--status-danger-text)] hover:bg-[var(--status-danger-subtle)] h-11 w-11 p-0 shrink-0"
+                              onClick={() => setDeleteTarget({ ids: budget.ids || [budget.id], categoryLabel: cat.label, monthCount: budget.monthCount })}
+                              disabled={actionLoading}
+                              title={budget.monthCount > 1 ? `Delete limit across ${budget.monthCount} months` : 'Delete budget limit'}
+                            >
+                              🗑️
+                            </Button>
                           </div>
                         </div>
 
                         {/* Progress Bar */}
-                        <div className="relative">
-                          <div className="h-2 w-full bg-surface-3 rounded-full overflow-hidden">
+                        <div className="relative space-y-1">
+                          <div className="h-2 w-full bg-surface-3 rounded-full overflow-hidden flex">
                             <div
                               className={`h-full rounded-full transition-all duration-500 ease-out ${pct < 70 ? 'aurora-progress-fill' : ''}`}
                               style={{
@@ -390,11 +389,15 @@ export default function BudgetsPage() {
                               }}
                             />
                           </div>
+                          {pct > 100 && (
+                            <p className="text-[10px] text-[var(--status-danger-text)] font-bold text-right">
+                              ⚠️ {Math.round(pct - 100)}% over established cap
+                            </p>
+                          )}
                         </div>
 
-                        {/* Pace projection — only meaningful mid-month, and
-                            only useful before the limit's already blown. */}
-                        {isCurrentMonth && pct < 100 && (() => {
+                        {/* Pace projection — requires at least 4 days elapsed mid-month to avoid Day 1-3 false alarms */}
+                        {isCurrentMonth && daysElapsed >= 4 && pct < 100 && (() => {
                           const projected = projectPace(spent)
                           const projectedOver = projected - budget.amount
                           if (projectedOver <= 0) return null
@@ -464,14 +467,18 @@ export default function BudgetsPage() {
       </div>
 
       <ConfirmDialog
-        isOpen={confirmDeleteId !== null}
-        onClose={() => setConfirmDeleteId(null)}
+        isOpen={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
         onConfirm={async () => {
-          if (confirmDeleteId) await handleDelete(confirmDeleteId)
-          setConfirmDeleteId(null)
+          if (deleteTarget) await handleDelete(deleteTarget.ids)
+          setDeleteTarget(null)
         }}
         title="Remove budget limit"
-        message="This category will no longer have a monthly limit. You can set a new one anytime."
+        message={
+          deleteTarget && deleteTarget.monthCount > 1
+            ? `Remove the budget limit for ${deleteTarget.categoryLabel} across all ${deleteTarget.monthCount} months in this view?`
+            : `Remove the budget limit for ${deleteTarget?.categoryLabel || 'this category'}? You can set a new one anytime.`
+        }
         confirmLabel="Remove"
       />
     </AppLayout>
