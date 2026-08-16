@@ -115,9 +115,23 @@ export default function ProfilePage() {
     }
   }
 
+  /**
+   * Does the typed confirmation match the account's email?
+   *
+   * Compared trimmed and case-folded, not with ===. The strict form rejected a
+   * trailing space picked up from a copy-paste and rejected a capitalised
+   * address — neither of which is a different email to any real person — and
+   * the only feedback was a permanently greyed-out button with no explanation.
+   * The confirmation exists to prove intent, not to test typing accuracy, and a
+   * gate that fails silently reads as a broken app rather than as a gate.
+   */
+  const deleteConfirmMatches =
+    !!user?.email &&
+    deleteConfirmEmail.trim().toLowerCase() === user.email.trim().toLowerCase()
+
   const handleDeleteAccount = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (deleteConfirmEmail !== user?.email) return
+    if (!deleteConfirmMatches) return
 
     setDeleteLoading(true)
     setError(null)
@@ -318,12 +332,17 @@ export default function ProfilePage() {
                         required
                         className="border-red-950/60 focus:border-red-500 focus:ring-red-500/20"
                       />
+                      {deleteConfirmEmail.trim() !== '' && !deleteConfirmMatches && (
+                        <p className="mt-1.5 text-xs text-zinc-500">
+                          That doesn't match your account email yet, so the button below stays disabled.
+                        </p>
+                      )}
                     </div>
                     <Button
                       variant="danger"
                       type="submit"
                       block
-                      disabled={deleteConfirmEmail !== user?.email || deleteLoading}
+                      disabled={!deleteConfirmMatches || deleteLoading}
                       loading={deleteLoading}
                       className="bg-[var(--status-danger-text)] hover:opacity-90 active:opacity-80 disabled:opacity-40 transition-all duration-200"
                     >
