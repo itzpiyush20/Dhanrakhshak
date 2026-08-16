@@ -44,7 +44,7 @@ import {
   seedSandboxData,
 } from '@/services'
 import { migrateLocalStorageRulesToDB } from '@/services/learningEngine'
-import { formatCurrency, formatCurrencyCompact, getCurrentMonth, formatDate, withTimeout, resolveDateFilter, formatDateFilterLabel, getMonthsInRange, resolveTransactionIdentity, creditCardBillCategoryNames, makeIsCreditCardBill, CREDIT_CARD_BILL_LEGACY_NAME, type DateFilter } from '@/utils'
+import { formatCurrency, formatCurrencyCompact, getCurrentMonth, formatDate, withTimeout, resolveDateFilter, formatDateFilterLabel, getMonthsInRange, resolveTransactionIdentity, creditCardBillCategoryNames, makeIsCreditCardBill, CREDIT_CARD_BILL_LEGACY_NAME, HOME_CURRENCY, type DateFilter } from '@/utils'
 import { toISODateLocal } from '@/utils/dateFilter'
 import { useCategories } from '@/context/CategoriesContext'
 import type { Database } from '@/types/database'
@@ -216,7 +216,17 @@ export default function DashboardPage() {
   const [ccBills, setCcBills] = useState<{ key: string; rows: TransactionRow[] } | null>(null)
   const ccBillLoading = ccBills?.key !== ccBillQueryKey
   const ccBillTxns = ccBillLoading ? [] : ccBills!.rows
-  const ccBillTotal = ccBillTxns.reduce((sum, t) => sum + Number(t.amount), 0)
+  // The headline figure covers the home currency only, for the same reason
+  // getSummary does it: the app holds no exchange rates, so adding a dollar
+  // bill payment into a rupee total would produce a meaningless number printed
+  // with a ₹ sign. Foreign payments are reported on their own below.
+  const ccBillHomeTxns = ccBillTxns.filter((t) => (t.currency ?? HOME_CURRENCY) === HOME_CURRENCY)
+  const ccBillTotal = ccBillHomeTxns.reduce((sum, t) => sum + Number(t.amount), 0)
+  const ccBillForeignTotals = ccBillTxns.reduce<Record<string, number>>((acc, t) => {
+    const code = t.currency ?? HOME_CURRENCY
+    if (code !== HOME_CURRENCY) acc[code] = (acc[code] || 0) + Number(t.amount)
+    return acc
+  }, {})
 
   // Category Details modal state
   const [showCategoryModal, setShowCategoryModal] = useState(false)
@@ -989,9 +999,13 @@ export default function DashboardPage() {
                     {formatCurrency(ccBillTotal)}
                   </p>
                   <p className="text-xs text-zinc-500 mt-0.5 truncate">
-                    {ccBillTxns.length === 0
-                      ? `No bill payments in ${formatDateFilterLabel(dateFilter)}`
-                      : `${ccBillTxns.length} payment${ccBillTxns.length === 1 ? '' : 's'} in ${formatDateFilterLabel(dateFilter)} · not counted in Total Expenses`}
+                    {ccBillHomeTxns.length === 0
+                      ? ccBillTxns.length > 0
+                        // Foreign-currency payments only: ₹0 with a flat "none"
+                        // would contradict the list the modal is about to show.
+                        ? `Only foreign-currency payments in ${formatDateFilterLabel(dateFilter)} — open to view`
+                        : `No bill payments in ${formatDateFilterLabel(dateFilter)}`
+                      : `${ccBillHomeTxns.length} payment${ccBillHomeTxns.length === 1 ? '' : 's'} in ${formatDateFilterLabel(dateFilter)} · not counted in Total Expenses`}
                   </p>
                 </>
               )}
@@ -1329,8 +1343,16 @@ export default function DashboardPage() {
           <div className="space-y-4">
             <p className="text-xs text-zinc-400">
               {formatDateFilterLabel(dateFilter)} · {formatCurrency(ccBillTotal)} across{' '}
-              {ccBillTxns.length} payment{ccBillTxns.length === 1 ? '' : 's'}
+              {ccBillHomeTxns.length} payment{ccBillHomeTxns.length === 1 ? '' : 's'}
             </p>
+            {Object.keys(ccBillForeignTotals).length > 0 && (
+              <p className="text-xs text-zinc-500">
+                Also paid in other currencies, not added to the total above:{' '}
+                {Object.entries(ccBillForeignTotals)
+                  .map(([code, amount]) => formatCurrency(amount, code))
+                  .join(' · ')}
+              </p>
+            )}
             <p className="text-xs text-zinc-500">
               These are tracked separately from Total Expenses — the purchases behind
               each bill were already counted when they happened.
