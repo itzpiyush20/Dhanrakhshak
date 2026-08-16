@@ -55,6 +55,14 @@
   --status-danger-subtle: rgba(244, 113, 116, 0.12);
   --status-danger-border: rgba(244, 113, 116, 0.24);
   --status-danger-icon:   #f47174;
+  /* Solid fill for a destructive BUTTON, always paired with white text.
+     Deliberately not --status-danger-text: that value is tuned to be read
+     as text ON a dark surface (#f47174), so using it as a background gives
+     white only ~2.6:1 — below the 4.5:1 floor. This darker red carries
+     white at ~5.2:1. The delete-account button used the text token as its
+     background and inherited the danger variant's text colour, so the
+     label was the same colour as the fill and invisible. */
+  --status-danger-solid:  #c8362f;
 
   --status-warning-text:   #f0b34a;
   --status-warning-subtle: rgba(240, 179, 74, 0.12);
@@ -124,6 +132,9 @@
   --status-danger-subtle: rgba(200, 54, 47, 0.07);
   --status-danger-border: rgba(200, 54, 47, 0.20);
   --status-danger-icon:   #c8362f;
+  /* See the dark-theme note. Deeper again for a light page, so white sits
+     at roughly 7:1 rather than borrowing a value tuned for text. */
+  --status-danger-solid:  #b3261e;
 
   --status-warning-text:   #a45c00;
   --status-warning-subtle: rgba(164, 92, 0, 0.08);

@@ -338,13 +338,31 @@ export default function ProfilePage() {
                         </p>
                       )}
                     </div>
+                    {/*
+                      The fill is --status-danger-solid and the label is forced
+                      white, together.
+
+                      This used to set the background to --status-danger-text
+                      while the `danger` variant sets the TEXT colour to that
+                      same variable — so the label was the exact colour of the
+                      fill and invisible, in both themes, enabled or disabled.
+                      The control rendered as a blank coloured bar and read as
+                      broken, on the one screen where someone is exercising
+                      their right to erasure.
+
+                      Simply forcing white on the old background was not enough:
+                      --status-danger-text is tuned to be READ as text on a dark
+                      surface (#f47174), so white on it measures ~2.6:1, under
+                      the 4.5:1 floor. --status-danger-solid exists for this —
+                      a fill dark enough in both themes to carry white.
+                    */}
                     <Button
                       variant="danger"
                       type="submit"
                       block
                       disabled={!deleteConfirmMatches || deleteLoading}
                       loading={deleteLoading}
-                      className="bg-[var(--status-danger-text)] hover:opacity-90 active:opacity-80 disabled:opacity-40 transition-all duration-200"
+                      className="bg-[var(--status-danger-solid)] text-static-white hover:opacity-90 active:opacity-80 disabled:opacity-40 transition-all duration-200"
                     >
                       Permanently Delete My Account
                     </Button>
