@@ -13,30 +13,49 @@ type TransactionRow = Database['public']['Tables']['transactions']['Row']
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert']
 type TransactionUpdate = Database['public']['Tables']['transactions']['Update']
 
-/** Fetch transactions for current user with filters */
-export async function getTransactions(options?: {
+export interface TransactionQueryOptions {
   month?: string        // YYYY-MM — ignored if dateFrom/dateTo are given
   dateFrom?: string      // YYYY-MM-DD
   dateTo?: string        // YYYY-MM-DD
   type?: 'debit' | 'credit'
   category?: string
+  /** Single approval_status to match. Defaults to 'approved' when neither this nor `statuses` is given. */
   status?: string
+  /** Several approval statuses at once, e.g. ['approved', 'pending'] for exports. Takes precedence over `status`. */
+  statuses?: string[]
   limit?: number
   offset?: number
-}) {
+}
+
+/**
+ * Shared filter/order builder for the transaction list queries. Kept separate
+ * from the paging so `fetchAllTransactions` can issue the identical query once
+ * per page without duplicating (and drifting from) the filter logic.
+ */
+function buildTransactionQuery(options?: TransactionQueryOptions) {
   let query = supabase
     .from('transactions')
     .select('*', { count: 'exact' })
 
-  if (options?.status) {
+  if (options?.statuses && options.statuses.length > 0) {
+    query = query.in('approval_status', options.statuses)
+  } else if (options?.status) {
     query = query.eq('approval_status', options.status)
   } else {
     query = query.eq('approval_status', 'approved')
   }
 
+  // `id` is a tiebreaker, not decoration. `date` is a DATE and `created_at` can
+  // tie for rows written in the same batch (a scan flushes ten at once), and
+  // Postgres gives no stable order to rows that compare equal. Paging with
+  // .range() issues one request per page, so an unstable order lets a row move
+  // between pages — appearing twice, or not at all. In a list view that is a
+  // cosmetic wobble; in the encrypted backup that fetchAllTransactions feeds, it
+  // is silent data corruption.
   query = query
     .order('date', { ascending: false })
     .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
 
   if (options?.dateFrom || options?.dateTo) {
     if (options.dateFrom) query = query.gte('date', options.dateFrom)
@@ -56,6 +75,13 @@ export async function getTransactions(options?: {
     query = query.eq('category', options.category)
   }
 
+  return query
+}
+
+/** Fetch transactions for current user with filters */
+export async function getTransactions(options?: TransactionQueryOptions) {
+  let query = buildTransactionQuery(options)
+
   if (options?.limit) {
     query = query.limit(options.limit)
   }
@@ -67,6 +93,67 @@ export async function getTransactions(options?: {
   const { data, error, count } = await query
 
   return { data: data as TransactionRow[] | null, error, count }
+}
+
+/**
+ * How many rows we ASK for per page. PostgREST will return fewer if its own
+ * `db-max-rows` setting is lower (1000 on Supabase by default), which is why
+ * the loop below must never treat "fewer than requested" as "no rows left".
+ */
+const ALL_TRANSACTIONS_PAGE_SIZE = 1000
+
+/**
+ * Fetch EVERY row matching the filters, paging with `.range()` until a short
+ * page comes back.
+ *
+ * A plain `getTransactions()` with no `limit` does not return everything: it
+ * returns at most `db-max-rows` rows, and the caller has no way to tell a
+ * complete answer from a truncated one. That silent ceiling is survivable for a
+ * list view but not for the export and encrypted-backup paths in
+ * SettingsPage — a user with 1001 transactions was downloading a "full backup"
+ * that quietly dropped everything past the first 1000 rows, and the
+ * restore-time dedup was comparing against an equally truncated snapshot, so
+ * older transactions would be re-inserted as duplicates.
+ *
+ * Callers that pass an explicit `limit` (Dashboard, Pending) still want the
+ * single capped query and should keep using `getTransactions`.
+ */
+export async function fetchAllTransactions(
+  options?: Omit<TransactionQueryOptions, 'limit' | 'offset'>
+): Promise<{ data: TransactionRow[] | null; error: unknown }> {
+  const all: TransactionRow[] = []
+  let offset = 0
+
+  for (;;) {
+    // A fresh builder per page: PostgrestFilterBuilder is a thenable that can
+    // only be awaited once, so the same instance cannot be re-ranged and
+    // re-executed.
+    const { data, error, count } = await buildTransactionQuery(options)
+      .range(offset, offset + ALL_TRANSACTIONS_PAGE_SIZE - 1)
+
+    if (error) return { data: null, error }
+
+    const page = (data ?? []) as TransactionRow[]
+    all.push(...page)
+
+    // Advance by what actually ARRIVED, not by the size we asked for. Treating
+    // "shorter than requested" as "no rows left" would reintroduce the very bug
+    // this function exists to fix, in a harder-to-see form: PostgREST clamps a
+    // response to its own `db-max-rows`, so were that ever set below our page
+    // size, every page would come back short and the "complete" backup would
+    // silently be one page long.
+    if (page.length === 0) break
+    offset += page.length
+
+    // `count` is the total matching rows, which the query asks for via
+    // `{ count: 'exact' }`. Using it means the common case — a few hundred
+    // transactions — costs exactly one request; without it the loop can only
+    // learn it is done by making one more request that comes back empty. The
+    // empty-page break above stays as the fallback for when count is absent.
+    if (typeof count === 'number' && all.length >= count) break
+  }
+
+  return { data: all, error: null }
 }
 
 /** Create a new transaction */

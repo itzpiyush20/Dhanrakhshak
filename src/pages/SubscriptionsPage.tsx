@@ -9,7 +9,8 @@ import AppLayout from '@/layouts/AppLayout'
 import { Card, Button, Badge, Input, EmptyState } from '@/components/ui'
 import { RefreshCw, FileText } from 'lucide-react'
 import Select from '@/components/ui/Select'
-import { getTransactions, createTransaction } from '@/services'
+import { createTransaction } from '@/services'
+import { fetchAllTransactions } from '@/services/transactions'
 import { formatCurrency, formatDate } from '@/utils'
 import { toISODateLocal } from '@/utils/dateFilter'
 import type { Database } from '@/types/database'
@@ -94,7 +95,20 @@ export default function SubscriptionsPage() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const { data } = await getTransactions()
+      // detectSubscriptions() needs two or more charges from the same merchant
+      // to infer a frequency. PostgREST's 1000-row ceiling cuts off the OLDEST
+      // transactions first — exactly where the earlier charge of a long-running
+      // annual subscription lives — so a capped fetch silently stopped
+      // detecting them.
+      //
+      // Bounded to 24 months rather than fetching everything: that is already
+      // twice the span needed to see two annual charges, and an unbounded fetch
+      // would pull a heavy user's entire history into the browser on every
+      // visit to this page. A charge older than two years is not evidence of a
+      // subscription that is still running.
+      const since = new Date()
+      since.setMonth(since.getMonth() - 24)
+      const { data } = await fetchAllTransactions({ dateFrom: toISODateLocal(since) })
       if (data) {
         setTransactions(data)
       }

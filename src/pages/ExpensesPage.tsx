@@ -8,7 +8,7 @@ import { AppLayout } from '@/layouts'
 import { Button, Modal, DateFilterPicker } from '@/components/ui'
 import ExpenseForm from '@/components/expenses/ExpenseForm'
 import ExpenseList from '@/components/expenses/ExpenseList'
-import { getTransactions } from '@/services/transactions'
+import { fetchAllTransactions } from '@/services/transactions'
 import { formatCurrency, getCurrentMonth, withTimeout, resolveDateFilter, creditCardBillCategoryNames, makeIsCreditCardBill, type DateFilter } from '@/utils'
 import type { Database } from '@/types/database'
 import { Card } from '@/components/ui'
@@ -44,8 +44,12 @@ export default function ExpensesPage() {
     setLoading(true)
     setError(null)
     try {
+      // Pages through every row rather than taking PostgREST's default 1000-row
+      // ceiling: this list drives the quick-stats totals below, and a silently
+      // truncated fetch would under-report income and expenses for any user
+      // whose selected range holds more than a thousand transactions.
       const { data } = await withTimeout(
-        getTransactions(resolveDateFilter(dateFilter)),
+        fetchAllTransactions(resolveDateFilter(dateFilter)),
         45000,
         'Transactions fetch'
       )
