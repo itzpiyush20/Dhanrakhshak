@@ -43,38 +43,12 @@ import {
 } from 'lucide-react'
 
 export default function SettingsPage() {
-  const { user, profile, refreshProfile, dailyScanTime, updateDailyScanTime, currencySymbol, hasGoogleToken, disconnectGoogle } = useAuth()
+  const { user, dailyScanTime, updateDailyScanTime, currencySymbol, hasGoogleToken, disconnectGoogle } = useAuth()
   const { showToast } = useToast()
   const { categories, fallbackCategory } = useCategories()
 
   const [disconnectLoading, setDisconnectLoading] = useState(false)
 
-  // The weekly summary email has been sending since the cron was added, and
-  // until now there was no way to stop it: the email told people to "manage
-  // this from Settings" and no such control existed. profiles.weekly_report_enabled
-  // already existed and defaults to true — it simply had no UI, and it is not
-  // one of the columns protect_server_only_profile_columns guards, so the user
-  // can write it themselves.
-  const [weeklyDigestSaving, setWeeklyDigestSaving] = useState(false)
-  const weeklyDigestEnabled = profile?.weekly_report_enabled !== false
-
-  const handleToggleWeeklyDigest = async () => {
-    if (!user) return
-    const next = !weeklyDigestEnabled
-    setWeeklyDigestSaving(true)
-    const { error } = await supabase
-      .from('profiles')
-      .update({ weekly_report_enabled: next })
-      .eq('id', user.id)
-    setWeeklyDigestSaving(false)
-
-    if (error) {
-      showToast('Could not save that preference. Please try again.', 'error')
-      return
-    }
-    await refreshProfile()
-    showToast(next ? 'Weekly summary email turned on.' : 'Weekly summary email turned off.', 'success')
-  }
 
   const handleDisconnectGmail = async () => {
     setDisconnectLoading(true)
@@ -154,6 +128,11 @@ export default function SettingsPage() {
   const [restoreSuccess, setRestoreSuccess] = useState(false)
   const [restoreError, setRestoreError] = useState('')
   const [exportLoading, setExportLoading] = useState(false)
+  // Both optional. Empty means "no bound on that end", so leaving the pair
+  // untouched exports everything — the behaviour the button had before.
+  const [exportFrom, setExportFrom] = useState('')
+  const [exportTo, setExportTo] = useState('')
+  const [exportRangeError, setExportRangeError] = useState('')
 
   // Change Password States
   const [newPassword, setNewPassword] = useState('')
@@ -184,51 +163,100 @@ export default function SettingsPage() {
     return `"${defused.replace(/"/g, '""')}"`
   }
 
+  /**
+   * The columns a person actually wants when they open this in a spreadsheet
+   * or hand it to an accountant.
+   *
+   * The export used to emit the raw database row: a UUID primary key, an
+   * internal confidence score, an event_type used only by the scanner, and
+   * card_last4 — a column the app stopped populating when card data was
+   * minimised, so it was always blank. None of that means anything to the
+   * person reading the file, and the UUID in column A pushed the date, which
+   * is what anyone actually sorts by, into column B.
+   *
+   * Money In / Money Out rather than credit / debit: those two words are
+   * written from the BANK's point of view, and every user who has ever read a
+   * statement has had to stop and translate them.
+   */
+  const exportRow = (t: any) => ({
+    Date: t.date,
+    Description: t.description || '',
+    Merchant: t.merchant || '',
+    Category: t.category,
+    Amount: t.amount,
+    Currency: t.currency || 'INR',
+    Direction: t.type === 'credit' ? 'Money In' : 'Money Out',
+    'Paid With': t.payment_mode && t.payment_mode !== 'unknown' ? t.payment_mode : '',
+    Bank: t.card_issuer || '',
+    'Added By': t.source === 'email' ? 'Email scan' : 'Manual entry',
+    Status: t.approval_status === 'pending' ? 'Awaiting review' : 'Approved',
+  })
+
   const handlePlainExport = async (format: 'csv' | 'json') => {
+    // Caught here rather than returning an empty file: a backwards range
+    // matches nothing, and "no transactions found" would send the user looking
+    // for a data problem that does not exist.
+    if (exportFrom && exportTo && exportFrom > exportTo) {
+      setExportRangeError('The "from" date is after the "to" date.')
+      return
+    }
+    setExportRangeError('')
     setExportLoading(true)
     try {
       // Pending transactions are included: an export that silently omits
       // everything still awaiting review is not the "all your data" the
       // Data Portability card promises.
-      const { data: txns } = await fetchAllTransactions({ statuses: ['approved', 'pending'] })
+      //
+      // The date range is optional — leaving both empty exports everything,
+      // which is what the button did before this control existed.
+      const { data: txns } = await fetchAllTransactions({
+        statuses: ['approved', 'pending'],
+        ...(exportFrom ? { dateFrom: exportFrom } : {}),
+        ...(exportTo ? { dateTo: exportTo } : {}),
+      })
       if (!txns || txns.length === 0) {
-        showToast('No transaction records found to export.', 'warning')
+        showToast(
+          exportFrom || exportTo
+            ? 'No transactions found in that date range.'
+            : 'No transaction records found to export.',
+          'warning'
+        )
         return
       }
+
+      const rows = txns.map(exportRow)
+      const columns = Object.keys(rows[0]) as (keyof (typeof rows)[0])[]
+
+      // Named after the range it actually covers, so two exports don't land in
+      // the Downloads folder as indistinguishable files.
+      const rangeLabel = exportFrom || exportTo
+        ? `${exportFrom || 'start'}_to_${exportTo || 'today'}`
+        : 'all'
 
       let content = ''
       let mimeType = ''
       let filename = ''
 
       if (format === 'csv') {
-        const headers = 'ID,Date,Type,Amount,Category,Merchant,Description,Payment Mode,Card Last 4,Issuer,Confidence,Event Type,Source,Status\n'
-        const rows = txns.map(t =>
-          [
-            csvCell(t.id),
-            csvCell(t.date),
-            csvCell(t.type),
-            // Amount and confidence are numeric columns; they stay unquoted so
-            // spreadsheets keep treating them as numbers rather than text.
-            t.amount,
-            csvCell(t.category),
-            csvCell(t.merchant || ''),
-            csvCell(t.description || ''),
-            csvCell(t.payment_mode || 'unknown'),
-            csvCell(t.card_last4 || ''),
-            csvCell(t.card_issuer || ''),
-            t.confidence_score || '',
-            csvCell(t.event_type || ''),
-            csvCell(t.source),
-            csvCell(t.approval_status),
-          ].join(',')
-        ).join('\n')
-        content = headers + rows
+        const header = columns.join(',')
+        const body = rows
+          .map((row) =>
+            columns
+              .map((col) =>
+                // Amount stays unquoted so spreadsheets keep it numeric;
+                // everything else goes through the formula-injection guard.
+                col === 'Amount' ? row[col] : csvCell(row[col])
+              )
+              .join(',')
+          )
+          .join('\n')
+        content = `${header}\n${body}`
         mimeType = 'text/csv;charset=utf-8;'
-        filename = `Dhanrakshak_Transactions_Export_${new Date().toISOString().split('T')[0]}.csv`
+        filename = `Dhanrakshak_Transactions_${rangeLabel}.csv`
       } else {
-        content = JSON.stringify(txns, null, 2)
+        content = JSON.stringify(rows, null, 2)
         mimeType = 'application/json;charset=utf-8;'
-        filename = `Dhanrakshak_Transactions_Export_${new Date().toISOString().split('T')[0]}.json`
+        filename = `Dhanrakshak_Transactions_${rangeLabel}.json`
       }
 
       const blob = new Blob([content], { type: mimeType })
@@ -832,8 +860,60 @@ export default function SettingsPage() {
                 <span>Data Portability (Plain Export)</span>
               </h2>
               <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
-                Export your complete transaction history — approved and pending — in standard, human-readable formats for tax filing, spreadsheets, or migrations.
+                Export your transactions — approved and pending — in standard, human-readable formats for tax filing, spreadsheets, or migrations.
               </p>
+
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="export-from" className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                    From
+                  </label>
+                  <input
+                    id="export-from"
+                    type="date"
+                    value={exportFrom}
+                    max={exportTo || undefined}
+                    onChange={(e) => { setExportFrom(e.target.value); setExportRangeError('') }}
+                    className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-11 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="export-to" className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                    To
+                  </label>
+                  <input
+                    id="export-to"
+                    type="date"
+                    value={exportTo}
+                    min={exportFrom || undefined}
+                    onChange={(e) => { setExportTo(e.target.value); setExportRangeError('') }}
+                    className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-11 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {exportRangeError && (
+                <div role="alert" className="rounded-xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-2.5 mb-3 text-xs text-[var(--status-danger-text)]">
+                  {exportRangeError}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs text-zinc-500">
+                  {exportFrom || exportTo
+                    ? `Exporting ${exportFrom ? formatDate(exportFrom) : 'the beginning'} → ${exportTo ? formatDate(exportTo) : 'today'}`
+                    : 'Leave both blank to export everything'}
+                </p>
+                {(exportFrom || exportTo) && (
+                  <button
+                    onClick={() => { setExportFrom(''); setExportTo(''); setExportRangeError('') }}
+                    className="text-xs text-brand-400 underline bg-transparent border-none cursor-pointer shrink-0"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
               <div className="flex gap-3">
                 <Button
                   onClick={() => handlePlainExport('csv')}
@@ -957,31 +1037,6 @@ export default function SettingsPage() {
                     aria-label="Daily Scan Schedule Time"
                     className="bg-surface-2 border border-border-subtle/50 text-xs rounded-xl h-11 px-3 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-brand-400 cursor-pointer font-semibold font-mono"
                   />
-                </div>
-
-                <div className="flex items-center justify-between border-b border-border-subtle/30 pb-3 pt-1">
-                  <div className="flex flex-col pr-3">
-                    <span className="text-zinc-400 font-medium">Weekly Summary Email</span>
-                    <span className="text-xs text-zinc-500">A recap of your spending, sent every Monday morning</span>
-                  </div>
-                  <button
-                    onClick={handleToggleWeeklyDigest}
-                    disabled={weeklyDigestSaving}
-                    className={cn(
-                      "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-brand-400 disabled:opacity-50",
-                      weeklyDigestEnabled ? "bg-brand-500" : "bg-zinc-700"
-                    )}
-                    role="switch"
-                    aria-checked={weeklyDigestEnabled}
-                    aria-label="Weekly summary email"
-                  >
-                    <span
-                      className={cn(
-                        "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                        weeklyDigestEnabled ? "translate-x-5" : "translate-x-0"
-                      )}
-                    />
-                  </button>
                 </div>
 
                 <div className="flex items-center justify-between pt-1">
