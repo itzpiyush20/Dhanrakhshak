@@ -45,9 +45,9 @@ export default function TermsPage() {
         {section("4. Subscriptions, Trials & Billing", `
           Dhanrakshak offers subscription plans to access advanced automated tracking features:
           - 7-Day Free Trial: New users receive 7 days of free trial access starting from registration. During the trial period, the service gives full Pro access, including automated Gmail scanning and manual entries. Access will be limited or locked after the trial period ends unless upgraded to a subscription plan.
-          - Paid Subscription Tiers: Users can choose to upgrade to "Basic" (₹31/month) or "Pro" (₹365/year) to unlock full background and manual Gmail inbox synchronization.
-          - Billing and Renewals: All payments are processed securely via Razorpay, a licensed payment gateway. Subscriptions run on a monthly or annual cycle.
-          - Cancellation Policy: Subscriptions can be canceled at any time. Access continues through the end of the current billing term. Dhanrakshak does not offer refunds for partial subscription cycles.
+          - Paid Plans: Users can choose the Monthly plan (₹31 for 30 days) or the Yearly plan (₹365 for 365 days) to unlock full background and manual Gmail inbox synchronization.
+          - Billing: All payments are processed securely via Razorpay, a licensed payment gateway. Every plan is a ONE-TIME payment for a fixed period. Nothing renews automatically, no mandate is placed on your card, and you are never charged again without making a new purchase.
+          - Cancellation: Because nothing recurs, there is no cancellation step and no cancellation fee. Access runs to the end of the period you paid for and then stops. Dhanrakshak does not offer refunds for unused portions of a period; see the Refund Policy for the limited cases in which a refund is available.
         `)}
 
         {section("5. Prohibited Uses", `

@@ -73,7 +73,13 @@ export default function PricingPage() {
 
   const planName  = selectedPlan === 'annual' ? 'Yearly' : 'Monthly'
   const planPrice = selectedPlan === 'annual' ? '365' : '31'
-  const planSub   = selectedPlan === 'annual' ? 'Billed once per year' : 'Billed every month'
+  // Both plans are ONE-TIME payments. create-order.ts calls orders.create, not
+  // the Subscriptions API — there is no mandate, no plan id, and nothing that
+  // charges a card a second time. Access simply ends on the expiry date. The
+  // copy used to say "Billed every month · cancel anytime", which invented a
+  // recurring charge that does not exist and a cancellation there is nothing to
+  // perform.
+  const planSub   = selectedPlan === 'annual' ? 'One payment · 365 days of access' : 'One payment · 30 days of access'
 
   useEffect(() => { document.title = 'Pricing & Plans | Dhanrakshak' }, [])
 
@@ -263,7 +269,7 @@ export default function PricingPage() {
               Simple, <span className="text-sb-primary">honest pricing</span>
             </h1>
             <p className="text-xs sm:text-sm text-sb-ink-secondary leading-relaxed">
-              Unlock automated transaction logs, AI budget mapping, and offline security. No hidden charges, cancel with one click.
+              Unlock automated transaction logs, AI budget mapping, and offline security. One-time payment — nothing auto-renews, and we never store your card.
             </p>
           </div>
         </motion.div>
@@ -397,7 +403,7 @@ export default function PricingPage() {
                   <span className="font-extrabold text-4xl text-sb-ink tracking-tight">₹31</span>
                   <span className="text-xs text-zinc-400">/month</span>
                 </div>
-                <p className="text-xs text-zinc-400 mt-1 font-medium">Billed every month · cancel anytime</p>
+                <p className="text-xs text-zinc-400 mt-1 font-medium">One payment · 30 days · no auto-renewal</p>
               </div>
 
               <ul className="space-y-3.5 flex-1 border-t border-border-subtle pt-5">
@@ -457,7 +463,7 @@ export default function PricingPage() {
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">₹1 per day</span>
-                  <span className="text-xs text-zinc-400 font-medium">Billed once per year</span>
+                  <span className="text-xs text-zinc-400 font-medium">One payment · 365 days</span>
                 </div>
               </div>
 

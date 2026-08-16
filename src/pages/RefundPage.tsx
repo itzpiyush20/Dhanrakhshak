@@ -30,16 +30,17 @@ export default function RefundPage() {
           
           - You will not be charged during the trial period.
           - Once the trial expires, you must manually upgrade and select a paid subscription (Monthly at ₹31/month or Yearly at ₹365/year) to keep auto-synchronization active.
-          - Paid subscriptions are billed in advance on a recurring monthly or annual basis, depending on the plan you select.
+          - Every plan is a ONE-TIME payment for a fixed period of access. Nothing renews automatically, no mandate is set up on your card, and you are never charged a second time. When the period ends, access simply stops until you choose to pay again.
         `)}
 
         {/* Section 2: Cancellation Policy */}
         {section("2. Cancellation Policy", `
-          You have the right to cancel your Dhanrakshak subscription at any time.
-          
-          - To cancel, navigate to your Settings → Subscriptions panel inside the dashboard and click the "Cancel Subscription" button, or contact us at ${APP_CONFIG.SUPPORT_EMAIL}.
-          - Upon cancellation, your subscription will remain active, and you will continue to have full access to premium features, until the end of your current billing cycle.
-          - We do not charge any cancellation fees.
+          There is nothing to cancel, because nothing recurs.
+
+          - Your plan is a one-time purchase of a fixed access period. It will not renew and your card will not be charged again, so no cancellation step is required to stop future billing.
+          - If you simply want to stop using Dhanrakshak, you can let the period lapse, or delete your account entirely from Profile → Delete Account, which erases your data.
+          - Questions about a specific payment: contact us at ${APP_CONFIG.SUPPORT_EMAIL}.
+          - Access you have already paid for is never withdrawn early. It runs to the end of the period you purchased.
         `)}
 
         {/* Section 3: Refund Eligibility & Claims */}
