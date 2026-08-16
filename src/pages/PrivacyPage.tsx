@@ -10,7 +10,7 @@ export default function PrivacyPage() {
     <MarketingLayout title="Privacy Policy">
       <div className="mb-10">
         <h1 className="text-3xl font-extrabold tracking-tight text-sb-ink">Privacy Policy</h1>
-        <p className="text-xs mt-1 text-sb-ink-muted">Last updated: June 2, 2026 · Effective immediately</p>
+        <p className="text-xs mt-1 text-sb-ink-muted">Last updated: August 16, 2026 · Effective immediately</p>
       </div>
 
       <div className="prose max-w-none space-y-10">
@@ -33,8 +33,9 @@ export default function PrivacyPage() {
         {section("2. What Data We Collect", null, [
           { title: "Account Information", body: "When you sign up, we collect your email address and optionally your name and profile photo (if you sign in with Google)." },
           { title: "Transaction Data", body: "Financial transactions you enter manually, or that are automatically extracted from your Gmail bank alert emails. This includes: amount, date, merchant name, category, and payment method type (e.g., credit card last 4 digits). We never store full card numbers, PINs, or banking passwords." },
-          { title: "Email Content (Gmail Only)", body: "If you connect Gmail, we read bank transaction alert emails only. We use read-only OAuth scopes. We do not read personal emails, social emails, or promotional emails. Email content is processed in your browser and is not stored on our servers — only the extracted transaction data is saved." },
-          { title: "Usage Data", body: "We may collect anonymous usage analytics (page views, feature usage) to improve the product. This data cannot be linked back to your identity." },
+          { title: "Email Content (Gmail Only)", body: "If you connect Gmail, we use a read-only OAuth scope and search your inbox for financial keywords. To decide whether a matching email is a real transaction, its subject and the first part of its body are read — this necessarily includes emails that turn out to be newsletters or promotions, which are then discarded. We do not store the body of any email. Only the extracted transaction data is saved permanently." },
+          { title: "Scan Diagnostics", body: "When the scanner rejects an email, we store the sender's domain, the subject line, and a short extract (up to 200 characters) of the text that caused the rejection. This exists so a transaction you report as missing can be traced to the reason it was skipped. These records are automatically deleted after 30 days, and you can see your own at any time." },
+          { title: "Usage Data", body: "None. We do not use any third-party product analytics, advertising, or behavioural tracking service. We removed the analytics tool this app previously loaded." },
           { title: "Device Information", body: "A unique device identifier is stored locally to support our 2-device session limit. This is never transmitted to our servers." },
         ])}
 
@@ -64,14 +65,15 @@ export default function PrivacyPage() {
           { title: "Supabase", body: "Database, authentication, and file storage. Privacy policy: supabase.com/privacy" },
           { title: "Google OAuth", body: "Sign-in and Gmail access. Privacy policy: policies.google.com/privacy" },
           { title: "Vercel", body: "Web hosting and CDN. Privacy policy: vercel.com/legal/privacy-policy" },
-          { title: "PostHog (if enabled)", body: "Anonymous product analytics. Privacy policy: posthog.com/privacy" },
+          { title: "Google Gemini", body: "Classifies scanned emails as transactions or not. Email text passes through in real time and is not retained. Privacy policy: policies.google.com/privacy" },
+          { title: "Razorpay", body: "Payment processing. We never see or store your card details. Privacy policy: razorpay.com/privacy" },
         ])}
 
         {section("7. Cookies", `
-          We use only essential cookies required for authentication session management. We do not use advertising cookies or tracking cookies.
-          
-          Session cookies: Required for you to stay logged in. Expire when you log out.
-          localStorage: Used to store your theme preference, device ID, and merchant rules for faster access. Never transmitted to third parties.
+          We use only what is strictly necessary to keep you signed in. We run no advertising cookies, no tracking cookies, and no third-party analytics.
+
+          Session storage: Required for you to stay logged in. Cleared when you log out.
+          localStorage: Your theme preference, a device ID for the 2-device limit, your Gmail access token, and cached merchant rules. Never transmitted to third parties.
         `)}
 
         {section("8. Children's Privacy", `
@@ -87,7 +89,7 @@ export default function PrivacyPage() {
 
           Specifically:
           • We access your Gmail inbox only to read transaction alert emails from banking institutions.
-          • We do not store your raw email contents on our servers. Transaction emails are parsed using a combination of client-side pattern matching and Google's own Gemini AI (called via a server-side proxy we control solely to keep API credentials secure) — email text passes through this proxy in real time to extract transaction details and is never logged or retained afterward.
+          • We do not store the body of your emails. Transaction emails are parsed using a combination of client-side pattern matching and Google's own Gemini AI (called via a server-side proxy we control solely to keep API credentials secure) — email text passes through this proxy in real time to extract transaction details and is never logged or retained afterward. The one exception is the scan diagnostics described in section 2: for an email the scanner REJECTED, we keep the sender domain, the subject line and an extract of up to 200 characters, deleted automatically after 30 days, so that a transaction you report as missing can be traced.
           • We do not share, transfer, or sell your Google user data to third-party databases, marketing platforms, or ad networks.
           • We do not use your Google user data to train machine learning or artificial intelligence models.
         `)}

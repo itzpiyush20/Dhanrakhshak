@@ -119,7 +119,7 @@ export default function SupportPage() {
     },
     {
       q: 'Do you scan other personal emails?',
-      a: 'No. Our scanner uses strict client-side regular expressions to target transaction alerts and filters out non-financial documents. Newsletter subscriptions, personal correspondence, advertisements, and sensitive OTP logs are completely ignored.',
+      a: 'Only transaction alerts are ever turned into data. To decide whether an email is one, the scanner does have to look at the emails Gmail returns for its search — so newsletters, promotions and OTP alerts are read, judged, and thrown away. Nothing from them is saved except a short diagnostic note (sender domain, subject line) kept for 30 days so a missed transaction can be traced. Emails that match nothing financial are never fetched at all.',
     },
   ]
 
@@ -214,10 +214,15 @@ export default function SupportPage() {
                   <div className="space-y-5 text-sm text-zinc-300 leading-relaxed">
                     <section className="space-y-2">
                       <h3 className="text-base font-bold text-sb-ink">
-                        1. Client-Side Processing Architecture
+                        1. Where Your Email Is Processed
                       </h3>
                       <p>
-                        Dhanrakshak reads transactions strictly client-side. The email scanning heuristics and regular expression engines parse bank alerts locally inside your browser cache. Personal correspondence, newsletters, and private emails never leave your physical device.
+                        Scanning runs in your browser: your inbox is read directly from Gmail by this app, not by a
+                        server that holds a copy of your mail. To classify an alert accurately, the subject and the
+                        first part of the body are sent to Google's Gemini through a proxy we operate only to keep the
+                        API key secret. That text is processed in real time and is not stored or retained by us
+                        afterwards, and it is never used to train any model. We do not upload your whole mailbox
+                        anywhere, and we never store the full body of an email.
                       </p>
                     </section>
 
@@ -266,7 +271,7 @@ export default function SupportPage() {
                     <div className="p-4 rounded-2xl bg-surface-2/40 border border-border-subtle/50">
                       <p className="font-bold text-sb-ink">🔒 Summary Security Commitment:</p>
                       <p className="mt-1 text-zinc-400">
-                        No selling data · No marketing profiling · No banking passwords requested · Fully auditable open-source code base.
+                        No selling data · No advertising or marketing profiling · No third-party usage tracking · No banking passwords, PINs or OTPs ever requested.
                       </p>
                     </div>
                   </div>

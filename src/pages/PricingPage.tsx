@@ -13,25 +13,34 @@ import { Card } from '@/components/ui'
 import { supabase } from '@/services/supabase'
 
 // ── Feature lists for different subscription tiers ───────────
+// Kept deliberately accurate against what the code actually does.
+//
+// These lists used to advertise "Encrypted CSV & JSON data export",
+// "Subscription renewal tracking" and "Priority support" as YEARLY-only. No
+// such gate exists anywhere: every subscription_plan_type check in the app is
+// a badge label or an upsell button, and ProtectedRoute gates on
+// isSubscriptionActive alone. A monthly subscriber already has all of it, so
+// the yearly card was selling features the monthly plan silently included.
 const FREE_FEATURES = [
   'Manual expense & income entry',
   'Basic budgets & category tracking',
-  '7-day full Pro trial — no card required',
-  'Automated Gmail scanning pauses after trial',
+  '7-day full trial — no card required',
+  'After the trial: one manual inbox scan a day',
 ]
 
 const MONTHLY_FEATURES = [
-  'Automated Gmail inbox scanning',
+  'Automated daily Gmail inbox scanning',
+  'Two manual scans a day, on top of the automatic one',
   'Real-time category learning engine',
-  'Visual budget charts & limit alerts',
-  'Standard email support',
+  'Subscription renewal tracking & calendar',
+  'Encrypted CSV & JSON data export',
 ]
 
 const YEARLY_FEATURES = [
-  'All Monthly features included',
-  'Subscription renewal tracking & calendar',
-  'Encrypted CSV & JSON data export',
-  'Priority support (response within 24h)',
+  'Everything in Monthly — the same features',
+  'Billed once a year instead of every month',
+  'Works out at ₹1 a day',
+  'Nothing to renew or re-authorise for 12 months',
 ]
 
 export default function PricingPage() {
@@ -433,7 +442,7 @@ export default function PricingPage() {
             >
               {/* Best value badge */}
               <div className="absolute top-0 right-0 sb-pill-tag-green text-xs font-extrabold uppercase tracking-widest px-4 py-2 rounded-bl-2xl rounded-tr-2xl">
-                Best Value · Save 15%
+                Best Value · ₹1 a day
               </div>
 
               <div className="flex items-center justify-between mb-6 mt-2">
@@ -500,11 +509,11 @@ export default function PricingPage() {
                 <div className="flex items-baseline gap-1">
                   <span className="font-extrabold text-4xl text-sb-ink tracking-tight">Free</span>
                 </div>
-                <p className="text-xs text-zinc-400 mt-1 font-medium">Lifetime access with a valid coupon</p>
+                <p className="text-xs text-zinc-400 mt-1 font-medium">Free access with a valid coupon</p>
               </div>
 
               <ul className="space-y-3.5 flex-1 border-t border-border-subtle pt-5">
-                {['All Yearly features unlocked', 'Lifetime access status', 'No payment card required', 'Instant dashboard activation'].map((f) => (
+                {['Full access for the coupon\'s duration', 'Usually one free month', 'No payment card required', 'Instant dashboard activation'].map((f) => (
                   <li key={f} className="flex items-start gap-3">
                     <span className="text-emerald-400 shrink-0 text-sm font-bold">✓</span>
                     <span className="text-xs text-zinc-400 font-medium">{f}</span>
@@ -591,7 +600,7 @@ export default function PricingPage() {
                         </div>
                         <div className="text-right">
                           <p className="font-extrabold text-2xl text-sb-ink tracking-tight">₹{planPrice}</p>
-                          <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">incl. GST</p>
+                          <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Total payable</p>
                         </div>
                       </div>
 
@@ -694,9 +703,10 @@ export default function PricingPage() {
                 <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-400 shadow-sm animate-pulse">
                   🔒
                 </div>
-                <h3 className="font-bold text-sb-ink text-base">Local parsing sandbox</h3>
+                <h3 className="font-bold text-sb-ink text-base">Nothing stored, nothing sold</h3>
                 <p className="text-xs text-zinc-400 leading-relaxed font-medium">
-                  Your inbox scans happen client-side directly in your browser. We never upload raw emails or transcripts to external clouds.
+                  Scans run in your browser. To read an alert accurately, its text passes through Google's Gemini
+                  in real time — never stored, never sold, never used to train anyone's model.
                 </p>
               </div>
 
