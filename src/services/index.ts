@@ -54,14 +54,6 @@ export {
   applyMerchantRulesFromDB,
 } from './learningEngine'
 export {
-  initAnalytics,
-  identifyUser,
-  resetAnalytics,
-  track,
-  trackPage,
-  EVENTS,
-} from './analytics'
-export {
   generateAIInsights,
   generateRuleBasedInsights,
   detectAnomalies,

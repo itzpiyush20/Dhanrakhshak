@@ -17,7 +17,6 @@ import type { User, Session } from '@supabase/supabase-js'
 import { supabase, readStoredSession } from '@/services/supabase'
 import { saveGoogleToken, clearGoogleToken, clearAllGoogleTokens, isGoogleConnected, purgeOldTokenKey, validateGoogleToken, saveGoogleRefreshTokenServerSide, migrateLegacyRefreshToken, disconnectGmail, tryRefreshGoogleToken } from '@/services/googleAuth'
 import { Button } from '@/components/ui'
-import { identifyUser, resetAnalytics, track, EVENTS } from '@/services/analytics'
 
 interface AuthState {
   user: User | null
@@ -388,7 +387,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    track(EVENTS.SIGNUP_STARTED, { method: 'email' })
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -396,19 +394,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         data: { full_name: fullName },
       },
     })
-    if (!error) track(EVENTS.SIGNUP_COMPLETED, { method: 'email' })
     return { error: error?.message ?? null }
   }
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (!error && data.user) track(EVENTS.LOGIN_COMPLETED, { method: 'email' })
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
     return { error: error?.message ?? null }
   }
 
   const signInWithGoogle = async (redirectPath = '/dashboard', requestGmailScope = false, forceConsent = false) => {
-    track(EVENTS.GOOGLE_OAUTH_STARTED)
-    
     const oAuthOptions: any = {
       redirectTo: `${window.location.origin}${redirectPath}`,
     }
@@ -435,7 +429,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
-    resetAnalytics()
     try {
       await supabase.auth.signOut()
     } catch (err) {
@@ -592,11 +585,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // (with our 55-min expiry) handles the lifecycle correctly.
 
         if (event === 'SIGNED_IN' && session?.user) {
-          // Identify user in PostHog (not a Supabase call — safe to run inline)
-          identifyUser(session.user.id, {
-            email: session.user.email,
-            created_at: session.user.created_at,
-          })
           // IMPORTANT: this callback is invoked while @supabase/auth-js holds its
           // internal Web Locks lock. Running another Supabase call synchronously
           // here can deadlock that lock and stall the very getSession() the app is
