@@ -9,6 +9,12 @@ export default function ProtectedRoute() {
   const { user, loading, isSubscriptionActive } = useAuth()
   const location = useLocation()
 
+  // `loading` from AuthContext now stays true until the subscription question
+  // has a database-backed answer, so this spinner — not a redirect to /pricing —
+  // is what a signed-in user sees while the profile row is in flight. That is
+  // deliberate: isSubscriptionActive is false until proven otherwise, and
+  // rendering the paywall on "not proven yet" would show every paying customer
+  // an upgrade screen on each cold load.
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface-0">
@@ -29,6 +35,9 @@ export default function ProtectedRoute() {
   // even if their own subscription has lapsed. AdminRoute still gates it.
   const isExempted = ['/settings', '/profile', '/support', '/pricing', '/admin'].includes(location.pathname)
 
+  // isSubscriptionActive is derived from the profiles row alone, never from the
+  // dhanrakshak_sub_* localStorage cache that paints the header. Editing those
+  // keys changes what the plan badge says and nothing about what this gate does.
   if (!isSubscriptionActive && !isExempted) {
     return <Navigate to="/pricing" replace />
   }

@@ -53,10 +53,52 @@ const navItems = [
   { label: 'Pricing', path: ROUTES.PRICING },
 ]
 
+/**
+ * What plan an active account actually holds.
+ *
+ * The header badge used to ask `plan_type === 'monthly' ? Monthly : Yearly`, so
+ * EVERY active account whose plan_type was anything else rendered as
+ * "Yearly Plan 👑" — including null (admin-granted access with no type set),
+ * '' (written by AuthContext's cache fallback when the profile read fails) and
+ * 'trial'. The app upsells yearly, so the buggy default was also the most
+ * generous possible claim about what the user had bought.
+ *
+ * 'annual' is what updateSubscriptionStatus and the payment endpoint write;
+ * 'yearly' is accepted too because older rows and admin edits use that spelling.
+ * Anything we do not recognise is reported as 'unknown' and labelled honestly
+ * rather than guessed at — a plan we cannot name is not a reason to name the
+ * expensive one.
+ */
+function resolveActivePlan(planType: unknown): 'monthly' | 'yearly' | 'unknown' {
+  const normalized = typeof planType === 'string' ? planType.trim().toLowerCase() : ''
+  if (normalized === 'monthly') return 'monthly'
+  if (normalized === 'annual' || normalized === 'yearly') return 'yearly'
+  return 'unknown'
+}
+
 export default function AppLayout({ children, isStaticLight = false }: AppLayoutProps) {
   const { user, signOut, profile, daysLeft, openAuthModal, currencySymbol } = useAuth()
   const { showToast } = useToast()
   const location = useLocation()
+
+  // Header plan badge. Only 'monthly' gets the "Upgrade to Yearly" call to
+  // action; only a recognised annual plan gets the yearly wording. Everything
+  // else is an active account whose plan we cannot name, and it says so instead
+  // of borrowing the yearly label — see resolveActivePlan.
+  const activePlan = resolveActivePlan(profile?.subscription_plan_type)
+  const activePlanLabel =
+    activePlan === 'monthly' ? 'Monthly Plan' : activePlan === 'yearly' ? 'Yearly Plan' : 'Active Plan'
+  const showPlanValidity = () => {
+    const until = profile?.subscription_expires_at
+      ? ` until ${new Date(profile.subscription_expires_at).toLocaleDateString('en-IN')}`
+      : ''
+    showToast(
+      activePlan === 'unknown'
+        ? `Your subscription is active${until}. No plan type is recorded on this account — contact support if that looks wrong.`
+        : `Your ${activePlanLabel} is active${until}.`,
+      'info'
+    )
+  }
   const isAppRoute = [
     '/dashboard',
     '/expenses',
@@ -618,7 +660,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                     Dashboard
                   </Link>
                 ) : profile?.subscription_status === 'active' ? (
-                  profile?.subscription_plan_type === 'monthly' ? (
+                  activePlan === 'monthly' ? (
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="px-2.5 py-1 rounded-[6px] text-xs font-bold uppercase tracking-wider text-zinc-300 bg-surface-2 border border-border-subtle shrink-0 select-none">
                         Monthly Plan 👑
@@ -633,15 +675,11 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                   ) : (
                     <div className="flex items-center gap-2 shrink-0">
                       <button
-                        onClick={() => {
-                          if (profile?.subscription_expires_at) {
-                            showToast(`Your Yearly Plan is active until ${new Date(profile.subscription_expires_at).toLocaleDateString('en-IN')}`, 'info')
-                          }
-                        }}
+                        onClick={showPlanValidity}
                         className="px-2.5 py-1 rounded-[6px] text-xs font-bold uppercase tracking-wider text-[var(--status-positive-text)] bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] shrink-0 cursor-pointer hover:bg-[var(--status-positive-border)]/20 transition-all select-none"
                         title="Click to view validity"
                       >
-                        Yearly Plan 👑
+                        {activePlanLabel} 👑
                       </button>
                     </div>
                   )

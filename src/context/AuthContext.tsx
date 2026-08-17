@@ -10,6 +10,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -55,6 +56,43 @@ interface DeviceSession {
   name: string
   lastActive: number
 }
+
+/**
+ * Entitlement — the ONLY thing the paid-screen gate is allowed to read.
+ *
+ * `profile` is deliberately painted from localStorage first (see refreshProfile)
+ * so a returning subscriber doesn't watch the header flicker through "Upgrade"
+ * on every load. That cache used to feed isSubscriptionActive as well, and it is
+ * a plain localStorage entry: setting dhanrakshak_sub_status_<uid> to "active"
+ * and dhanrakshak_sub_expires_<uid> to a future date in DevTools walked straight
+ * past ProtectedRoute onto every paid screen. Worse, the two fallback paths in
+ * refreshProfile (database read errored / threw) rebuilt the WHOLE profile from
+ * those keys, so an attacker could also just make the profile request fail.
+ *
+ * The split is: cache may PAINT, only the database may AUTHORISE.
+ *
+ *  - 'pending'      the profile row has not come back yet. The gate neither
+ *                   grants nor denies; `loading` stays true and ProtectedRoute
+ *                   keeps showing its spinner. This is the state that used to be
+ *                   answered from cache, and it is why paying users never see a
+ *                   flash of the paywall despite the gate being strict.
+ *  - 'confirmed'    values copied out of the profiles row we just read. Only
+ *                   this state can make isSubscriptionActive true.
+ *  - 'unconfirmed'  the read failed. We stop loading (the app must not hang) but
+ *                   we do NOT grant access: an unreachable database is not proof
+ *                   of a subscription, and "make the request fail" must not be a
+ *                   cheaper bypass than forging the cache. The cached profile is
+ *                   still used for display, so such a user sees their real plan
+ *                   name while being routed to /pricing.
+ *
+ * The Gmail scanner is unaffected either way — it re-reads entitlement from the
+ * database itself before spending AI quota, so this was never a route to the
+ * expensive work, only to the paid screens.
+ */
+type Entitlement =
+  | { state: 'pending' }
+  | { state: 'unconfirmed' }
+  | { state: 'confirmed'; subscriptionStatus: string; expiresAt: string | null }
 
 function getOrCreateDeviceId(): string {
   try {
@@ -122,6 +160,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [selectedDevices, setSelectedDevices] = useState<string[]>([])
   const [sessionModalError, setSessionModalError] = useState<string | null>(null)
   const [profile, setProfile] = useState<any>(null)
+  const [entitlement, setEntitlement] = useState<Entitlement>({ state: 'pending' })
+  // Which account the entitlement above belongs to. state.user is a fresh object
+  // on every token refresh, so we cannot reset entitlement on every identity
+  // change of that object without flashing the spinner hourly — but we MUST
+  // reset it when the actual account changes, or the previous user's confirmed
+  // entitlement would briefly authorise the next one.
+  const entitlementUserIdRef = useRef<string | null>(null)
 
   const currencySymbol = '₹'
 
@@ -208,6 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshProfile = async () => {
     if (!state.user) {
       setProfile(null)
+      setEntitlement({ state: 'pending' })
       return
     }
 
@@ -223,7 +269,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       is_admin: readCachedIsAdmin(state.user!.id),
     })
 
-    // 1. Immediately load cached settings and subscription from localStorage to prevent flashes
+    // 1. Immediately load cached settings and subscription from localStorage to prevent flashes.
+    //    Display only — this block writes `profile`, never `entitlement`. See the
+    //    Entitlement type for why the two were separated.
     try {
       const cachedStatus = localStorage.getItem(`dhanrakshak_sub_status_${state.user.id}`)
       const cachedExpires = localStorage.getItem(`dhanrakshak_sub_expires_${state.user.id}`)
@@ -309,6 +357,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           subscription_plan_type: subPlan
         })
 
+        // The gate's authority, set from the row we just read and from nothing
+        // else. subStatus already accounts for an elapsed expiry date above, so
+        // a stale "active" row cannot be laundered into access here either.
+        setEntitlement({
+          state: 'confirmed',
+          subscriptionStatus: subStatus,
+          expiresAt: subExpires || null,
+        })
+
         // Catch-up sync time is a per-device preference — see updateDailyScanTime
         // for why it is not persisted server-side. This used to try writing the
         // local value back to profiles.daily_scan_time on every profile load,
@@ -319,6 +376,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setDailyScanTimeState(localScanTimePref)
         }
       } else {
+        // The profile row could not be read. We still rebuild a profile from the
+        // cache so the UI has something to draw and the app does not hang, but
+        // the entitlement stays unconfirmed: this branch used to be the softest
+        // way past the paywall, because anything that broke the request — an RLS
+        // change, a blocked host, DevTools request blocking — promoted the
+        // forged cache to gospel.
+        setEntitlement({ state: 'unconfirmed' })
         let subStatus = localStatus || 'trial'
         let subPlan = 'trial'
         if (localStatus === 'active') {
@@ -347,6 +411,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (e) {
       console.error('Error fetching profile in AuthContext:', e)
+      // Same reasoning as the error branch above: cache may repaint the UI, it
+      // may not authorise anything. A thrown request is not evidence of payment.
+      setEntitlement({ state: 'unconfirmed' })
       // Fallback profile to prevent app from hanging
       const localStatus = localStorage.getItem(`dhanrakshak_sub_status_${state.user.id}`)
       const localExpires = localStorage.getItem(`dhanrakshak_sub_expires_${state.user.id}`)
@@ -448,8 +515,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    // Drop the previous account's confirmed entitlement the moment the account
+    // itself changes, synchronously — refreshProfile only re-resolves it after
+    // an awaited round trip, and in that window the gate would otherwise still
+    // be answering with the signed-out user's subscription. Keyed on the id, not
+    // the user object, because a token refresh hands us a new object for the
+    // same account and must not send the whole app back to the spinner.
+    const currentUserId = state.user?.id ?? null
+    if (entitlementUserIdRef.current !== currentUserId) {
+      entitlementUserIdRef.current = currentUserId
+      setEntitlement({ state: 'pending' })
+    }
     refreshProfile()
   }, [state.user])
+
+  // Watchdog for the entitlement resolve.
+  //
+  // 'pending' now holds the whole app on ProtectedRoute's spinner, so a profile
+  // read that never settles would be an indefinite hang — the same failure mode
+  // the getSession() race above exists to prevent, and PostgREST calls do stall
+  // behind a tab that was backgrounded for hours. After ten seconds we call the
+  // question answered-but-unconfirmed: the user reaches the app instead of a
+  // frozen spinner, on the unpaid side of the gate until a read succeeds.
+  // Deliberately not a grant — a stalled request must never be worth more than
+  // a completed one.
+  useEffect(() => {
+    if (!state.user || entitlement.state !== 'pending') return
+    const timer = setTimeout(() => {
+      setEntitlement(prev => (prev.state === 'pending' ? { state: 'unconfirmed' } : prev))
+    }, 10000)
+    return () => clearTimeout(timer)
+  }, [state.user, entitlement.state])
 
   useEffect(() => {
     // Purge the old token key from previous app versions (no expiry tracking).
@@ -606,39 +702,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    /**
+     * DETERRENT, NOT A SECURITY CONTROL. Read this before relying on it.
+     *
+     * The device list lives in Supabase auth user_metadata, which the signed-in
+     * user is allowed to write themselves — that is the whole reason
+     * supabase.auth.updateUser() can set it from the browser with no privileged
+     * key. So anyone willing to open the console can call the same API, empty
+     * user_sessions, and use as many devices as they like; clearing the
+     * dhanrakshak_device_id localStorage key is enough to look like a brand-new
+     * device as well. The blocking screen below stops honest account sharing,
+     * which is what it is for, and nothing more.
+     *
+     * Making this enforceable needs state the user cannot write — a devices
+     * table with an RLS policy that forbids client writes, or a serverless
+     * endpoint that owns the list — and neither exists yet. Until one does, do
+     * not treat "the app said 2 devices" as a fact about the account, and do not
+     * build licensing or billing logic on top of this value.
+     */
     const verifyDeviceSession = async () => {
-      const deviceId = getOrCreateDeviceId()
-      const metadata = state.user?.user_metadata || {}
-      const rawSessions: DeviceSession[] = metadata.user_sessions || []
+      try {
+        const deviceId = getOrCreateDeviceId()
+        const metadata = state.user?.user_metadata || {}
+        const rawSessions: unknown = metadata.user_sessions
+        // Defensive parse: user_metadata is user-writable, so its shape is an
+        // input, not a guarantee. A hand-edited value that is not an array of
+        // {id,...} objects used to reach .filter()/.some() and throw inside an
+        // un-awaited async function, i.e. an unhandled rejection that left
+        // deviceCheckRequired stuck at its previous value.
+        const sessions: DeviceSession[] = Array.isArray(rawSessions)
+          ? rawSessions.filter((s): s is DeviceSession =>
+              !!s && typeof s === 'object' && typeof (s as DeviceSession).id === 'string')
+          : []
 
-      // Filter out stale sessions (> 30 days)
-      const now = Date.now()
-      const thirtyDays = 30 * 24 * 60 * 60 * 1000
-      const filtered = rawSessions.filter(s => now - s.lastActive < thirtyDays)
+        // Filter out stale sessions (> 30 days)
+        const now = Date.now()
+        const thirtyDays = 30 * 24 * 60 * 60 * 1000
+        const filtered = sessions.filter(s => now - (Number(s.lastActive) || 0) < thirtyDays)
 
-      const isCurrentDeviceLogged = filtered.some(s => s.id === deviceId)
+        const isCurrentDeviceLogged = filtered.some(s => s.id === deviceId)
 
-      if (isCurrentDeviceLogged) {
-        // Only update lastActive timestamp in Supabase if the last active time is older than 5 minutes
-        const currentSession = filtered.find(s => s.id === deviceId)
-        const timeDiff = currentSession ? now - currentSession.lastActive : Infinity
+        if (isCurrentDeviceLogged) {
+          // Only update lastActive timestamp in Supabase if the last active time is older than 5 minutes
+          const currentSession = filtered.find(s => s.id === deviceId)
+          const timeDiff = currentSession ? now - currentSession.lastActive : Infinity
 
-        if (timeDiff > 5 * 60 * 1000) {
-          const updated = filtered.map(s => s.id === deviceId ? { ...s, lastActive: now } : s)
-          await supabase.auth.updateUser({ data: { user_sessions: updated } })
-        }
-        setDeviceCheckRequired(false)
-      } else {
-        if (filtered.length < 2) {
-          // Add current device
-          const updated = [...filtered, { id: deviceId, name: getDeviceName(), lastActive: now }]
-          await supabase.auth.updateUser({ data: { user_sessions: updated } })
+          if (timeDiff > 5 * 60 * 1000) {
+            const updated = filtered.map(s => s.id === deviceId ? { ...s, lastActive: now } : s)
+            await supabase.auth.updateUser({ data: { user_sessions: updated } })
+          }
           setDeviceCheckRequired(false)
         } else {
-          // Limit exceeded! Block app access
-          setActiveSessions(filtered)
-          setDeviceCheckRequired(true)
+          if (filtered.length < 2) {
+            // Add current device
+            const updated = [...filtered, { id: deviceId, name: getDeviceName(), lastActive: now }]
+            await supabase.auth.updateUser({ data: { user_sessions: updated } })
+            setDeviceCheckRequired(false)
+          } else {
+            // Limit exceeded — show the device picker.
+            setActiveSessions(filtered)
+            setDeviceCheckRequired(true)
+          }
         }
+      } catch (e) {
+        // Never let a failed metadata write lock a legitimate user out of their
+        // own account. This ran un-awaited, so a rejection here (offline, auth
+        // hiccup) was previously an unhandled promise rejection and the device
+        // registration silently never happened.
+        console.warn('Device session check failed (non-blocking):', e)
+        setDeviceCheckRequired(false)
       }
     }
 
@@ -654,10 +786,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: { user: freshUser } } = await supabase.auth.getUser()
         if (freshUser) {
           const deviceId = getOrCreateDeviceId()
-          const rawSessions: DeviceSession[] = freshUser.user_metadata?.user_sessions || []
-          const isCurrentDeviceLogged = rawSessions.some(s => s.id === deviceId)
+          const rawSessions: unknown = freshUser.user_metadata?.user_sessions
+          const sessions: DeviceSession[] = Array.isArray(rawSessions)
+            ? rawSessions.filter((s): s is DeviceSession =>
+                !!s && typeof s === 'object' && typeof (s as DeviceSession).id === 'string')
+            : []
+          const isCurrentDeviceLogged = sessions.some(s => s.id === deviceId)
 
-          if (!isCurrentDeviceLogged) {
+          // An EMPTY list is not a revocation. It means the metadata was never
+          // written or was wiped — e.g. verifyDeviceSession's updateUser failed
+          // offline, or another client reset it. Signing out on that condition
+          // logged people out of a working session for a bookkeeping gap, and
+          // since the list is user-writable it can never be authoritative
+          // enough to justify that. Only an explicit list that exists and does
+          // not contain us counts as "another device signed me out".
+          if (sessions.length > 0 && !isCurrentDeviceLogged) {
             // Device session was revoked by another device — silently sign out
             // (the redirect to /login is the user feedback)
             signOut()
@@ -683,10 +826,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const deviceId = getOrCreateDeviceId()
       const now = Date.now()
-      
-      // Remove selected devices
-      const remaining = activeSessions.filter(s => !selectedDevices.includes(s.id))
-      // Add current device
+
+      // Remove the devices the user chose to sign out, and also drop any entry
+      // for THIS device before re-adding it. Without that second filter a
+      // re-run (the same device id already present from a partially applied
+      // earlier attempt) produced two rows for one device, which then counted
+      // twice against the limit of 2 and locked the user out of their own
+      // remaining slot.
+      const remaining = activeSessions.filter(
+        s => !selectedDevices.includes(s.id) && s.id !== deviceId
+      )
       const updated = [...remaining, { id: deviceId, name: getDeviceName(), lastActive: now }]
 
       const { data, error } = await supabase.auth.updateUser({ data: { user_sessions: updated } })
@@ -726,9 +875,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         <div className="w-full max-w-md bg-surface-1 border border-border-subtle rounded-3xl p-6 shadow-2xl backdrop-blur-2xl flex flex-col gap-6 animate-scale-up">
           <div className="text-center">
             <span className="text-4xl" aria-hidden="true">📱</span>
-            <h1 className="text-xl font-bold text-white mt-4">Device Limit Reached</h1>
+            {/* Copy is deliberately about tidying up your own devices, not about
+                an enforced ceiling. The list this screen edits lives in
+                user-writable metadata (see verifyDeviceSession), so promising
+                that access "is limited to 2 devices" would be claiming a
+                guarantee the client cannot make. */}
+            <h1 className="text-xl font-bold text-white mt-4">Too Many Signed-In Devices</h1>
             <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
-              Dhanrakshak limits account access to a maximum of <strong>2 devices</strong>. To connect this device, please select at least one active session to disconnect:
+              Dhanrakshak keeps your account to <strong>2 devices</strong> at a time. To use this one, pick at least one device to sign out:
             </p>
           </div>
 
@@ -791,16 +945,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  /**
+   * The paid-screen gate. Reads `entitlement`, never `profile` — `profile` is
+   * the cache-painted display copy and editing one localStorage key used to be
+   * enough to turn this true. Anything other than a database-confirmed row is
+   * false here, and `loading` below keeps ProtectedRoute on its spinner for as
+   * long as the answer is still 'pending', so "false while we don't know yet"
+   * never reaches the user as a paywall.
+   */
   const isSubscriptionActive = (() => {
-    if (!profile) return false
-    if (profile.subscription_status === 'active') {
-      if (!profile.subscription_expires_at) return true
-      const expiresAt = new Date(profile.subscription_expires_at).getTime()
-      return expiresAt > Date.now()
+    if (entitlement.state !== 'confirmed') return false
+    const { subscriptionStatus, expiresAt } = entitlement
+    if (subscriptionStatus === 'active') {
+      // A lifetime/admin grant may legitimately carry no expiry date.
+      if (!expiresAt) return true
+      return new Date(expiresAt).getTime() > Date.now()
     }
-    if (profile.subscription_status === 'trial') {
-      const expiresAt = new Date(profile.subscription_expires_at).getTime()
-      return expiresAt > Date.now()
+    if (subscriptionStatus === 'trial') {
+      // A trial without an end date is malformed data, not an unlimited trial.
+      if (!expiresAt) return false
+      return new Date(expiresAt).getTime() > Date.now()
     }
     return false
   })()
@@ -850,7 +1014,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Always update localStorage fallback
+      // Display cache only — this no longer unlocks anything by itself. The
+      // refreshProfile() below re-reads the profiles row (written by the
+      // serverless payment verification endpoint outside dev) and that read is
+      // what actually confirms the entitlement.
       localStorage.setItem(`dhanrakshak_sub_status_${state.user.id}`, status)
       localStorage.setItem(`dhanrakshak_sub_expires_${state.user.id}`, expiresAt)
       localStorage.setItem(`dhanrakshak_sub_plan_${state.user.id}`, subPlanType)
@@ -866,7 +1033,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const loading = state.loading || (state.user !== null && profile === null)
+  // Signed-in users stay "loading" until the entitlement question has an answer
+  // — confirmed or unconfirmed, either is an answer. Without this the gate would
+  // read a 'pending' entitlement as "not subscribed" and bounce a paying user to
+  // /pricing for the duration of the profile fetch, which is exactly the flash
+  // the localStorage cache was introduced to avoid.
+  const loading =
+    state.loading ||
+    (state.user !== null && (profile === null || entitlement.state === 'pending'))
 
   return (
     <AuthContext.Provider
