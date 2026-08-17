@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import Razorpay from 'razorpay'
 import { createClient } from '@supabase/supabase-js'
+import { isPurchaseBlocked } from './_lib/pendingPlan.js'
 
 const razorpayKeyId = [process.env.RAZORPAY_KEY_ID, process.env.VITE_RAZORPAY_KEY_ID]
   .find(k => k && k.startsWith('rzp_')) || process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || ''
@@ -81,6 +82,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     amount = 365 * 100
   } else {
     return res.status(400).json({ error: 'Invalid planType. Must be monthly or annual.' })
+  }
+
+  // One pending change at a time. Buying again while a plan is queued would
+  // take money for time the customer cannot reach for up to a year, so it is
+  // refused here — before payment, never after.
+  const { data: profileRow } = await supabaseAdmin
+    .from('profiles')
+    .select('pending_plan_type, pending_activates_at')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (isPurchaseBlocked(profileRow)) {
+    return res.status(409).json({
+      error: 'You already have a plan queued to start when your current one ends. You can buy again once it begins.',
+      code: 'PLAN_ALREADY_QUEUED',
+      pendingActivatesAt: profileRow?.pending_activates_at ?? null,
+    })
   }
 
   try {
