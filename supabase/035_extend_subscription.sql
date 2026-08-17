@@ -150,7 +150,11 @@ BEGIN
     );
   END IF;
 
+  -- A trial is not a paid plan: 'trial' must not park a purchase behind it, so
+  -- it is deliberately excluded here rather than relying on
+  -- subscription_status alone.
   v_active := v_row.subscription_status = 'active'
+              AND v_row.subscription_plan_type IN ('monthly', 'annual')
               AND v_row.subscription_expires_at IS NOT NULL
               AND v_row.subscription_expires_at > now();
 
@@ -164,8 +168,24 @@ BEGIN
     UPDATE public.profiles SET
       subscription_status     = 'active',
       subscription_plan_type  = p_plan_type,
-      subscription_expires_at = now() + make_interval(days => p_duration_days),
+      -- Any queued plan is FOLDED IN, not discarded — it was paid for, and the
+      -- same "never drop money already taken" rule that justifies the
+      -- queue_extended branch below applies here. Note this does not conflict
+      -- with the upgrade rule: what an upgrade drops is the unconsumed time on
+      -- the plan being replaced, not a separate purchase that never started.
+      --
+      -- Clearing the four pending_* columns is not optional. Leaving them set
+      -- would strand a pending_activates_at in the past, and
+      -- activate_pending_plan() would then overwrite this very purchase with an
+      -- expiry anchored to that old date.
+      subscription_expires_at = now()
+                                + make_interval(days => p_duration_days
+                                    + COALESCE(v_row.pending_duration_days, 0)),
       razorpay_order_id       = COALESCE(p_order_id, razorpay_order_id),
+      pending_plan_type       = NULL,
+      pending_duration_days   = NULL,
+      pending_order_id        = NULL,
+      pending_activates_at    = NULL,
       updated_at              = now()
     WHERE id = p_user_id;
     v_outcome := 'activated';
@@ -175,8 +195,13 @@ BEGIN
     -- here means a race beat that check. The money is already taken and must
     -- not be dropped: add the duration to what is queued.
     UPDATE public.profiles SET
-      pending_duration_days = v_row.pending_duration_days + p_duration_days,
-      pending_order_id      = COALESCE(p_order_id, pending_order_id),
+      pending_duration_days = COALESCE(v_row.pending_duration_days, 0) + p_duration_days,
+      -- Keep the FIRST order's id: COALESCE(p_order_id, ...) would overwrite it,
+      -- and a Razorpay retry for that order would then miss the idempotency
+      -- check and credit twice. The incoming order is recorded in
+      -- razorpay_order_id instead, so both ids stay matchable.
+      pending_order_id      = COALESCE(pending_order_id, p_order_id),
+      razorpay_order_id     = COALESCE(p_order_id, razorpay_order_id),
       updated_at            = now()
     WHERE id = p_user_id;
     v_outcome := 'queue_extended';
@@ -189,6 +214,7 @@ BEGIN
       pending_duration_days = p_duration_days,
       pending_order_id      = p_order_id,
       pending_activates_at  = v_row.subscription_expires_at,
+      razorpay_order_id     = COALESCE(p_order_id, razorpay_order_id),
       updated_at            = now()
     WHERE id = p_user_id;
     v_outcome := 'queued';
@@ -205,6 +231,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.apply_plan_purchase(UUID, TEXT, INT, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.apply_plan_purchase(UUID, TEXT, INT, TEXT) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.apply_plan_purchase(UUID, TEXT, INT, TEXT) TO service_role;
 
 COMMIT;
