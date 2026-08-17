@@ -53,19 +53,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (event.event === 'order.paid') {
       const orderEntity = event.payload.order.entity
 
-      // Idempotency: skip if already processed
+      // There is no "already processed, skip" early return here any more. The
+      // SELECT-then-UPDATE it was built from could not be made safe (see the
+      // note further down), and it was also wrong in a quieter way: it matched
+      // the order id against ANY profile rather than THIS user's, so it read as
+      // a global "has this order ever been seen" flag. Idempotency now lives in
+      // apply_plan_purchase(), and the duplicate `payments` insert below is
+      // already handled by the unique index on razorpay_order_id.
       const orderId = orderEntity.id as string
-      const { data: existing } = await supabaseAdmin
-        .from('profiles')
-        .select('id')
-        .eq('razorpay_order_id', orderId)
-        .maybeSingle()
-
-      if (existing) {
-        console.log(`Webhook order.paid already processed for order ${orderId}, skipping`)
-        return res.status(200).json({ status: 'already_processed' })
-      }
-
       const { userId, planType } = orderEntity.notes || {}
 
       if (!userId || !planType) {
@@ -74,28 +69,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const durationDays = planDurationDays(planType)
-      const subscription_expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
 
-      const { data, error } = await supabaseAdmin
-        .from('profiles')
-        .update({
-          subscription_status: 'active',
-          subscription_expires_at,
-          subscription_plan_type: planType,
-          razorpay_order_id: orderId, // Fix idempotency bug
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', userId)
-        .select('id')
+      // The expiry is computed in the DATABASE. Renewing now EXTENDS from
+      // GREATEST(now(), current expiry) instead of overwriting with
+      // now() + duration, which used to delete whatever time a customer had
+      // left when they renewed early.
+      //
+      // That change is only safe because the same payment cannot be credited
+      // twice, and this handler is the reason it could be: verify-payment.ts
+      // fires for the same order from the browser, and Razorpay retries this
+      // webhook until it is acknowledged. The idempotency check that used to
+      // live here — SELECT the profile by razorpay_order_id, then UPDATE if
+      // nothing came back — was two statements, so two deliveries arriving
+      // together both read "not processed" and both would have credited.
+      // apply_plan_purchase() folds the check into the same UPDATE that
+      // extends, so the second caller blocks on the row and then sees the
+      // order id the first one wrote. See supabase/035.
+      const { data: result, error } = await supabaseAdmin.rpc('apply_plan_purchase', {
+        p_user_id: userId,
+        p_plan_type: planType,
+        p_duration_days: durationDays,
+        p_order_id: orderId,
+      })
 
       if (error) throw error
-      // Supabase returns success with an empty array (no error) when the filter
-      // matches zero rows — without this check a missing/mismatched profile row
-      // would silently report success while never awarding the subscription.
-      if (!data || data.length === 0) {
-        console.error('Webhook subscription update matched no profile row for userId:', userId, 'order:', orderId)
+      if (!result) {
+        console.error('Webhook plan purchase matched no profile row for userId:', userId, 'order:', orderId)
         throw new Error('No matching profile found to update.')
       }
+      console.log(`Webhook applied order ${orderId} for user ${userId}: ${result.outcome}`)
 
       // Record the receipt. The unique index on razorpay_order_id means the
       // race with verify-payment.ts — both fire for the same order — leaves
@@ -117,8 +119,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.warn('Webhook failed to record payment for order', orderId, paymentError.message)
           }
         })
-
-      console.log(`Successfully updated subscription for user ${userId} via webhook`)
     }
 
     return res.status(200).json({ status: 'ok' })

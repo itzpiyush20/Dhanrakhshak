@@ -152,29 +152,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Derived from the order's own notes, never from the request body — the body is
   // exactly what the check above exists to distrust.
   const durationDays = planDurationDays(order.notes.planType)
-  const subscription_expires_at = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
 
   try {
-    const { data, error } = await supabaseAdmin
-      .from('profiles')
-      .update({
-        subscription_status: 'active',
-        subscription_expires_at,
-        subscription_plan_type: planType,
-        razorpay_order_id: razorpay_order_id, // Fix idempotency bug
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId)
-      .select('id')
+    // The expiry is computed in the DATABASE, not here. Two reasons, both of
+    // which bit:
+    //
+    // 1. This used to write `now() + durationDays` absolutely, so a customer
+    //    renewing with two months left lost those two months. The new expiry
+    //    extends from GREATEST(now(), current expiry) instead.
+    //
+    // 2. Which is only safe if the same payment cannot be credited twice — and
+    //    this endpoint is NOT the only writer. webhook.ts fires for the same
+    //    order, and Razorpay retries webhooks. While both sides wrote the same
+    //    absolute date that was harmless; additive, it would grant a second
+    //    period per delivery. apply_plan_purchase() folds the "has this order
+    //    already been applied to this profile" check into the same UPDATE that
+    //    does the extending, so concurrent callers serialise on the profile row
+    //    rather than both reading "not yet applied". See supabase/035.
+    const { data: result, error } = await supabaseAdmin.rpc('apply_plan_purchase', {
+      p_user_id: userId,
+      p_plan_type: planType,
+      p_duration_days: durationDays,
+      p_order_id: razorpay_order_id,
+    })
 
     if (error) throw error
-    // Supabase returns success with an empty array (no error) when the filter
-    // matches zero rows — without this check a missing/mismatched profile row
-    // would silently report payment success while never awarding the subscription.
-    if (!data || data.length === 0) {
-      console.error('Subscription update matched no profile row for userId:', userId, 'order:', razorpay_order_id)
+    // NULL means no profile row matched. Without this check a missing profile
+    // would silently report payment success while granting nothing.
+    if (!result) {
+      console.error('Plan purchase matched no profile row for userId:', userId, 'order:', razorpay_order_id)
       throw new Error('No matching profile found to update.')
     }
+
+    // 'queued' means the customer paid for a plan that starts later — a
+    // renewal or a downgrade. The response must say so, or the UI will report
+    // an active plan that has not actually changed.
+    const outcome = result.outcome as string
+    const subscription_expires_at = new Date(result.expires_at as string).toISOString()
+    const pendingActivatesAt = result.pending_activates_at
+      ? new Date(result.pending_activates_at as string).toISOString()
+      : null
 
     // Record the receipt. Fire-and-forget on purpose: the subscription is
     // already granted above, and a bookkeeping failure must not tell a paying
@@ -201,8 +218,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({
       success: true,
-      message: 'Subscription activated successfully.',
+      // "Subscription activated successfully" is a lie for a queued purchase —
+      // the customer paid for a plan that starts later, and the page must not
+      // tell them their plan just changed.
+      message:
+        outcome === 'activated'
+          ? 'Subscription activated successfully.'
+          : 'Payment received. Your new plan starts when your current one ends.',
       expiresAt: subscription_expires_at,
+      outcome,
+      pendingActivatesAt,
     })
   } catch (error: any) {
     console.error('Error updating profile in Supabase:', error)
