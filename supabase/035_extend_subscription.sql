@@ -235,3 +235,175 @@ REVOKE ALL ON FUNCTION public.apply_plan_purchase(UUID, TEXT, INT, TEXT) FROM an
 GRANT EXECUTE ON FUNCTION public.apply_plan_purchase(UUID, TEXT, INT, TEXT) TO service_role;
 
 COMMIT;
+
+BEGIN;
+
+-- Called by the account's own browser on profile load, so a queued plan starts
+-- the moment its owner next opens the app rather than waiting for a nightly
+-- job. Safe to grant to `authenticated`: it takes no arguments, works only on
+-- auth.uid()'s own row, activates only a plan that was already paid for, and
+-- only once its stored date has passed. The matching carve-out in
+-- protect_server_only_profile_columns is what lets the write through, and it
+-- permits exactly this transition and nothing else.
+CREATE OR REPLACE FUNCTION public.activate_pending_plan()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  v_row public.profiles%ROWTYPE;
+BEGIN
+  SELECT * INTO v_row FROM public.profiles WHERE id = auth.uid() FOR UPDATE;
+  IF NOT FOUND THEN RETURN false; END IF;
+  IF v_row.pending_plan_type IS NULL THEN RETURN false; END IF;
+  IF v_row.pending_activates_at IS NULL OR v_row.pending_activates_at > now() THEN
+    RETURN false;
+  END IF;
+
+  -- Dates run on the calendar, not on attendance: the queued plan starts when
+  -- the previous one ended, so a customer who stays away loses that time.
+  UPDATE public.profiles SET
+    subscription_status     = 'active',
+    subscription_plan_type  = v_row.pending_plan_type,
+    subscription_expires_at = v_row.pending_activates_at
+                              + make_interval(days => v_row.pending_duration_days),
+    razorpay_order_id       = COALESCE(v_row.pending_order_id, razorpay_order_id),
+    pending_plan_type       = NULL,
+    pending_duration_days   = NULL,
+    pending_order_id        = NULL,
+    pending_activates_at    = NULL,
+    updated_at              = now()
+  WHERE id = v_row.id;
+
+  RETURN true;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.activate_pending_plan() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.activate_pending_plan() TO authenticated, service_role;
+
+COMMIT;
+
+-- Verify afterwards:
+--
+--   -- expect two rows, both prosecdef = true with search_path pinned
+--   SELECT p.proname, p.prosecdef, p.proconfig
+--     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+--    WHERE n.nspname = 'public'
+--      AND p.proname IN ('apply_plan_purchase', 'activate_pending_plan');
+--
+--   -- expect service_role only for apply_plan_purchase
+--   SELECT routine_name, grantee, privilege_type
+--     FROM information_schema.routine_privileges
+--    WHERE routine_schema = 'public'
+--      AND routine_name IN ('apply_plan_purchase', 'activate_pending_plan');
+--
+-- IMPERSONATE THE SERVICE ROLE FIRST. Without this every statement below fails
+-- with 'Cannot modify server-managed subscription/admin fields directly'. The
+-- guard trigger waves through writes to the subscription columns only when
+-- auth.jwt() ->> 'role' is 'service_role', and auth.jwt() reads
+-- request.jwt.claims — a per-request setting PostgREST supplies and the SQL
+-- editor does not. SECURITY DEFINER changes the executing ROLE, not that claim.
+-- Session-scoped (false), not transaction-scoped, because the steps below are
+-- separate statements:
+--
+--   SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false);
+--
+-- Then, on a throwaway account (substitute its uuid):
+--
+--   -- 1. UPGRADE drops the remaining days. Give it a monthly with 13 days left.
+--   UPDATE public.profiles
+--      SET subscription_status = 'active', subscription_plan_type = 'monthly',
+--          subscription_expires_at = now() + interval '13 days',
+--          razorpay_order_id = NULL, pending_plan_type = NULL,
+--          pending_duration_days = NULL, pending_order_id = NULL,
+--          pending_activates_at = NULL
+--    WHERE id = '<uuid>';
+--   SELECT public.apply_plan_purchase('<uuid>', 'annual', 365, 'order_up_1');
+--   -- expect outcome 'activated', expires_at ~365 days out, NOT 378.
+--
+--   -- 2. The same order again, as a webhook retry delivers it.
+--   SELECT public.apply_plan_purchase('<uuid>', 'annual', 365, 'order_up_1');
+--   -- expect outcome 'already_applied' and the SAME expires_at as step 1.
+--
+--   -- 3. RENEWAL queues. Same plan bought again while it runs.
+--   SELECT public.apply_plan_purchase('<uuid>', 'annual', 365, 'order_ren_1');
+--   -- expect outcome 'queued', expires_at UNCHANGED from step 1,
+--   -- pending_plan_type 'annual', pending_activates_at = that expires_at.
+--
+--   -- 4. Queue occupied. Never drops the money.
+--   SELECT public.apply_plan_purchase('<uuid>', 'monthly', 30, 'order_ren_2');
+--   -- expect outcome 'queue_extended', pending_duration_days now 395,
+--   -- pending_order_id STILL 'order_ren_1' (the first id is kept on purpose).
+--
+--   -- 5. DOWNGRADE queues. Reset to a clean annual first.
+--   UPDATE public.profiles
+--      SET subscription_status = 'active', subscription_plan_type = 'annual',
+--          subscription_expires_at = now() + interval '200 days',
+--          razorpay_order_id = NULL, pending_plan_type = NULL,
+--          pending_duration_days = NULL, pending_order_id = NULL,
+--          pending_activates_at = NULL
+--    WHERE id = '<uuid>';
+--   SELECT public.apply_plan_purchase('<uuid>', 'monthly', 30, 'order_down_1');
+--   -- expect outcome 'queued', expires_at still ~200 days out.
+--
+--   -- 6. Activation is refused while the date is in the future.
+--   SELECT set_config('request.jwt.claims',
+--                     json_build_object('sub','<uuid>','role','authenticated')::text, false);
+--   SELECT public.activate_pending_plan();   -- expect false, nothing changed
+--
+--   -- 7. Activation fires once the date has passed.
+--   SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false);
+--   UPDATE public.profiles
+--      SET subscription_expires_at = now() - interval '1 day',
+--          pending_activates_at    = now() - interval '1 day'
+--    WHERE id = '<uuid>';
+--   SELECT set_config('request.jwt.claims',
+--                     json_build_object('sub','<uuid>','role','authenticated')::text, false);
+--   SELECT public.activate_pending_plan();   -- expect true
+--   -- expect plan_type 'monthly', expires ~29 days out, all pending_* NULL.
+--
+--   -- 8. A TRIAL is not a running plan: a purchase over it activates at once.
+--   SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false);
+--   UPDATE public.profiles
+--      SET subscription_status = 'active', subscription_plan_type = 'trial',
+--          subscription_expires_at = now() + interval '5 days',
+--          razorpay_order_id = NULL, pending_plan_type = NULL,
+--          pending_duration_days = NULL, pending_order_id = NULL,
+--          pending_activates_at = NULL
+--    WHERE id = '<uuid>';
+--   SELECT public.apply_plan_purchase('<uuid>', 'annual', 365, 'order_trial_1');
+--   -- expect outcome 'activated', NOT 'queued'. A free trial must never park
+--   -- a paid purchase behind it.
+--
+--   -- 9. A lapsed account activates from today, not from its old expiry.
+--   UPDATE public.profiles
+--      SET subscription_status = 'expired',
+--          subscription_expires_at = now() - interval '400 days',
+--          razorpay_order_id = NULL, pending_plan_type = NULL,
+--          pending_duration_days = NULL, pending_order_id = NULL,
+--          pending_activates_at = NULL
+--    WHERE id = '<uuid>';
+--   SELECT public.apply_plan_purchase('<uuid>', 'monthly', 30, 'order_lapsed_1');
+--   -- expect outcome 'activated', ~30 days from NOW.
+--
+--   -- 10. An expired account with something still queued does not strand it.
+--   UPDATE public.profiles
+--      SET subscription_status = 'expired',
+--          subscription_expires_at = now() - interval '2 days',
+--          pending_plan_type = 'monthly', pending_duration_days = 30,
+--          pending_order_id = 'order_stranded', pending_activates_at = now() - interval '2 days'
+--    WHERE id = '<uuid>';
+--   SELECT public.apply_plan_purchase('<uuid>', 'monthly', 30, 'order_new_1');
+--   -- expect outcome 'activated', ~60 days out (30 bought + 30 folded in),
+--   -- and ALL pending_* columns NULL. Leaving them set would let
+--   -- activate_pending_plan() overwrite this purchase with a past-anchored date.
+--
+--   -- 11. No such profile.
+--   SELECT public.apply_plan_purchase('00000000-0000-0000-0000-000000000000',
+--                                     'monthly', 30, 'order_none');
+--   -- expect NULL, nothing written anywhere.
+--
+--   -- Reset the session before using it for ordinary queries:
+--   SELECT set_config('request.jwt.claims', '', false);
