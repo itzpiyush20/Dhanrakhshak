@@ -32,7 +32,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
-import { getTransactions, getMonthlySummary, getSummary, getLoggingStreak } from '@/services/transactions'
+import { getTransactions, fetchAllTransactions, getMonthlySummary, getSummary, getLoggingStreak } from '@/services/transactions'
 import { getBudgets } from '@/services/budgets'
 import { detectAnomalies } from '@/services/aiService'
 import {
@@ -418,13 +418,23 @@ export default function DashboardPage() {
   // few months of per-category history. Runs independently in the background
   // so it never blocks or delays the main dashboard render.
   useEffect(() => {
-    if (!user || !widgets.insights) return
+    // Wait for the category list. detectAnomalies runs on rows this effect has
+    // already filtered, so firing before `ccBillCategories` resolves would both
+    // use the legacy card-bill fallback and cost a second full fetch when it
+    // lands.
+    if (!user || !widgets.insights || categoriesLoading) return
     let cancelled = false
 
     const fourMonthsAgo = new Date()
     fourMonthsAgo.setMonth(fourMonthsAgo.getMonth() - 4)
 
-    getTransactions({
+    // fetchAllTransactions, not getTransactions: an unlimited getTransactions
+    // returns at most PostgREST's db-max-rows (1000) with no way to tell a
+    // complete answer from a truncated one, and the rows it drops are the
+    // OLDEST — which is exactly the baseline detectAnomalies divides by. A
+    // heavy user's baseline would silently shrink and every spike percentage
+    // would inflate with it.
+    fetchAllTransactions({
       type: 'debit',
       dateFrom: toISODateLocal(fourMonthsAgo),
       dateTo: toISODateLocal(new Date()),
@@ -435,8 +445,19 @@ export default function DashboardPage() {
           setInsightsTeaser('none')
           return
         }
+        // detectAnomalies has no notion of either exclusion, so both are
+        // applied here:
+        //  - credit card bill payments are not spending (the purchases behind
+        //    them were counted when they happened), so a big bill month must
+        //    not surface as "Credit Card Bill spending is up 140%".
+        //  - foreign-currency rows would be added into rupee totals and
+        //    printed with a ₹ sign, the same reason getSummary keeps them out.
+        const rows = data.filter(
+          (t) =>
+            (t.currency ?? HOME_CURRENCY) === HOME_CURRENCY && !isCreditCardBill(t.category)
+        )
         const [topAnomaly] = detectAnomalies(
-          data.map((t) => ({ ...t, merchant: t.merchant || '' }))
+          rows.map((t) => ({ ...t, merchant: t.merchant || '' }))
         )
         setInsightsTeaser(topAnomaly || 'none')
       })
@@ -447,7 +468,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true
     }
-  }, [user, widgets.insights])
+  }, [user, widgets.insights, categoriesLoading, isCreditCardBill])
 
   // Credit card bill payments for the selected period. Fetched separately from
   // fetchDashboardData because getSummary deliberately strips these rows out —
@@ -1213,7 +1234,10 @@ export default function DashboardPage() {
                                     isDebit ? 'text-[var(--status-danger-text)]' : 'text-[var(--status-positive-text)]'
                                   }`}
                                 >
-                                  {isDebit ? '-' : '+'}{formatCurrencyCompact(Number(txn.amount))}
+                                  {/* Pass the row's own currency — without it a $200
+                                      charge renders as "-₹200" here while the
+                                      "View All" modal below shows "-$200". */}
+                                  {isDebit ? '-' : '+'}{formatCurrencyCompact(Number(txn.amount), txn.currency)}
                                 </p>
                               </div>
                             </div>
@@ -1229,11 +1253,9 @@ export default function DashboardPage() {
         )}
 
         {/* 🔄 Subscription Intelligence Widget */}
-        <ActiveSubscriptionsWidget
-          recentTransactions={recentTransactions}
-          loading={loading}
-          isVisible={widgets.subscriptions}
-        />
+        {/* Fetches its own 24 months of history — detection needs two charges
+            from one merchant, which the 5 recent rows above can never show. */}
+        <ActiveSubscriptionsWidget isVisible={widgets.subscriptions} />
 
         {/* 📋 Recent Activity View All Modal */}
         <Modal

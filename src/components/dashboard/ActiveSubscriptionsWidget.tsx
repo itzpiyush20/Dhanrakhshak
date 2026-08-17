@@ -1,77 +1,74 @@
+// ============================================
+// ActiveSubscriptionsWidget — recurring payments
+// detected from history, shown on the Dashboard
+// ============================================
+
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Card } from '@/components/ui'
+import { useAuth } from '@/context/AuthContext'
 import { useCategories } from '@/context/CategoriesContext'
 import { formatCurrency } from '@/utils'
+import { toISODateLocal } from '@/utils/dateFilter'
+import { fetchAllTransactions } from '@/services/transactions'
+import {
+  detectSubscriptions,
+  loadIgnoredSubscriptionKeys,
+  SUBSCRIPTION_LOOKBACK_MONTHS,
+  type DetectedSubscription,
+} from '@/services/subscriptionDetection'
 import { RefreshCw } from 'lucide-react'
-import type { Database } from '@/types/database'
-
-type TransactionRow = Database['public']['Tables']['transactions']['Row']
 
 interface ActiveSubscriptionsWidgetProps {
-  recentTransactions: TransactionRow[]
-  loading: boolean
   isVisible: boolean
 }
 
-export default function ActiveSubscriptionsWidget({
-  recentTransactions,
-  loading,
-  isVisible,
-}: ActiveSubscriptionsWidgetProps) {
+export default function ActiveSubscriptionsWidget({ isVisible }: ActiveSubscriptionsWidgetProps) {
+  const { user } = useAuth()
   const { getStyle } = useCategories()
-  if (!isVisible || loading || recentTransactions.length === 0) return null
+  const [subs, setSubs] = useState<DetectedSubscription[] | null>(null)
 
-  const now = new Date()
-  const subs: Array<{ merchant: string; amount: number; daysToRenewal: number; category: string }> = []
-  const seen = new Set<string>()
-  const debits = recentTransactions.filter(t => t.type === 'debit')
+  // This widget used to run detection over the Dashboard's five most recent
+  // transactions, which is not enough data for the algorithm to work: two
+  // charges from one merchant a month apart never appear in five rows, so
+  // every merchant fell through to the category heuristic and a single
+  // "Utilities & Bills" charge was rendered as an active subscription with an
+  // invented 30-day renewal — and counted in "monthly burn". It now fetches
+  // the same window the Subscriptions page uses, through the same detector.
+  useEffect(() => {
+    if (!user || !isVisible) return
+    let cancelled = false
 
-  // Group by merchant
-  const grouped: Record<string, typeof debits> = {}
-  debits.forEach(t => {
-    if (!t.merchant) return
-    const key = t.merchant.trim().toLowerCase()
-    if (!grouped[key]) grouped[key] = []
-    grouped[key].push(t)
-  })
+    const since = new Date()
+    since.setMonth(since.getMonth() - SUBSCRIPTION_LOOKBACK_MONTHS)
 
-  // Detect recurring patterns (monthly ±10d, or subscription category)
-  for (const [key, txns] of Object.entries(grouped)) {
-    if (seen.has(key)) continue
-    txns.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    const latest = txns[0]
-    const isSubCat = ['Subscriptions', 'Utilities & Bills'].includes(latest.category)
-    let isRecurring = isSubCat
+    // Debits only — detection ignores credits anyway, and halving the row count
+    // matters on a fetch that now runs on every Dashboard visit.
+    fetchAllTransactions({ dateFrom: toISODateLocal(since), type: 'debit' })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error || !data) {
+          setSubs([])
+          return
+        }
+        setSubs(
+          detectSubscriptions(data, { ignoredKeys: loadIgnoredSubscriptionKeys(user.id) })
+        )
+      })
+      .catch((e) => {
+        if (cancelled) return
+        console.error('Failed to detect subscriptions:', e)
+        setSubs([])
+      })
 
-    if (!isRecurring && txns.length >= 2) {
-      const d1 = new Date(txns[0].date), d2 = new Date(txns[1].date)
-      const diffDays = Math.round(Math.abs(d1.getTime() - d2.getTime()) / 86400000)
-      const amtVar = Math.abs(Number(txns[0].amount) - Number(txns[1].amount)) / (Number(txns[0].amount) || 1)
-      if (diffDays >= 22 && diffDays <= 40 && amtVar < 0.15) isRecurring = true
+    return () => {
+      cancelled = true
     }
+  }, [user, isVisible])
 
-    if (isRecurring) {
-      const lastBilled = new Date(latest.date)
-      const daysSince = Math.round((now.getTime() - lastBilled.getTime()) / 86400000)
-      if (daysSince < 60) {
-        const nextRenewal = new Date(lastBilled.getTime() + 30 * 86400000)
-        const daysToRenewal = Math.ceil((nextRenewal.getTime() - now.getTime()) / 86400000)
-        const avgAmt = txns.reduce((s, t) => s + Number(t.amount), 0) / txns.length
-        seen.add(key)
-        subs.push({
-          merchant: latest.merchant || 'Recurring',
-          amount: Math.round(avgAmt),
-          daysToRenewal,
-          category: latest.category,
-        })
-      }
-    }
-  }
+  if (!isVisible || subs === null || subs.length === 0) return null
 
-  subs.sort((a, b) => a.daysToRenewal - b.daysToRenewal)
   const monthlyBurn = subs.reduce((s, sub) => s + sub.amount, 0)
-
-  if (subs.length === 0) return null
 
   return (
     <Card className="mt-2" id="subscription-widget">
@@ -95,7 +92,7 @@ export default function ActiveSubscriptionsWidget({
         </Link>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-        {subs.slice(0, 6).map((sub, idx) => {
+        {subs.slice(0, 6).map((sub) => {
           const renewsColor =
             sub.daysToRenewal <= 3
               ? 'text-[var(--status-danger-text)] bg-[var(--status-danger-subtle)] border-[var(--status-danger-border)]'
@@ -105,7 +102,7 @@ export default function ActiveSubscriptionsWidget({
           const cat = getStyle(sub.category)
           return (
             <div
-              key={idx}
+              key={sub.merchant}
               className="flex items-center gap-3 rounded-xl bg-surface-2/50 border border-border-subtle/60 px-3 py-2.5 hover:bg-surface-2 transition-colors"
             >
               <span className="text-xl shrink-0">{cat.emoji}</span>

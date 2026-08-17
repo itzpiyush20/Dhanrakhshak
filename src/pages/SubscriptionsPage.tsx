@@ -11,6 +11,13 @@ import { RefreshCw, FileText } from 'lucide-react'
 import Select from '@/components/ui/Select'
 import { createTransaction } from '@/services'
 import { fetchAllTransactions } from '@/services/transactions'
+import {
+  detectSubscriptions as runDetectSubscriptions,
+  merchantKey,
+  ignoredSubscriptionsStorageKey,
+  loadIgnoredSubscriptionKeys,
+  SUBSCRIPTION_LOOKBACK_MONTHS,
+} from '@/services/subscriptionDetection'
 import { formatCurrency, formatDate } from '@/utils'
 import { toISODateLocal } from '@/utils/dateFilter'
 import type { Database } from '@/types/database'
@@ -19,18 +26,9 @@ import { useCategories } from '@/context/CategoriesContext'
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row']
 
-interface Subscription {
-  merchant: string
-  category: string
-  amount: number
-  lastBilled: string
-  nextRenewal: string
-  daysToRenewal: number
-  isAutoDetected: boolean
-  frequency: 'monthly' | 'quarterly' | 'annual' | 'unknown'
-  priceChange: number | null  // positive = increase, negative = decrease
-  timesCharged: number
-}
+// Detection lives in services/subscriptionDetection.ts — the Dashboard's
+// Active Subscriptions widget renders the same list and must reach the same
+// verdict, which it cannot do from a second copy of these rules.
 
 export default function SubscriptionsPage() {
   const { user, currencySymbol } = useAuth()
@@ -41,21 +39,12 @@ export default function SubscriptionsPage() {
   // Merchants the user has marked as "not a subscription". These are filtered out
   // of auto-detection without touching the underlying expense transactions, so the
   // spend still counts everywhere else (Expenses, Dashboard, analytics). Reversible.
-  const ignoredStorageKey = user ? `dhanrakshak_ignored_subscriptions_${user.id}` : null
+  const ignoredStorageKey = user ? ignoredSubscriptionsStorageKey(user.id) : null
   const [ignoredKeys, setIgnoredKeys] = useState<string[]>([])
 
   useEffect(() => {
-    if (!ignoredStorageKey) {
-      setIgnoredKeys([])
-      return
-    }
-    try {
-      const raw = localStorage.getItem(ignoredStorageKey)
-      setIgnoredKeys(raw ? JSON.parse(raw) : [])
-    } catch {
-      setIgnoredKeys([])
-    }
-  }, [ignoredStorageKey])
+    setIgnoredKeys(loadIgnoredSubscriptionKeys(user?.id))
+  }, [user?.id])
 
   const persistIgnored = (keys: string[]) => {
     setIgnoredKeys(keys)
@@ -67,9 +56,6 @@ export default function SubscriptionsPage() {
       }
     }
   }
-
-  // Match the same normalization used for grouping in detectSubscriptions().
-  const merchantKey = (merchant: string) => merchant.trim().toLowerCase()
 
   const hideSubscription = (merchant: string) => {
     const key = merchantKey(merchant)
@@ -107,7 +93,7 @@ export default function SubscriptionsPage() {
       // visit to this page. A charge older than two years is not evidence of a
       // subscription that is still running.
       const since = new Date()
-      since.setMonth(since.getMonth() - 24)
+      since.setMonth(since.getMonth() - SUBSCRIPTION_LOOKBACK_MONTHS)
       const { data } = await fetchAllTransactions({ dateFrom: toISODateLocal(since) })
       if (data) {
         setTransactions(data)
@@ -124,96 +110,14 @@ export default function SubscriptionsPage() {
     fetchData()
   }, [])
 
-  // Auto-detect subscriptions from history — supports monthly, quarterly, annual
-  const detectSubscriptions = (): Subscription[] => {
-    const list: Subscription[] = []
-    const now = new Date()
-
-    const debits = transactions.filter((t) => t.type === 'debit')
-
-    // Group by cleaned merchant
-    const grouped: Record<string, TransactionRow[]> = {}
-    debits.forEach((t) => {
-      if (!t.merchant) return
-      const cleanKey = t.merchant.trim().toLowerCase()
-      if (!grouped[cleanKey]) grouped[cleanKey] = []
-      grouped[cleanKey].push(t)
-    })
-
-    for (const [cleanKey, txns] of Object.entries(grouped)) {
-      // Skip merchants the user marked as "not a subscription".
-      if (ignoredKeys.includes(cleanKey)) continue
-
-      txns.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      const latest = txns[0]
-      const isSubCategory = latest.category === 'Subscriptions' || latest.category === 'Utilities & Bills'
-
-      let isRecurring = false
-      let frequency: Subscription['frequency'] = 'unknown'
-      let renewalDays = 30
-      let maxStaleDays = 65  // how old last charge can be and still be "active"
-
-      if (isSubCategory && txns.length === 1) {
-        // Single entry but subscription category — treat as monthly
-        isRecurring = true
-        frequency = 'monthly'
-        renewalDays = 30
-      } else if (txns.length >= 2) {
-        const d1 = new Date(txns[0].date)
-        const d2 = new Date(txns[1].date)
-        const diffDays = Math.round(Math.abs(d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24))
-        const amountVar = Math.abs(Number(txns[0].amount) - Number(txns[1].amount)) / Math.max(1, Number(txns[0].amount))
-
-        if (diffDays >= 25 && diffDays <= 40 && amountVar < 0.15) {
-          isRecurring = true; frequency = 'monthly'; renewalDays = 30; maxStaleDays = 65
-        } else if (diffDays >= 80 && diffDays <= 100 && amountVar < 0.15) {
-          isRecurring = true; frequency = 'quarterly'; renewalDays = 91; maxStaleDays = 105
-        } else if (diffDays >= 350 && diffDays <= 380 && amountVar < 0.15) {
-          isRecurring = true; frequency = 'annual'; renewalDays = 365; maxStaleDays = 395
-        } else if (isSubCategory) {
-          // Category hints it's recurring even if we can't determine frequency
-          isRecurring = true; frequency = 'monthly'; renewalDays = 30; maxStaleDays = 65
-        }
-      }
-
-      if (isRecurring) {
-        const lastBilledDate = new Date(latest.date)
-        const daysSinceLastBilled = Math.round((now.getTime() - lastBilledDate.getTime()) / (1000 * 60 * 60 * 24))
-
-        if (daysSinceLastBilled > maxStaleDays) continue  // Expired or cancelled
-
-        const nextRenewalDate = new Date(lastBilledDate.getTime())
-        nextRenewalDate.setDate(nextRenewalDate.getDate() + renewalDays)
-        const daysToRenewal = Math.ceil((nextRenewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-
-        const avgAmount = txns.reduce((sum, t) => sum + Number(t.amount), 0) / txns.length
-
-        // Detect price change: compare latest vs previous charge
-        let priceChange: number | null = null
-        if (txns.length >= 2) {
-          const delta = Number(txns[0].amount) - Number(txns[1].amount)
-          if (Math.abs(delta) > 5) priceChange = delta  // ₹5 threshold to ignore rounding
-        }
-
-        list.push({
-          merchant: latest.merchant || 'Recurring Payment',
-          category: latest.category,
-          amount: Math.round(avgAmount),
-          lastBilled: latest.date,
-          nextRenewal: nextRenewalDate.toISOString().split('T')[0],
-          daysToRenewal,
-          isAutoDetected: true,
-          frequency,
-          priceChange,
-          timesCharged: txns.length,
-        })
-      }
-    }
-
-    return list.sort((a, b) => a.daysToRenewal - b.daysToRenewal)
-  }
-
-  const detectedSubs = detectSubscriptions()
+  // Auto-detect subscriptions from history — supports monthly, quarterly,
+  // annual. Memoised because it walks the full 24-month window: it used to run
+  // on every render, and the `uniqueSubCategories` memo below depended on its
+  // result, so that memo never hit either.
+  const detectedSubs = useMemo(
+    () => runDetectSubscriptions(transactions, { ignoredKeys }),
+    [transactions, ignoredKeys]
+  )
   const totalMonthlyOutflow = detectedSubs.reduce((sum, s) => sum + s.amount, 0)
 
   const uniqueSubCategories = useMemo(
