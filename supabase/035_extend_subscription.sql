@@ -59,6 +59,15 @@ BEGIN
                                         + make_interval(days => OLD.pending_duration_days)
      AND NEW.is_admin                 IS NOT DISTINCT FROM OLD.is_admin
      AND NEW.razorpay_subscription_id IS NOT DISTINCT FROM OLD.razorpay_subscription_id
+     AND NEW.pending_order_id  IS NULL
+     -- Pin the order-id columns to exactly what activate_pending_plan() writes.
+     -- The carve-out returns before the final guard block, so without these two
+     -- it is silent about both columns — and a client can UPDATE its own
+     -- profile row directly under RLS. Writing a forged order id there would
+     -- make a later verify-payment see 'already_applied' and swallow a real
+     -- payment.
+     AND NEW.razorpay_order_id IS NOT DISTINCT FROM
+         COALESCE(OLD.pending_order_id, OLD.razorpay_order_id)
   THEN
     RETURN NEW;
   END IF;
@@ -257,7 +266,15 @@ BEGIN
   SELECT * INTO v_row FROM public.profiles WHERE id = auth.uid() FOR UPDATE;
   IF NOT FOUND THEN RETURN false; END IF;
   IF v_row.pending_plan_type IS NULL THEN RETURN false; END IF;
-  IF v_row.pending_activates_at IS NULL OR v_row.pending_activates_at > now() THEN
+  -- pending_duration_days is checked here, not just the date. Nothing in the
+  -- schema enforces the "all four set together" invariant — it is a comment,
+  -- and service-role writes bypass the guard trigger entirely — and a NULL
+  -- would make the expiry below NULL, which fails the trigger's exact-equality
+  -- carve-out and RAISES. A malformed row must degrade to a quiet no-op, not
+  -- to a hard error on every profile load.
+  IF v_row.pending_activates_at IS NULL
+     OR v_row.pending_duration_days IS NULL
+     OR v_row.pending_activates_at > now() THEN
     RETURN false;
   END IF;
 
