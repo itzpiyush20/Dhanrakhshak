@@ -306,6 +306,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 2. Fetch fresh data from Supabase
     try {
+      // A queued plan (a renewal or a downgrade the customer already paid for)
+      // starts on the date the previous one ended. This turns it on when they
+      // next open the app. It MUST run before the SELECT below: the expiry
+      // check further down would otherwise see the finished plan, mark the
+      // account expired, and route a paying customer to /pricing.
+      //
+      // A no-op returning false on virtually every load — one cheap round trip
+      // to avoid a nightly job and the lag that comes with it. A failure here
+      // is not fatal: the profile read still happens and the plan activates on
+      // the next load.
+      try {
+        await supabase.rpc('activate_pending_plan')
+      } catch (e) {
+        console.warn('Pending plan activation failed; will retry next load:', e)
+      }
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')

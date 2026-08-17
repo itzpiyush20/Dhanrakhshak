@@ -11,6 +11,7 @@ import { motion } from 'framer-motion'
 import { useScrollReveal } from '@/hooks'
 import { Card } from '@/components/ui'
 import { supabase } from '@/services/supabase'
+import { formatDate } from '@/utils'
 
 // ── Feature lists for different subscription tiers ───────────
 // Kept deliberately accurate against what the code actually does.
@@ -63,6 +64,10 @@ export default function PricingPage() {
   // this is a prospective customer, not someone who lost access. Show them the trial offer, not a lock screen.
   const neverSubscribed = !user || status === 'free' || !status
   const isCancelled = status === 'cancelled'
+
+  // A plan already bought and waiting for the current one to end. The server
+  // refuses a second purchase in this state (409), so the buttons come off too.
+  const hasQueuedPlan = !!profile?.pending_plan_type
 
   const isActiveActive = status === 'active' && daysLeft > 0
   const isTrialActive = status === 'trial' && daysLeft > 0
@@ -120,6 +125,13 @@ export default function PricingPage() {
         })
       })
       const orderData = await response.json()
+      // The server refuses a purchase while a plan is queued. This is an
+      // expected answer, not a checkout fault, so it must not be prefixed as one.
+      if (response.status === 409) {
+        showToast(orderData.error || 'You already have a plan queued.', 'warning')
+        setProcessing(false)
+        return
+      }
       if (!response.ok || orderData.error) throw new Error(orderData.error || 'Could not initiate payment order')
 
       const clientKey = (import.meta.env.VITE_RAZORPAY_KEY_ID && import.meta.env.VITE_RAZORPAY_KEY_ID.startsWith('rzp_'))
@@ -142,11 +154,25 @@ export default function PricingPage() {
             const verifyData = await verifyResponse.json()
             if (!verifyResponse.ok || verifyData.error) throw new Error(verifyData.error || 'Payment verification failed')
             
-            // Instantly update local subscription status and local storage to prevent override to trial
-            await updateSubscriptionStatus('active', selectedPlan)
-
-            showToast(`👑 Payment Successful! ${planName} features unlocked.`, 'success')
-            navigate('/payment-success', { state: { planName, expiresAt: verifyData.expiresAt } })
+            // Only an immediate activation may touch local subscription state.
+            // A 'queued' outcome means the customer paid for a plan that starts
+            // when the current one ends; marking it active now would apply the
+            // change the queue exists to defer.
+            if (verifyData.outcome === 'queued' || verifyData.outcome === 'queue_extended') {
+              await refreshProfile()
+              showToast('Payment received. Your new plan starts when your current one ends.', 'success')
+              navigate('/payment-success', {
+                state: {
+                  planName,
+                  queued: true,
+                  startsAt: verifyData.pendingActivatesAt,
+                },
+              })
+            } else {
+              await updateSubscriptionStatus('active', selectedPlan)
+              showToast(`👑 Payment Successful! ${planName} features unlocked.`, 'success')
+              navigate('/payment-success', { state: { planName, expiresAt: verifyData.expiresAt } })
+            }
           } catch (err: any) { showToast(`Verification Failed: ${err.message}`, 'error') }
           finally { setProcessing(false) }
         },
@@ -335,6 +361,21 @@ export default function PricingPage() {
               <p className="text-sm font-bold text-emerald-400">You are on the {profile?.subscription_plan_type === 'monthly' ? 'Monthly' : 'Yearly'} Plan — all automation and sync systems are fully active.</p>
             </div>
           )}
+
+          {profile?.pending_plan_type && (
+            <div role="status" className="rounded-2xl border border-border-subtle bg-surface-1 p-4 text-sm">
+              <p className="font-semibold text-zinc-200">
+                {profile.pending_plan_type === 'annual' ? 'Annual' : 'Monthly'} plan queued
+              </p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Already paid for. It starts automatically on{' '}
+                {profile.pending_activates_at
+                  ? formatDate(profile.pending_activates_at)
+                  : "your current plan's expiry"}
+                , when your current plan ends. You can buy again once it begins.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* ── PRICING CARDS ───────────────────────────────────── */}
@@ -425,10 +466,10 @@ export default function PricingPage() {
                   </button>
                 ) : (
                   <button
-                    onClick={() => !isPro && handleSelectPlan('monthly')}
-                    disabled={isPro}
+                    onClick={() => !isPro && !hasQueuedPlan && handleSelectPlan('monthly')}
+                    disabled={isPro || hasQueuedPlan}
                     className={`w-full justify-center rounded-xl py-3 font-semibold text-xs border ${
-                      isPro
+                      isPro || hasQueuedPlan
                         ? 'border-zinc-800 bg-zinc-900/50 text-zinc-500 cursor-not-allowed'
                         : 'border-zinc-700 bg-surface-2 hover:bg-zinc-800 text-zinc-300 transition-all active:scale-98 shadow-sm cursor-pointer'
                     }`}
@@ -492,7 +533,9 @@ export default function PricingPage() {
                 ) : (
                   <button
                     onClick={() => handleSelectPlan('annual')}
+                    disabled={hasQueuedPlan}
                     className="sb-btn-primary w-full cursor-pointer border-0"
+                    style={{ opacity: hasQueuedPlan ? 0.5 : 1 }}
                   >
                     {isActive && profile?.subscription_plan_type === 'monthly' ? 'Upgrade to Yearly' : 'Get Yearly'}
                   </button>
@@ -636,11 +679,15 @@ export default function PricingPage() {
 
                       <button
                         onClick={handleRazorpayCheckout}
-                        disabled={processing}
+                        disabled={processing || hasQueuedPlan}
                         className="sb-btn-primary w-full cursor-pointer border-0"
-                        style={{ opacity: processing ? 0.6 : 1 }}
+                        style={{ opacity: processing || hasQueuedPlan ? 0.6 : 1 }}
                       >
-                        {processing ? 'Opening secure checkout…' : `Pay ₹${planPrice} & Activate ${planName}`}
+                        {hasQueuedPlan
+                          ? 'A plan is already queued'
+                          : processing
+                          ? 'Opening secure checkout…'
+                          : `Pay ₹${planPrice} & Activate ${planName}`}
                       </button>
 
                       <p className="text-xs text-center text-zinc-500 font-semibold uppercase tracking-wider">

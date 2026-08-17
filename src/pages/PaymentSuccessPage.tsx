@@ -16,7 +16,12 @@ export default function PaymentSuccessPage() {
     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
   }
 
-  const expiresAt = rawState.expiresAt
+  // A queued purchase is paid for but does NOT start until the current plan
+  // ends. Nothing about the account changes today, so this page must not
+  // announce access the customer does not yet have.
+  const queued = rawState.queued === true
+  const startsAt = rawState.startsAt
+  const shownDate = queued ? startsAt : rawState.expiresAt
   const planName = (rawState.planName === 'monthly' || rawState.planName === 'Starter Monthly' || rawState.planName === 'Basic')
     ? 'Basic'
     : 'Pro'
@@ -24,6 +29,14 @@ export default function PaymentSuccessPage() {
   // Poll profile to check if backend/webhook has updated status to active
   useEffect(() => {
     let interval: any
+
+    // A queued plan never flips the status today — polling for 'active' would
+    // spin for ten seconds and then show a "status syncing" warning for
+    // something that is working exactly as intended.
+    if (queued) {
+      setVerifying(false)
+      return
+    }
 
     const checkStatus = async () => {
       await refreshProfile()
@@ -45,13 +58,15 @@ export default function PaymentSuccessPage() {
     }
 
     return () => clearInterval(interval)
-  }, [profile, attempts])
+  }, [profile, attempts, queued])
 
-  const formattedDate = new Date(expiresAt).toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
+  const formattedDate = shownDate
+    ? new Date(shownDate).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : 'when your current plan ends'
 
   return (
     <AppLayout>
@@ -60,16 +75,18 @@ export default function PaymentSuccessPage() {
         <div className="relative flex items-center justify-center mx-auto h-24 w-24 rounded-full bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] shadow-[var(--shadow-md)]">
           {/* Confetti Micro-animations */}
           <div className="absolute inset-0 rounded-full animate-ping bg-[var(--status-positive-subtle)]/5 duration-1000" />
-          <span className="text-5xl" aria-hidden="true">👑</span>
+          <span className="text-5xl" aria-hidden="true">{queued ? '🗓️' : '👑'}</span>
         </div>
 
         {/* Text Details */}
         <div className="space-y-3">
           <h1 className="text-3xl font-extrabold text-white tracking-tight">
-            Subscription Activated!
+            {queued ? 'Payment Received!' : 'Subscription Activated!'}
           </h1>
           <p className="text-zinc-400 text-sm">
-            Thank you for upgrading. Your account is now fully unlocked.
+            {queued
+              ? 'Your new plan is scheduled. It starts automatically when your current plan ends — nothing else to do.'
+              : 'Thank you for upgrading. Your account is now fully unlocked.'}
           </p>
         </div>
 
@@ -82,13 +99,19 @@ export default function PaymentSuccessPage() {
 
           <div className="flex justify-between items-center text-xs pb-3 border-b border-border-subtle/50">
             <span className="text-zinc-500">Subscription Status</span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-extrabold uppercase bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] text-[var(--status-positive-text)]">
-              Active
-            </span>
+            {queued ? (
+              <span className="px-2 py-0.5 rounded-full text-xs font-extrabold uppercase bg-[var(--status-warning-subtle)] border border-[var(--status-warning-border)] text-[var(--status-warning-text)]">
+                Scheduled
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full text-xs font-extrabold uppercase bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] text-[var(--status-positive-text)]">
+                Active
+              </span>
+            )}
           </div>
 
           <div className="flex justify-between items-center text-xs">
-            <span className="text-zinc-500">Renewal Date</span>
+            <span className="text-zinc-500">{queued ? 'Starts On' : 'Renewal Date'}</span>
             <span className="font-semibold text-zinc-300">{formattedDate}</span>
           </div>
         </div>
@@ -112,7 +135,7 @@ export default function PaymentSuccessPage() {
               Go to Dashboard
             </Button>
             
-            {profile?.subscription_status !== 'active' && (
+            {!queued && profile?.subscription_status !== 'active' && (
               <p className="text-xs text-zinc-500 leading-normal">
                 Status syncing in background. If your Pro or Basic access doesn't unlock immediately, click return and refresh the page.
               </p>
