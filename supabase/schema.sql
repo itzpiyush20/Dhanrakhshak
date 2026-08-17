@@ -37,6 +37,13 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   subscription_expires_at TIMESTAMPTZ DEFAULT (now() + interval '7 days'),
   razorpay_subscription_id TEXT,
   razorpay_order_id TEXT,
+  -- A plan bought while another was still running. All four are NULL together
+  -- or set together; pending_plan_type IS NOT NULL means "something is queued".
+  -- See migration 035.
+  pending_plan_type TEXT CHECK (pending_plan_type IS NULL OR pending_plan_type IN ('monthly', 'annual')),
+  pending_duration_days INT,
+  pending_order_id TEXT,
+  pending_activates_at TIMESTAMPTZ,
   is_admin BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
@@ -53,6 +60,12 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS ai_scan_calls_reset_at TIME
 -- predates them fails every UPDATE on profiles with error 42703 until they exist.
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS razorpay_subscription_id TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS razorpay_order_id TEXT;
+-- protect_server_only_profile_columns reads all four, so a database that
+-- predates them fails every UPDATE on profiles with error 42703 until they exist.
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS pending_plan_type TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS pending_duration_days INT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS pending_order_id TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS pending_activates_at TIMESTAMPTZ;
 
 -- Returns true if the given user (default: caller) is flagged as an admin.
 -- SECURITY DEFINER so it can read profiles.is_admin without recursing into
