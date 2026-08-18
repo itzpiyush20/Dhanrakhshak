@@ -88,10 +88,28 @@ export async function resetAccountData() {
   return logErr
 }
 
-/** 
+/**
  * Irreversibly deletes the authenticated user's account and all connected records.
  * Uses high-privilege delete_user RPC cascade when available; falls back to an
  * explicit complete table wipe + profiles deletion if the database function is missing.
+ *
+ * Erasure is NOT implemented here, and must not be. Both branches below end at a
+ * deleted public.profiles row — the RPC gets there by deleting auth.users and
+ * letting the cascade run, the fallback deletes the row itself — and everything
+ * that has to happen on erasure hangs off that one event in the database:
+ *
+ *   * cascading deletes for transactions, budgets, cards, merchant rules, scan
+ *     logs, rejections, insurance, payments, signin logs and the Google token;
+ *   * the anonymize_user_authored_records trigger from migration 036, which
+ *     scrubs the name and email off the user's feedback and support tickets.
+ *     Those two tables use ON DELETE SET NULL, so they keep their rows on
+ *     purpose; without that trigger the person's email address would outlive
+ *     the account it belonged to.
+ *
+ * Keeping it in the database is what makes it hold for deletions that never
+ * touch this file — the owner removing a row by hand in the Supabase dashboard,
+ * or any admin tooling added later. Do not reimplement any of it here; a
+ * TypeScript copy would only cover the two paths below and would drift.
  */
 export async function deleteAccount(): Promise<{ error: Error | null; success: boolean; method: 'rpc' | 'purge' }> {
   const { data: { user } } = await supabase.auth.getUser()
