@@ -9,6 +9,7 @@ import { AppLayout } from '@/layouts'
 import { APP_CONFIG } from '@/constants'
 import { submitSupportTicket } from '@/services/support'
 import { useAuth } from '@/context/AuthContext'
+import { cn } from '@/utils'
 
 export default function SupportPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -148,7 +149,7 @@ export default function SupportPage() {
           {/* Navigation Tabs Bar / Sidebar */}
           <div className="md:col-span-3 space-y-2">
             {/* Desktop vertical sidebar navigation */}
-            <div className="hidden md:flex flex-col space-y-1.5 p-2 rounded-[20px] bg-surface-1 border border-border-subtle shadow-md">
+            <div role="tablist" aria-label="Support navigation topics" className="hidden md:flex flex-col space-y-1.5 p-2 rounded-[20px] bg-surface-1 border border-border-subtle shadow-md">
               {tabs.map((tab) => {
                 const isActive = activeTab === tab.id
                 return (
@@ -171,7 +172,7 @@ export default function SupportPage() {
             </div>
 
             {/* Mobile horizontal navigation tabs */}
-            <div className="flex flex-row flex-nowrap md:hidden overflow-x-auto pb-2 gap-2 scrollbar-none max-w-full">
+            <div role="tablist" aria-label="Support navigation topics mobile" className="flex flex-row flex-nowrap md:hidden overflow-x-auto pb-2 gap-2 scrollbar-none max-w-full">
               {tabs.map((tab) => {
                 const isActive = activeTab === tab.id
                 return (
@@ -302,6 +303,7 @@ export default function SupportPage() {
                             onClick={() => toggleFaq(idx)}
                             className="w-full text-left px-4 py-4 flex items-center justify-between font-semibold transition-colors bg-surface-2 hover:bg-surface-2/85 border-none cursor-pointer"
                             aria-expanded={isExpanded}
+                            aria-controls={`support-faq-${idx}`}
                           >
                             <span className="text-sm font-semibold text-sb-ink">{faq.q}</span>
                             <span className="text-lg text-emerald-400">
@@ -309,7 +311,7 @@ export default function SupportPage() {
                             </span>
                           </button>
                           {isExpanded && (
-                            <div className="px-4 pb-4 pt-2 border-t border-border-subtle/50 bg-surface-2/40">
+                            <div id={`support-faq-${idx}`} className="px-4 pb-4 pt-2 border-t border-border-subtle/50 bg-surface-2/40">
                               <p className="text-xs text-zinc-400 leading-relaxed">{faq.a}</p>
                             </div>
                           )}
@@ -367,7 +369,10 @@ export default function SupportPage() {
                           type="text"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
-                          className="w-full bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all"
+                          className={cn(
+                            "w-full bg-surface-2 border text-zinc-300 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all",
+                            errors.name ? "border-[var(--status-danger-border)]" : "border-border-subtle/50"
+                          )}
                           placeholder="e.g. Rahul Sharma"
                         />
                         {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name}</p>}
@@ -378,7 +383,10 @@ export default function SupportPage() {
                           type="email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          className="w-full bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all"
+                          className={cn(
+                            "w-full bg-surface-2 border text-zinc-300 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all",
+                            errors.email ? "border-[var(--status-danger-border)]" : "border-border-subtle/50"
+                          )}
                           placeholder="e.g. piyush@example.com"
                         />
                         {errors.email && <p className="text-xs text-red-400 mt-1">{errors.email}</p>}
@@ -391,7 +399,10 @@ export default function SupportPage() {
                         type="text"
                         value={subject}
                         onChange={(e) => setSubject(e.target.value)}
-                        className="w-full bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all"
+                        className={cn(
+                          "w-full bg-surface-2 border text-zinc-300 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all",
+                          errors.subject ? "border-[var(--status-danger-border)]" : "border-border-subtle/50"
+                        )}
                         placeholder="e.g. Gmail integration scan error"
                       />
                       {errors.subject && <p className="text-xs text-red-400 mt-1">{errors.subject}</p>}
@@ -403,7 +414,10 @@ export default function SupportPage() {
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         rows={4}
-                        className="w-full bg-surface-2 border border-border-subtle/50 text-zinc-300 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all resize-none"
+                        className={cn(
+                          "w-full bg-surface-2 border text-zinc-300 text-xs rounded-xl px-3 py-2.5 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all resize-none",
+                          errors.message ? "border-[var(--status-danger-border)]" : "border-border-subtle/50"
+                        )}
                         placeholder="Tell us what went wrong. Include bank or credit card names..."
                       />
                       {errors.message && <p className="text-xs text-red-400 mt-1">{errors.message}</p>}
@@ -412,7 +426,7 @@ export default function SupportPage() {
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="w-full justify-center py-3.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 text-sb-ink font-bold text-xs tracking-wide transition-all active:scale-98 shadow-md cursor-pointer border-0"
+                      className="w-full justify-center py-3.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs tracking-wide transition-all active:scale-98 shadow-md cursor-pointer border-0"
                     >
                       {submitting ? 'Sending ticket…' : 'Submit Ticket'}
                     </button>
