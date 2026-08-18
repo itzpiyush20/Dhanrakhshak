@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/context'
-import { ROUTES, FAQ_ITEMS } from '@/constants'
+import { ROUTES, FAQ_ITEMS, FOOTER_NAV_ITEMS } from '@/constants'
 import { Capacitor } from '@capacitor/core'
 import { cn } from '@/utils'
 import { useScrollReveal } from '@/hooks'
@@ -561,15 +561,9 @@ export default function LandingPage() {
             </div>
             <p className="text-xs text-sb-ink-muted">© 2026 Dhanrakshak. Built with privacy by design.</p>
           </div>
-          <div className="flex flex-wrap justify-center gap-6">
-            {[
-              { label: 'Pricing', to: '/pricing' },
-              { label: 'Privacy', to: ROUTES.PRIVACY },
-              { label: 'Terms', to: ROUTES.TERMS },
-              { label: 'About', to: ROUTES.ABOUT },
-              { label: 'Support', to: '/support' },
-            ].map((l) => (
-              <Link key={l.label} to={l.to} className="text-xs font-medium text-sb-ink-muted hover:text-sb-ink transition-colors no-underline">{l.label}</Link>
+          <div className="flex flex-wrap justify-center gap-6 font-medium">
+            {FOOTER_NAV_ITEMS.map((l) => (
+              <Link key={l.label} to={l.href} className="text-xs text-sb-ink-muted hover:text-sb-ink transition-colors no-underline">{l.label}</Link>
             ))}
           </div>
         </div>

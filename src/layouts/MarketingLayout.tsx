@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ROUTES } from '@/constants'
+import { ROUTES, FOOTER_NAV_ITEMS } from '@/constants'
 import { useAuth } from '@/context/AuthContext'
 import { UserMenu } from '@/components/ui'
 
@@ -47,12 +47,12 @@ export default function MarketingLayout({ children, title }: MarketingLayoutProp
       {/* Footer */}
       <footer className="border-t border-sb-hairline bg-sb-canvas-soft py-8 px-4 text-center text-xs text-sb-ink-muted shrink-0">
         <p>© 2026 Dhanrakshak. Your Personal CFO.</p>
-        <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-3">
-          <Link to={ROUTES.PRIVACY} className="no-underline hover:underline text-sb-ink-muted">Privacy Policy</Link>
-          <Link to={ROUTES.TERMS} className="no-underline hover:underline text-sb-ink-muted">Terms of Service</Link>
-          <Link to={ROUTES.REFUND} className="no-underline hover:underline text-sb-ink-muted">Refund Policy</Link>
-          <Link to={ROUTES.ABOUT} className="no-underline hover:underline text-sb-ink-muted">About</Link>
-          <Link to="/support" className="no-underline hover:underline text-sb-ink-muted">Support</Link>
+        <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-3 font-medium">
+          {FOOTER_NAV_ITEMS.map((item) => (
+            <Link key={item.label} to={item.href} className="no-underline hover:underline text-sb-ink-muted">
+              {item.label}
+            </Link>
+          ))}
         </div>
       </footer>
     </div>

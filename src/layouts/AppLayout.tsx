@@ -5,7 +5,7 @@
 
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { ROUTES } from '@/constants'
+import { ROUTES, FOOTER_NAV_ITEMS } from '@/constants'
 import { cn } from '@/utils'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth, useToast } from '@/context'
@@ -972,11 +972,11 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
             <p className="mt-1">Version 1.0.0 (Production Build) · Proprietary Closed-Source License</p>
           </div>
           <div className={cn("flex flex-wrap justify-center gap-6 font-medium", isStaticLight ? "text-sb-ink-muted" : "")}>
-            <Link to="/privacy" className="hover:text-brand-400 transition-colors">Privacy Policy</Link>
-            <Link to="/terms" className="hover:text-brand-400 transition-colors">Terms of Service</Link>
-            <Link to="/refund-policy" className="hover:text-brand-400 transition-colors">Refund Policy</Link>
-            <Link to="/support?tab=faq" className="hover:text-brand-400 transition-colors">FAQs</Link>
-            <Link to="/support?tab=contact" className="hover:text-brand-400 transition-colors">Help & Contact</Link>
+            {FOOTER_NAV_ITEMS.map((item) => (
+              <Link key={item.label} to={item.href} className="hover:text-brand-400 transition-colors">
+                {item.label}
+              </Link>
+            ))}
           </div>
         </div>
       </footer>

@@ -53,6 +53,16 @@ export const ROUTES = {
   RESET_PASSWORD: '/reset-password',
 } as const
 
+/** Standardized, legally compliant footer navigation items across all site templates */
+export const FOOTER_NAV_ITEMS = [
+  { label: 'Pricing', href: '/pricing' },
+  { label: 'About Us', href: '/about' },
+  { label: 'Privacy Policy', href: '/privacy' },
+  { label: 'Terms of Service', href: '/terms' },
+  { label: 'Refund Policy', href: '/refund-policy' },
+  { label: 'Support', href: '/support' },
+] as const
+
 /** App-level config */
 export const APP_CONFIG = {
   APP_NAME: 'Dhanrakshak',
