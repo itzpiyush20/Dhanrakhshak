@@ -278,7 +278,17 @@ describe('scanRealGmailInbox — receipt-shaped emails with no debit/credit keyw
       id: 'msg-promo-1',
       threadId: 'thread-promo-1',
       snippet: 'Get cashback on your next Zomato order!',
-      internalDate: String(Date.UTC(2026, 7, 10, 9, 0, 0)),
+      // RELATIVE, never a fixed date. This was `Date.UTC(2026, 7, 10)`, which
+      // sat inside the default 7-day scan window when the test was written and
+      // fell outside it a week later. Out-of-window mail is skipped by a bare
+      // `continue` with no rejection logged — deliberately, since it is not junk,
+      // just old — so the email stopped being evaluated at all. The gate
+      // assertion below then failed, and worse, the `toHaveLength(0)` above
+      // started passing for the wrong reason: nothing was inserted because
+      // nothing was examined. A guardrail that silently stops guarding is worse
+      // than one that fails loudly. Matches the convention used by every other
+      // fixture in this file.
+      internalDate: String(Date.now() - 2 * 24 * 60 * 60 * 1000),
       payload: {
         headers: [
           { name: 'Subject', value: 'Exclusive cashback offer just for you' },
