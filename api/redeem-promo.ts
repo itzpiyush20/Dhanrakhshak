@@ -1,6 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { normalisePromoCode, checkRedeemable, grantExpiryFrom, type PromoCodeRow } from './_lib/promo.js'
+import {
+  normalisePromoCode,
+  checkRedeemable,
+  checkCouponEligibility,
+  grantExpiryFrom,
+  type PromoCodeRow,
+} from './_lib/promo.js'
 
 // ============================================
 // Redeem a promo code.
@@ -45,6 +51,10 @@ const REFUSAL_MESSAGE: Record<string, string> = {
   expired: 'This coupon has expired.',
   exhausted: 'This coupon has reached its usage limit.',
   already_redeemed: 'You have already used this coupon.',
+  // Both of these are permanent for the account, so the wording must not
+  // suggest waiting and trying again will help.
+  not_new_customer: 'Coupons are for first-time users only. Your account has had a paid plan before.',
+  coupon_already_used: 'You have already used a coupon on this account. Only one coupon per account.',
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -83,14 +93,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq('code', code)
       .maybeSingle()
 
-    const { data: existing } = await supabaseAdmin
+    // Every redemption this account has ever made, for ANY code — not just
+    // this one. The UNIQUE (code, user_id) constraint only stops re-using the
+    // same code, so one-coupon-per-account has to be enforced here.
+    const { data: redemptions } = await supabaseAdmin
       .from('promo_redemptions')
-      .select('id')
-      .eq('code', code)
+      .select('code')
       .eq('user_id', user.id)
-      .maybeSingle()
 
-    const refusal = checkRedeemable(promo as PromoCodeRow | null, !!existing)
+    // A real payment, ever. Restricted to source 'razorpay' on purpose:
+    // 'promo' rows are written by this very endpoint (so counting them would
+    // make every coupon self-disqualifying) and 'admin' rows are hand-granted
+    // plans where no money changed hands.
+    const { data: paidRows } = await supabaseAdmin
+      .from('payments')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('source', 'razorpay')
+      .eq('status', 'captured')
+      .limit(1)
+
+    const priorRedemptions = redemptions || []
+    const ineligible = checkCouponEligibility({
+      hasPaidBefore: (paidRows || []).length > 0,
+      hasRedeemedAnyCoupon: priorRedemptions.length > 0,
+    })
+    if (ineligible) {
+      return res.status(400).json({ error: REFUSAL_MESSAGE[ineligible] })
+    }
+
+    const alreadyRedeemedThisCode = priorRedemptions.some((r: { code: string }) => r.code === code)
+    const refusal = checkRedeemable(promo as PromoCodeRow | null, alreadyRedeemedThisCode)
     if (refusal) {
       // Deliberately vague on not_found so the endpoint cannot be used to
       // discover which codes exist.

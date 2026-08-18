@@ -5,6 +5,7 @@ import {
   canDeletePromoCode,
   grantExpiryFrom,
   validateNewPromoCode,
+  checkCouponEligibility,
   type PromoCodeRow,
 } from './promo.js'
 
@@ -140,5 +141,43 @@ describe('validateNewPromoCode', () => {
 
   it('validates the normalised form, so lowercase input is accepted', () => {
     expect(validateNewPromoCode({ ...valid, code: 'launch50' })).toBeNull()
+  })
+})
+
+describe('checkCouponEligibility', () => {
+  const account = (over: Partial<Parameters<typeof checkCouponEligibility>[0]> = {}) => ({
+    hasPaidBefore: false,
+    hasRedeemedAnyCoupon: false,
+    ...over,
+  })
+
+  it('allows a brand new account', () => {
+    expect(checkCouponEligibility(account())).toBeNull()
+  })
+
+  it('refuses anyone who has ever paid, even if that plan has long lapsed', () => {
+    // "First time user" means never a paying customer — not "not paying right
+    // now". A lapsed ex-customer coming back is a win-back, not an acquisition.
+    expect(checkCouponEligibility(account({ hasPaidBefore: true }))).toBe('not_new_customer')
+  })
+
+  it('refuses a second coupon even when it is a different code', () => {
+    // The UNIQUE (code, user_id) constraint only stops re-using the SAME code,
+    // so without this an account could work through every code in circulation.
+    expect(checkCouponEligibility(account({ hasRedeemedAnyCoupon: true }))).toBe('coupon_already_used')
+  })
+
+  it('reports having paid before ahead of having used a coupon', () => {
+    // Both true: say the one that is permanent. "You have already used a
+    // coupon" would imply trying again later might work.
+    expect(
+      checkCouponEligibility(account({ hasPaidBefore: true, hasRedeemedAnyCoupon: true }))
+    ).toBe('not_new_customer')
+  })
+
+  it('does not care about a trial — only about money and prior coupons', () => {
+    // A trial user has never paid, so they stay eligible. They are the most
+    // likely person to be handed a coupon.
+    expect(checkCouponEligibility(account())).toBeNull()
   })
 })

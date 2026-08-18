@@ -57,6 +57,45 @@ export function checkRedeemable(
   return null
 }
 
+export type CouponEligibilityRefusal = 'not_new_customer' | 'coupon_already_used'
+
+/**
+ * May this ACCOUNT use a coupon at all?
+ *
+ * Separate from checkRedeemable, which asks whether the CODE is usable. This
+ * asks whether the person is who coupons are for.
+ *
+ * Owner's rule (2026-08-18): a free-time coupon is a new-customer acquisition
+ * tool. It works only for someone who has never subscribed to any plan, and
+ * only once — once per ACCOUNT, across every code, not once per code.
+ *
+ * `hasPaidBefore` means a real payment, ever: a captured `payments` row with
+ * source 'razorpay'. Deliberately not derived from subscription_status or
+ * subscription_plan_type, which say what is true now rather than what has ever
+ * been true, and would let a lapsed ex-customer read as new. Two sources are
+ * deliberately excluded from that test:
+ *
+ *   * 'admin' — a plan the owner granted by hand. No money changed hands, and
+ *     the owner decided that must not burn the recipient's coupon eligibility.
+ *   * 'promo' — redeeming a coupon writes its own zero-amount payments row, so
+ *     counting those would make every coupon self-disqualifying. Prior coupons
+ *     are covered by hasRedeemedAnyCoupon instead.
+ *
+ * A TRIAL does not disqualify anyone: a trial is not a subscription and nobody
+ * has paid for it. Someone mid-trial is the most likely coupon recipient.
+ */
+export function checkCouponEligibility(account: {
+  hasPaidBefore: boolean
+  hasRedeemedAnyCoupon: boolean
+}): CouponEligibilityRefusal | null {
+  // Order matters for the message the user sees. Having paid is permanent, so
+  // it is reported first; leading with "you have already used a coupon" would
+  // suggest that trying again another time might work.
+  if (account.hasPaidBefore) return 'not_new_customer'
+  if (account.hasRedeemedAnyCoupon) return 'coupon_already_used'
+  return null
+}
+
 /**
  * May this code be deleted outright?
  *

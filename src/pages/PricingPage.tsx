@@ -703,6 +703,13 @@ export default function PricingPage() {
                         <p className="text-xs text-zinc-400 leading-relaxed font-medium">
                           🎟️ <strong className="text-sb-ink">Have a promo code?</strong> Enter your exclusive code below to unlock a free month of all tracking, backup, and dashboard automation tools instantly.
                         </p>
+                        {/* Stated up front rather than left to the refusal message.
+                            Both conditions are permanent for an account, so someone
+                            who has paid before can never make a coupon work — telling
+                            them only after they have typed a code reads as a fault. */}
+                        <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
+                          Coupons are for first-time users — accounts that have never had a paid plan — and one coupon per account.
+                        </p>
                       </div>
                       <div className="space-y-4">
                         <div className="flex flex-col gap-2">
