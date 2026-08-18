@@ -281,8 +281,8 @@ export default function LandingPage() {
             </div>
             <div ref={stepsRef} className="grid md:grid-cols-3 gap-6">
               {steps.map((s, i) => (
-                <div key={s.num} data-reveal data-delay={String(i * 150)}>
-                  <div className="sb-card-light p-8 relative group transition-shadow duration-300 hover:shadow-md h-full">
+                <div key={s.num} data-reveal data-delay={String(i * 150)} className="h-full flex flex-col">
+                  <div className="sb-card-light p-8 relative group transition-shadow duration-300 hover:shadow-md h-full flex flex-col justify-start">
                     <div className="text-5xl font-black text-sb-ink-muted/30 mb-6 leading-none group-hover:text-brand-500/40 transition-colors duration-300">{s.num}</div>
                     {i < steps.length - 1 && (
                       <svg className="hidden md:block absolute top-[60px] -right-[15px] w-8 h-6 text-brand-500/40 z-10" viewBox="0 0 32 16" fill="none">
@@ -323,13 +323,13 @@ export default function LandingPage() {
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {features.map((f, i) => (
-                <div key={f.title} data-reveal data-delay={String(i * 80)}>
-                  <div className="sb-card-light p-6 group h-full transition-shadow duration-300 hover:shadow-md">
-                    <div className="h-10 w-10 rounded-xl flex items-center justify-center text-xl mb-5 bg-brand-500/10 border border-brand-500/20 transition-transform duration-200 group-hover:scale-110">
+                <div key={f.title} data-reveal data-delay={String(i * 80)} className="h-full flex flex-col">
+                  <div className="sb-card-light p-6 group h-full flex flex-col justify-start transition-shadow duration-300 hover:shadow-md">
+                    <div className="h-10 w-10 rounded-xl flex items-center justify-center text-xl mb-5 bg-brand-500/10 border border-brand-500/20 transition-transform duration-200 group-hover:scale-110 shrink-0">
                       <f.icon className="h-5 w-5 text-brand-400" />
                     </div>
                     <h3 className="text-base font-semibold text-sb-ink mb-2">{f.title}</h3>
-                    <p className="text-sm text-sb-ink-secondary leading-relaxed">{f.desc}</p>
+                    <p className="text-sm text-sb-ink-secondary leading-relaxed flex-1">{f.desc}</p>
                   </div>
                 </div>
               ))}

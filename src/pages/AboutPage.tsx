@@ -54,10 +54,12 @@ export default function AboutPage() {
             { icon: <Lock className="w-8 h-8 text-emerald-400" />, title: 'Private', body: 'Your data never leaves your control. We read bank alerts, not your inbox. No ads. No selling data.' },
             { icon: <TrendingUp className="w-8 h-8 text-emerald-400" />, title: 'Actionable', body: 'Turns raw transaction data into insights that help you actually improve your financial behavior.' },
           ].map((item, i) => (
-            <div key={item.title} data-reveal data-delay={String(i * 100)} className="rounded-xl p-5 bg-sb-canvas border border-sb-hairline">
-              <div className="mb-3">{item.icon}</div>
-              <p className="text-sm font-semibold text-sb-ink">{item.title}</p>
-              <p className="text-xs mt-2 leading-relaxed text-sb-ink-muted">{item.body}</p>
+            <div key={item.title} data-reveal data-delay={String(i * 100)} className="h-full flex flex-col">
+              <div className="rounded-xl p-5 bg-sb-canvas border border-sb-hairline h-full flex flex-col justify-start">
+                <div className="mb-3">{item.icon}</div>
+                <p className="text-sm font-semibold text-sb-ink">{item.title}</p>
+                <p className="text-xs mt-2 leading-relaxed text-sb-ink-muted flex-1">{item.body}</p>
+              </div>
             </div>
           ))}
         </div>
@@ -95,9 +97,11 @@ export default function AboutPage() {
             { label: 'Frontend', value: 'React 19 + TypeScript — fast, type-safe, and optimized with code splitting' },
             { label: 'Hosting', value: 'Vercel global CDN with HTTPS enforcement, security headers, and HSTS' },
           ].map((item, i) => (
-            <div key={item.label} data-reveal data-delay={String(i * 70)} className="sb-card-light p-4">
-              <p className="text-xs font-bold uppercase tracking-wider mb-1 text-emerald-400">{item.label}</p>
-              <p className="text-sm leading-relaxed text-sb-ink-secondary">{item.value}</p>
+            <div key={item.label} data-reveal data-delay={String(i * 70)} className="h-full flex flex-col">
+              <div className="sb-card-light p-4 h-full flex flex-col justify-start">
+                <p className="text-xs font-bold uppercase tracking-wider mb-1 text-emerald-400">{item.label}</p>
+                <p className="text-sm leading-relaxed text-sb-ink-secondary flex-1">{item.value}</p>
+              </div>
             </div>
           ))}
         </div>
