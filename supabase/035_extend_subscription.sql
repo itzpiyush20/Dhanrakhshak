@@ -332,10 +332,20 @@ COMMIT;
 -- auth.jwt() ->> 'role' is 'service_role', and auth.jwt() reads
 -- request.jwt.claims — a per-request setting PostgREST supplies and the SQL
 -- editor does not. SECURITY DEFINER changes the executing ROLE, not that claim.
--- Session-scoped (false), not transaction-scoped, because the steps below are
--- separate statements:
+-- EACH "Run" IN THE SUPABASE SQL EDITOR IS A SEPARATE SESSION, on a pooled
+-- connection. A set_config from an earlier Run is therefore GONE by the next
+-- one, even in the same editor tab — confirmed the hard way on 2026-08-18.
+-- So the impersonation line must be the FIRST STATEMENT OF EVERY RUN, pasted
+-- together with the statements it applies to:
 --
 --   SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false);
+--   <the step's UPDATE / SELECT here, in the same Run>
+--
+-- Two consequences for how the steps below are used. Put the SELECT whose
+-- result you want to read LAST in the Run — the editor displays only the final
+-- statement's output. And where a step switches roles (steps 6 and 7 below,
+-- which act as `authenticated`), that step's own set_config must lead its Run;
+-- it cannot inherit the role from the step before it.
 --
 -- Then, on a throwaway account (substitute its uuid):
 --
