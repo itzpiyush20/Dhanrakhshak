@@ -298,6 +298,16 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.activate_pending_plan() FROM PUBLIC;
+-- `anon` is revoked EXPLICITLY, not just via PUBLIC. Supabase projects carry
+-- ALTER DEFAULT PRIVILEGES ... GRANT ALL ON FUNCTIONS TO anon, authenticated,
+-- which grants the role DIRECTLY — and REVOKE ... FROM PUBLIC does not strip a
+-- direct role grant. Verified against a live database: without this line the
+-- function came back with anon holding EXECUTE. Same reason 012 revokes anon by
+-- name. It is a no-op for anon today (auth.uid() is NULL, so the row lookup
+-- matches nothing and the function returns false) but an unauthenticated caller
+-- has no business reaching it, and that no-op stops being harmless the moment
+-- the function takes a parameter.
+REVOKE ALL ON FUNCTION public.activate_pending_plan() FROM anon;
 GRANT EXECUTE ON FUNCTION public.activate_pending_plan() TO authenticated, service_role;
 
 COMMIT;
