@@ -11,7 +11,7 @@ import { motion } from 'framer-motion'
 import { useScrollReveal } from '@/hooks'
 import { Card } from '@/components/ui'
 import { supabase } from '@/services/supabase'
-import { formatDate } from '@/utils'
+import { formatDate, cn } from '@/utils'
 
 // ── Feature lists for different subscription tiers ───────────
 // Kept deliberately accurate against what the code actually does.
@@ -436,8 +436,7 @@ export default function PricingPage() {
             {/* ── Standard: Monthly ─────────────────────────────── */}
             <Card
               hoverable
-              className="p-8 flex flex-col relative group"
-              style={{ borderColor: selectedPlan === 'monthly' ? 'var(--sb-primary)' : undefined, borderWidth: selectedPlan === 'monthly' ? 2 : undefined }}
+              className={cn("p-8 flex flex-col relative group transition-all", selectedPlan === 'monthly' ? "border-emerald-400 border-2 shadow-lg" : "border-border-subtle")}
               onClick={() => handleSelectPlan('monthly')}
             >
               <div className="flex items-center justify-between mb-6">
@@ -489,8 +488,7 @@ export default function PricingPage() {
             {/* ── Featured: Annual ── */}
             <Card
               hoverable
-              className="p-8 flex flex-col relative overflow-hidden group"
-              style={{ borderColor: selectedPlan === 'annual' ? 'var(--sb-primary)' : undefined, borderWidth: selectedPlan === 'annual' ? 2 : undefined }}
+              className={cn("p-8 flex flex-col relative overflow-hidden group transition-all", selectedPlan === 'annual' ? "border-emerald-400 border-2 shadow-lg" : "border-border-subtle")}
               onClick={() => handleSelectPlan('annual')}
             >
               {/* Best value badge */}
@@ -630,11 +628,12 @@ export default function PricingPage() {
                     <button
                       key={tab}
                       onClick={() => setPaymentMethod(tab)}
-                      className="flex-1 py-4 text-xs cursor-pointer transition-colors border-none bg-transparent font-bold"
-                      style={{
-                        color: paymentMethod === tab ? 'var(--sb-primary)' : 'var(--text-zinc-500)',
-                        borderBottom: paymentMethod === tab ? '2px solid var(--sb-primary)' : '2px solid transparent',
-                      }}
+                      className={cn(
+                        "flex-1 py-4 text-xs cursor-pointer transition-colors border-none bg-transparent font-bold border-b-2",
+                        paymentMethod === tab
+                          ? "text-emerald-400 border-emerald-400"
+                          : "text-zinc-500 border-transparent hover:text-zinc-300"
+                      )}
                     >
                       {label}
                     </button>
@@ -665,11 +664,12 @@ export default function PricingPage() {
                           <button
                             key={plan}
                             onClick={() => setSelectedPlan(plan)}
-                            className="flex-1 py-3.5 rounded-xl text-xs cursor-pointer transition-all bg-transparent border font-bold"
-                            style={{
-                              color: selectedPlan === plan ? 'var(--sb-primary)' : 'var(--text-zinc-400)',
-                              borderColor: selectedPlan === plan ? 'var(--sb-primary)' : 'var(--border-subtle)',
-                            }}
+                            className={cn(
+                              "flex-1 py-3.5 rounded-xl text-xs cursor-pointer transition-all bg-transparent font-bold border",
+                              selectedPlan === plan
+                                ? "text-emerald-400 border-emerald-400"
+                                : "text-zinc-400 border-border-subtle hover:border-zinc-700 hover:text-zinc-200"
+                            )}
                           >
                             {plan === 'annual' ? 'Annual — ₹365/yr' : 'Monthly — ₹31/mo'}
                           </button>
