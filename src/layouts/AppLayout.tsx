@@ -487,7 +487,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           ? "border-sb-hairline bg-sb-canvas/90 text-sb-ink backdrop-blur-xl"
           : "border-border-subtle bg-surface-1/95 backdrop-blur-md text-zinc-100 shadow-[var(--shadow-sm)]"
       )}>
-        <div className="mx-auto max-w-[1280px] h-[64px] flex items-center justify-between px-6 gap-6">
+        <div className="mx-auto max-w-7xl h-[64px] flex items-center justify-between px-4 sm:px-6 lg:px-8 gap-6">
           <Link to="/" className="flex items-center gap-3 shrink-0 group">
             <span className="text-sm font-black flex h-8 w-8 items-center justify-center rounded-xl bg-brand-500 text-white shadow-[var(--shadow-sm)] border-0 group-hover:scale-115 group-hover:rotate-12 transition-all duration-300" aria-hidden="true">{currencySymbol}</span>
             <div className="flex items-center gap-2.5">
@@ -949,7 +949,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           </Link>
         </div>
       )}
-      <main className="mx-auto flex-1 max-w-7xl w-full px-4 py-6 sm:px-6" id="main-content">
+      <main className="mx-auto flex-1 max-w-7xl w-full px-4 py-6 sm:px-6 lg:px-8" id="main-content">
         {user && isAppRoute && showPrivacyNote && (
           <div className="mb-6 rounded-2xl border border-border-subtle bg-surface-1 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start gap-3 shadow-[var(--shadow-sm)]">
             <div className="flex-1 space-y-1.5 text-xs text-zinc-400 leading-relaxed">
@@ -965,7 +965,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
       </main>
 
       {/* Footer Nav and Legal compliance links */}
-      <footer className={cn("border-t pt-8 pb-20 md:pb-8 px-4 sm:px-6 mt-auto", isStaticLight ? "border-sb-hairline bg-sb-canvas-soft text-sb-ink-muted" : "border-border-subtle bg-surface-1/40 text-zinc-400")}>
+      <footer className={cn("border-t pt-8 pb-20 md:pb-8 px-4 sm:px-6 lg:px-8 mt-auto", isStaticLight ? "border-sb-hairline bg-sb-canvas-soft text-sb-ink-muted" : "border-border-subtle bg-surface-1/40 text-zinc-400")}>
         <div className={cn("mx-auto max-w-7xl flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left text-xs", isStaticLight ? "text-sb-ink-muted" : "text-zinc-400")}>
           <div>
             <p className={cn("font-semibold", isStaticLight ? "text-sb-ink" : "text-zinc-300")}>© 2026 Dhanrakshak · All Rights Reserved</p>

@@ -81,14 +81,14 @@ export default function LandingPage() {
 
       {/* ── NAVBAR ─────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 bg-sb-canvas/80 backdrop-blur-md border-b border-sb-hairline">
-        <nav className="mx-auto max-w-6xl px-6 h-16 flex items-center justify-between">
+        <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3 group no-underline shrink-0">
             <span className="h-8 w-8 rounded-xl bg-brand-500 flex items-center justify-center text-sm font-black text-white shadow-[var(--shadow-sm)] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300">₹</span>
             <span className="text-base font-extrabold tracking-tight">
               <span className="text-brand-400">Dhan</span><span>rakshak</span>
             </span>
-            <span className="hidden md:flex items-center gap-1 text-xs font-bold tracking-widest uppercase px-2.5 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />Auto Tracker
+            <span className="hidden md:inline-flex items-center gap-1.5 text-xs font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />Automated Tracker
             </span>
           </Link>
 
@@ -125,7 +125,7 @@ export default function LandingPage() {
       <main>
         {/* ── HERO ─────────────────────────────────────────── */}
         <section className="pt-12 pb-10 md:pt-24 md:pb-20 border-b border-sb-hairline overflow-hidden relative">
-          <div className="mx-auto max-w-6xl px-6 grid lg:grid-cols-2 gap-16 items-center relative z-10">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-16 items-center relative z-10">
             <div className="space-y-8">
               {/* Badge */}
               <motion.div
@@ -238,7 +238,7 @@ export default function LandingPage() {
 
         {/* ── BANK MARQUEE ───────────────────────────────────── */}
         <section className="py-10 bg-sb-canvas border-b border-sb-hairline overflow-hidden">
-          <div className="mx-auto max-w-6xl px-6 text-center">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
             <p className="text-xs font-semibold tracking-wider text-sb-ink-muted uppercase mb-5">
               Works with every Indian bank & UPI app
             </p>
@@ -273,7 +273,7 @@ export default function LandingPage() {
 
         {/* ── HOW IT WORKS ────────────────────────────────── */}
         <section id="how-it-works" className="py-12 md:py-24 bg-sb-canvas-soft border-b border-sb-hairline">
-          <div className="mx-auto max-w-6xl px-6">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
               <div data-reveal className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-sb-ink-muted mb-4">How it works</div>
               <h2 data-reveal data-delay="80" className="text-4xl font-bold tracking-tight text-sb-ink mb-4">Spend money. We handle the rest.</h2>
@@ -315,7 +315,7 @@ export default function LandingPage() {
 
         {/* ── FEATURES ────────────────────────────────────── */}
         <section id="features" className="py-12 md:py-24 border-b border-sb-hairline">
-          <div className="mx-auto max-w-6xl px-6">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
               <div data-reveal className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-sb-ink-muted mb-4">Features</div>
               <h2 data-reveal data-delay="80" className="text-4xl font-bold tracking-tight text-sb-ink mb-4">Smart, simple, and <span className="text-sb-primary">privacy-respecting.</span></h2>
@@ -339,7 +339,7 @@ export default function LandingPage() {
 
         {/* ── TRUST / PRIVACY ─────────────────────────────── */}
         <section className="py-10 md:py-20 border-b border-sb-hairline">
-          <div className="mx-auto max-w-6xl px-6">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div data-reveal className="sb-card-light p-10 md:p-12 flex flex-col md:flex-row items-center gap-10 justify-between">
               <div className="max-w-lg">
                 <h2 className="text-2xl font-bold text-sb-ink mb-4">Your money, your data. Your control.</h2>
@@ -365,7 +365,7 @@ export default function LandingPage() {
 
         {/* ── INSTALL GUIDE ───────────────────────────────── */}
         <section id="install-guide" className="py-12 md:py-24 bg-sb-canvas-soft border-b border-sb-hairline">
-          <div className="mx-auto max-w-6xl px-6 grid lg:grid-cols-2 gap-16 items-center">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-16 items-center">
             <div className="space-y-6" data-reveal="from-left">
               <div className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-sb-ink-muted">Install</div>
               <h2 className="text-4xl font-bold text-sb-ink leading-tight">
@@ -553,7 +553,7 @@ export default function LandingPage() {
 
       {/* ── FOOTER ───────────────────────────────────────── */}
       <footer className="py-14 bg-sb-canvas-soft border-t border-sb-hairline">
-        <div className="mx-auto max-w-6xl px-6 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex flex-col items-center md:items-start gap-1">
             <div className="flex items-center gap-2">
               <span className="h-6 w-6 rounded-lg bg-brand-500 flex items-center justify-center text-xs font-black text-white">₹</span>
