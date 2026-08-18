@@ -765,33 +765,33 @@ export default function PricingPage() {
             </div>
             
             <div className="grid md:grid-cols-3 gap-6">
-              <div className="rounded-3xl bg-surface-1 border border-border-subtle p-6 space-y-4 shadow-md hover:shadow-lg transition-all">
-                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-400 shadow-sm animate-pulse">
+              <div className="rounded-3xl bg-surface-1 border border-border-subtle p-6 space-y-4 shadow-md hover:shadow-lg transition-all h-full flex flex-col justify-start">
+                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-400 shadow-sm animate-pulse shrink-0">
                   🔒
                 </div>
                 <h3 className="font-bold text-sb-ink text-base">Nothing stored, nothing sold</h3>
-                <p className="text-xs text-zinc-400 leading-relaxed font-medium">
+                <p className="text-xs text-zinc-400 leading-relaxed font-medium flex-1">
                   Scans run in your browser. To read an alert accurately, its text passes through Google's Gemini
                   in real time — never stored, never sold, never used to train anyone's model.
                 </p>
               </div>
 
-              <div className="rounded-3xl bg-surface-1 border border-border-subtle p-6 space-y-4 shadow-md hover:shadow-lg transition-all">
-                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-400 shadow-sm animate-pulse">
+              <div className="rounded-3xl bg-surface-1 border border-border-subtle p-6 space-y-4 shadow-md hover:shadow-lg transition-all h-full flex flex-col justify-start">
+                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-400 shadow-sm animate-pulse shrink-0">
                   🛡️
                 </div>
                 <h3 className="font-bold text-sb-ink text-base">Read-only mail scans</h3>
-                <p className="text-xs text-zinc-400 leading-relaxed font-medium">
+                <p className="text-xs text-zinc-400 leading-relaxed font-medium flex-1">
                   Our Google authentication API permissions are strictly read-only. We have no authority to initiate transfers or drafts.
                 </p>
               </div>
 
-              <div className="rounded-3xl bg-surface-1 border border-border-subtle p-6 space-y-4 shadow-md hover:shadow-lg transition-all">
-                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-400 shadow-sm animate-pulse">
+              <div className="rounded-3xl bg-surface-1 border border-border-subtle p-6 space-y-4 shadow-md hover:shadow-lg transition-all h-full flex flex-col justify-start">
+                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-400 shadow-sm animate-pulse shrink-0">
                   🔑
                 </div>
                 <h3 className="font-bold text-sb-ink text-base">No passwords required</h3>
-                <p className="text-xs text-zinc-400 leading-relaxed font-medium">
+                <p className="text-xs text-zinc-400 leading-relaxed font-medium flex-1">
                   We never prompt for net-banking passwords, PIN numbers, OTPs, or card security details. Your bank credentials remain isolated.
                 </p>
               </div>
