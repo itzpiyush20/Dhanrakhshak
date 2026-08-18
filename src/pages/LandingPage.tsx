@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/context'
-import { ROUTES } from '@/constants'
+import { ROUTES, FAQ_ITEMS } from '@/constants'
 import { Capacitor } from '@capacitor/core'
 import { cn } from '@/utils'
 import { useScrollReveal } from '@/hooks'
@@ -74,13 +74,7 @@ export default function LandingPage() {
     { num: '03', title: 'You approve, budgets update', desc: 'Detected transactions land in Pending for a quick review — approve them and the matching budget updates instantly.' },
   ]
 
-  const faqItems = [
-    { q: 'How does the app detect what I spent?', a: 'Connect your Gmail inbox and Dhanrakshak automatically reads transaction alert emails from your bank, extracting the amount and merchant with AI — no typing required. You can also add any expense manually in seconds.' },
-    { q: 'Can the app see my bank passwords or move money?', a: 'Absolutely not. Dhanrakshak is completely read-only. We never ask for your net-banking credentials, PINs, card numbers, CVV, or OTPs. We cannot touch your money in any way.' },
-    { q: 'Does Dhanrakshak read my SMSes?', a: 'No. Dhanrakshak never accesses your SMS inbox. Automatic detection works through an optional Gmail connection — nothing is read outside of what you explicitly authorize.' },
-    { q: 'Do I have to connect my email?', a: 'No — it is entirely optional. You can add every expense manually instead. Connecting Gmail just saves you the typing by detecting alerts automatically.' },
-    { q: 'What happens after the free trial ends?', a: 'During the 7-day free trial you get full access to all features. After that, automatic scanning pauses until you upgrade. Manual entry always remains free.' },
-  ]
+  const faqItems = FAQ_ITEMS
 
   return (
     <div className="min-h-screen bg-sb-canvas flex flex-col text-sb-ink page-enter">

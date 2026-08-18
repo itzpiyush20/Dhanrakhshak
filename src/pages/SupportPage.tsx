@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
-import { APP_CONFIG } from '@/constants'
+import { APP_CONFIG, FAQ_ITEMS } from '@/constants'
 import { submitSupportTicket } from '@/services/support'
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/utils'
@@ -104,25 +104,8 @@ export default function SupportPage() {
     setMessage('')
   }
 
-  // FAQ List Definition
-  const faqs = [
-    {
-      q: 'Why does Dhanrakshak scan emails?',
-      a: 'It scans incoming emails to locate transaction alerts containing NEFT, RTGS, UPI, credit, or debit details. This automated scanner processes SMS/Email copy to populate expense registries instantly, eliminating tedious manual entry pipelines.',
-    },
-    {
-      q: 'Are my passwords and credentials safe?',
-      a: 'Absolutely. Dhanrakshak never requests, stores, or transmits netbanking passwords, credit/debit card PINs, or OTPs. Email access is delegated securely via standard OAuth 2.0 authorization tokens directly provided by Google, allowing you to revoke access at any time.',
-    },
-    {
-      q: 'Why does my Google connection expire?',
-      a: 'Standard Google OAuth tokens expire automatically if the application is in "Testing" mode or if security credentials are reset. If scanning halts, simply sign out and log back in to trigger a fresh, secure authorization session and fetch a new token.',
-    },
-    {
-      q: 'Do you scan other personal emails?',
-      a: 'Only transaction alerts are ever turned into data. To decide whether an email is one, the scanner does have to look at the emails Gmail returns for its search — so newsletters, promotions and OTP alerts are read, judged, and thrown away. Nothing from them is saved except a short diagnostic note (sender domain, subject line) kept for 30 days so a missed transaction can be traced. Emails that match nothing financial are never fetched at all.',
-    },
-  ]
+  // FAQ List Definition (Central Single Source of Truth)
+  const faqs = FAQ_ITEMS
 
   // Sidebar Tabs Config
   const tabs = [
