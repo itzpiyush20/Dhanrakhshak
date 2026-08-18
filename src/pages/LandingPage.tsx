@@ -102,6 +102,7 @@ export default function LandingPage() {
             {[
               { label: 'How it works', href: '#how-it-works' },
               { label: 'Features', href: '#features' },
+              { label: 'Install App', href: '#install-guide' },
               { label: 'Pricing', href: '/pricing', link: true },
               { label: 'FAQ', href: '#faq' },
               { label: 'Support', href: '/support', link: true },
@@ -158,7 +159,7 @@ export default function LandingPage() {
                   className="text-lg text-sb-ink-secondary leading-relaxed max-w-md min-h-[3.5rem]"
                 >
                   Dhanrakshak reads your bank's transaction emails automatically and logs all your{" "}
-                  <span className="inline-flex relative min-w-[110px] overflow-hidden align-baseline font-semibold text-brand-400">
+                  <span className="inline-flex relative min-w-[135px] overflow-hidden align-baseline font-semibold text-brand-400">
                     <AnimatePresence mode="wait">
                       <motion.span
                         key={rotatingWord}
@@ -488,6 +489,7 @@ export default function LandingPage() {
                       onClick={() => setExpandedFaq(isOpen ? null : idx)}
                       className="w-full text-left px-6 py-5 flex items-center justify-between cursor-pointer border-none bg-transparent"
                       aria-expanded={isOpen}
+                      aria-controls={`faq-answer-${idx}`}
                     >
                       <span className="text-base font-semibold text-sb-ink pr-4">{item.q}</span>
                       <motion.span
@@ -501,6 +503,7 @@ export default function LandingPage() {
                     <AnimatePresence initial={false}>
                       {isOpen && (
                         <motion.div
+                          id={`faq-answer-${idx}`}
                           key="content"
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}

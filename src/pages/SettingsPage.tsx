@@ -18,7 +18,7 @@ import {
 } from '@/services'
 import { fetchAllTransactions } from '@/services/transactions'
 import { getInsurancePolicies, createInsurancePolicy, deleteInsurancePolicy } from '@/services/insurance'
-import { encryptText, decryptText, cn, formatCurrency, formatDate } from '@/utils'
+import { encryptText, decryptText, cn, formatCurrency, formatDate, toISODateLocal } from '@/utils'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
 import { useCategories } from '@/context/CategoriesContext'
@@ -462,7 +462,7 @@ export default function SettingsPage() {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.setAttribute('href', url)
-      link.setAttribute('download', `Dhanrakshak_Encrypted_Backup_${new Date().toISOString().split('T')[0]}.drbak`)
+      link.setAttribute('download', `Dhanrakshak_Encrypted_Backup_${toISODateLocal(new Date())}.drbak`)
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -526,11 +526,13 @@ export default function SettingsPage() {
       if (currentErr) {
         throw new Error('Could not read your existing transactions, so the merge was cancelled rather than risk creating duplicates.')
       }
-      const currentKeys = new Set(currentTxns?.map(t => `${t.date}-${t.amount}-${t.merchant || ''}-${t.description || ''}`))
+      const buildDedupKey = (t: { date: string; amount: number | string; merchant?: string | null; description?: string | null }) =>
+        `${t.date}-${Number(t.amount)}-${(t.merchant || '').trim().toLowerCase()}-${(t.description || '').trim().toLowerCase()}`
+
+      const currentKeys = new Set(currentTxns?.map(buildDedupKey))
 
       const toInsert = pendingRestoreData.filter((t: any) => {
-        const key = `${t.date}-${t.amount}-${t.merchant || ''}-${t.description || ''}`
-        return !currentKeys.has(key)
+        return !currentKeys.has(buildDedupKey(t))
       })
 
       if (toInsert.length > 0) {
@@ -760,8 +762,8 @@ export default function SettingsPage() {
                   <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Download Backup</h3>
                   <form onSubmit={handleBackup} className="space-y-3">
                     {backupSuccess && (
-                      <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-[11px] text-emerald-400 leading-relaxed animate-fade-in flex items-start gap-2">
-                        <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
+                      <div className="rounded-xl bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] p-2.5 text-[11px] text-[var(--status-positive-text)] leading-relaxed animate-fade-in flex items-start gap-2">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-[var(--status-positive-text)]" />
                         <span>Encrypted backup generated and downloaded successfully.</span>
                       </div>
                     )}
@@ -784,14 +786,14 @@ export default function SettingsPage() {
                   <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Restore Backup</h3>
                   <form onSubmit={handleRestore} className="space-y-3">
                     {restoreError && (
-                      <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-2.5 text-[11px] text-red-400 leading-relaxed flex items-start gap-2">
-                        <XCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
+                      <div className="rounded-xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-2.5 text-[11px] text-[var(--status-danger-text)] leading-relaxed flex items-start gap-2">
+                        <XCircle className="h-4 w-4 shrink-0 mt-0.5 text-[var(--status-danger-text)]" />
                         <span>{restoreError}</span>
                       </div>
                     )}
                     {restoreSuccess && (
-                      <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-[11px] text-emerald-400 leading-relaxed animate-fade-in flex items-start gap-2">
-                        <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
+                      <div className="rounded-xl bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] p-2.5 text-[11px] text-[var(--status-positive-text)] leading-relaxed animate-fade-in flex items-start gap-2">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-[var(--status-positive-text)]" />
                         <span>Backup successfully decrypted and data merged!</span>
                       </div>
                     )}
@@ -949,14 +951,14 @@ export default function SettingsPage() {
               </p>
               <form onSubmit={handleChangePassword} className="space-y-3">
                 {changePasswordError && (
-                  <div role="alert" className="rounded-xl bg-red-500/10 border border-red-500/20 p-2.5 text-[11px] text-red-400 leading-relaxed flex items-start gap-2">
-                    <XCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
+                  <div role="alert" className="rounded-xl bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] p-2.5 text-[11px] text-[var(--status-danger-text)] leading-relaxed flex items-start gap-2">
+                    <XCircle className="h-4 w-4 shrink-0 mt-0.5 text-[var(--status-danger-text)]" />
                     <span>{changePasswordError}</span>
                   </div>
                 )}
                 {changePasswordSuccess && (
-                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-[11px] text-emerald-400 leading-relaxed flex items-start gap-2">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
+                  <div className="rounded-xl bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] p-2.5 text-[11px] text-[var(--status-positive-text)] leading-relaxed flex items-start gap-2">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-[var(--status-positive-text)]" />
                     <span>Password updated successfully!</span>
                   </div>
                 )}
@@ -1071,7 +1073,7 @@ export default function SettingsPage() {
               </p>
 
               {policyError && (
-                <div className="text-xs p-2.5 mb-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl">
+                <div className="text-xs p-2.5 mb-3 bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] text-[var(--status-danger-text)] rounded-xl">
                   {policyError}
                 </div>
               )}

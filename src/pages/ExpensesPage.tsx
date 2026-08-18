@@ -113,7 +113,8 @@ export default function ExpensesPage() {
       t.merchant?.toLowerCase().includes(q) ||
       t.description?.toLowerCase().includes(q) ||
       String(t.amount).includes(q) ||
-      t.category?.toLowerCase().includes(q)
+      t.category?.toLowerCase().includes(q) ||
+      (t.tags && t.tags.some((tag) => tag.toLowerCase().includes(q)))
     const matchType = filterType === 'all' || t.type === filterType
     const matchCat = filterCategory === 'all' || t.category === filterCategory
     return matchSearch && matchType && matchCat

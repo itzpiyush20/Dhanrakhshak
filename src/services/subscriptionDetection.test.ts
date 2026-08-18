@@ -110,7 +110,7 @@ describe('detectSubscriptions — frequency tiers', () => {
   })
 })
 
-describe('detectSubscriptions — staleness', () => {
+describe('detectSubscriptions — staleness & calendar day renewal', () => {
   it('drops a monthly subscription whose last charge is past the stale cutoff', () => {
     // Last charge 17 May, i.e. 92 days before NOW — beyond the 65-day window.
     expect(
@@ -128,6 +128,16 @@ describe('detectSubscriptions — staleness', () => {
     ])
     expect(sub.frequency).toBe('annual')
     expect(sub.daysToRenewal).toBeGreaterThan(300)
+  })
+
+  it('calculates daysToRenewal = 0 accurately when renewal date is today', () => {
+    const todayStr = '2026-08-17'
+    const lastBilledStr = '2026-07-18' // 30 days before 2026-08-17
+    const [sub] = detect([
+      txn('Gym', todayStr, 1000, 'Subscriptions'),
+      txn('Gym', lastBilledStr, 1000, 'Subscriptions'),
+    ])
+    expect(sub.daysToRenewal).toBe(30)
   })
 })
 

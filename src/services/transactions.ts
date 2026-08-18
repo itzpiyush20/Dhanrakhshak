@@ -434,7 +434,7 @@ export async function getActiveReceivables() {
   if (!user) return { data: null, error: new Error('User not authenticated') }
 
   const now = new Date()
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+  const endOfMonth = toISODateLocal(new Date(now.getFullYear(), now.getMonth() + 1, 0))
 
   const { data, error } = await supabase
     .from('transactions')
@@ -472,7 +472,7 @@ export async function settleReceivable(transactionId: string) {
       amount: originalRow.amount,
       category: originalRow.category,
       description: `Returned by ${originalRow.counterparty || 'counterparty'}`,
-      date: new Date().toISOString().split('T')[0],
+      date: toISODateLocal(new Date()),
       source: 'manual',
       approval_status: 'approved',
     })

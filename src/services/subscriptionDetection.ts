@@ -10,6 +10,8 @@
 // disagreed about the same data. One implementation, imported by both, is what
 // keeps them honest.
 
+import { toISODateLocal } from '../utils/dateFilter'
+
 /**
  * The transaction columns detection actually reads. Deliberately structural
  * rather than `TransactionRow` so callers can pass either a full row or a
@@ -141,16 +143,19 @@ export function detectSubscriptions(
     }
 
     if (isRecurring) {
-      const lastBilledDate = new Date(latest.date)
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const [y, m, d] = latest.date.split('-').map(Number)
+      const lastBilledDate = new Date(y, m - 1, d)
+
       const daysSinceLastBilled = Math.round(
-        (now.getTime() - lastBilledDate.getTime()) / (1000 * 60 * 60 * 24)
+        (todayStart.getTime() - lastBilledDate.getTime()) / (1000 * 60 * 60 * 24)
       )
 
       if (daysSinceLastBilled > maxStaleDays) continue // Expired or cancelled
 
-      const nextRenewalDate = new Date(lastBilledDate.getTime())
+      const nextRenewalDate = new Date(lastBilledDate)
       nextRenewalDate.setDate(nextRenewalDate.getDate() + renewalDays)
-      const daysToRenewal = Math.ceil((nextRenewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+      const daysToRenewal = Math.round((nextRenewalDate.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24))
 
       const avgAmount = txns.reduce((sum, t) => sum + Number(t.amount), 0) / txns.length
 
@@ -166,7 +171,7 @@ export function detectSubscriptions(
         category: latest.category,
         amount: Math.round(avgAmount),
         lastBilled: latest.date,
-        nextRenewal: nextRenewalDate.toISOString().split('T')[0],
+        nextRenewal: toISODateLocal(nextRenewalDate),
         daysToRenewal,
         isAutoDetected: true,
         frequency,

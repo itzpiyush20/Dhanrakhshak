@@ -98,6 +98,12 @@ export default function PricingPage() {
   const loadRazorpayScript = () =>
     new Promise((resolve) => {
       if ((window as any).Razorpay) return resolve(true)
+      const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]')
+      if (existingScript) {
+        existingScript.addEventListener('load', () => resolve(true))
+        existingScript.addEventListener('error', () => resolve(false))
+        return
+      }
       const script = document.createElement('script')
       script.src = 'https://checkout.razorpay.com/v1/checkout.js'
       script.async = true
@@ -432,7 +438,7 @@ export default function PricingPage() {
               hoverable
               className="p-8 flex flex-col relative group"
               style={{ borderColor: selectedPlan === 'monthly' ? 'var(--sb-primary)' : undefined, borderWidth: selectedPlan === 'monthly' ? 2 : undefined }}
-              onClick={() => setSelectedPlan('monthly')}
+              onClick={() => handleSelectPlan('monthly')}
             >
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-bold text-sb-ink">Monthly</h2>
@@ -484,8 +490,8 @@ export default function PricingPage() {
             <Card
               hoverable
               className="p-8 flex flex-col relative overflow-hidden group"
-              style={{ borderColor: 'var(--sb-primary)', borderWidth: 2 }}
-              onClick={() => setSelectedPlan('annual')}
+              style={{ borderColor: selectedPlan === 'annual' ? 'var(--sb-primary)' : undefined, borderWidth: selectedPlan === 'annual' ? 2 : undefined }}
+              onClick={() => handleSelectPlan('annual')}
             >
               {/* Best value badge */}
               <div className="absolute top-0 right-0 sb-pill-tag-green text-xs font-extrabold uppercase tracking-widest px-4 py-2 rounded-bl-2xl rounded-tr-2xl">
@@ -711,7 +717,7 @@ export default function PricingPage() {
                           Coupons are for first-time users — accounts that have never had a paid plan — and one coupon per account.
                         </p>
                       </div>
-                      <div className="space-y-4">
+                      <form onSubmit={(e) => { e.preventDefault(); handlePromoSimulator(); }} className="space-y-4">
                         <div className="flex flex-col gap-2">
                           <label className="text-xs block font-bold uppercase tracking-widest text-zinc-500">Promo Code</label>
                           <input
@@ -720,18 +726,17 @@ export default function PricingPage() {
                             placeholder="e.g. DHANVIP"
                             value={promoCode}
                             onChange={(e) => setPromoCode(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handlePromoSimulator()}
                           />
                         </div>
                         <button
-                          onClick={handlePromoSimulator}
+                          type="submit"
                           disabled={processing || !promoCode.trim()}
                           className="sb-btn-primary w-full cursor-pointer border-0"
                           style={{ opacity: processing || !promoCode.trim() ? 0.5 : 1 }}
                         >
                           {processing ? 'Applying promo coupon…' : 'Redeem Code & Activate'}
                         </button>
-                      </div>
+                      </form>
                     </div>
                   )}
 

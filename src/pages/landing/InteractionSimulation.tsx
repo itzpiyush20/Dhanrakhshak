@@ -7,32 +7,45 @@ export function InteractionSimulation() {
 
   useEffect(() => {
     let active = true
+    const timers: ReturnType<typeof setTimeout>[] = []
+
     const run = () => {
       if (!active) return
       setStep(0)
       setBudgetAmount(4000)
-      setTimeout(() => {
-        if (active) setStep(1)
-      }, 1000)
-      setTimeout(() => {
-        if (active) setStep(2)
-      }, 3500)
-      setTimeout(() => {
-        if (active) setStep(3)
-      }, 6000)
-      setTimeout(() => {
-        if (active) {
-          setStep(4)
-          setBudgetAmount(4250)
-        }
-      }, 8500)
-      setTimeout(() => {
-        if (active) run()
-      }, 12500)
+      timers.push(
+        setTimeout(() => {
+          if (active) setStep(1)
+        }, 1000)
+      )
+      timers.push(
+        setTimeout(() => {
+          if (active) setStep(2)
+        }, 3500)
+      )
+      timers.push(
+        setTimeout(() => {
+          if (active) setStep(3)
+        }, 6000)
+      )
+      timers.push(
+        setTimeout(() => {
+          if (active) {
+            setStep(4)
+            setBudgetAmount(4250)
+          }
+        }, 8500)
+      )
+      timers.push(
+        setTimeout(() => {
+          if (active) run()
+        }, 12500)
+      )
     }
     run()
     return () => {
       active = false
+      timers.forEach(clearTimeout)
     }
   }, [])
 

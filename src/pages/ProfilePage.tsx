@@ -52,6 +52,18 @@ export default function ProfilePage() {
     })
   }, [])
 
+  // Sync with auth metadata if profile fetch returns empty or delays
+  useEffect(() => {
+    if (user?.user_metadata) {
+      if (!fullName && user.user_metadata.full_name) {
+        setFullName(user.user_metadata.full_name)
+      }
+      if (!avatarUrl && user.user_metadata.avatar_url) {
+        setAvatarUrl(user.user_metadata.avatar_url)
+      }
+    }
+  }, [user])
+
   const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setProfileLoading(true)
@@ -330,7 +342,7 @@ export default function ProfilePage() {
                         onChange={(e) => setDeleteConfirmEmail(e.target.value)}
                         disabled={deleteLoading}
                         required
-                        className="border-red-950/60 focus:border-red-500 focus:ring-red-500/20"
+                        className="border-[var(--status-danger-border)]/60 focus:border-[var(--status-danger-border)] focus:ring-[var(--status-danger-border)]/20"
                       />
                       {deleteConfirmEmail.trim() !== '' && !deleteConfirmMatches && (
                         <p className="mt-1.5 text-xs text-zinc-500">

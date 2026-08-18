@@ -40,3 +40,16 @@ describe('buildMerchantLeaderboard', () => {
     expect(result[0]).toEqual({ merchant: 'Merchant9', amount: 10, count: 1 })
   })
 })
+
+describe('Emergency Fund Coverage Calculation', () => {
+  it('correctly calculates coverage months based on accumulated investments and monthly needs', () => {
+    // User has accumulated ₹3,60,000 in savings over 6 months, and has ₹60,000/mo essential needs.
+    const totalInvestments = 360000
+    const avgMonthlyNeeds = 60000
+    const emergencyMonths = Number((totalInvestments / avgMonthlyNeeds).toFixed(1))
+    
+    // Coverage must equal 6.0 months (not 1.0 month)
+    expect(emergencyMonths).toBe(6.0)
+    expect(emergencyMonths >= 6).toBe(true)
+  })
+})

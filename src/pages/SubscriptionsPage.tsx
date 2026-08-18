@@ -118,7 +118,13 @@ export default function SubscriptionsPage() {
     () => runDetectSubscriptions(transactions, { ignoredKeys }),
     [transactions, ignoredKeys]
   )
-  const totalMonthlyOutflow = detectedSubs.reduce((sum, s) => sum + s.amount, 0)
+  const totalMonthlyOutflow = detectedSubs.reduce((sum, s) => {
+    const monthlyEquivalent =
+      s.frequency === 'annual' ? s.amount / 12 :
+      s.frequency === 'quarterly' ? s.amount / 3 :
+      s.amount
+    return sum + monthlyEquivalent
+  }, 0)
 
   const uniqueSubCategories = useMemo(
     () => [...new Set(detectedSubs.map((s) => s.category))],
@@ -159,9 +165,10 @@ export default function SubscriptionsPage() {
 
     try {
       const now = new Date()
-      // Create a date in this month with the selected renewal day
-      const targetDate = new Date(now.getFullYear(), now.getMonth(), subRenewalDay)
-      // If target date is in the past, default to last month or this month transaction
+      // Create a date in this month with the selected renewal day (capped to max days in current month)
+      const maxDaysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+      const validDay = Math.min(subRenewalDay, maxDaysInMonth)
+      const targetDate = new Date(now.getFullYear(), now.getMonth(), validDay)
       const dateStr = toISODateLocal(targetDate)
 
       if (!user) throw new Error('User not logged in')
@@ -257,12 +264,12 @@ export default function SubscriptionsPage() {
                 
                 <form onSubmit={handleAddManualSub} className="space-y-4">
                   {formError && (
-                    <div className="text-xs p-2.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl">
+                    <div className="text-xs p-2.5 bg-[var(--status-danger-subtle)] border border-[var(--status-danger-border)] text-[var(--status-danger-text)] rounded-xl">
                       {formError}
                     </div>
                   )}
                   {formSuccess && (
-                    <div className="text-xs p-2.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl">
+                    <div className="text-xs p-2.5 bg-[var(--status-positive-subtle)] border border-[var(--status-positive-border)] text-[var(--status-positive-text)] rounded-xl">
                       Subscription registered successfully!
                     </div>
                   )}

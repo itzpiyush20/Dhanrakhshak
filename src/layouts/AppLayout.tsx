@@ -543,10 +543,10 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
             ) : (
               <nav className="hidden md:flex items-center gap-8" aria-label="Desktop navigation">
                 {[
-                  { label: 'Daily Life', href: '/#daily-utility' },
+                  { label: 'How it works', href: '/#how-it-works' },
                   { label: 'Features', href: '/#features' },
-                  { label: 'Pricing', href: '/pricing', isLink: true },
                   { label: 'Install App', href: '/#install-guide' },
+                  { label: 'Pricing', href: '/pricing', isLink: true },
                   { label: 'FAQ', href: '/#faq' },
                   { label: 'Support', href: '/support', isLink: true },
                 ].map((item) =>

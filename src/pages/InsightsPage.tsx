@@ -107,6 +107,7 @@ const getRangeDates = (range: RangeType) => {
     start.setDate(1)
     start.setHours(0, 0, 0, 0)
 
+    end.setDate(1)
     end.setMonth(now.getMonth() + 1, 0) // day 0 of next month = last day of this one
     end.setHours(23, 59, 59, 999)
   } else if (range === 'last-15-days') {
@@ -120,12 +121,16 @@ const getRangeDates = (range: RangeType) => {
     start.setMonth(now.getMonth() - 1)
     start.setHours(0, 0, 0, 0)
 
+    end.setDate(1)
     end.setMonth(now.getMonth(), 0) // day 0 of this month = last day of the previous one
     end.setHours(23, 59, 59, 999)
   } else if (range === 'last-6-months') {
     start.setDate(1)
     start.setMonth(now.getMonth() - 5)
     start.setHours(0, 0, 0, 0)
+
+    end.setDate(1)
+    end.setMonth(now.getMonth() + 1, 0)
     end.setHours(23, 59, 59, 999)
   }
   return { start, end }
@@ -316,7 +321,10 @@ const getMoMTrend = (allTxns: any[]) => {
   if (curMonthData.monthKey === currentMonthKey) {
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
     const daysElapsed = Math.max(1, now.getDate())
-    curExpenses = (curMonthData.expenses / daysElapsed) * daysInMonth
+    // Blend prorated run-rate with actual spend during the first 7 days to prevent early-month lump-sum spike distortion
+    const weight = Math.min(1, daysElapsed / 7)
+    const prorated = (curMonthData.expenses / daysElapsed) * daysInMonth
+    curExpenses = weight * prorated + (1 - weight) * curMonthData.expenses
   }
   
   const diff = curExpenses - prevMonthData.expenses
@@ -572,10 +580,11 @@ export default function InsightsPage() {
     return () => { cancelled = true }
   }, [dateFilter])
 
-  // 2. CA Advisory Computations — bound to top header Range selector
-  const { start: advisoryStart, end: advisoryEnd } = useMemo(() => getRangeDates(range), [range])
-  const advisoryFrom = useMemo(() => toISODateLocal(advisoryStart), [advisoryStart])
-  const advisoryTo = useMemo(() => toISODateLocal(advisoryEnd), [advisoryEnd])
+  // 2. CA Advisory Computations — bound to Advisory Period date filter
+  const { advisoryFrom, advisoryTo } = useMemo(() => {
+    const resolved = resolveDateFilter(dateFilter)
+    return { advisoryFrom: resolved.dateFrom, advisoryTo: resolved.dateTo }
+  }, [dateFilter])
   const monthlyTxns = useMemo(
     () => expenseTransactions.filter((t) => t.date && t.date >= advisoryFrom && t.date <= advisoryTo),
     [expenseTransactions, advisoryFrom, advisoryTo]
@@ -703,9 +712,8 @@ export default function InsightsPage() {
     .filter((t) => savingsCategoryNames.includes(t.category))
     .reduce((sum, t) => sum + Number(t.amount), 0)
 
-  // `transactions` spans 6 historical months. Normalize total investments to a monthly average.
-  const avgMonthlyInvestments = totalInvestments / 6
-  const emergencyMonths = Number((avgMonthlyInvestments / avgMonthlyNeeds).toFixed(1))
+  // Total savings accumulated across the trailing window divided by monthly essential needs
+  const emergencyMonths = Number((totalInvestments / avgMonthlyNeeds).toFixed(1))
   const isEmergencyFundReady = emergencyMonths >= 6
 
   // Set default simulation inputs once data is loaded

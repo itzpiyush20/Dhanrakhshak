@@ -10,6 +10,7 @@ import { useAuth } from '@/context/AuthContext'
 import { createTransaction, updateTransaction } from '@/services'
 import type { Database } from '@/types/database'
 import { KNOWN_MERCHANTS } from '@/services/merchantNormalizer'
+import { toISODateLocal } from '@/utils/dateFilter'
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row']
 
@@ -47,13 +48,13 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
     editingTransaction?.tags?.join(', ') || ''
   )
   const [date, setDate] = useState(
-    editingTransaction?.date || new Date().toISOString().split('T')[0]
+    editingTransaction?.date || toISODateLocal(new Date())
   )
   const [isReturnable, setIsReturnable] = useState(editingTransaction?.is_returnable || false)
   const [counterparty, setCounterparty] = useState(editingTransaction?.counterparty || '')
   const [expectedReturnDate, setExpectedReturnDate] = useState(
     editingTransaction?.expected_return_date ||
-    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    toISODateLocal(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
   )
   const [notes, setNotes] = useState(editingTransaction?.notes || '')
   const [loading, setLoading] = useState(false)
@@ -139,10 +140,10 @@ export default function ExpenseForm({ editingTransaction, onSaved, onCancel }: E
       setMerchant('')
       setTagsInput('')
       setCategory(defaultCategory)
-      setDate(new Date().toISOString().split('T')[0])
+      setDate(toISODateLocal(new Date()))
       setIsReturnable(false)
       setCounterparty('')
-      setExpectedReturnDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+      setExpectedReturnDate(toISODateLocal(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)))
       setNotes('')
     }
 
