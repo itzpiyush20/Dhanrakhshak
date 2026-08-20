@@ -1,7 +1,7 @@
 {
   "short_name": "Dhanrakshak",
   "name": "Dhanrakshak — Personal Finance Tracker",
-  "description": "Your secure sandboxed personal wealth guardian. Track expenses, manage budgets, and safeguard savings.",
+  "description": "Turns your bank's transaction alert emails into expenses you approve. Read-only Gmail access, every Indian bank and UPI app.",
   "icons": [
     {
       "src": "/favicon.svg",
@@ -34,8 +34,9 @@
       "purpose": "maskable"
     }
   ],
-  "start_url": "/dashboard",
-  "id": "/dashboard",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
   "background_color": "#09090b",
   "theme_color": "#09090b",
   "display": "standalone",

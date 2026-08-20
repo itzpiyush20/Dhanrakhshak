@@ -12,6 +12,7 @@ import { useScrollReveal } from '@/hooks'
 import { Card } from '@/components/ui'
 import { supabase } from '@/services/supabase'
 import { formatDate, cn } from '@/utils'
+import { setPageMeta } from '@/utils/seo'
 
 // ── Feature lists for different subscription tiers ───────────
 // Kept deliberately accurate against what the code actually does.
@@ -86,7 +87,13 @@ export default function PricingPage() {
   // perform.
   const planSub   = selectedPlan === 'annual' ? 'One payment · 365 days of access' : 'One payment · 30 days of access'
 
-  useEffect(() => { document.title = 'Pricing & Plans | Dhanrakshak' }, [])
+  useEffect(() => {
+    setPageMeta({
+      title: 'Pricing & Plans | Dhanrakshak',
+      description: 'Dhanrakshak costs ₹31 for 30 days or ₹365 for a year — one-time payments, so nothing auto-renews and no mandate touches your card. Free 7-day trial, no card required.',
+      canonicalPath: '/pricing',
+    })
+  }, [])
 
   useEffect(() => {
     if (isActive && profile?.subscription_plan_type === 'monthly') {

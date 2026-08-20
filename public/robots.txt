@@ -1,0 +1,33 @@
+# Dhanrakshak — crawl rules
+#
+# The Sitemap URL below hardcodes the site origin. On a domain move, update it
+# together with the other three places listed in src/utils/seo.ts.
+#
+# The public marketing and legal pages are meant to be indexed. Everything
+# behind authentication is not: those routes render a redirect to the landing
+# page for anyone without a session, so an indexed copy would be a useless
+# result pointing at a login wall.
+
+User-agent: *
+Allow: /
+
+# Authenticated app routes — no useful content without a session.
+Disallow: /dashboard
+Disallow: /expenses
+Disallow: /budgets
+Disallow: /pending
+Disallow: /insights
+Disallow: /settings
+Disallow: /profile
+Disallow: /subscriptions
+Disallow: /payment-success
+Disallow: /admin
+
+# Account flows. Nothing to index, and reset links are single-use.
+Disallow: /reset-password
+Disallow: /forgot-password
+
+# Auth modal deep links resolve to a page already listed in the sitemap.
+Disallow: /*?auth=
+
+Sitemap: https://dhanrakshak-five.vercel.app/sitemap.xml

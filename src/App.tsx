@@ -16,6 +16,7 @@ import URLAuthTrigger from '@/components/auth/URLAuthTrigger'
 import AuthModal from '@/components/auth/AuthModal'
 import ScrollProgressBar from '@/components/ui/ScrollProgressBar'
 import { applyTheme, resolveIsLight, subscribeToTheme } from '@/utils/theme'
+import { setCanonical } from '@/utils/seo'
 
 // Marketing/legal routes only — app routes don't need a reading-progress chrome element.
 const MARKETING_ROUTES = new Set(['/', '/support', '/privacy', '/about', '/terms', '/pricing', '/refund-policy'])
@@ -34,6 +35,16 @@ function LoginRedirect() {
 function SignupRedirect() {
   const location = useLocation()
   return <Navigate to={`/?auth=signup${location.search ? '&' + location.search.substring(1) : ''}${location.hash}`} replace />
+}
+
+// Keeps <link rel="canonical"> and og:url pointing at the route actually being
+// viewed. Public pages also set it through setPageMeta, to the same value; this
+// exists so a route that sets no metadata of its own cannot leave the previous
+// page's canonical URL standing.
+function CanonicalUrl() {
+  const { pathname } = useLocation()
+  useEffect(() => { setCanonical(pathname) }, [pathname])
+  return null
 }
 
 function MarketingScrollProgress() {
@@ -217,6 +228,7 @@ function App() {
     <BrowserRouter>
       <MotionConfig reducedMotion="user">
         <ScrollToTop />
+        <CanonicalUrl />
         <AutoUpdateChecker />
         <CookieConsent />
         <AuthProvider>

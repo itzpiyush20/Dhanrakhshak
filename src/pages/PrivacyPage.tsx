@@ -7,7 +7,10 @@ import { MarketingLayout } from '@/layouts'
 
 export default function PrivacyPage() {
   return (
-    <MarketingLayout title="Privacy Policy">
+    <MarketingLayout
+      title="Privacy Policy"
+      description="How Dhanrakshak handles your data: read-only Gmail access, what is kept and what is discarded, where it is stored, and your rights under India's DPDPA 2023."
+    >
       <div className="mb-10">
         <h1 className="text-3xl font-extrabold tracking-tight text-sb-ink">Privacy Policy</h1>
         <p className="text-xs mt-1 text-sb-ink-muted">Last updated: August 16, 2026 · Effective immediately</p>

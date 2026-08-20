@@ -6,7 +6,10 @@ import { MarketingLayout } from '@/layouts'
 
 export default function TermsPage() {
   return (
-    <MarketingLayout title="Terms of Service">
+    <MarketingLayout
+      title="Terms of Service"
+      description="The terms governing your use of Dhanrakshak, covering Gmail scanning, the 7-day trial, one-time subscription payments, and limitations of liability."
+    >
       <div className="mb-10">
         <h1 className="text-3xl font-extrabold tracking-tight text-sb-ink">Terms of Service</h1>
         <p className="text-xs mt-1 text-sb-ink-muted">Last updated: June 2, 2026 · Effective immediately</p>

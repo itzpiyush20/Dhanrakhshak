@@ -1,21 +1,31 @@
 import { useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { FOOTER_NAV_ITEMS } from '@/constants'
+import { setPageMeta } from '@/utils/seo'
 import { useAuth } from '@/context/AuthContext'
 import { UserMenu } from '@/components/ui'
 
 interface MarketingLayoutProps {
   children: ReactNode
   title: string
+  /**
+   * Search-result and link-preview summary for this page. Optional only so the
+   * layout keeps working if a future page forgets it — every current caller
+   * passes one, because without it the page inherits index.html's generic
+   * description and is indistinguishable from every other route.
+   */
+  description?: string
 }
 
-export default function MarketingLayout({ children, title }: MarketingLayoutProps) {
+export default function MarketingLayout({ children, title, description }: MarketingLayoutProps) {
   const { user, openAuthModal } = useAuth()
 
   useEffect(() => {
-    document.title = `${title} | Dhanrakshak`
+    const fullTitle = `${title} | Dhanrakshak`
+    if (description) setPageMeta({ title: fullTitle, description })
+    else document.title = fullTitle
     window.scrollTo(0, 0)
-  }, [title])
+  }, [title, description])
 
   return (
     <div className="min-h-screen bg-sb-canvas text-sb-ink-secondary flex flex-col">

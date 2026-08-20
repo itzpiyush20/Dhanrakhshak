@@ -10,6 +10,7 @@ import { APP_CONFIG, FAQ_ITEMS } from '@/constants'
 import { submitSupportTicket } from '@/services/support'
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/utils'
+import { setPageMeta } from '@/utils/seo'
 
 export default function SupportPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -33,7 +34,11 @@ export default function SupportPage() {
   const [sendError, setSendError] = useState<string | null>(null)
 
   useEffect(() => {
-    document.title = 'Support & Privacy | Dhanrakshak'
+    setPageMeta({
+      title: 'Support & Privacy | Dhanrakshak',
+      description: 'Get help with Dhanrakshak: file a support ticket, browse FAQs about Gmail scanning and billing, and read our privacy, OAuth scope and DPDPA commitments.',
+      canonicalPath: '/support',
+    })
   }, [])
 
   // Prefill the email of a signed-in user. They can still change it — someone

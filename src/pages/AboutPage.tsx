@@ -15,7 +15,10 @@ export default function AboutPage() {
   useScrollReveal()
 
   return (
-    <MarketingLayout title="About">
+    <MarketingLayout
+      title="About"
+      description="Why Dhanrakshak exists: automatic expense tracking built on read-only Gmail bank alerts, for people who abandon manual expense trackers within two weeks."
+    >
       {/* Hero */}
       <div className="text-center mb-16">
         <motion.div

@@ -8,7 +8,10 @@ import { MarketingLayout } from '@/layouts'
 
 export default function RefundPage() {
   return (
-    <MarketingLayout title="Cancellation & Refund Policy">
+    <MarketingLayout
+      title="Cancellation & Refund Policy"
+      description="Dhanrakshak plans are one-time payments with nothing to cancel. When a refund is available, how to claim one, and Razorpay processing timelines."
+    >
       <div className="mb-10">
         <h1 className="text-3xl font-extrabold tracking-tight text-sb-ink">Cancellation & Refund Policy</h1>
         <p className="text-xs mt-1 text-sb-ink-muted">Last updated: June 8, 2026 · Effective immediately</p>

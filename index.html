@@ -4,22 +4,37 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="Dhanrakshak — Your personal wealth guardian. Track expenses, manage budgets, and gain financial clarity." />
+    <!-- Defaults only. Every public route overwrites title/description/canonical
+         at runtime via src/utils/seo.ts; this is what a crawler that does not
+         execute JavaScript sees, so it describes the product honestly rather
+         than claiming "zero manual logs" (manual entry is a free-tier feature)
+         or "100% data ownership". -->
+    <meta name="description" content="Connect Gmail once and Dhanrakshak turns your bank's transaction alert emails into expenses you approve. Read-only access, every Indian bank and UPI app, free 7-day trial." />
     <meta name="theme-color" content="#09090b" />
-    
+    <link rel="canonical" href="https://dhanrakshak-five.vercel.app/" />
+
     <!-- Open Graph / Facebook Link Previews -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Dhanrakshak" />
+    <meta property="og:locale" content="en_IN" />
     <meta property="og:url" content="https://dhanrakshak-five.vercel.app/" />
-    <meta property="og:title" content="Dhanrakshak — Personal Finance Dashboard" />
-    <meta property="og:description" content="Automated, privacy-first personal wealth guardian. Tracks daily expenses instantly from secure, read-only bank email alerts with zero manual logs and 100% data ownership." />
-    <meta property="og:image" content="https://dhanrakshak-five.vercel.app/favicon.svg" />
+    <meta property="og:title" content="Dhanrakshak — Expenses that track themselves" />
+    <meta property="og:description" content="Connect Gmail once and Dhanrakshak turns your bank's transaction alert emails into expenses you approve. Read-only access, every Indian bank and UPI app, free 7-day trial." />
+    <!-- Must be a raster image. This was favicon.svg, and Facebook, WhatsApp,
+         LinkedIn and X all refuse SVG — so every shared link rendered with no
+         preview image at all. -->
+    <meta property="og:image" content="https://dhanrakshak-five.vercel.app/icon-512.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="Dhanrakshak" />
 
     <!-- Twitter Link Previews -->
     <meta property="twitter:card" content="summary" />
     <meta property="twitter:url" content="https://dhanrakshak-five.vercel.app/" />
-    <meta property="twitter:title" content="Dhanrakshak — Personal Finance Dashboard" />
-    <meta property="twitter:description" content="Automated, privacy-first personal wealth guardian. Tracks daily expenses instantly from secure, read-only bank email alerts with zero manual logs." />
-    <meta property="twitter:image" content="https://dhanrakshak-five.vercel.app/favicon.svg" />
+    <meta property="twitter:title" content="Dhanrakshak — Expenses that track themselves" />
+    <meta property="twitter:description" content="Connect Gmail once and Dhanrakshak turns your bank's transaction alert emails into expenses you approve. Read-only access, every Indian bank and UPI app, free 7-day trial." />
+    <meta property="twitter:image" content="https://dhanrakshak-five.vercel.app/icon-512.png" />
 
     <title>Dhanrakshak — Personal Finance Dashboard</title>
     <!-- Pre-paint theme resolution. MUST stay inline and MUST stay in <head>:

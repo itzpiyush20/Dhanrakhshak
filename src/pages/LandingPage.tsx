@@ -6,6 +6,7 @@ import { ROUTES, FAQ_ITEMS, FOOTER_NAV_ITEMS } from '@/constants'
 import { Capacitor } from '@capacitor/core'
 import { cn } from '@/utils'
 import { useScrollReveal } from '@/hooks'
+import { setPageMeta } from '@/utils/seo'
 import { UserMenu } from '@/components/ui'
 import { Zap, Shield, Landmark, Wallet, Smartphone, RefreshCw, Lock, Bell } from 'lucide-react'
 import { InteractionSimulation } from './landing'
@@ -48,17 +49,41 @@ export default function LandingPage() {
   useScrollReveal()
 
   useEffect(() => {
-    if (!loading && Capacitor.isNativePlatform()) {
+    if (loading) return
+
+    if (Capacitor.isNativePlatform()) {
       if (user) navigate(ROUTES.DASHBOARD || '/dashboard', { replace: true })
       // Native app launch with no session. Left on 'login' deliberately: someone
       // opening an installed app has usually signed up already. Every marketing
       // "Get started" passes 'signup' explicitly instead.
       else openAuthModal(undefined, 'login')
+      return
     }
+
+    // Installed PWA. The manifest's start_url used to be /dashboard, which
+    // bounced anyone launching the app without a session through
+    // ProtectedRoute and back out to the landing page. It is now "/", so the
+    // signed-in shortcut it used to provide has to happen here instead.
+    // Signed-out launches simply land on the landing page.
+    if (!user) return
+    let isStandalone = false
+    try {
+      isStandalone =
+        window.matchMedia?.('(display-mode: standalone)').matches ||
+        // iOS Safari predates display-mode and exposes this instead.
+        (navigator as Navigator & { standalone?: boolean }).standalone === true
+    } catch {
+      isStandalone = false
+    }
+    if (isStandalone) navigate(ROUTES.DASHBOARD || '/dashboard', { replace: true })
   }, [user, loading, navigate, openAuthModal])
 
   useEffect(() => {
-    document.title = 'Dhanrakshak | Expenses that track themselves.'
+    setPageMeta({
+      title: 'Dhanrakshak | Expenses that track themselves.',
+      description: "Connect Gmail once and Dhanrakshak turns your bank's transaction alert emails into expenses you approve. Read-only access, every Indian bank and UPI app, free 7-day trial.",
+      canonicalPath: '/',
+    })
     // Arriving at /#features from another page must land on that section, not
     // the top — ScrollToTop in App.tsx performs that scroll, and this would
     // undo it.
