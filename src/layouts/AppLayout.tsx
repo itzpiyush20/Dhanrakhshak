@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth, useToast } from '@/context'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
+import SiteFooter from '@/components/ui/SiteFooter'
 import { submitFeedback, supabase } from '@/services'
 import { getActiveReceivables } from '@/services/transactions'
 import { getInsurancePolicies } from '@/services/insurance'
@@ -949,21 +950,11 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
       </main>
 
       {/* Footer Nav and Legal compliance links */}
-      <footer className={cn("border-t pt-8 pb-20 md:pb-8 px-4 sm:px-6 lg:px-8 mt-auto", isStaticLight ? "border-sb-hairline bg-sb-canvas-soft text-sb-ink-muted" : "border-border-subtle bg-surface-1/40 text-zinc-400")}>
-        <div className={cn("mx-auto max-w-7xl flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left text-xs", isStaticLight ? "text-sb-ink-muted" : "text-zinc-400")}>
-          <div>
-            <p className={cn("font-semibold", isStaticLight ? "text-sb-ink" : "text-zinc-300")}>© 2026 Dhanrakshak · All Rights Reserved</p>
-            <p className="mt-1">Version 1.0.0 (Production Build) · Proprietary Closed-Source License</p>
-          </div>
-          <div className={cn("flex flex-wrap justify-center gap-6 font-medium", isStaticLight ? "text-sb-ink-muted" : "")}>
-            {FOOTER_NAV_ITEMS.map((item) => (
-              <Link key={item.label} to={item.href} className="hover:text-brand-400 transition-colors">
-                {item.label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </footer>
+      {/* The build-metadata line that used to live here — "Version 1.0.0
+          (Production Build) · Proprietary Closed-Source License" — was
+          developer-facing text printed on /pricing and /support, two pages a
+          prospective customer reads before signing up. */}
+      <SiteFooter tone="app" isLight={isStaticLight || isLight} />
 
       {/* Feedback Modal — opened from the profile menu / Settings, not a FAB */}
       <Modal

@@ -7,7 +7,7 @@ import { Capacitor } from '@capacitor/core'
 import { cn } from '@/utils'
 import { useScrollReveal } from '@/hooks'
 import { setPageMeta } from '@/utils/seo'
-import { UserMenu } from '@/components/ui'
+import { UserMenu, SiteFooter } from '@/components/ui'
 import { Zap, Shield, Landmark, Wallet, Smartphone, RefreshCw, Lock, Bell } from 'lucide-react'
 import { InteractionSimulation } from './landing'
 
@@ -277,6 +277,12 @@ export default function LandingPage() {
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
             <p className="text-xs font-semibold tracking-wider text-sb-ink-muted uppercase mb-5">
               Works with every Indian bank & UPI app
+            </p>
+            {/* Naming 15 banks and payment apps with no qualifier reads as an
+                endorsement none of them have given. */}
+            <p className="text-xs text-sb-ink-muted/80 mb-5 max-w-xl mx-auto leading-relaxed">
+              Dhanrakshak reads the alert emails these providers send you. It is not affiliated with,
+              endorsed by, or partnered with any of them, and all names and marks belong to their owners.
             </p>
             <div className="marquee-container select-none">
               <div className="marquee-content font-mono text-sm font-semibold tracking-tight text-sb-ink-muted flex items-center">
@@ -594,22 +600,7 @@ export default function LandingPage() {
       </main>
 
       {/* ── FOOTER ───────────────────────────────────────── */}
-      <footer className="py-14 bg-sb-canvas-soft border-t border-sb-hairline">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex flex-col items-center md:items-start gap-1">
-            <div className="flex items-center gap-2">
-              <span className="h-6 w-6 rounded-lg bg-brand-500 flex items-center justify-center text-xs font-black text-white">₹</span>
-              <span className="text-sm font-extrabold"><span className="text-brand-400">Dhan</span><span>rakshak</span></span>
-            </div>
-            <p className="text-xs text-sb-ink-muted">© 2026 Dhanrakshak. Built with privacy by design.</p>
-          </div>
-          <div className="flex flex-wrap justify-center gap-6 font-medium">
-            {FOOTER_NAV_ITEMS.map((l) => (
-              <Link key={l.label} to={l.href} className="text-xs text-sb-ink-muted hover:text-sb-ink transition-colors no-underline">{l.label}</Link>
-            ))}
-          </div>
-        </div>
-      </footer>
+      <SiteFooter showWordmark className="px-4 sm:px-6 lg:px-8" />
     </div>
   )
 }

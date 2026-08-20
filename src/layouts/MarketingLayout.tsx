@@ -1,9 +1,8 @@
 import { useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { FOOTER_NAV_ITEMS } from '@/constants'
 import { setPageMeta } from '@/utils/seo'
 import { useAuth } from '@/context/AuthContext'
-import { UserMenu } from '@/components/ui'
+import { UserMenu, SiteFooter } from '@/components/ui'
 
 interface MarketingLayoutProps {
   children: ReactNode
@@ -58,16 +57,7 @@ export default function MarketingLayout({ children, title, description }: Market
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-sb-hairline bg-sb-canvas-soft py-8 px-4 text-center text-xs text-sb-ink-muted shrink-0">
-        <p>© 2026 Dhanrakshak. Your Personal CFO.</p>
-        <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-3 font-medium">
-          {FOOTER_NAV_ITEMS.map((item) => (
-            <Link key={item.label} to={item.href} className="no-underline hover:underline text-sb-ink-muted">
-              {item.label}
-            </Link>
-          ))}
-        </div>
-      </footer>
+      <SiteFooter className="py-8 px-4" />
     </div>
   )
 }

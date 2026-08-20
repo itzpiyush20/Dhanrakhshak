@@ -147,9 +147,14 @@ export default function PricingPage() {
       }
       if (!response.ok || orderData.error) throw new Error(orderData.error || 'Could not initiate payment order')
 
-      const clientKey = (import.meta.env.VITE_RAZORPAY_KEY_ID && import.meta.env.VITE_RAZORPAY_KEY_ID.startsWith('rzp_'))
-        ? import.meta.env.VITE_RAZORPAY_KEY_ID
-        : 'rzp_test_placeholder'
+      // A missing or malformed key used to fall back to 'rzp_test_placeholder',
+      // so checkout opened and then failed inside Razorpay's iframe with an
+      // error the customer could neither understand nor act on. Fail here
+      // instead, where the message can say what is actually wrong.
+      const clientKey = import.meta.env.VITE_RAZORPAY_KEY_ID
+      if (!clientKey || !clientKey.startsWith('rzp_')) {
+        throw new Error('Payments are not configured on this deployment. Please contact support — you have not been charged.')
+      }
 
       const options = {
         key: clientKey,

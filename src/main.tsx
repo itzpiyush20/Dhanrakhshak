@@ -17,10 +17,18 @@ try {
   console.warn('Failed to parse provider token from hash:', e)
 }
 
-// Register Service Worker for PWA support
+// Register Service Worker for PWA support.
+//
+// Gated on the legacy-purge promise set up in index.html. That purge runs once
+// per browser and unregisters EVERY service worker; because it is async, it
+// could otherwise resolve after this registration and immediately unregister
+// the worker we had just installed — costing the whole first visit its cache.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
+    const purged = (window as Window & { __dhanrakshakPurge?: Promise<unknown> }).__dhanrakshakPurge
+      ?? Promise.resolve()
+    purged
+      .then(() => navigator.serviceWorker.register('/sw.js'))
       .catch(err => console.warn('SW registration failed:', err))
   })
 }

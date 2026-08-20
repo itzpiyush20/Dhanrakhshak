@@ -96,18 +96,22 @@
       }, true); // Use capture phase
     </script>
 
-    <!-- Bulletproof legacy service worker and cache purge (Background only) -->
+    <!-- Bulletproof legacy service worker and cache purge (Background only)
+
+         main.tsx waits on window.__dhanrakshakPurge before registering the
+         service worker. Without that handshake the unregister below — which is
+         async — could resolve AFTER registration and tear down the worker that
+         had just been installed, leaving the first visit with no cache at all. -->
     <script>
+      window.__dhanrakshakPurge = Promise.resolve();
       try {
         if (typeof window !== 'undefined') {
           var PURGE_KEY = 'dhanrakshak_purge_v4';
           if (!localStorage.getItem(PURGE_KEY)) {
             if ('serviceWorker' in navigator) {
-              navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                for (var i = 0; i < registrations.length; i++) {
-                  registrations[i].unregister();
-                }
-              });
+              window.__dhanrakshakPurge = navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                return Promise.all(registrations.map(function(r) { return r.unregister(); }));
+              }).catch(function() {});
             }
             if ('caches' in window) {
               caches.keys().then(function(keys) {
