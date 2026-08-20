@@ -548,7 +548,28 @@ html { scroll-behavior: smooth; }
     scroll-behavior: auto !important;
   }
   html { scroll-behavior: auto; }
+
+  /* The blanket rule above collapses every animation to its FINAL frame, which
+     for the bank marquee is translateX(-50%) — parking it on the duplicated
+     half that is aria-hidden from assistive tech. Hold it at the start
+     instead, so reduced-motion users see the real, readable list. */
+  .marquee-content {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  /* Scroll-reveal elements start at opacity:0 and are revealed by JS. The
+     blanket transition-duration above makes that instant, which is correct —
+     but if the observer never runs, the content stays invisible. Showing it
+     unconditionally here costs nothing and cannot strand a reader. */
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
+
+/* The no-JavaScript case is handled by a <noscript> style block in index.html,
+   which needs no class plumbing to apply. */
 
 /* WCAG 1.4.11 — enhanced contrast preference */
 @media (prefers-contrast: more) {

@@ -109,6 +109,11 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-sb-canvas flex flex-col text-sb-ink page-enter">
+      {/* The busiest nav on the site sat in front of the content with no way
+          past it. AppLayout has had this; the public pages had not. */}
+      <a href="#main-content" className="skip-to-content">
+        Skip to main content
+      </a>
 
       {/* ── NAVBAR ─────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 bg-sb-canvas/80 backdrop-blur-md border-b border-sb-hairline">
@@ -153,7 +158,7 @@ export default function LandingPage() {
         </nav>
       </header>
 
-      <main>
+      <main id="main-content">
         {/* ── HERO ─────────────────────────────────────────── */}
         <section className="pt-12 pb-10 md:pt-24 md:pb-20 border-b border-sb-hairline overflow-hidden relative">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-16 items-center relative z-10">
@@ -515,6 +520,7 @@ export default function LandingPage() {
                       className="w-full text-left px-6 py-5 flex items-center justify-between cursor-pointer border-none bg-transparent"
                       aria-expanded={isOpen}
                       aria-controls={`faq-answer-${idx}`}
+                      id={`faq-question-${idx}`}
                     >
                       <span className="text-base font-semibold text-sb-ink pr-4">{item.q}</span>
                       <motion.span
@@ -525,10 +531,14 @@ export default function LandingPage() {
                         ＋
                       </motion.span>
                     </button>
+                    {/* The id lives on this always-present wrapper. It used to
+                        sit on the animated panel, which only exists while the
+                        item is open — so the button's aria-controls pointed at
+                        nothing for every collapsed question. */}
+                    <div id={`faq-answer-${idx}`} role="region" aria-labelledby={`faq-question-${idx}`}>
                     <AnimatePresence initial={false}>
                       {isOpen && (
                         <motion.div
-                          id={`faq-answer-${idx}`}
                           key="content"
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
@@ -542,6 +552,7 @@ export default function LandingPage() {
                         </motion.div>
                       )}
                     </AnimatePresence>
+                    </div>
                   </div>
                 )
               })}

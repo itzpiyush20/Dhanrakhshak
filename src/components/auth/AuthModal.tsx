@@ -8,6 +8,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { APP_CONFIG } from '@/constants'
 import { useToast } from '@/context'
+import { useDialog } from '@/hooks'
 import { Button, Input } from '@/components/ui'
 
 export default function AuthModal() {
@@ -39,6 +40,19 @@ export default function AuthModal() {
       setIsSignUp(authModalTab === 'signup')
     }
   }, [authModalOpen, authModalTab])
+
+  // Escape, focus trap, scroll lock, focus restore. Declared before the early
+  // return below so hook order stays stable across open and closed renders.
+  const panelRef = useDialog<HTMLDivElement>(authModalOpen, closeAuthModal)
+
+  // Clicking the backdrop used to discard a half-filled signup — name, email
+  // and password gone, with no warning and no undo. Anything typed makes the
+  // dismissal deliberate: use the ✕ or Escape.
+  const hasUnsavedInput = Boolean(fullName || email || password)
+  const handleBackdropClick = () => {
+    if (hasUnsavedInput) return
+    closeAuthModal()
+  }
 
   if (!authModalOpen) return null
 
@@ -101,13 +115,16 @@ export default function AuthModal() {
   return (
     <div
       className="fixed inset-0 z-modal flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in"
-      onClick={closeAuthModal}
+      onClick={handleBackdropClick}
     >
       <div
+        ref={panelRef}
         className="relative w-full max-w-md bg-surface-1 border border-border-default rounded-2xl shadow-[var(--shadow-lg)] p-6 sm:p-8 my-auto animate-scale-up text-zinc-100 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
+        aria-labelledby="auth-modal-title"
+        tabIndex={-1}
       >
         {/* Close Button */}
         <button
@@ -123,7 +140,7 @@ export default function AuthModal() {
           <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500 text-white shadow-[var(--shadow-sm)] border-0" aria-hidden="true">
             <span className="text-xl font-bold">{currencySymbol || '₹'}</span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-zinc-50 mb-1 flex items-center justify-center select-none">
+          <h1 id="auth-modal-title" className="text-2xl font-black tracking-tight text-zinc-50 mb-1 flex items-center justify-center select-none">
             <span className="text-brand-400">Dhan</span><span>rakshak</span>
           </h1>
           <p className="text-xs font-bold tracking-wider text-emerald-400 uppercase text-center">

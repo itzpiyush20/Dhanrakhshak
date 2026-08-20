@@ -292,17 +292,25 @@ export default function SupportPage() {
                             className="w-full text-left px-4 py-4 flex items-center justify-between font-semibold transition-colors bg-surface-2 hover:bg-surface-2/85 border-none cursor-pointer"
                             aria-expanded={isExpanded}
                             aria-controls={`support-faq-${idx}`}
+                            id={`support-faq-q-${idx}`}
                           >
                             <span className="text-sm font-semibold text-sb-ink">{faq.q}</span>
                             <span className="text-lg text-emerald-400">
                               {isExpanded ? '−' : '＋'}
                             </span>
                           </button>
-                          {isExpanded && (
-                            <div id={`support-faq-${idx}`} className="px-4 pb-4 pt-2 border-t border-border-subtle/50 bg-surface-2/40">
-                              <p className="text-xs text-zinc-400 leading-relaxed">{faq.a}</p>
-                            </div>
-                          )}
+                          {/* Rendered always and hidden when collapsed, so the
+                              button's aria-controls always resolves to a real
+                              element. It used to be mounted only while open. */}
+                          <div
+                            id={`support-faq-${idx}`}
+                            role="region"
+                            aria-labelledby={`support-faq-q-${idx}`}
+                            hidden={!isExpanded}
+                            className="px-4 pb-4 pt-2 border-t border-border-subtle/50 bg-surface-2/40"
+                          >
+                            <p className="text-xs text-zinc-400 leading-relaxed">{faq.a}</p>
+                          </div>
                         </div>
                       )
                     })}
@@ -352,9 +360,10 @@ export default function SupportPage() {
                   <form onSubmit={handleFormSubmit} className="space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
-                        <label className="text-xs block mb-1.5 font-bold uppercase tracking-widest text-zinc-500">Full Name</label>
+                        <label htmlFor="support-name" className="text-xs block mb-1.5 font-bold uppercase tracking-widest text-zinc-500">Full Name</label>
                         <input
                           type="text"
+                          id="support-name"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           className={cn(
@@ -366,9 +375,10 @@ export default function SupportPage() {
                         {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name}</p>}
                       </div>
                       <div>
-                        <label className="text-xs block mb-1.5 font-bold uppercase tracking-widest text-zinc-500">Email Address</label>
+                        <label htmlFor="support-email" className="text-xs block mb-1.5 font-bold uppercase tracking-widest text-zinc-500">Email Address</label>
                         <input
                           type="email"
+                          id="support-email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           className={cn(
@@ -382,9 +392,10 @@ export default function SupportPage() {
                     </div>
 
                     <div>
-                      <label className="text-xs block mb-1.5 font-bold uppercase tracking-widest text-zinc-500">Subject</label>
+                      <label htmlFor="support-subject" className="text-xs block mb-1.5 font-bold uppercase tracking-widest text-zinc-500">Subject</label>
                       <input
                         type="text"
+                        id="support-subject"
                         value={subject}
                         onChange={(e) => setSubject(e.target.value)}
                         className={cn(
@@ -397,8 +408,9 @@ export default function SupportPage() {
                     </div>
 
                     <div>
-                      <label className="text-xs block mb-1.5 font-bold uppercase tracking-widest text-zinc-500">Detailed Message</label>
+                      <label htmlFor="support-message" className="text-xs block mb-1.5 font-bold uppercase tracking-widest text-zinc-500">Detailed Message</label>
                       <textarea
+                        id="support-message"
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         rows={4}

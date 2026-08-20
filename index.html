@@ -134,6 +134,14 @@
     
   </head>
   <body>
+    <!-- Scroll-reveal elements are opacity:0 until useScrollReveal's
+         IntersectionObserver marks them revealed. With scripting off that never
+         happens, and most of the landing and About pages would render blank. -->
+    <noscript>
+      <style>
+        [data-reveal] { opacity: 1 !important; transform: none !important; }
+      </style>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

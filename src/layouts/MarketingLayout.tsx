@@ -29,6 +29,9 @@ export default function MarketingLayout({ children, title, description }: Market
 
   return (
     <div className="min-h-screen bg-sb-canvas text-sb-ink-secondary flex flex-col">
+      <a href="#main-content" className="skip-to-content">
+        Skip to main content
+      </a>
       {/* Header */}
       <header className="border-b border-sb-hairline bg-sb-canvas/80 backdrop-blur-md sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -50,7 +53,7 @@ export default function MarketingLayout({ children, title, description }: Market
       </header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-6 py-16 flex-1 w-full">
+      <main id="main-content" className="max-w-4xl mx-auto px-6 py-16 flex-1 w-full">
         {children}
       </main>
 

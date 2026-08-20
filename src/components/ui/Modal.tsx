@@ -1,8 +1,9 @@
-import { useEffect, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 import { cn } from '@/utils'
+import { useDialog } from '@/hooks'
 import Button from './Button'
 
 interface ModalProps {
@@ -26,24 +27,11 @@ export default function Modal({
   sheet = false,
 }: ModalProps) {
 
-  // Escape key and scroll lock
-  useEffect(() => {
-    if (!isOpen) return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose()
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    document.body.style.overflow = 'hidden'
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = ''
-    }
-  }, [isOpen, onClose])
+  // Escape, scroll lock, focus trap and focus restore all live in useDialog so
+  // this modal and AuthModal cannot drift apart. This used to handle only the
+  // first two, which left a keyboard user focused on the page behind the
+  // dialog, tabbing through content the backdrop was covering.
+  const panelRef = useDialog<HTMLDivElement>(isOpen, onClose)
 
   return createPortal(
     <AnimatePresence>
@@ -63,6 +51,11 @@ export default function Modal({
 
           {/* Modal Content */}
           <motion.div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={title}
+            tabIndex={-1}
             initial={{ opacity: 0, y: 20 }}
             animate={{
               opacity: 1,
