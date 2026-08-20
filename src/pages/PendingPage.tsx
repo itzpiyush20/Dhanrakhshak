@@ -1238,15 +1238,15 @@ export default function PendingPage() {
             <Card className="bg-surface-1 border-border-subtle p-6 space-y-4 shadow-md">
               <div className="flex items-center gap-3">
                 <Shield className="h-6 w-6 text-brand-400 shrink-0" />
-                <h3 className="font-bold text-white text-base">Your Data Stays on Your Device</h3>
+                <h3 className="font-bold text-white text-base">How Your Mail Is Handled</h3>
               </div>
               <p className="text-xs text-zinc-400 leading-relaxed font-medium">
-                Dhanrakshak uses <strong>Private Local Processing</strong>. When you connect your Gmail inbox, our app fetches your bank alert emails and reads them <em>directly inside your browser</em>.
+                Your inbox is read <em>straight from Gmail</em> over a read-only connection — no server here keeps a copy of your mailbox. To tell a real transaction from a newsletter, an alert's subject and the start of its body pass through our server to Google's Gemini for a moment, and are discarded immediately after.
               </p>
               <div className="rounded-xl bg-surface-2 p-3 text-[11px] text-zinc-500 font-medium flex items-start gap-2">
                 <Lightbulb className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
                 <span>
-                  <strong>Think of it like an offline desk calculator:</strong> We never upload your raw emails, passwords, or transaction details to our servers. Your banking information is processed and stored locally on this device.
+                  <strong>What is kept:</strong> the transaction itself — merchant, amount, date, category — saved to a database row only your account can read. <strong>What we never see:</strong> your Gmail password, your net-banking credentials, PINs, or OTPs.
                 </span>
               </div>
             </Card>

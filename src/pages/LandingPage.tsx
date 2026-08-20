@@ -61,7 +61,7 @@ export default function LandingPage() {
 
   const features = [
     { icon: Zap, title: 'Automatic detection', desc: 'Connect Gmail once and bank alert emails are parsed into transactions for you to approve — no typing amounts.' },
-    { icon: Shield, title: 'Privacy-respecting', desc: 'Manual entries never leave your device. Automatic parsing sends only the relevant alert text to a secure AI parser — nothing is stored or sold.' },
+    { icon: Shield, title: 'Privacy-respecting', desc: 'Read-only Gmail access, and never your whole mailbox. To classify an alert, its text passes through our server to Google’s Gemini in real time — never retained, never sold, never used to train a model.' },
     { icon: Landmark, title: 'All Indian banks', desc: 'Works with ICICI, HDFC, SBI, Axis, Kotak and every UPI-enabled bank.' },
     { icon: Wallet, title: 'Smart budgets', desc: 'Set monthly limits per category. Get alerted before you overspend.' },
     { icon: Smartphone, title: 'Install like an app', desc: 'Add to your home screen in seconds. No App Store, no APK needed.' },
@@ -344,13 +344,13 @@ export default function LandingPage() {
               <div className="max-w-lg">
                 <h2 className="text-2xl font-bold text-sb-ink mb-4">Your money, your data. Your control.</h2>
                 <p className="text-sb-ink-secondary leading-relaxed text-sm">
-                  Manual entries never leave your device. Automatic detection sends only the relevant alert text to a secure AI parser to extract merchant, amount, and category — nothing is stored or sold. We never ask for your net-banking credentials, PINs, or OTPs, and we can't touch your money.
+                  Your transactions live in a database row that only your account can read, enforced by Postgres row-level security — never sold, never handed to advertisers. To detect an alert, its text passes through our server to Google's Gemini in real time and is not retained afterwards. We never ask for your net-banking credentials, PINs, or OTPs, and we can't touch your money.
                 </p>
               </div>
               <div className="flex gap-12 shrink-0">
                 {[
                   { val: 'Read-only', label: 'access', sub: 'Never touches your money' },
-                  { val: '256-bit', label: 'SSL encryption', sub: 'Bank-grade security' },
+                  { val: 'TLS 1.3', label: 'in transit', sub: 'Encrypted end to end' },
                 ].map((s) => (
                   <div key={s.label} className="text-center">
                     <p className="text-4xl font-black text-brand-400 font-mono">{s.val}</p>

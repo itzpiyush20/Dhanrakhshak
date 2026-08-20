@@ -51,7 +51,7 @@ export default function AboutPage() {
         <div className="grid sm:grid-cols-3 gap-4 mt-8">
           {[
             { icon: <Brain className="w-8 h-8 text-emerald-400" />, title: 'Intelligent', body: 'Automatically tracks and categorizes your spending from bank emails with human-like accuracy.' },
-            { icon: <Lock className="w-8 h-8 text-emerald-400" />, title: 'Private', body: 'Your data never leaves your control. We read bank alerts, not your inbox. No ads. No selling data.' },
+            { icon: <Lock className="w-8 h-8 text-emerald-400" />, title: 'Private', body: 'Read-only Gmail access, limited to what a bank-alert search returns. Nothing is kept but the transaction itself. No ads, no data sold, ever.' },
             { icon: <TrendingUp className="w-8 h-8 text-emerald-400" />, title: 'Actionable', body: 'Turns raw transaction data into insights that help you actually improve your financial behavior.' },
           ].map((item, i) => (
             <div key={item.title} data-reveal data-delay={String(i * 100)} className="h-full flex flex-col">
@@ -113,7 +113,7 @@ export default function AboutPage() {
         <div className="grid sm:grid-cols-2 gap-3">
           {[
             'We never store your banking passwords',
-            'We never read personal emails — only bank alerts',
+            'We only ever keep bank alerts — anything else read is discarded',
             'We never sell your financial data',
             'We never show you ads based on your spending',
             'You can export all your data anytime',

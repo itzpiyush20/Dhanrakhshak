@@ -268,13 +268,13 @@ export default function AuthModal() {
           <div className="flex items-start gap-2.5">
             <span className="text-sm shrink-0 mt-0.5" aria-hidden="true">📩</span>
             <p className="text-xs text-zinc-300 leading-relaxed">
-              <strong className="text-zinc-50">What's read:</strong> only bank alert emails, to detect transactions.
+              <strong className="text-zinc-50">What's read:</strong> only messages a bank-alert search returns. Judging whether one is a real transaction means reading it, so a few newsletters caught by that search get read too — and discarded.
             </p>
           </div>
           <div className="flex items-start gap-2.5">
             <span className="text-sm shrink-0 mt-0.5" aria-hidden="true">🔒</span>
             <p className="text-xs text-zinc-300 leading-relaxed">
-              <strong className="text-zinc-50">Stays on your device:</strong> parsing happens in your browser — raw emails are never uploaded or stored on our servers.
+              <strong className="text-zinc-50">How it's read:</strong> your inbox is read straight from Gmail — we never hold a copy of your mailbox. To classify an alert, its subject and the start of its body pass through our server to Google's Gemini in real time. Nothing is retained afterwards and none of it trains any model.
             </p>
           </div>
           <div className="flex items-start gap-2.5">

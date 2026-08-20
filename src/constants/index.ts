@@ -97,7 +97,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   },
   {
     q: 'Does Dhanrakshak read my SMSes or non-financial emails?',
-    a: 'No. Dhanrakshak never accesses your SMS inbox. Automatic detection works strictly through your authorized Gmail connection. Only financial alert emails (NEFT, RTGS, UPI, card debits) are parsed — non-financial emails are filtered out and thrown away.',
+    a: 'Never your SMS inbox — Dhanrakshak has no access to it at all. Detection works strictly through your authorised Gmail connection, and only on messages a financial-keyword search returns (NEFT, RTGS, UPI, card debits and the like). Judging whether one of those is a real transaction means reading its subject and the start of its body, so some newsletters and promotions caught by that search do get read — they are then discarded, never saved as transactions.',
     category: 'security',
   },
   {
@@ -117,7 +117,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   },
   {
     q: 'How is my personal financial data protected?',
-    a: 'All data is encrypted in transit using 256-bit SSL and partitioned at rest using Supabase Row-Level Security (RLS) policies. Your financial logs are private to your account and are never sold, shared, or used to train third-party AI models.',
+    a: 'All data is encrypted in transit using TLS 1.3 and partitioned at rest using Supabase Row-Level Security (RLS) policies, so your rows are readable only by your own account. Your financial logs are never sold, shared, or used to train third-party AI models.',
     category: 'security',
   },
 ]

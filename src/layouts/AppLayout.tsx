@@ -954,7 +954,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
           <div className="mb-6 rounded-2xl border border-border-subtle bg-surface-1 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start gap-3 shadow-[var(--shadow-sm)]">
             <div className="flex-1 space-y-1.5 text-xs text-zinc-400 leading-relaxed">
               <p className="text-sm font-semibold text-text-primary">How your data is handled</p>
-              <p>Bank alerts are read and parsed directly in your browser — nothing is uploaded. Your Google access is read-only, and we never ask for passwords, PINs, or OTPs.</p>
+              <p>Your inbox is read straight from Gmail — we never hold a copy of your mailbox. To classify an alert, its subject and the start of its body pass through our server to Google's Gemini in real time and are not retained. Your Google access is read-only, and we never ask for passwords, PINs, or OTPs.</p>
             </div>
             <Button variant="secondary" size="md" onClick={handleDismissPrivacyNote} className="shrink-0 self-start sm:self-auto">
               Got it

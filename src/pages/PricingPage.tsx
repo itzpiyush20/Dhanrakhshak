@@ -544,7 +544,7 @@ export default function PricingPage() {
                     {isActive && profile?.subscription_plan_type === 'monthly' ? 'Upgrade to Yearly' : 'Get Yearly'}
                   </button>
                 )}
-                <p className="text-xs text-center text-zinc-500 font-medium">Secured via Razorpay · 256-bit SSL</p>
+                <p className="text-xs text-center text-zinc-500 font-medium">Payments handled by Razorpay · encrypted in transit</p>
               </div>
             </Card>
 
@@ -616,7 +616,7 @@ export default function PricingPage() {
                   </button>
                 </div>
                 <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">
-                  Standard stepwise checkout · 100% Secure & encrypted
+                  Checkout is handled by Razorpay · encrypted in transit
                 </p>
               </Card>
             ) : (
@@ -697,7 +697,7 @@ export default function PricingPage() {
                       </button>
 
                       <p className="text-xs text-center text-zinc-500 font-semibold uppercase tracking-wider">
-                        🔒 Secured with bank-grade 256-bit SSL encryption · Powered by Razorpay
+                        🔒 Encrypted in transit · Card details go to Razorpay, never to us
                       </p>
                     </div>
                   )}
@@ -771,8 +771,9 @@ export default function PricingPage() {
                 </div>
                 <h3 className="font-bold text-sb-ink text-base">Nothing stored, nothing sold</h3>
                 <p className="text-xs text-zinc-400 leading-relaxed font-medium flex-1">
-                  Scans run in your browser. To read an alert accurately, its text passes through Google's Gemini
-                  in real time — never stored, never sold, never used to train anyone's model.
+                  Your inbox is read straight from Gmail — no server here holds a copy of your mail. To read an
+                  alert accurately, its text passes through our server to Google's Gemini in real time — never
+                  stored, never sold, never used to train anyone's model.
                 </p>
               </div>
 

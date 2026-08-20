@@ -36,9 +36,10 @@ export default function TermsPage() {
 
         {section("3. Email Tracking & Google API Data", `
           If you connect your Google Account (Gmail) to allow the email scanner engine to scan and extract transactions:
-          - You explicitly grant Dhanrakshak permission to read, search, and parse financial transactional emails from whitelisted banking domains in your inbox.
-          - Dhanrakshak only accesses transactional emails. We do not read personal, promotional, or social correspondence.
-          - Gmail parsing uses a combination of client-side pattern matching and Google's own Gemini AI (via a server-side proxy we control) for extraction accuracy. No raw email bodies are stored on our servers — content passes through the proxy in real time and is never logged or retained.
+          - You explicitly grant Dhanrakshak permission to search your inbox for financial transaction alerts and to read and parse the messages that search returns.
+          - Deciding whether a message is a genuine transaction requires reading it. The scanner therefore reads the subject and the first part of the body of every message its search matches — which necessarily includes some that turn out to be newsletters, promotions or other non-financial mail. Those are discarded rather than saved. We do not claim to read only transactional email; we claim to KEEP only transactional email.
+          - Parsing uses a combination of client-side pattern matching and Google's own Gemini AI, reached through a server-side proxy we operate so that the API credentials never reach your browser. That text passes through the proxy in real time, is not logged or retained by us, and is never used to train any model.
+          - One narrow exception, described in full in the Privacy Policy: when the scanner REJECTS a message, we retain the sender's domain, the subject line and an extract of up to 200 characters, deleted automatically after 30 days, so a transaction you report as missing can be traced to the reason it was skipped.
           - You can disconnect your Google account and revoke access at any time.
         `)}
 
