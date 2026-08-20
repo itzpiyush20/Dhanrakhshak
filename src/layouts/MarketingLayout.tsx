@@ -1,8 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
 import { setPageMeta } from '@/utils/seo'
-import { useAuth } from '@/context/AuthContext'
-import { UserMenu, SiteFooter } from '@/components/ui'
+import { SiteFooter, MarketingHeader } from '@/components/ui'
 
 interface MarketingLayoutProps {
   children: ReactNode
@@ -17,8 +15,6 @@ interface MarketingLayoutProps {
 }
 
 export default function MarketingLayout({ children, title, description }: MarketingLayoutProps) {
-  const { user, openAuthModal } = useAuth()
-
   useEffect(() => {
     const fullTitle = `${title} | Dhanrakshak`
     if (description) setPageMeta({ title: fullTitle, description })
@@ -31,25 +27,10 @@ export default function MarketingLayout({ children, title, description }: Market
       <a href="#main-content" className="skip-to-content">
         Skip to main content
       </a>
-      {/* Header */}
-      <header className="border-b border-sb-hairline bg-sb-canvas/80 backdrop-blur-md sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 no-underline font-bold text-lg select-none">
-            <span className="text-lg font-bold text-brand-400">₹</span>
-            <span className="text-sb-ink font-medium">Dhanrakshak</span>
-          </Link>
-          {user ? (
-            <UserMenu />
-          ) : (
-            <button
-              onClick={() => openAuthModal(undefined, 'login')}
-              className="text-xs font-semibold text-brand-400 hover:text-brand-500 bg-transparent border-0 cursor-pointer transition-colors px-2 py-2 -my-2"
-            >
-              Sign in
-            </button>
-          )}
-        </div>
-      </header>
+      {/* Header — shared with the landing page. This used to be a cut-down bar
+          with the wordmark and a Sign in link and NOTHING else, so a reader on
+          /privacy or /terms had no route to Pricing or Support at all. */}
+      <MarketingHeader />
 
       {/* Main Content */}
       <main id="main-content" className="max-w-4xl mx-auto px-6 py-16 flex-1 w-full">

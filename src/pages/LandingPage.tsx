@@ -2,12 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/context'
-import { ROUTES, FAQ_ITEMS, FOOTER_NAV_ITEMS } from '@/constants'
+import { ROUTES, FAQ_ITEMS } from '@/constants'
 import { Capacitor } from '@capacitor/core'
 import { cn } from '@/utils'
 import { useScrollReveal } from '@/hooks'
 import { setPageMeta } from '@/utils/seo'
-import { UserMenu, SiteFooter } from '@/components/ui'
+import { SiteFooter, MarketingHeader } from '@/components/ui'
 import { Zap, Shield, Landmark, Wallet, Smartphone, RefreshCw, Lock, Bell } from 'lucide-react'
 import { InteractionSimulation } from './landing'
 
@@ -66,7 +66,7 @@ export default function LandingPage() {
     // signed-in shortcut it used to provide has to happen here instead.
     // Signed-out launches simply land on the landing page.
     if (!user) return
-    let isStandalone = false
+    let isStandalone: boolean
     try {
       isStandalone =
         window.matchMedia?.('(display-mode: standalone)').matches ||
@@ -115,48 +115,7 @@ export default function LandingPage() {
         Skip to main content
       </a>
 
-      {/* ── NAVBAR ─────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 bg-sb-canvas/80 backdrop-blur-md border-b border-sb-hairline">
-        <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group no-underline shrink-0">
-            <span className="h-8 w-8 rounded-xl bg-brand-500 flex items-center justify-center text-sm font-black text-white shadow-[var(--shadow-sm)] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300">₹</span>
-            <span className="text-base font-extrabold tracking-tight">
-              <span className="text-brand-400">Dhan</span><span>rakshak</span>
-            </span>
-            <span className="hidden md:inline-flex items-center gap-1.5 text-xs font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />Automated Tracker
-            </span>
-          </Link>
-
-          <div className="hidden md:flex items-center gap-7">
-            {[
-              { label: 'How it works', href: '#how-it-works' },
-              { label: 'Features', href: '#features' },
-              { label: 'Install App', href: '#install-guide' },
-              { label: 'Pricing', href: '/pricing', link: true },
-              { label: 'FAQ', href: '#faq' },
-              { label: 'Support', href: '/support', link: true },
-            ].map((item) =>
-              item.link ? (
-                <Link key={item.label} to={item.href!} className="text-sm text-sb-ink-muted hover:text-sb-ink transition-colors no-underline">{item.label}</Link>
-              ) : (
-                <a key={item.label} href={item.href} className="text-sm text-sb-ink-muted hover:text-sb-ink transition-colors no-underline">{item.label}</a>
-              )
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            {user ? (
-              <UserMenu />
-            ) : (
-              <>
-                <button onClick={() => openAuthModal(undefined, 'login')} className="text-sm text-sb-ink-muted hover:text-sb-ink transition-colors bg-transparent border-0 cursor-pointer px-2 py-2 -my-2">Sign in</button>
-                <button onClick={() => openAuthModal(undefined, 'signup')} className="sb-btn-primary border-0 cursor-pointer">Get started</button>
-              </>
-            )}
-          </div>
-        </nav>
-      </header>
+      <MarketingHeader />
 
       <main id="main-content">
         {/* ── HERO ─────────────────────────────────────────── */}
@@ -219,17 +178,15 @@ export default function LandingPage() {
                     Go to Dashboard →
                   </Link>
                 ) : (
-                  <>
-                    <button onClick={() => openAuthModal(undefined, 'signup')} className="sb-btn-primary border-0 cursor-pointer">
-                      Start free — no card needed →
-                    </button>
-                    <button
-                      onClick={() => openAuthModal('/dashboard', 'signup')}
-                      className="sb-btn-secondary border-0 cursor-pointer"
-                    >
-                      See your first week free
-                    </button>
-                  </>
+                  // One signup CTA, not two. This sat beside a second button,
+                  // "See your first week free", which opened the same signup
+                  // modal — two primary-weight buttons competing to do one
+                  // thing, next to a third that scrolls. Its `/dashboard`
+                  // redirect was dead anyway: signup ends on a "check your
+                  // email" toast and never redirects.
+                  <button onClick={() => openAuthModal(undefined, 'signup')} className="sb-btn-primary border-0 cursor-pointer">
+                    Start free — 7 days, no card →
+                  </button>
                 )}
                 <a href="#how-it-works" className="sb-btn-secondary no-underline">
                   See how it works
