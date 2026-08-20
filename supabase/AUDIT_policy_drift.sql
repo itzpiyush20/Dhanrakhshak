@@ -50,11 +50,33 @@ c2 AS (
     FROM pg_policies
    WHERE schemaname = 'public' AND tablename = 'signin_logs' AND cmd = 'SELECT'
 ),
--- 3. RLS enabled but no policies: table is locked to everyone, usually a bug.
+-- 3. RLS enabled but no policies. This denies ALL client access, which is
+--    either a table that silently stopped working, or a deliberate vault that
+--    only service-role code touches.
+--
+--    google_oauth_tokens is the deliberate kind and is excluded from the
+--    verdict: it holds long-lived Gmail refresh tokens, is written and read
+--    ONLY by the serverless functions using SUPABASE_SERVICE_ROLE_KEY
+--    (save-google-refresh-token, refresh-google-token, disconnect-gmail,
+--    auto-sync-gmail), and nothing in src/ ever queries it. Denying every
+--    client is the point — see the comment in src/services/googleAuth.ts.
+--    Anything ELSE appearing here is worth investigating.
 c3 AS (
   SELECT t.tbl AS d
     FROM rls_tables t
    WHERE t.rls_on
+     AND t.tbl <> 'google_oauth_tokens'
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_policies p
+        WHERE p.schemaname = 'public' AND p.tablename = t.tbl
+     )
+),
+-- Shown for context rather than judged.
+c3_expected AS (
+  SELECT t.tbl AS d
+    FROM rls_tables t
+   WHERE t.rls_on
+     AND t.tbl = 'google_oauth_tokens'
      AND NOT EXISTS (
        SELECT 1 FROM pg_policies p
         WHERE p.schemaname = 'public' AND p.tablename = t.tbl
@@ -112,9 +134,11 @@ SELECT * FROM (
                   'no SELECT policy on signin_logs at all')
   UNION ALL
   SELECT 3,
-         '3. RLS enabled but zero policies',
+         '3. RLS enabled but zero policies (unexpected only)',
          CASE WHEN EXISTS (SELECT 1 FROM c3) THEN '⚠️ CHECK' ELSE '✅ PASS' END,
-         COALESCE((SELECT string_agg(d, ', ' ORDER BY d) FROM c3), 'none')
+         COALESCE((SELECT string_agg(d, ', ' ORDER BY d) FROM c3), 'none unexpected')
+         || COALESCE((SELECT ' | service-role vault, by design: '
+                             || string_agg(d, ', ' ORDER BY d) FROM c3_expected), '')
   UNION ALL
   SELECT 4,
          '4. Tables with NO row-level security',
