@@ -50,13 +50,19 @@ export default function LandingPage() {
   useEffect(() => {
     if (!loading && Capacitor.isNativePlatform()) {
       if (user) navigate(ROUTES.DASHBOARD || '/dashboard', { replace: true })
-      else openAuthModal()
+      // Native app launch with no session. Left on 'login' deliberately: someone
+      // opening an installed app has usually signed up already. Every marketing
+      // "Get started" passes 'signup' explicitly instead.
+      else openAuthModal(undefined, 'login')
     }
   }, [user, loading, navigate, openAuthModal])
 
   useEffect(() => {
     document.title = 'Dhanrakshak | Expenses that track themselves.'
-    window.scrollTo(0, 0)
+    // Arriving at /#features from another page must land on that section, not
+    // the top — ScrollToTop in App.tsx performs that scroll, and this would
+    // undo it.
+    if (!window.location.hash) window.scrollTo(0, 0)
   }, [])
 
   const features = [
@@ -114,8 +120,8 @@ export default function LandingPage() {
               <UserMenu />
             ) : (
               <>
-                <button onClick={() => openAuthModal()} className="text-sm text-sb-ink-muted hover:text-sb-ink transition-colors bg-transparent border-0 cursor-pointer px-2 py-2 -my-2">Sign in</button>
-                <button onClick={() => openAuthModal()} className="sb-btn-primary border-0 cursor-pointer">Get started</button>
+                <button onClick={() => openAuthModal(undefined, 'login')} className="text-sm text-sb-ink-muted hover:text-sb-ink transition-colors bg-transparent border-0 cursor-pointer px-2 py-2 -my-2">Sign in</button>
+                <button onClick={() => openAuthModal(undefined, 'signup')} className="sb-btn-primary border-0 cursor-pointer">Get started</button>
               </>
             )}
           </div>
@@ -184,7 +190,7 @@ export default function LandingPage() {
                   </Link>
                 ) : (
                   <>
-                    <button onClick={() => openAuthModal()} className="sb-btn-primary border-0 cursor-pointer">
+                    <button onClick={() => openAuthModal(undefined, 'signup')} className="sb-btn-primary border-0 cursor-pointer">
                       Start free — no card needed →
                     </button>
                     <button
@@ -539,7 +545,7 @@ export default function LandingPage() {
                   Go to Dashboard →
                 </Link>
               ) : (
-                <button onClick={() => openAuthModal()} className="sb-btn-primary border-0 cursor-pointer text-base px-7 py-3.5">
+                <button onClick={() => openAuthModal(undefined, 'signup')} className="sb-btn-primary border-0 cursor-pointer text-base px-7 py-3.5">
                   Start free — no card needed →
                 </button>
               )}

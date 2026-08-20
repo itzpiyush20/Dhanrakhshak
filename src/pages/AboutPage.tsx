@@ -5,11 +5,13 @@
 import { Link } from 'react-router-dom'
 import { ROUTES } from '@/constants'
 import { motion } from 'framer-motion'
+import { useAuth } from '@/context'
 import { useScrollReveal } from '@/hooks'
 import { MarketingLayout } from '@/layouts'
 import { Shield, Brain, Lock, TrendingUp, Check } from 'lucide-react'
 
 export default function AboutPage() {
+  const { user, openAuthModal } = useAuth()
   useScrollReveal()
 
   return (
@@ -139,13 +141,26 @@ export default function AboutPage() {
       <div className="text-center sb-card-light p-10 space-y-6">
         <h2 className="text-xl font-bold text-sb-ink">Start Taking Control of Your Finances</h2>
         <p className="text-sm leading-relaxed text-sb-ink-secondary" style={{ maxWidth: 480, margin: '0 auto' }}>Connect your Gmail and let Dhanrakshak handle the tracking while you focus on the decisions.</p>
-        <Link
-          to={ROUTES.DASHBOARD}
-          className="sb-btn-primary"
-          style={{ padding: '13px 24px' }}
-        >
-          Open Dashboard →
-        </Link>
+        {/* This used to link to /dashboard unconditionally, so the only call to
+            action on the page bounced a signed-out visitor straight back to the
+            landing page via ProtectedRoute. */}
+        {user ? (
+          <Link
+            to={ROUTES.DASHBOARD}
+            className="sb-btn-primary no-underline"
+            style={{ padding: '13px 24px' }}
+          >
+            Open Dashboard →
+          </Link>
+        ) : (
+          <button
+            onClick={() => openAuthModal(undefined, 'signup')}
+            className="sb-btn-primary border-0 cursor-pointer"
+            style={{ padding: '13px 24px' }}
+          >
+            Start free — no card needed →
+          </button>
+        )}
       </div>
     </MarketingLayout>
   )

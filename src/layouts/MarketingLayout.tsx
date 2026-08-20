@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ROUTES, FOOTER_NAV_ITEMS } from '@/constants'
+import { FOOTER_NAV_ITEMS } from '@/constants'
 import { useAuth } from '@/context/AuthContext'
 import { UserMenu } from '@/components/ui'
 
@@ -29,8 +29,8 @@ export default function MarketingLayout({ children, title }: MarketingLayoutProp
           {user ? (
             <UserMenu />
           ) : (
-            <button 
-              onClick={() => openAuthModal()} 
+            <button
+              onClick={() => openAuthModal(undefined, 'login')}
               className="text-xs font-semibold text-brand-400 hover:text-brand-500 bg-transparent border-0 cursor-pointer transition-colors px-2 py-2 -my-2"
             >
               Sign in

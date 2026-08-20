@@ -546,28 +546,22 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                   { label: 'How it works', href: '/#how-it-works' },
                   { label: 'Features', href: '/#features' },
                   { label: 'Install App', href: '/#install-guide' },
-                  { label: 'Pricing', href: '/pricing', isLink: true },
+                  { label: 'Pricing', href: '/pricing' },
                   { label: 'FAQ', href: '/#faq' },
-                  { label: 'Support', href: '/support', isLink: true },
-                ].map((item) =>
-                  item.isLink ? (
-                    <Link
-                      key={item.label}
-                      to={item.href}
-                      className="sb-caption font-semibold transition-colors text-sb-ink-muted hover:text-sb-primary whitespace-nowrap no-underline"
-                    >
-                      {item.label}
-                    </Link>
-                  ) : (
-                    <a
-                      key={item.label}
-                      href={item.href}
-                      className="sb-caption font-semibold transition-colors text-sb-ink-muted hover:text-sb-primary whitespace-nowrap no-underline"
-                    >
-                      {item.label}
-                    </a>
-                  )
-                )}
+                  { label: 'Support', href: '/support' },
+                ].map((item) => (
+                  // All of these route client-side now, hash targets included —
+                  // ScrollToTop in App.tsx scrolls to the section. They used to
+                  // be plain <a> tags, which re-downloaded the whole bundle just
+                  // to jump to an anchor on the landing page.
+                  <Link
+                    key={item.label}
+                    to={item.href}
+                    className="sb-caption font-semibold transition-colors text-sb-ink-muted hover:text-sb-primary whitespace-nowrap no-underline"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
               </nav>
             )}
 
@@ -692,7 +686,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                   </Link>
                 ) : (
                   <button
-                    onClick={() => openAuthModal()}
+                    onClick={() => openAuthModal(undefined, 'signup')}
                     className="sb-btn-primary rounded-[6px] border-0 cursor-pointer text-xs font-semibold whitespace-nowrap shadow-sm"
                   >
                     Get started
@@ -781,7 +775,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                 </div>
               ) : (
                 <button
-                  onClick={() => openAuthModal()}
+                  onClick={() => openAuthModal(undefined, 'login')}
                   className="sb-caption font-semibold border-0 bg-transparent cursor-pointer text-sb-ink-muted hover:text-sb-ink no-underline whitespace-nowrap px-1"
                 >
                   Sign in
@@ -893,10 +887,25 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                     <BarChart3 className="h-4 w-4 shrink-0" /> Go to Dashboard
                   </Link>
                 )}
-                <a href="/#daily-utility" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>Daily Life</a>
-                <a href="/#features" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>Features</a>
-                <a href="/#install-guide" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>Install App</a>
-                <a href="/#faq" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>FAQ</a>
+                {/* Mirrors the desktop nav above. "Daily Life" used to point at
+                    /#daily-utility, a section that does not exist on the landing
+                    page — the four real ids are how-it-works, features,
+                    install-guide and faq. */}
+                {[
+                  { label: 'How it works', href: '/#how-it-works' },
+                  { label: 'Features', href: '/#features' },
+                  { label: 'Install App', href: '/#install-guide' },
+                  { label: 'FAQ', href: '/#faq' },
+                ].map((item) => (
+                  <Link
+                    key={item.label}
+                    to={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={cn("block rounded-lg px-3 py-2 text-sm font-medium no-underline", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
                 <Link to="/pricing" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium no-underline", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>Pricing</Link>
                 <Link to="/support" onClick={() => setMobileMenuOpen(false)} className={cn("block rounded-lg px-3 py-2 text-sm font-medium no-underline", isStaticLight ? "text-sb-ink hover:bg-sb-canvas-soft" : "text-zinc-300 hover:bg-zinc-800 hover:text-white")}>Support</Link>
 
@@ -915,7 +924,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                     <button
                       onClick={() => {
                         setMobileMenuOpen(false)
-                        openAuthModal()
+                        openAuthModal(undefined, 'login')
                       }}
                       className={cn("w-full block rounded-lg px-3 py-2 text-sm font-medium text-center border mt-3 cursor-pointer", isStaticLight ? "bg-sb-canvas border-sb-hairline text-sb-ink" : "bg-zinc-900 border-zinc-700 text-white")}
                     >
@@ -924,7 +933,7 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
                     <button
                       onClick={() => {
                         setMobileMenuOpen(false)
-                        openAuthModal()
+                        openAuthModal(undefined, 'signup')
                       }}
                       className="w-full block rounded-lg px-3 py-2.5 text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 text-center rounded-[6px] mt-1.5 border-0 cursor-pointer"
                     >

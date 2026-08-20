@@ -96,9 +96,9 @@ export default function UserMenu({ className }: UserMenuProps) {
             <Link to="/pricing" onClick={() => setOpen(false)} className={menuLink} role="menuitem">
               👑 Pricing & Plans
             </Link>
-            <a href="/#install-guide" onClick={() => setOpen(false)} className={menuLink} role="menuitem">
+            <Link to="/#install-guide" onClick={() => setOpen(false)} className={menuLink} role="menuitem">
               📱 Install App Guide
-            </a>
+            </Link>
             <button
               onClick={() => {
                 setOpen(false)
