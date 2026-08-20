@@ -14,7 +14,7 @@ export default function RefundPage() {
     >
       <div className="mb-10">
         <h1 className="text-3xl font-extrabold tracking-tight text-sb-ink">Cancellation & Refund Policy</h1>
-        <p className="text-xs mt-1 text-sb-ink-muted">Last updated: June 8, 2026 · Effective immediately</p>
+        <p className="text-xs mt-1 text-sb-ink-muted">Last updated: August 20, 2026 · Effective immediately</p>
       </div>
 
       <div className="prose max-w-none space-y-10">

@@ -4,9 +4,9 @@
 // ============================================
 
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import { AppLayout } from '@/layouts'
-import { APP_CONFIG, FAQ_ITEMS } from '@/constants'
+import { APP_CONFIG, FAQ_ITEMS, ROUTES } from '@/constants'
 import { submitSupportTicket } from '@/services/support'
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/utils'
@@ -338,8 +338,18 @@ export default function SupportPage() {
                   {success && (
                     <div role="status" className="rounded-2xl p-4 bg-emerald-500/10 border border-emerald-500/20">
                       <p className="text-xs font-bold text-emerald-400">✅ Ticket received</p>
+                      {/* This used to say the message "has reached our support
+                          inbox", which implies an email landed somewhere. It is
+                          a stored ticket, read in the admin panel — the same
+                          reason submitSupportTicket stopped pretending a failed
+                          write had succeeded. */}
                       <p className="text-xs mt-1 text-zinc-400">
-                        Your message has reached our support inbox. We'll reply to {email || 'the email you entered'}.
+                        Your ticket is logged and we'll reply to {email || 'the email you entered'}, usually within 24–48 hours.
+                        If it's urgent, email{' '}
+                        <a href={`mailto:${APP_CONFIG.SUPPORT_EMAIL}`} className="text-brand-400 underline">
+                          {APP_CONFIG.SUPPORT_EMAIL}
+                        </a>{' '}
+                        directly.
                       </p>
                     </div>
                   )}
@@ -422,6 +432,19 @@ export default function SupportPage() {
                       />
                       {errors.message && <p className="text-xs text-red-400 mt-1">{errors.message}</p>}
                     </div>
+
+                    {/* Notice at the point of collection. The form accepts
+                        tickets from signed-out visitors, so for many people
+                        this is the first personal data they hand over — DPDPA
+                        2023 expects them to be told what it is used for
+                        before, not after. */}
+                    <p className="text-xs leading-relaxed text-zinc-500">
+                      We use the name and email you enter here only to answer this ticket. It is stored
+                      with your message and is not used for marketing or shared with anyone else. See our{' '}
+                      <Link to={ROUTES.PRIVACY} className="text-brand-400 underline hover:text-brand-300">
+                        Privacy Policy
+                      </Link>.
+                    </p>
 
                     <button
                       type="submit"

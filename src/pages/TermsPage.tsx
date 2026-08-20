@@ -12,7 +12,7 @@ export default function TermsPage() {
     >
       <div className="mb-10">
         <h1 className="text-3xl font-extrabold tracking-tight text-sb-ink">Terms of Service</h1>
-        <p className="text-xs mt-1 text-sb-ink-muted">Last updated: June 2, 2026 · Effective immediately</p>
+        <p className="text-xs mt-1 text-sb-ink-muted">Last updated: August 20, 2026 · Effective immediately</p>
       </div>
 
       <div className="prose max-w-none space-y-10">
@@ -56,9 +56,9 @@ export default function TermsPage() {
 
         {section("5. Prohibited Uses", `
           You agree not to use the Service to:
-          - Abuse or hammer our API endpoints (e.g. configuring bots to trigger loops).
-          - Circumvent session limit controls or use multiple accounts to bypass tier thresholds.
-          - Reverse-engineer the email transaction extraction heuristics or build competing financial tools using our parser definitions.
+          - Abuse or overload our API endpoints, for example by scripting repeated scans or automated request loops.
+          - Circumvent the session limit, or create multiple accounts to obtain additional free trials or coupon redemptions.
+          - Resell, sublicense or redistribute access to the Service.
         `)}
 
         {section("6. Limitations of Liability", `

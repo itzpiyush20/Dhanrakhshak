@@ -20,8 +20,17 @@ export default function CookieConsent() {
     }
   }, [])
 
-  const handleAccept = () => {
-    localStorage.setItem('dhanrakshak_cookie_consent', 'accepted')
+  // Records that the notice has been SEEN, not that consent was given — there
+  // is no optional processing here to consent to. The key name predates this
+  // distinction and is kept so returning visitors are not shown the notice a
+  // second time.
+  const handleDismiss = () => {
+    try {
+      localStorage.setItem('dhanrakshak_cookie_consent', 'acknowledged')
+    } catch {
+      // Storage blocked. Showing the notice again next visit is the harmless
+      // failure; crashing the banner is not.
+    }
     setVisible(false)
   }
 
@@ -34,9 +43,16 @@ export default function CookieConsent() {
           <span className="text-xl shrink-0 mt-0.5" aria-hidden="true">🍪</span>
           <div>
             <h4 className="text-xs font-bold text-white leading-tight">Essential Cookies Only</h4>
+            {/* This used to say "By continuing, you agree" — consent by
+                inaction, which DPDPA 2023 does not recognise. There is nothing
+                here to consent TO: the only storage used is what keeps you
+                signed in, which is strictly necessary and needs no permission.
+                So this notifies rather than asks, and the button dismisses
+                rather than grants. */}
             <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-              We use only essential cookies required for your session login. We never sell your data or use advertising cookies. 
-              By continuing, you agree to our{' '}
+              We store only what is strictly necessary to keep you signed in — no advertising cookies,
+              no third-party analytics, and nothing that tracks you across other sites. There is no
+              optional tracking here to turn off. Read our{' '}
               <Link to={ROUTES.PRIVACY} className="text-brand-400 underline hover:text-brand-300">
                 Privacy Policy
               </Link>{' '}
@@ -56,10 +72,10 @@ export default function CookieConsent() {
             Learn More
           </Link>
           <button
-            onClick={handleAccept}
+            onClick={handleDismiss}
             className="min-h-11 px-4 flex items-center justify-center rounded-xl bg-[var(--btn-primary-bg)] text-xs font-bold text-[var(--btn-primary-fg)] shadow-[var(--shadow-sm)] cursor-pointer transition-colors hover:bg-[var(--btn-primary-bg-hover)] active:bg-[var(--btn-primary-bg-active)]"
           >
-            Accept
+            Got it
           </button>
         </div>
       </div>

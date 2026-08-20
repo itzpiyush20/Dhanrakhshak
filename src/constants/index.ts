@@ -71,7 +71,21 @@ export const APP_CONFIG = {
   LOCALE: 'en-IN',
   DEFAULT_PAGE_SIZE: 20,
   EMAIL_SCAN_BATCH_SIZE: 50,
-  SUPPORT_EMAIL: 'support@dhanrakshak.in',
+  // ── Public contact details ──────────────────────────────────────────────
+  // These are printed as the legal contact on the Privacy Policy (§11), the
+  // Refund Policy (§2, §5) and the Support Center, and Razorpay's merchant
+  // verification checks that the address on the Refund Policy actually works.
+  //
+  // Keep them here and only here, so a new owner changes four lines rather
+  // than hunting through six pages.
+  //
+  // Was support@dhanrakshak.in — a domain the site does not run on and a
+  // mailbox that was never live, which meant the documented route for a
+  // DPDPA grievance and a billing dispute both dead-ended.
+  SUPPORT_EMAIL: 'contact.ansh@gmail.com',
+  // TODO(owner): DPDPA 2023 §13 expects a contactable individual, not a team
+  // alias. Replace with the responsible person's name before relying on this
+  // for a grievance response.
   SUPPORT_NAME: 'Dhanrakshak Support',
   SUPPORT_DESIGNATION: 'Data Protection Officer & Grievance Officer',
   SUPPORT_ADDRESS: 'Jaipur, Rajasthan, India',
