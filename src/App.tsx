@@ -15,6 +15,7 @@ import CookieConsent from '@/components/CookieConsent'
 import URLAuthTrigger from '@/components/auth/URLAuthTrigger'
 import AuthModal from '@/components/auth/AuthModal'
 import ScrollProgressBar from '@/components/ui/ScrollProgressBar'
+import { applyTheme, resolveIsLight, subscribeToTheme } from '@/utils/theme'
 
 // Marketing/legal routes only — app routes don't need a reading-progress chrome element.
 const MARKETING_ROUTES = new Set(['/', '/support', '/privacy', '/about', '/terms', '/pricing', '/refund-policy'])
@@ -203,18 +204,13 @@ function AnimatedRoutes() {
 
 function App() {
 
+  // The inline script in index.html has already painted the correct theme
+  // before first paint. This re-applies it after hydration and then keeps it in
+  // step with the OS for as long as the user has expressed no preference of
+  // their own — see src/utils/theme.ts, the single source of truth.
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('dhanrakshak_theme')
-      // System-aware default: honor an explicit choice, otherwise follow the OS.
-      const prefersLight = window.matchMedia?.('(prefers-color-scheme: light)').matches
-      const useLight = stored === 'light' || (!stored && prefersLight)
-      if (useLight) {
-        document.documentElement.classList.add('light')
-      } else {
-        document.documentElement.classList.remove('light')
-      }
-    } catch (e) {}
+    applyTheme(resolveIsLight())
+    return subscribeToTheme(applyTheme)
   }, [])
 
   return (

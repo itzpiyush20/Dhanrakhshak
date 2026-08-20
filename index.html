@@ -22,20 +22,28 @@
     <meta property="twitter:image" content="https://dhanrakshak-five.vercel.app/favicon.svg" />
 
     <title>Dhanrakshak — Personal Finance Dashboard</title>
+    <!-- Pre-paint theme resolution. MUST stay inline and MUST stay in <head>:
+         anything deferred to the bundle paints the wrong theme first and
+         flashes. This duplicates resolveIsLight() in src/utils/theme.ts, which
+         is the source of truth — keep the two rules identical.
+
+         Rule: an explicit stored choice wins; otherwise follow the OS. The old
+         version here read `stored !== 'dark'`, forcing light on every visitor
+         who had never chosen, including those whose OS asked for dark. -->
     <script>
       (function() {
         try {
           var stored = localStorage.getItem('dhanrakshak_theme');
-          var themeColor = '#09090b';
-          if (stored !== 'dark') {
-            document.documentElement.classList.add('light');
-            themeColor = '#ffffff';
+          var isLight;
+          if (stored === 'light' || stored === 'dark') {
+            isLight = stored === 'light';
           } else {
-            document.documentElement.classList.remove('light');
+            isLight = !(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
           }
+          document.documentElement.classList.toggle('light', isLight);
           var meta = document.querySelector('meta[name="theme-color"]');
           if (meta) {
-            meta.setAttribute('content', themeColor);
+            meta.setAttribute('content', isLight ? '#ffffff' : '#09090b');
           }
         } catch (e) {}
       })();

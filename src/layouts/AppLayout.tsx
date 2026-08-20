@@ -7,6 +7,7 @@ import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ROUTES, FOOTER_NAV_ITEMS } from '@/constants'
 import { cn } from '@/utils'
+import { resolveIsLight, subscribeToTheme } from '@/utils/theme'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth, useToast } from '@/context'
 import Button from '@/components/ui/Button'
@@ -379,41 +380,15 @@ export default function AppLayout({ children, isStaticLight = false }: AppLayout
     } catch (e) {}
   }
 
-  const [isLight, setIsLight] = useState(() => {
-    try {
-      const stored = localStorage.getItem('dhanrakshak_theme')
-      if (stored !== null) {
-        return stored === 'light'
-      }
-      // Default to Day Mode (Light Mode) on first run for both mobile and desktop logins
-      return true
-    } catch (e) {
-      return true
-    }
-  })
+  // AppLayout READS the theme; it never sets one. It used to default to light
+  // whenever nothing was stored and then PERSIST that guess on mount — so
+  // merely visiting /pricing or /support (the two public pages using this
+  // shell) wrote 'light' to localStorage and permanently overrode the OS
+  // preference of a visitor who had never chosen. Settings owns the toggle;
+  // src/utils/theme.ts owns the rule.
+  const [isLight, setIsLight] = useState(resolveIsLight)
 
-  useEffect(() => {
-    try {
-      if (isLight) {
-        document.documentElement.classList.add('light')
-        localStorage.setItem('dhanrakshak_theme', 'light')
-      } else {
-        document.documentElement.classList.remove('light')
-        localStorage.setItem('dhanrakshak_theme', 'dark')
-      }
-    } catch (e) {}
-  }, [isLight])
-
-  useEffect(() => {
-    const handleThemeEvent = () => {
-      const stored = localStorage.getItem('dhanrakshak_theme')
-      setIsLight(stored === 'light')
-    }
-    window.addEventListener('dhanrakshak_theme_changed', handleThemeEvent)
-    return () => {
-      window.removeEventListener('dhanrakshak_theme_changed', handleThemeEvent)
-    }
-  }, [])
+  useEffect(() => subscribeToTheme(setIsLight), [])
 
 
 

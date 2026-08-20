@@ -19,6 +19,7 @@ import {
 import { fetchAllTransactions } from '@/services/transactions'
 import { getInsurancePolicies, createInsurancePolicy, deleteInsurancePolicy } from '@/services/insurance'
 import { encryptText, decryptText, cn, formatCurrency, formatDate, toISODateLocal } from '@/utils'
+import { resolveIsLight, setThemePreference, subscribeToTheme } from '@/utils/theme'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context'
 import { useCategories } from '@/context/CategoriesContext'
@@ -61,39 +62,17 @@ export default function SettingsPage() {
     showToast('Gmail disconnected. We no longer have access to your inbox.', 'success')
   }
 
-  const [isLight, setIsLight] = useState(() => {
-    try {
-      const stored = localStorage.getItem('dhanrakshak_theme')
-      return stored !== 'dark'
-    } catch (e) {
-      return true
-    }
-  })
+  // Settings owns the toggle — the one place in the app that records an
+  // explicit theme choice. Until the user flips it, the app follows the OS.
+  // See src/utils/theme.ts.
+  const [isLight, setIsLight] = useState(resolveIsLight)
 
-  useEffect(() => {
-    const handleThemeEvent = () => {
-      const stored = localStorage.getItem('dhanrakshak_theme')
-      setIsLight(stored !== 'dark')
-    }
-    window.addEventListener('dhanrakshak_theme_changed', handleThemeEvent)
-    return () => {
-      window.removeEventListener('dhanrakshak_theme_changed', handleThemeEvent)
-    }
-  }, [])
+  useEffect(() => subscribeToTheme(setIsLight), [])
 
   const toggleTheme = () => {
-    const newMode = !isLight
-    setIsLight(newMode)
-    try {
-      if (newMode) {
-        document.documentElement.classList.add('light')
-        localStorage.setItem('dhanrakshak_theme', 'light')
-      } else {
-        document.documentElement.classList.remove('light')
-        localStorage.setItem('dhanrakshak_theme', 'dark')
-      }
-    } catch (e) {}
-    window.dispatchEvent(new Event('dhanrakshak_theme_changed'))
+    // setThemePreference persists, paints, and notifies; the event comes back
+    // through subscribeToTheme above and updates local state.
+    setThemePreference(isLight ? 'dark' : 'light')
   }
 
   // Merchant Rules State

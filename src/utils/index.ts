@@ -408,4 +408,8 @@ export function formatPaymentSource(txn: {
 export { encryptText, decryptText } from './crypto.js'
 export { resolveDateFilter, getMonthsInRange, formatDateFilterLabel, toISODateLocal, type DateFilter } from './dateFilter'
 export { resolveTransactionIdentity, type ResolvedTransactionIdentity } from './transactionIdentity'
+// NOTE: theme.ts is deliberately NOT re-exported here. This barrel is compiled
+// into the Vercel serverless functions via tsconfig.api.json, and theme.ts
+// touches document/window/localStorage — browser-only code that has no business
+// in a Node bundle. Import it directly: `from '@/utils/theme'`.
 export { CREDIT_CARD_BILL_LEGACY_NAME, creditCardBillCategoryNames, makeIsCreditCardBill } from './creditCardBill'
