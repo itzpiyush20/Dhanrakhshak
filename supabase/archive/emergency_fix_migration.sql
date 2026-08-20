@@ -1,8 +1,29 @@
 -- ============================================================
 -- DHANRAKSHAK — EMERGENCY FIX MIGRATION
--- Run this ENTIRE file in Supabase SQL Editor to fix the app
--- Dashboard → SQL Editor → paste all → Run
--- SAFE TO RUN MULTIPLE TIMES (all use IF NOT EXISTS)
+--
+-- ⛔ DO NOT RUN THIS FILE. HISTORICAL RECORD ONLY.
+--
+-- It was run against production once, and the instructions below are what led
+-- someone to do it. Re-running it would REINTRODUCE a policy that leaks every
+-- user's email address:
+--
+--   CREATE POLICY "Creators can view all signin logs"
+--     ON public.signin_logs FOR SELECT
+--     USING ((auth.jwt() ->> 'email') LIKE '%@dhanrakshak.in');
+--
+-- signin_logs holds user_id, email and device_name for every sign-in, and the
+-- app does not own dhanrakshak.in — so anyone who registers that domain can
+-- read the lot. Migration 039_fix_signin_logs_admin_read.sql replaces it with
+-- public.is_admin(). Its "Anyone can insert signin logs" policy was likewise
+-- retired by migration 032.
+--
+-- Anything still needed from here belongs in a NEW numbered migration in
+-- supabase/, which is the only path production ever sees.
+--
+-- Original instructions, left for context — they no longer apply:
+--   Run this ENTIRE file in Supabase SQL Editor to fix the app
+--   Dashboard → SQL Editor → paste all → Run
+--   SAFE TO RUN MULTIPLE TIMES (all use IF NOT EXISTS)
 -- ============================================================
 
 -- ==========================================

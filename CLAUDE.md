@@ -49,7 +49,7 @@ cron). UI entry points: `src/pages/PendingPage.tsx`, `src/pages/DashboardPage.ts
 
 - Commits: `fix:` / `feat:` / `docs:` prefixes.
 - Multi-phase work gets a plan document in `plans/` first, executed phase by phase.
-- Supabase migrations are numbered sequentially in `supabase/` (next is `039_`).
+- Supabase migrations are numbered sequentially in `supabase/` (next is `040_`).
 - `schema.sql` is only run when a database is created. Anything added to it later
   reaches production **only** if a numbered migration also delivers it — twice now
   (`razorpay_subscription_id`, `is_admin`) a column existed in `schema.sql` and not in

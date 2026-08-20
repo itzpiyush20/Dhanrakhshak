@@ -489,9 +489,18 @@ CREATE POLICY "Users can log own signin"
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
--- Allow creators to view all signin logs
+-- Allow creators to view all signin logs.
+--
+-- This file only runs on a NEW database, so the correct rule below never
+-- reached production, which was created earlier and still carried the
+-- archived emergency version:
+--   USING ((auth.jwt() ->> 'email') LIKE '%@dhanrakshak.in')
+-- — handing every user's email to anyone controlling that unregistered domain.
+-- Migration 039 ships the fix. Do not "fix" a policy here alone; a numbered
+-- migration is the only thing production ever sees.
 CREATE POLICY "Creators can view all signin logs"
   ON public.signin_logs FOR SELECT
+  TO authenticated
   USING (public.is_admin());
 
 -- ==========================================
