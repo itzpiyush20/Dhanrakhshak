@@ -398,7 +398,7 @@ export default function PricingPage() {
 
         {/* ── PRICING CARDS ───────────────────────────────────── */}
         <div className="py-6 animate-fade-in">
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 md:auto-rows-fr gap-6 items-stretch">
 
             {/* ── Free tier: 7-day trial ────────────────────────── */}
             <Card
@@ -776,7 +776,7 @@ export default function PricingPage() {
               </p>
             </div>
             
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-3 md:auto-rows-fr gap-6">
               <div className="rounded-3xl bg-surface-1 border border-border-subtle p-6 space-y-4 shadow-md hover:shadow-lg transition-all h-full flex flex-col justify-start">
                 <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-400 shadow-sm animate-pulse shrink-0">
                   🔒

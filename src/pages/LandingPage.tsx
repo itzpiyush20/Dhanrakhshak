@@ -92,7 +92,9 @@ export default function LandingPage() {
 
   const features = [
     { icon: Zap, title: 'Automatic detection', desc: 'Connect Gmail once and bank alert emails are parsed into transactions for you to approve — no typing amounts.' },
-    { icon: Shield, title: 'Privacy-respecting', desc: 'Read-only Gmail access, and never your whole mailbox. To classify an alert, its text passes through our server to Google’s Gemini in real time — never retained, never sold, never used to train a model.' },
+    // Kept accurate, but trimmed: at ~3x the length of its neighbours this
+    // single card set the height of the whole first row.
+    { icon: Shield, title: 'Privacy-respecting', desc: 'Read-only Gmail access, never your whole mailbox. Alert text passes through our server to Google’s Gemini in real time — never stored, never sold, never used to train a model.' },
     { icon: Landmark, title: 'All Indian banks', desc: 'Works with ICICI, HDFC, SBI, Axis, Kotak and every UPI-enabled bank.' },
     { icon: Wallet, title: 'Smart budgets', desc: 'Set monthly limits per category. Get alerted before you overspend.' },
     { icon: Smartphone, title: 'Install like an app', desc: 'Add to your home screen in seconds. No App Store, no APK needed.' },
@@ -278,7 +280,7 @@ export default function LandingPage() {
               <h2 data-reveal data-delay="80" className="text-4xl font-bold tracking-tight text-sb-ink mb-4">Spend money. We handle the rest.</h2>
               <p data-reveal data-delay="150" className="text-sb-ink-secondary text-lg max-w-lg mx-auto">Three steps, zero effort from your end.</p>
             </div>
-            <div ref={stepsRef} className="grid md:grid-cols-3 gap-6">
+            <div ref={stepsRef} className="grid md:grid-cols-3 md:auto-rows-fr gap-6">
               {steps.map((s, i) => (
                 <div key={s.num} data-reveal data-delay={String(i * 150)} className="h-full flex flex-col">
                   <div className="sb-card-light p-8 relative group transition-shadow duration-300 hover:shadow-md h-full flex flex-col justify-start">
@@ -320,7 +322,7 @@ export default function LandingPage() {
               <h2 data-reveal data-delay="80" className="text-4xl font-bold tracking-tight text-sb-ink mb-4">Smart, simple, and <span className="text-sb-primary">privacy-respecting.</span></h2>
               <p data-reveal data-delay="150" className="text-sb-ink-secondary text-lg max-w-lg mx-auto">Everything you need to manage your money — without handing over your data.</p>
             </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 sm:auto-rows-fr gap-5">
               {features.map((f, i) => (
                 <div key={f.title} data-reveal data-delay={String(i * 80)} className="h-full flex flex-col">
                   <div className="sb-card-light p-6 group h-full flex flex-col justify-start transition-shadow duration-300 hover:shadow-md">

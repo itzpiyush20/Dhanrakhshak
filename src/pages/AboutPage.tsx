@@ -53,7 +53,7 @@ export default function AboutPage() {
         <p className="text-sm mt-3 leading-relaxed text-sb-ink-secondary">
           To give every Indian professional the financial intelligence of a personal CFO — without the ₹5,000/hour consulting fees.
         </p>
-        <div className="grid sm:grid-cols-3 gap-4 mt-8">
+        <div className="grid sm:grid-cols-3 sm:auto-rows-fr gap-4 mt-8">
           {[
             { icon: <Brain className="w-8 h-8 text-emerald-400" />, title: 'Intelligent', body: 'Automatically tracks and categorizes your spending from bank emails with human-like accuracy.' },
             { icon: <Lock className="w-8 h-8 text-emerald-400" />, title: 'Private', body: 'Read-only Gmail access, limited to what a bank-alert search returns. Nothing is kept but the transaction itself. No ads, no data sold, ever.' },
@@ -93,7 +93,7 @@ export default function AboutPage() {
       {/* Technology */}
       <section className="mb-12 space-y-6">
         <h2 data-reveal className="text-xl font-bold text-sb-ink">Technology & Architecture</h2>
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid sm:grid-cols-2 sm:auto-rows-fr gap-4">
           {[
             { label: 'Email Intelligence Engine', value: '5-layer AI pipeline with 50+ bank patterns, confidence scoring, and self-learning rules' },
             { label: 'Database', value: 'Supabase (Postgres) with Row Level Security on all tables — your data is physically isolated' },
@@ -115,7 +115,7 @@ export default function AboutPage() {
       {/* Trust Signals */}
       <section className="mb-12 space-y-6">
         <h2 data-reveal className="text-xl font-bold text-sb-ink">Our Commitments to You</h2>
-        <div className="grid sm:grid-cols-2 gap-3">
+        <div className="grid sm:grid-cols-2 sm:auto-rows-fr gap-3">
           {[
             'We never store your banking passwords',
             'We only ever keep bank alerts — anything else read is discarded',
